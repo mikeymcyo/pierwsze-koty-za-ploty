@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 
 import { createClient } from "@/lib/supabase/server";
+import { withClockSkewRetry } from "@/lib/supabase/retry";
 import type { CompanyRole } from "@/types/database";
 
 export type SessionContext = {
@@ -30,15 +31,21 @@ export async function getSessionContext(): Promise<SessionContext | null> {
 
   if (!user) return null;
 
+  // This is the first query after signup or sign-in, so it is the one that hits
+  // the GoTrue/PostgREST clock-skew race. See withClockSkewRetry.
   const [membershipResult, profileResult] = await Promise.all([
-    supabase
-      .from("company_members")
-      .select("role, company_id, companies(name)")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: true })
-      .limit(1)
-      .maybeSingle(),
-    supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+    withClockSkewRetry(() =>
+      supabase
+        .from("company_members")
+        .select("role, company_id, companies(name)")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle(),
+    ),
+    withClockSkewRetry(() =>
+      supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle(),
+    ),
   ]);
 
   if (membershipResult.error) {

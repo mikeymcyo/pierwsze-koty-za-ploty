@@ -5,6 +5,7 @@ import { HardHat, PlusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requireSessionContext } from "@/lib/auth/session";
+import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Create report" };
@@ -13,11 +14,13 @@ export default async function NewReportPage() {
   await requireSessionContext();
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("projects")
-    .select("id", { count: "exact", head: false })
-    .neq("status", "completed")
-    .limit(1);
+  const { data, error } = await withClockSkewRetry(() =>
+    supabase
+      .from("projects")
+      .select("id", { count: "exact", head: false })
+      .neq("status", "completed")
+      .limit(1),
+  );
 
   if (error) {
     throw new Error(`Could not check your projects: ${error.message}`);

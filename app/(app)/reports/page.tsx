@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requireSessionContext } from "@/lib/auth/session";
+import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatReportNumber } from "@/lib/utils";
 
@@ -14,11 +15,13 @@ export default async function ReportsPage() {
   await requireSessionContext();
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("reports")
-    .select("id, report_number, report_date, status, projects(name)")
-    .order("report_date", { ascending: false })
-    .order("report_number", { ascending: false });
+  const { data, error } = await withClockSkewRetry(() =>
+    supabase
+      .from("reports")
+      .select("id, report_number, report_date, status, projects(name)")
+      .order("report_date", { ascending: false })
+      .order("report_number", { ascending: false }),
+  );
 
   if (error) {
     throw new Error(`Could not load your reports: ${error.message}`);

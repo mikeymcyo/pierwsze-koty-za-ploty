@@ -5,6 +5,7 @@ import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requireSessionContext } from "@/lib/auth/session";
+import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Projects" };
@@ -13,10 +14,12 @@ export default async function ProjectsPage() {
   await requireSessionContext();
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("projects")
-    .select("id, name, client, site_address, project_reference, status")
-    .order("created_at", { ascending: false });
+  const { data, error } = await withClockSkewRetry(() =>
+    supabase
+      .from("projects")
+      .select("id, name, client, site_address, project_reference, status")
+      .order("created_at", { ascending: false }),
+  );
 
   if (error) {
     throw new Error(`Could not load your projects: ${error.message}`);

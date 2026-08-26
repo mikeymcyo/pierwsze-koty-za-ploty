@@ -5,6 +5,7 @@ import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
+import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatReportNumber } from "@/lib/utils";
 
@@ -15,18 +16,22 @@ export default async function DashboardPage() {
   const supabase = await createClient();
 
   const [projectsResult, reportsResult] = await Promise.all([
-    supabase
-      .from("projects")
-      .select("id, name, client, site_address, status, updated_at")
-      .eq("status", "active")
-      .order("updated_at", { ascending: false })
-      .limit(5),
-    supabase
-      .from("reports")
-      .select("id, report_number, report_date, status, projects(name)")
-      .order("report_date", { ascending: false })
-      .order("report_number", { ascending: false })
-      .limit(5),
+    withClockSkewRetry(() =>
+      supabase
+        .from("projects")
+        .select("id, name, client, site_address, status, updated_at")
+        .eq("status", "active")
+        .order("updated_at", { ascending: false })
+        .limit(5),
+    ),
+    withClockSkewRetry(() =>
+      supabase
+        .from("reports")
+        .select("id, report_number, report_date, status, projects(name)")
+        .order("report_date", { ascending: false })
+        .order("report_number", { ascending: false })
+        .limit(5),
+    ),
   ]);
 
   const error = projectsResult.error ?? reportsResult.error;
