@@ -5,5 +5,5 @@ import type { Database } from "@/types/database";
 
 /** Supabase client for Client Components. */
 export function createClient() {
-  return createBrowserClient<Database>(env.supabaseUrl, env.supabaseAnonKey);
+  return createBrowserClient<Database>(env.supabaseUrl, env.supabaseKey);
 }

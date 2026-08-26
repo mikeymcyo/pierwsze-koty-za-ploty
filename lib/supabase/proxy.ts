@@ -27,7 +27,7 @@ function isPublicPath(pathname: string) {
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient<Database>(env.supabaseUrl, env.supabaseAnonKey, {
+  const supabase = createServerClient<Database>(env.supabaseUrl, env.supabaseKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();

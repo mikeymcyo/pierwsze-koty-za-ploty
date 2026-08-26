@@ -24,10 +24,20 @@ export const env = {
   get supabaseUrl() {
     return required("NEXT_PUBLIC_SUPABASE_URL", process.env.NEXT_PUBLIC_SUPABASE_URL);
   },
-  get supabaseAnonKey() {
+  /**
+   * The browser-facing API key. Supabase is migrating from the legacy JWT
+   * `anon` key to the newer `sb_publishable_...` format, and hands out
+   * different variable names depending on the project's age, so both are
+   * accepted. Either is safe in a browser bundle — Row Level Security, not key
+   * secrecy, is what protects the data.
+   *
+   * The `service_role` / `sb_secret_...` key must never be used here.
+   */
+  get supabaseKey() {
     return required(
-      "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     );
   },
   /**
@@ -63,6 +73,7 @@ export const env = {
 export function hasSupabaseConfig(): boolean {
   return Boolean(
     process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim(),
+      (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()),
   );
 }

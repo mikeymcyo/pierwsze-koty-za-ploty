@@ -11,7 +11,7 @@ import type { Database } from "@/types/database";
 export async function createClient() {
   const cookieStore = await cookies();
 
-  return createServerClient<Database>(env.supabaseUrl, env.supabaseAnonKey, {
+  return createServerClient<Database>(env.supabaseUrl, env.supabaseKey, {
     cookies: {
       getAll() {
         return cookieStore.getAll();

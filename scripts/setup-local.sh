@@ -34,10 +34,20 @@ get() {
 }
 
 API_URL="$(get API_URL)"
+# Newer CLIs emit PUBLISHABLE_KEY; older ones only ANON_KEY. The app takes either.
+PUBLISHABLE_KEY="$(get PUBLISHABLE_KEY)"
 ANON_KEY="$(get ANON_KEY)"
 
-if [ -z "$API_URL" ] || [ -z "$ANON_KEY" ]; then
-  echo "Could not read the API URL or anon key from 'supabase status'." >&2
+if [ -n "$PUBLISHABLE_KEY" ]; then
+  KEY_NAME="NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY"
+  KEY_VALUE="$PUBLISHABLE_KEY"
+else
+  KEY_NAME="NEXT_PUBLIC_SUPABASE_ANON_KEY"
+  KEY_VALUE="$ANON_KEY"
+fi
+
+if [ -z "$API_URL" ] || [ -z "$KEY_VALUE" ]; then
+  echo "Could not read the API URL or API key from 'supabase status'." >&2
   echo "Run 'npx supabase status' yourself and copy them into .env.local." >&2
   exit 1
 fi
@@ -50,7 +60,7 @@ fi
 cat > .env.local <<EOF
 # Written by scripts/setup-local.sh — local development only.
 NEXT_PUBLIC_SUPABASE_URL=$API_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY
+$KEY_NAME=$KEY_VALUE
 NEXT_PUBLIC_SITE_URL=http://localhost:3000
 
 # Needed from Phase 5 onward, for AI report generation.
