@@ -1,4 +1,4 @@
--- SiteBoss Pro — initial schema.
+-- SiteBoss Pro - initial schema.
 --
 -- Requires PostgreSQL 15 or newer (uses ON DELETE SET NULL with a column list).
 -- Every Supabase project created since 2023 satisfies this.

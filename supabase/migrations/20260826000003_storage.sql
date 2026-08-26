@@ -1,4 +1,4 @@
--- SiteBoss Pro — private storage buckets.
+-- SiteBoss Pro - private storage buckets.
 --
 -- Object paths are always "{company_id}/{project_id}/{filename}", and access is
 -- granted by matching the leading folder against the caller's company.

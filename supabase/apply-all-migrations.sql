@@ -1,7 +1,7 @@
 -- ---------------------------------------------------------------------------
--- SiteBoss Pro — every migration, combined into one script.
+-- SiteBoss Pro - every migration, combined into one script.
 --
--- GENERATED FILE — DO NOT EDIT.
+-- GENERATED FILE - DO NOT EDIT.
 -- Edit the files in supabase/migrations/ and rerun:
 --     ./scripts/build-combined-migration.sh
 --
@@ -20,7 +20,7 @@
 -- 20260826000001_initial_schema.sql
 -- =========================================================================
 
--- SiteBoss Pro — initial schema.
+-- SiteBoss Pro - initial schema.
 --
 -- Requires PostgreSQL 15 or newer (uses ON DELETE SET NULL with a column list).
 -- Every Supabase project created since 2023 satisfies this.
@@ -429,7 +429,7 @@ create trigger on_auth_user_created
 -- 20260826000002_rls_policies.sql
 -- =========================================================================
 
--- SiteBoss Pro — Row Level Security.
+-- SiteBoss Pro - Row Level Security.
 --
 -- Every table carries company_id, and every policy resolves it through
 -- public.is_company_member(). A user can therefore never read or write a row
@@ -459,10 +459,10 @@ $$;
 -- postgres role and carry no grants of their own, so without this block every
 -- query from the app fails with "permission denied for table ...".
 --
--- Nothing is granted to `anon`: SiteBoss Pro has no anonymous data access.
+-- Nothing is granted to "anon": SiteBoss Pro has no anonymous data access.
 --
--- `service_role` is Supabase's trusted server-side role. It carries BYPASSRLS,
--- so it is only ever used from server code holding the service role key — that
+-- "service_role" is Supabase's trusted server-side role. It carries BYPASSRLS,
+-- so it is only ever used from server code holding the service role key - that
 -- key must never be exposed to the browser.
 -- ---------------------------------------------------------------------------
 
@@ -511,7 +511,7 @@ alter table public.photos           enable row level security;
 alter table public.issues           enable row level security;
 
 -- ---------------------------------------------------------------------------
--- companies — readable by members, renameable by owners. Rows are created by
+-- companies - readable by members, renameable by owners. Rows are created by
 -- the signup trigger only, so there is deliberately no insert or delete policy.
 -- ---------------------------------------------------------------------------
 
@@ -525,7 +525,7 @@ create policy "companies_update_owners" on public.companies
   with check (public.is_company_owner(id));
 
 -- ---------------------------------------------------------------------------
--- company_members — read-only from the client in the MVP. Team invitations are
+-- company_members - read-only from the client in the MVP. Team invitations are
 -- a later phase and will add write policies then.
 -- ---------------------------------------------------------------------------
 
@@ -597,7 +597,7 @@ $$;
 -- 20260826000003_storage.sql
 -- =========================================================================
 
--- SiteBoss Pro — private storage buckets.
+-- SiteBoss Pro - private storage buckets.
 --
 -- Object paths are always "{company_id}/{project_id}/{filename}", and access is
 -- granted by matching the leading folder against the caller's company.
