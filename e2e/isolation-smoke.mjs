@@ -3,181 +3,177 @@
  * never see another company's project data.
  *
  * The database tests in supabase/tests cover this at the SQL layer. This one
- * goes through the real browser, the real session cookies and PostgREST, which
- * is the path an attacker would actually take.
+ * goes through the real browser, real session cookies and PostgREST, which is
+ * the path an attacker would actually take.
  *
- * Prerequisites — in separate terminals:
- *   npx supabase start
+ * Both companies are created through the UI and their projects are created
+ * through the UI too, so this needs no privileged key - it runs against a local
+ * or a hosted Supabase project identically.
+ *
+ * Prerequisites - in separate terminals:
+ *   npx supabase start      (or point .env.local at a hosted project)
  *   npm run dev
  *
- * Then, with the service role key from `npx supabase status`:
- *   SUPABASE_SERVICE_ROLE_KEY=<key> npm run test:isolation
+ * Then:
+ *   npm run test:isolation
  */
 
 import { chromium } from "playwright";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
-const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "http://127.0.0.1:54321";
-const SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!SERVICE_KEY) {
-  console.error(
-    "SUPABASE_SERVICE_ROLE_KEY is required. Get it from `npx supabase status`.",
-  );
-  process.exit(1);
-}
-
 const stamp = Date.now();
 const PASSWORD = "SiteBoss!2026";
-const SECRET_PROJECT = `Lidl South Croydon ${stamp}`;
+const TIMEOUT = 60_000;
+
+const ALICE = {
+  name: "Alice Fenton",
+  company: `Empire Interiors ${stamp}`,
+  email: `alice+${stamp}@example.com`,
+  project: `Lidl South Croydon ${stamp}`,
+};
+const BOB = {
+  name: "Bob Grant",
+  company: `Rival Groundworks ${stamp}`,
+  email: `bob+${stamp}@example.com`,
+  project: `Aldi Purley ${stamp}`,
+};
 
 const failures = [];
 function check(label, ok, detail = "") {
-  if (!ok) failures.push(detail ? `${label} — ${detail}` : label);
-  console.log(`  [${ok ? "PASS" : "FAIL"}] ${label}${!ok && detail ? ` — ${detail}` : ""}`);
-}
-
-/** Admin query that bypasses RLS, used only to plant the fixture data. */
-async function admin(path, init = {}) {
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
-    ...init,
-    headers: {
-      apikey: SERVICE_KEY,
-      Authorization: `Bearer ${SERVICE_KEY}`,
-      "Content-Type": "application/json",
-      Prefer: "return=representation",
-      ...init.headers,
-    },
-  });
-  const body = await response.text();
-  if (!response.ok) {
-    throw new Error(`${response.status} on ${path}: ${body}`);
-  }
-  return body ? JSON.parse(body) : null;
+  if (!ok) failures.push(detail ? `${label} - ${detail}` : label);
+  console.log(`  [${ok ? "PASS" : "FAIL"}] ${label}${!ok && detail ? ` - ${detail}` : ""}`);
 }
 
 const launchOptions = { args: ["--no-sandbox"] };
 if (process.env.PLAYWRIGHT_CHROMIUM_PATH) {
   launchOptions.executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH;
 }
-
 const browser = await chromium.launch(launchOptions);
 
-async function signUp(page, { name, company, email }) {
-  await page.goto(`${BASE}/signup`);
-  await page.getByLabel("Your name").fill(name);
-  await page.getByLabel("Company").fill(company);
-  await page.getByLabel("Email").fill(email);
+async function signUp(page, person) {
+  await page.goto(`${BASE}/signup`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await page.getByLabel("Your name").fill(person.name);
+  await page.getByLabel("Company").fill(person.company);
+  await page.getByLabel("Email").fill(person.email);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
-  await page.waitForURL("**/dashboard", { timeout: 30_000 });
+  await page.waitForURL("**/dashboard", { timeout: TIMEOUT });
+  await page.getByRole("heading", { name: /Hello,/ }).waitFor({ timeout: TIMEOUT });
+}
+
+/** Creates a project through the UI and returns its id. */
+async function createProject(page, name) {
+  await page.goto(`${BASE}/projects/new`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await page.getByLabel("Project name").fill(name);
+  await page.getByRole("button", { name: "Create project" }).click();
+  await page.waitForURL(/\/projects\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
+  return page.url().split("/projects/")[1].split("?")[0];
+}
+
+/** Reads the Supabase access token out of the browser's session cookie. */
+async function accessToken(context) {
+  const pattern = /^sb-.+-auth-token(\.(\d+))?$/;
+  const chunks = (await context.cookies())
+    .filter((c) => pattern.test(c.name))
+    .sort((a, b) => Number(pattern.exec(a.name)?.[2] ?? 0) - Number(pattern.exec(b.name)?.[2] ?? 0));
+  if (chunks.length === 0) return null;
+  const raw = chunks.map((c) => c.value).join("");
+  try {
+    const json = raw.startsWith("base64-")
+      ? Buffer.from(raw.slice("base64-".length), "base64").toString("utf8")
+      : decodeURIComponent(raw);
+    return JSON.parse(json).access_token ?? null;
+  } catch {
+    return null;
+  }
 }
 
 try {
-  const alice = { name: "Alice Fenton", company: `Empire Interiors ${stamp}`, email: `alice+${stamp}@example.test` };
-  const bob = { name: "Bob Grant", company: `Rival Groundworks ${stamp}`, email: `bob+${stamp}@example.test` };
+  console.log("\n1. Two companies sign up and each creates a project");
+  const aliceCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const alicePage = await aliceCtx.newPage();
+  await signUp(alicePage, ALICE);
+  const aliceProjectId = await createProject(alicePage, ALICE.project);
+  check("Alice created her project", Boolean(aliceProjectId));
 
-  console.log("\n1. Two companies sign up");
-  const aliceContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const alicePage = await aliceContext.newPage();
-  await signUp(alicePage, alice);
-  check("Alice reaches her dashboard", alicePage.url().endsWith("/dashboard"));
+  const bobCtx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const bobPage = await bobCtx.newPage();
+  await signUp(bobPage, BOB);
+  const bobProjectId = await createProject(bobPage, BOB.project);
+  check("Bob created his project", Boolean(bobProjectId));
+  check("the two projects are distinct", aliceProjectId !== bobProjectId);
 
-  const bobContext = await browser.newContext({ viewport: { width: 390, height: 844 } });
-  const bobPage = await bobContext.newPage();
-  await signUp(bobPage, bob);
-  check("Bob reaches his dashboard", bobPage.url().endsWith("/dashboard"));
-
-  console.log("\n2. Alice's company gets a project");
-  const companies = await admin(
-    `companies?name=eq.${encodeURIComponent(alice.company)}&select=id`,
+  console.log("\n2. Each sees only their own");
+  await alicePage.goto(`${BASE}/projects`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await alicePage.getByRole("heading", { name: "Projects", exact: true }).waitFor({ timeout: TIMEOUT });
+  check("Alice sees her project", await alicePage.getByText(ALICE.project).isVisible());
+  check(
+    "Alice cannot see Bob's",
+    !(await alicePage.getByText(BOB.project).isVisible().catch(() => false)),
   );
-  check("Alice's company exists", companies.length === 1);
-  const aliceCompanyId = companies[0].id;
 
-  await admin("projects", {
-    method: "POST",
-    body: JSON.stringify({
-      company_id: aliceCompanyId,
-      name: SECRET_PROJECT,
-      client: "Lidl GB",
-      site_address: "South Croydon",
-      project_reference: "1470",
-      site_manager: "Maciej",
-      status: "active",
-    }),
+  await bobPage.goto(`${BASE}/projects`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await bobPage.getByRole("heading", { name: "Projects", exact: true }).waitFor({ timeout: TIMEOUT });
+  check("Bob sees his project", await bobPage.getByText(BOB.project).isVisible());
+  check(
+    "Bob cannot see Alice's",
+    !(await bobPage.getByText(ALICE.project).isVisible().catch(() => false)),
+  );
+
+  console.log("\n3. Guessing the URL of another company's project gets nothing");
+  await bobPage.goto(`${BASE}/projects/${aliceProjectId}`, {
+    waitUntil: "domcontentloaded",
+    timeout: TIMEOUT,
   });
-
-  console.log("\n3. Alice sees her own project");
-  await alicePage.goto(`${BASE}/projects`, { waitUntil: "networkidle" });
+  await bobPage.getByText("Page not found").waitFor({ timeout: TIMEOUT });
+  check("Bob gets not-found for Alice's project id", true);
   check(
-    "project is listed for Alice",
-    await alicePage.getByText(SECRET_PROJECT).isVisible(),
-  );
-  await alicePage.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
-  check(
-    "project appears on Alice's dashboard",
-    await alicePage.getByText(SECRET_PROJECT).isVisible(),
+    "and none of its content leaks",
+    !(await bobPage.getByText(ALICE.project).isVisible().catch(() => false)),
   );
 
-  console.log("\n4. Bob sees nothing of Alice's");
-  await bobPage.goto(`${BASE}/projects`, { waitUntil: "networkidle" });
-  const bobSeesProject = await bobPage
-    .getByText(SECRET_PROJECT)
-    .isVisible()
-    .catch(() => false);
-  check("project is hidden from Bob", !bobSeesProject);
-  check(
-    "Bob still gets his own empty state",
-    await bobPage.getByText("No projects yet").isVisible(),
-  );
+  console.log("\n4. Editing another company's project is refused");
+  await bobPage.goto(`${BASE}/projects/${aliceProjectId}/edit`, {
+    waitUntil: "domcontentloaded",
+    timeout: TIMEOUT,
+  });
+  await bobPage.getByText("Page not found").waitFor({ timeout: TIMEOUT });
+  check("Bob cannot open the edit form for Alice's project", true);
 
-  await bobPage.goto(`${BASE}/dashboard`, { waitUntil: "networkidle" });
-  const bobDashboardLeak = await bobPage
-    .getByText(SECRET_PROJECT)
-    .isVisible()
-    .catch(() => false);
-  check("Bob's dashboard is clean", !bobDashboardLeak);
+  console.log("\n5. Bob's own session token cannot fetch it from the API either");
+  const token = await accessToken(bobCtx);
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseKey =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  console.log("\n5. Bob's own session token cannot fetch it either");
-  // Read Bob's access token from the cookie the app set, then query PostgREST
-  // directly as Bob — bypassing the UI entirely.
-  // The session cookie is "sb-<ref>-auth-token", optionally split into
-  // ".0", ".1" chunks. The "-code-verifier" cookies are a different thing.
-  const sessionCookiePattern = /^sb-.+-auth-token(\.(\d+))?$/;
-  const cookies = (await bobContext.cookies())
-    .filter((cookie) => sessionCookiePattern.test(cookie.name))
-    .sort((a, b) => {
-      const index = (name) => Number(sessionCookiePattern.exec(name)?.[2] ?? 0);
-      return index(a.name) - index(b.name);
-    });
-  const authCookie = cookies.map((cookie) => cookie.value).join("");
-
-  let bobToken = null;
-  try {
-    const raw = authCookie.startsWith("base64-")
-      ? Buffer.from(authCookie.slice("base64-".length), "base64").toString("utf8")
-      : decodeURIComponent(authCookie);
-    bobToken = JSON.parse(raw).access_token;
-  } catch {
-    bobToken = null;
-  }
-
-  if (!bobToken) {
+  if (!token) {
     check("could read Bob's access token", false, "cookie format not recognised");
+  } else if (!supabaseUrl || !supabaseKey) {
+    console.log(
+      "  [SKIP] direct API check - set NEXT_PUBLIC_SUPABASE_URL and the key to enable it",
+    );
   } else {
-    const response = await fetch(`${SUPABASE_URL}/rest/v1/projects?select=name`, {
-      headers: {
-        apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
-        Authorization: `Bearer ${bobToken}`,
-      },
+    const res = await fetch(`${supabaseUrl}/rest/v1/projects?select=id,name`, {
+      headers: { apikey: supabaseKey, Authorization: `Bearer ${token}` },
     });
-    const rows = await response.json();
-    check("direct API call succeeds for Bob", response.ok, JSON.stringify(rows));
+    const rows = await res.json();
+    check("direct API call succeeds for Bob", res.ok, JSON.stringify(rows).slice(0, 160));
     check(
-      "direct API call returns none of Alice's projects",
-      Array.isArray(rows) && rows.every((row) => row.name !== SECRET_PROJECT),
-      JSON.stringify(rows),
+      "it returns exactly one project - his own",
+      Array.isArray(rows) && rows.length === 1 && rows[0].name === BOB.project,
+      JSON.stringify(rows).slice(0, 160),
+    );
+
+    const targeted = await fetch(
+      `${supabaseUrl}/rest/v1/projects?select=id,name&id=eq.${aliceProjectId}`,
+      { headers: { apikey: supabaseKey, Authorization: `Bearer ${token}` } },
+    );
+    const targetedRows = await targeted.json();
+    check(
+      "asking for Alice's project by id returns nothing",
+      Array.isArray(targetedRows) && targetedRows.length === 0,
+      JSON.stringify(targetedRows).slice(0, 160),
     );
   }
 } catch (error) {
@@ -191,6 +187,6 @@ console.log("\n=== Result ===");
 if (failures.length === 0) {
   console.log("COMPANY ISOLATION VERIFIED");
 } else {
-  for (const failure of failures) console.log(`FAILED: ${failure}`);
+  for (const f of failures) console.log(`FAILED: ${f}`);
   process.exitCode = 1;
 }

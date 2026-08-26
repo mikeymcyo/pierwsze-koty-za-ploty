@@ -28,13 +28,13 @@ and never assume they will debug on your behalf.
 
 ## 2. Current status
 
-**Phase 1 of 7 is complete, tested, and pushed. Phase 2 has not been started.**
+**Phases 1 and 2 are complete, tested against the hosted project, and pushed.**
 
 | Phase | Scope | Status |
 | ----- | ----- | ------ |
 | 1 | Foundation, database, auth, app shell | **Done** |
-| 2 | Projects CRUD + project detail tabs | **Next** |
-| 3 | Report capture: details, workforce, plant, dictation | Not started |
+| 2 | Projects CRUD + project detail tabs | **Done** |
+| 3 | Report capture: details, workforce, plant, dictation | **Next** |
 | 4 | Photos: camera, upload, captions, before/after pairs | Not started |
 | 5 | AI report generation + preview editor | Not started |
 | 6 | Issues + PDF export | Not started |
@@ -44,20 +44,14 @@ and never assume they will debug on your behalf.
 
 - **Branch (only ever push here):** `claude/siteboss-pro-planning-8y80n2`
 - **Base:** `main` - contains only unrelated legacy HTML, no app
-- **PR #1** open, `mergeable_state: clean`, 6 commits, head `816ff63`
+- **PR #1** open, targets `main`, not to be merged yet (the user said so).
   https://github.com/mikeymcyo/pierwsze-koty-za-ploty/pull/1
 - **No CI exists.** No `.github/workflows/`. Nothing runs the tests automatically.
 
-### Commits so far
+### Commits
 
-```
-816ff63 Make the combined migration file strict ASCII SQL and validate on generation
-29f36b1 Add a single-paste migration file for setting up a fresh Supabase project
-3a9cb5e Accept Supabase's new publishable key alongside the legacy anon key
-2851437 Use Vercel's stable branch URL for auth email links, and document deployment
-84ff84e Make first-run local setup work without any secret credentials
-0361569 Phase 1: foundation, database, authentication and app shell
-```
+Run `git log --oneline` for the current list; it is not duplicated here so it
+cannot go stale.
 
 ---
 
@@ -77,22 +71,18 @@ SQL Editor and got "Success. No rows returned".
 **Migration 4 is also applied.** Verified: anonymous requests now return
 `401 / 42501 permission denied` on every table instead of `200 []`.
 
-**Outstanding: email confirmation is still ON.** Verified via
-`GET /auth/v1/settings` -> `mailer_autoconfirm: false`. Consequences:
+**Email confirmation is OFF**, so signup returns a session immediately and the
+hosted project is fully usable for testing. All three end-to-end suites have
+been run against it and pass.
 
-- `signUp` returns a user but **no session**, so the app shows "Check your
-  inbox" instead of redirecting to the dashboard. That is correct behaviour,
-  not a bug.
-- `npm run test:e2e` against the hosted project **will fail** at the dashboard
-  step until this is off. Do not misread that as a broken app.
-- Only the user can change it: Authentication -> Sign In / Providers -> Email ->
-  **Confirm email: off**.
+Note: `GET /auth/v1/settings` reported `mailer_autoconfirm: false` even after the
+setting was changed - that field is stale and should not be trusted. The reliable
+check is behavioural: call `supabase.auth.signUp()` and see whether a session
+comes back.
 
-Because of this, the authenticated read path has **not** been verified against
-the hosted project - there is no way to obtain a session without confirming an
-email. It is verified locally against identical migrations including the anon
-revoke (both suites pass). Residual risk is low but non-zero; run both suites
-against hosted once confirmation is off.
+Also note that raw `curl` POSTs to `/auth/v1/*` time out through this sandbox's
+HTTP proxy while GETs succeed. Use `@supabase/supabase-js` for probes instead of
+curl; that path works.
 
 **You cannot apply migrations yourself.** The publishable key is anon-level and
 cannot run DDL; that needs a Supabase access token or the database password,
@@ -131,7 +121,7 @@ anon-readable while that table grant remains.
 | Backend | Supabase (Postgres, Auth, Storage) via `@supabase/ssr` 0.12.5 |
 | Validation | zod 4 |
 | Tests | Playwright 1.56.1 (pinned exact) + psql-driven SQL tests |
-| Host | Vercel (not yet connected) |
+| Host | Vercel - **not connected yet**, needs the user (section 11) |
 
 Not yet installed, needed later: OpenAI SDK (Phase 5),
 `@react-pdf/renderer` (Phase 6).
@@ -145,7 +135,8 @@ app/
   (auth)/              login, signup, forgot-password, reset-password
     actions.ts         ALL auth server actions (signUp/signIn/signOut/reset)
   (app)/               authenticated area, wrapped by requireSessionContext()
-    dashboard, projects, reports, reports/new, profile, loading.tsx
+    dashboard, profile, reports, reports/new, loading.tsx
+    projects/          list, new, [id] (four tabs), [id]/edit, actions.ts
   auth/callback/       exchanges Supabase email codes for a session
   error.tsx, not-found.tsx, page.tsx (landing), layout.tsx, globals.css
 components/
@@ -153,12 +144,14 @@ components/
   nav/                 bottom-nav (mobile), side-nav (desktop), top-bar
   auth/                the four forms + submit-button
   brand/wordmark.tsx   text-based "SB" + SiteBoss Pro logo
-  projects/status-badge.tsx
+  projects/            status-badge, project-form, project-tabs (client)
 lib/
   env.ts               all env access, lazy getters, actionable errors
   supabase/            client.ts (browser), server.ts (RSC/actions), proxy.ts (session refresh)
   auth/session.ts      getSessionContext / requireSessionContext / displayName
   navigation.ts        NAV_ITEMS + isNavItemActive
+  project-tabs.ts      tab constants shared across the server/client boundary
+  supabase/retry.ts    withClockSkewRetry - see failure F9
   utils.ts             cn(), formatDate(), formatReportNumber()
 proxy.ts               ROOT - route protection (see decision D2)
 types/database.ts      hand-written Database type mirroring the schema
@@ -167,7 +160,7 @@ supabase/
   apply-all-migrations.sql   GENERATED, do not edit
   tests/               00_supabase_stubs.sql, 01_rls_test.sql
 scripts/               setup-local.sh, test-db.sh, build-combined-migration.sh
-e2e/                   auth-smoke.mjs, isolation-smoke.mjs
+e2e/                   auth-smoke, projects-smoke, isolation-smoke
 docs/DEPLOYMENT.md     Vercel + hosted Supabase walkthrough
 _legacy/               user's old unrelated HTML - leave alone
 ```
@@ -293,6 +286,26 @@ nofile=20000:20000`, and `npx supabase start -x realtime,storage-api,imgproxy,
 mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor` to skip the
 container that fails on `rlimit type 7`. Only relevant inside this sandbox.
 
+**F9 - "JWT issued at future" is not a clock bug on our side.** Signing up
+against hosted Supabase intermittently dumped users on an error page. Our clock
+and Supabase's agree to within a second; the skew is between Supabase's own
+GoTrue (which mints tokens) and PostgREST (which validates them), so a query
+issued moments after signup can be rejected because `iat` is slightly ahead.
+`lib/supabase/retry.ts` retries that specific error against a deadline. A first
+attempt with a fixed 3 attempts over ~900ms was **not enough** - the observed
+skew reached several seconds, so it is now a 6s budget. Do not "fix" this by
+syncing clocks or by widening the retry to other error classes.
+
+**F10 - Exported helpers in a "use client" module cannot be called from the
+server.** `isProjectTab` lived beside the tab component and threw "Attempted to
+call isProjectTab() from the server". Pure constants and helpers shared across
+the boundary live in `lib/` without a directive - see `lib/project-tabs.ts`.
+
+**F11 - Do not use `removeAttribute` in tests to bypass HTML validation.** It
+desyncs React and produces a hydration mismatch that looks like an app bug. To
+reach server-side validation, submit a value the browser accepts but the schema
+rejects (a one-character name, or dates in the wrong order).
+
 ---
 
 ## 9. What is proven to work
@@ -307,9 +320,19 @@ All verified by execution, not inspection:
 - **`npm run test:e2e`** - 23 checks: signup creates company via trigger,
   navigation, profile data, signout, signin, wrong password surfaces an error,
   server-side password validation, neutral password-reset response.
-- **`npm run test:isolation`** - two companies; one cannot see the other's
-  project through the UI *or* via a direct PostgREST call using their real
-  session token.
+- **`npm run test:projects`** - 21 checks: create with every field, all four
+  tabs, `?tab=` surviving a reload, edit pre-filled and saved, status change,
+  server-side validation (short name, completion before start), listing,
+  and an unknown project id rendering not-found rather than an error.
+- **`npm run test:isolation`** - two companies, each creating projects through
+  the UI. Neither sees the other's in the list, guessing the URL gives
+  not-found, the edit form is refused, and a direct PostgREST call with a real
+  session token returns only that user's own project.
+
+**All three suites have been run against the user's hosted Supabase project and
+pass, with zero console errors.** The isolation suite no longer needs a
+service_role key - it creates its fixtures through the UI - so it runs against
+local and hosted identically.
 - **`supabase/apply-all-migrations.sql`** applied as a single script to a virgin
   Supabase **PostgreSQL 17.6** with real auth/storage schemas: 10 tables,
   2 buckets, RLS on all 10, 42 policies, signup trigger present.
@@ -335,8 +358,6 @@ In this sandbox Playwright needs
 
 ## 10. Known gaps and honest caveats
 
-- **Empty-state copy is placeholder.** Dashboard and Projects say creation
-  "arrives in the next build". Replace this in Phase 2 - it is not product copy.
 - **No CI.** Three good test suites, nothing runs them. Adding a workflow
   (typecheck, lint, build, `test:db` against a `postgres:16` service container)
   was offered and not yet requested.
@@ -353,36 +374,37 @@ In this sandbox Playwright needs
 
 ## 11. Exact next steps
 
-**Step 0 - finish hosted setup (needs the user).** All four migrations are
-applied. The single remaining item is turning **Confirm email off** (section 3).
-Once done, point `.env.local` at the hosted project and run `test:e2e` and
-`test:isolation` against it - say first that this creates throwaway accounts in
-their project, and note they cannot be deleted with the publishable key.
+**Step 0 - Vercel (blocked on the user, and they have asked for it).** They want
+a Preview deployment to test on an iPhone. This session has no Vercel token, CLI
+or project link, and asking for a token is the wrong trade - it grants account-
+wide access and would sit in the transcript forever. `docs/DEPLOYMENT.md` is
+complete and accurate; the user connects the repo through vercel.com/new, sets
+`NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` for
+Preview scope, leaves `NEXT_PUBLIC_SITE_URL` unset, then allow-lists
+`<branch-url>/auth/callback` in Supabase. Two traps to remind them of: Vercel
+Deployment Protection will show a login wall on a phone, and Production (`main`)
+will serve the old static HTML until Phase 1 merges.
 
-**Step 1 - Phase 2: Projects.** The user has said "Build Phase 2" is the next
-build instruction. Scope:
+**Step 1 - Phase 3: report capture.** This is the heart of the product; get it
+right rather than fast.
 
-- `app/(app)/projects/new/page.tsx` - create form. Fields already in the schema:
-  name, client, site_address, postcode, project_reference, site_manager,
-  start_date, expected_completion_date, description, status.
-- `app/(app)/projects/[id]/page.tsx` - detail page with four tabs:
-  **Overview / Reports / Photos / Open Issues**. Reports, Photos and Issues get
-  real empty states now and real content in Phases 3, 4 and 6.
-- `app/(app)/projects/[id]/edit/page.tsx`.
-- `app/(app)/projects/actions.ts` - server actions, zod-validated, mirroring the
-  shape of `app/(auth)/actions.ts`.
-- Wire the dashboard's "Create New Project" path and replace the placeholder
-  empty-state copy.
-- Extend `e2e/` to cover create -> appears in list -> edit -> appears on
-  dashboard, and confirm the isolation test still holds with real projects.
+- Draft report creation from a project, auto-filling project, date, author and
+  the trigger-assigned report number.
+- Weather (optional), workforce entries and plant entries as repeatable rows,
+  ideally pre-filled from the project's previous report to save typing.
+- Work Completed: a large textarea plus dictation. Wrap the Web Speech API in a
+  `useSpeechInput` hook whose contract is audio-in/text-out, so a Whisper
+  endpoint can replace it later without touching the UI. **iOS Safari does not
+  implement it** - detect support and fall back to the keyboard microphone,
+  which types into the same field.
+- Store the raw transcript verbatim in `reports.raw_notes` (decision D9).
+- Restore the "New report" action on the project detail page - it was
+  deliberately left out while the capture screen did not exist.
+- Add `e2e/reports-smoke.mjs` in the shape of the existing suites.
 
 Reference project the user cares about, useful as test data:
 Lidl South Croydon - External Works / Lidl GB / South Croydon / ref 1470 /
 site manager Maciej / Active.
-
-**Step 2 - deployment**, only once Step 0 is done. `docs/DEPLOYMENT.md` is
-complete and accurate. The user must connect Vercel themselves via the Git
-integration - do not request a Vercel token.
 
 ---
 

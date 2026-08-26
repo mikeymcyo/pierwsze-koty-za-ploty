@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
-import { FileText, FolderKanban, HardHat } from "lucide-react";
+import Link from "next/link";
+import { FileText, FolderKanban, HardHat, Plus } from "lucide-react";
 
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
@@ -55,22 +57,43 @@ export default async function DashboardPage() {
       </header>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
-          Active projects
-        </h2>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+            Active projects
+          </h2>
+          {projects.length > 0 ? (
+            <Button asChild variant="secondary" size="sm">
+              <Link href="/projects/new">
+                <Plus aria-hidden />
+                New project
+              </Link>
+            </Button>
+          ) : null}
+        </div>
 
         {projects.length === 0 ? (
           <EmptyState
             icon={HardHat}
             title="No active projects yet"
-            description="Projects hold your site details, reports and photos. Creating them arrives with the projects screen in the next build."
+            description="A project holds the site details, and every report and photo belongs to one. Start here."
+            action={
+              <Button asChild size="lg">
+                <Link href="/projects/new">
+                  <Plus aria-hidden />
+                  Create your first project
+                </Link>
+              </Button>
+            }
           />
         ) : (
           <ul className="flex flex-col gap-3">
             {projects.map((project) => (
               <li key={project.id}>
-                <Card>
-                  <CardContent className="flex items-start justify-between gap-4">
+                <Card className="transition-colors hover:border-line-strong">
+                  <Link
+                    href={`/projects/${project.id}`}
+                    className="flex items-start justify-between gap-4 p-5"
+                  >
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-ink">{project.name}</p>
                       <p className="truncate text-sm text-ink-muted">
@@ -80,7 +103,7 @@ export default async function DashboardPage() {
                       </p>
                     </div>
                     <ProjectStatusBadge status={project.status} />
-                  </CardContent>
+                  </Link>
                 </Card>
               </li>
             ))}
