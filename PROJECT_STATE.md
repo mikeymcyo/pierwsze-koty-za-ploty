@@ -74,16 +74,25 @@ and RLS is what protects the data - but there is no reason to publish them.
 HTTP 200 rather than 404. The user ran `supabase/apply-all-migrations.sql` in the
 SQL Editor and got "Success. No rows returned".
 
-**Migration 4 (`20260826000004_revoke_anon.sql`) is NOT yet applied there.** It
-is hardening, not an emergency - see below. Ask the user to run it when
-convenient; it is safe on an already-migrated project and safe to run twice.
+**Migration 4 is also applied.** Verified: anonymous requests now return
+`401 / 42501 permission denied` on every table instead of `200 []`.
 
-Two things still outstanding from the user, neither of which you can do:
+**Outstanding: email confirmation is still ON.** Verified via
+`GET /auth/v1/settings` -> `mailer_autoconfirm: false`. Consequences:
 
-1. Apply migration 4 (paste that one file into the SQL Editor).
-2. Confirm Authentication -> Sign In / Providers -> Email -> **Confirm email is
-   off**. If it is on, signup returns no session and the e2e suite will fail at
-   the dashboard step. This has not been confirmed either way.
+- `signUp` returns a user but **no session**, so the app shows "Check your
+  inbox" instead of redirecting to the dashboard. That is correct behaviour,
+  not a bug.
+- `npm run test:e2e` against the hosted project **will fail** at the dashboard
+  step until this is off. Do not misread that as a broken app.
+- Only the user can change it: Authentication -> Sign In / Providers -> Email ->
+  **Confirm email: off**.
+
+Because of this, the authenticated read path has **not** been verified against
+the hosted project - there is no way to obtain a session without confirming an
+email. It is verified locally against identical migrations including the anon
+revoke (both suites pass). Residual risk is low but non-zero; run both suites
+against hosted once confirmation is off.
 
 **You cannot apply migrations yourself.** The publishable key is anon-level and
 cannot run DDL; that needs a Supabase access token or the database password,
@@ -344,11 +353,11 @@ In this sandbox Playwright needs
 
 ## 11. Exact next steps
 
-**Step 0 - finish hosted setup (needs the user).** Migrations 1-3 are applied.
-Ask them to (a) run `supabase/migrations/20260826000004_revoke_anon.sql` in the
-SQL Editor and (b) confirm email confirmation is off. Then point `.env.local` at
-the hosted project and run `test:e2e` and `test:isolation` against it - note this
-creates throwaway user accounts in their project, so say so first.
+**Step 0 - finish hosted setup (needs the user).** All four migrations are
+applied. The single remaining item is turning **Confirm email off** (section 3).
+Once done, point `.env.local` at the hosted project and run `test:e2e` and
+`test:isolation` against it - say first that this creates throwaway accounts in
+their project, and note they cannot be deleted with the publishable key.
 
 **Step 1 - Phase 2: Projects.** The user has said "Build Phase 2" is the next
 build instruction. Scope:
