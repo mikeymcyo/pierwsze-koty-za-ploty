@@ -1,0 +1,79 @@
+@import "tailwindcss";
+
+/*
+ * SiteBoss Pro design tokens.
+ *
+ * Deliberately light-only and high contrast: this app is used outdoors on
+ * phones in direct sunlight, where a dark theme is harder to read.
+ */
+@theme {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Surfaces */
+  --color-surface: #ffffff;
+  --color-surface-sunken: #fafafa;
+  --color-surface-muted: #f4f4f5;
+
+  /* Lines */
+  --color-line: #e4e4e7;
+  --color-line-strong: #d4d4d8;
+
+  /* Text */
+  --color-ink: #18181b;
+  --color-ink-muted: #52525b;
+  --color-ink-subtle: #a1a1aa;
+  --color-ink-inverse: #ffffff;
+
+  /* Brand — high-vis amber, used for the wordmark and active states only */
+  --color-brand: #f59e0b;
+  --color-brand-strong: #b45309;
+  --color-brand-soft: #fef3c7;
+
+  /* Primary action — near-black for maximum contrast in sunlight */
+  --color-primary: #18181b;
+  --color-primary-hover: #3f3f46;
+
+  /* Status */
+  --color-success: #047857;
+  --color-success-soft: #d1fae5;
+  --color-warning: #b45309;
+  --color-warning-soft: #fef3c7;
+  --color-danger: #b91c1c;
+  --color-danger-soft: #fee2e2;
+  --color-info: #1d4ed8;
+  --color-info-soft: #dbeafe;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-surface-sunken);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* iOS Safari zooms the viewport when focusing an input under 16px. */
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
