@@ -21,62 +21,58 @@ and get a professional, client-ready progress report as a PDF.
 
 ## Getting started
 
-You need Node.js 20+ and a Supabase project (the free tier is fine).
-
-### 1. Install
+You need **Node.js 20+** and **Docker** (Docker Desktop is fine). No Supabase
+account and no secret credentials are required — the local stack generates its
+own keys.
 
 ```bash
 npm install
+npm run setup:local     # starts Supabase, applies migrations, writes .env.local
+npm run dev
 ```
 
-### 2. Configure the environment
+Then open **http://localhost:3000**.
+
+`setup:local` starts the whole Supabase stack in Docker, applies every migration
+in `supabase/migrations/`, and writes the generated URL and anon key into
+`.env.local` for you. The first run downloads container images and can take a
+few minutes; later runs are quick.
+
+Alongside the app you also get:
+
+- **Supabase Studio** at http://127.0.0.1:54323 — browse the tables directly
+- **Mailpit** at http://127.0.0.1:54324 — catches confirmation and password
+  reset emails locally, so nothing is actually sent
+
+`npx supabase db reset` reapplies every migration from scratch, and
+`npx supabase stop` shuts the stack down.
+
+### Without Docker, against a hosted Supabase project
+
+Create a free project, then:
 
 ```bash
 cp .env.example .env.local
 ```
 
 Fill in `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` from
-**Project Settings → API** in the Supabase dashboard. Until these are set, the
-app runs but shows setup instructions instead of the sign-in screen.
-
-### 3. Apply the database migrations
-
-Either paste each file in `supabase/migrations/` into the Supabase SQL editor in
-filename order, or use the CLI:
+**Project Settings → API**. The anon key is designed to be public; Row Level
+Security is what protects the data. Then apply the migrations, either by pasting
+each file in `supabase/migrations/` into the SQL editor in filename order, or:
 
 ```bash
 npx supabase link --project-ref <your-project-ref>
 npx supabase db push
 ```
 
-This creates every table, the enums, the Row Level Security policies, the two
-private storage buckets, and the triggers that give each new user a company and
-number reports sequentially.
-
-### 4. Run it
-
-```bash
-npm run dev
-```
-
-Open http://localhost:3000.
-
-### Working fully locally
-
-The Supabase CLI runs the whole stack on your machine, which is the fastest way
-to develop:
-
-```bash
-npx supabase start          # applies supabase/migrations automatically
-```
-
-Put the printed `API URL` and `anon key` into `.env.local`. `npx supabase db reset`
-reapplies every migration from scratch.
+Until credentials are set the app still runs, but every route redirects to the
+landing page, which explains what is missing.
 
 ## Scripts
 
 | Command                  | What it does                                                |
 | ------------------------ | ----------------------------------------------------------- |
+| `npm run setup:local`    | Starts local Supabase and writes `.env.local`               |
 | `npm run dev`            | Development server                                          |
 | `npm run build`          | Production build (also type-checks)                         |
 | `npm run typecheck`      | `tsc --noEmit`                                              |

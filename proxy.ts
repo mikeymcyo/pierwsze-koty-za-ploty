@@ -4,10 +4,17 @@ import { hasSupabaseConfig } from "@/lib/env";
 import { updateSession } from "@/lib/supabase/proxy";
 
 export async function proxy(request: NextRequest) {
-  // Without credentials there is no session to refresh; let the request through
-  // so the app can render its setup instructions instead of erroring.
+  // Without credentials there is no session to refresh, and any page that talks
+  // to Supabase would throw. Send everything to the landing page, which explains
+  // what to configure, rather than letting it fail with a 500.
   if (!hasSupabaseConfig()) {
-    return NextResponse.next({ request });
+    if (request.nextUrl.pathname === "/") {
+      return NextResponse.next({ request });
+    }
+    const setup = request.nextUrl.clone();
+    setup.pathname = "/";
+    setup.search = "";
+    return NextResponse.redirect(setup);
   }
 
   return updateSession(request);

@@ -53,7 +53,21 @@ page.on("pageerror", (err) => consoleErrors.push(`pageerror: ${err.message}`));
 /** The dev overlay injects its own empty [role=alert]; only look inside main. */
 const mainAlert = () => page.locator("main [role='alert']").first();
 
+/**
+ * Against `next dev`, the first request to a route compiles it on demand, which
+ * can take longer than a normal assertion timeout. Warm the public routes up
+ * front and give the first authenticated render a generous budget, so a cold
+ * dev server is never mistaken for a broken app.
+ */
+const COLD_COMPILE_TIMEOUT = 60_000;
+
 try {
+  console.log("\n0. Warming up routes");
+  for (const path of ["/", "/login", "/signup", "/forgot-password"]) {
+    await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded", timeout: COLD_COMPILE_TIMEOUT });
+  }
+  console.log("  done");
+
   console.log("\n1. Landing page");
   await page.goto(BASE, { waitUntil: "networkidle" });
   check("shows the wordmark", await page.getByText("SiteBoss").first().isVisible());
@@ -71,8 +85,10 @@ try {
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
 
-  await page.waitForURL("**/dashboard", { timeout: 30_000 });
-  await page.getByRole("heading", { name: `Hello, ${NAME}` }).waitFor({ timeout: 15_000 });
+  await page.waitForURL("**/dashboard", { timeout: COLD_COMPILE_TIMEOUT });
+  await page
+    .getByRole("heading", { name: `Hello, ${NAME}` })
+    .waitFor({ timeout: COLD_COMPILE_TIMEOUT });
   check("lands on the dashboard", page.url().endsWith("/dashboard"));
   check("signup trigger created the company", await page.getByText(COMPANY).first().isVisible());
   check("shows the empty projects state", await page.getByText("No active projects yet").isVisible());
@@ -89,9 +105,11 @@ try {
     ["Profile", "/profile", "Profile"],
   ]) {
     await nav.getByRole("link", { name: label }).click();
-    await page.waitForURL(`**${path}`, { timeout: 15_000 });
+    await page.waitForURL(`**${path}`, { timeout: COLD_COMPILE_TIMEOUT });
     // waitForURL resolves before the new content paints, so wait for the heading.
-    await page.getByRole("heading", { name: heading, exact: true }).waitFor({ timeout: 15_000 });
+    await page
+      .getByRole("heading", { name: heading, exact: true })
+      .waitFor({ timeout: COLD_COMPILE_TIMEOUT });
     check(`${label} opens ${path}`, page.url().endsWith(path));
   }
 
