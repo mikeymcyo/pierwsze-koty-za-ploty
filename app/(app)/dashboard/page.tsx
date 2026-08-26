@@ -1,0 +1,130 @@
+import type { Metadata } from "next";
+import { FileText, FolderKanban, HardHat } from "lucide-react";
+
+import { ProjectStatusBadge } from "@/components/projects/status-badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
+import { displayName, requireSessionContext } from "@/lib/auth/session";
+import { createClient } from "@/lib/supabase/server";
+import { formatDate, formatReportNumber } from "@/lib/utils";
+
+export const metadata: Metadata = { title: "Dashboard" };
+
+export default async function DashboardPage() {
+  const session = await requireSessionContext();
+  const supabase = await createClient();
+
+  const [projectsResult, reportsResult] = await Promise.all([
+    supabase
+      .from("projects")
+      .select("id, name, client, site_address, status, updated_at")
+      .eq("status", "active")
+      .order("updated_at", { ascending: false })
+      .limit(5),
+    supabase
+      .from("reports")
+      .select("id, report_number, report_date, status, projects(name)")
+      .order("report_date", { ascending: false })
+      .order("report_number", { ascending: false })
+      .limit(5),
+  ]);
+
+  const error = projectsResult.error ?? reportsResult.error;
+  if (error) {
+    throw new Error(`Could not load your dashboard: ${error.message}`);
+  }
+
+  const projects = projectsResult.data ?? [];
+  const reports = reportsResult.data ?? [];
+
+  return (
+    <div className="flex flex-col gap-8">
+      <header className="flex flex-col gap-1">
+        {/* The mobile top bar already carries the company name. */}
+        <p className="hidden text-sm font-semibold text-ink-muted md:block">
+          {session.companyName}
+        </p>
+        <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
+          Hello, {displayName(session)}
+        </h1>
+      </header>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+          Active projects
+        </h2>
+
+        {projects.length === 0 ? (
+          <EmptyState
+            icon={HardHat}
+            title="No active projects yet"
+            description="Projects hold your site details, reports and photos. Creating them arrives with the projects screen in the next build."
+          />
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {projects.map((project) => (
+              <li key={project.id}>
+                <Card>
+                  <CardContent className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-ink">{project.name}</p>
+                      <p className="truncate text-sm text-ink-muted">
+                        {[project.client, project.site_address]
+                          .filter(Boolean)
+                          .join(" · ") || "No client or address recorded"}
+                      </p>
+                    </div>
+                    <ProjectStatusBadge status={project.status} />
+                  </CardContent>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+          Recent reports
+        </h2>
+
+        {reports.length === 0 ? (
+          <EmptyState
+            icon={FileText}
+            title="No reports yet"
+            description="Once you have a project, you'll be able to add photos, dictate an update and generate a client-ready report."
+          />
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {reports.map((report) => {
+              const project = Array.isArray(report.projects)
+                ? report.projects[0]
+                : report.projects;
+
+              return (
+                <li key={report.id}>
+                  <Card>
+                    <CardContent className="flex items-center gap-4">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-surface-muted">
+                        <FolderKanban className="size-5 text-ink-muted" aria-hidden />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-ink">
+                          Report {formatReportNumber(report.report_number)}
+                        </p>
+                        <p className="truncate text-sm text-ink-muted">
+                          {project?.name ?? "Unknown project"} ·{" "}
+                          {formatDate(report.report_date)}
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
