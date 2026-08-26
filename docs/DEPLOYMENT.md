@@ -71,47 +71,87 @@ it bypasses RLS entirely and must never reach a browser.
 ## 5. Connect the repository to Vercel
 
 1. https://vercel.com/new → import `mikeymcyo/pierwsze-koty-za-ploty`.
-2. Vercel detects Next.js on its own. Leave the build settings alone.
-3. Before deploying, add the environment variables in step 6.
+2. Add the environment variables in step 6 **before** the first build, if you
+   can. They are baked into the build, not read at runtime — see step 7.
 
 Vercel deploys your **default branch** (`main`) to Production and every other
-branch to Preview. Since the app lives on `claude/siteboss-pro-planning-8y80n2`,
-it will deploy as a Preview automatically — which is exactly what you want.
+branch to Preview. The app lives on `claude/siteboss-pro-planning-8y80n2`, so it
+deploys as a Preview automatically — which is what you want.
 
-> `main` currently holds only the old static HTML pages, so the Production
-> deployment will just serve those until Phase 1 is merged. That is expected.
+### Check the Framework Preset
+
+**Settings → Build and Deployment.** It must read:
+
+| Setting | Value |
+| ------- | ----- |
+| Framework Preset | **Next.js** |
+| Root Directory | **`./`** |
+
+Vercel detects the framework at import time by looking at the default branch. If
+`main` has no `package.json` at that moment, it guesses **Other** and builds the
+repo as a static site: no `next build`, no serverless functions, and `proxy.ts`
+never runs. The deployment still reports Ready, which makes this easy to miss.
+
+Root Directory is `./` because `package.json` and `app/` sit at the repository
+root.
+
+> `main` currently contains no application at all, so Production builds **fail**,
+> and any Production URL returns `404: NOT_FOUND`. That is expected until Phase 1
+> is merged, and is unrelated to the Preview deployment. Do not diagnose Preview
+> problems from a Production URL.
 
 ## 6. Environment variables
 
-**Settings → Environment Variables.** Add both of these, ticking **Preview**
-(tick Production too if you plan to merge later):
+**Settings → Environments**, then pick the environment. Vercel moved these; there
+is no longer a separate top-level "Environment Variables" item in Project
+Settings.
+
+Add both, to **Preview** and **Production**:
 
 | Name | Value |
 | ---- | ----- |
 | `NEXT_PUBLIC_SUPABASE_URL` | your Project URL from step 4 |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your anon key from step 4 |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | your publishable key from step 4 |
 
-**Do not set `NEXT_PUBLIC_SITE_URL` for Preview.** Left unset, the app uses
-Vercel's stable per-branch URL (`VERCEL_BRANCH_URL`) for the links in
-confirmation and password-reset emails. Setting it to a fixed value would send
-those emails to the wrong origin.
+The app accepts `NEXT_PUBLIC_SUPABASE_ANON_KEY` instead, for older projects that
+only issue a legacy anon key. Set one or the other, not both. Preview is what
+serves this branch; Production is set now so a later merge does not break.
+
+**Do not set `NEXT_PUBLIC_SITE_URL`.** Left unset, the app uses Vercel's stable
+per-branch URL (`VERCEL_BRANCH_URL`) for the links in confirmation and
+password-reset emails. Setting it to a fixed value would send those emails to
+the wrong origin.
 
 ## 7. Get the preview deployed
 
-If you added the environment variables during import, the first deployment
-already used them. If you added them afterwards, they only apply to the *next*
-build — go to **Deployments**, find the branch, and choose **⋯ → Redeploy**.
-Pushing any new commit to the branch also triggers a fresh preview.
+**Environment variables are compiled into the build, not read at runtime.** Every
+`NEXT_PUBLIC_*` reference is replaced with a literal value when `next build`
+runs, so a build made before you saved them has `undefined` baked in permanently.
+Changing the dashboard afterwards cannot fix an existing build, and the app will
+keep showing "SiteBoss Pro is not connected to Supabase yet" no matter what the
+settings now say.
 
-You will end up with two URLs:
+If you added the variables after the first build, get a genuinely fresh one:
 
-- A **per-deployment** URL, unique to each build — changes every push.
-- A **branch** URL like
-  `siteboss-pro-git-claude-siteboss-pro-planning-8y80n2-<scope>.vercel.app` —
-  stable for the life of the branch.
+- **A new commit** is the reliable route. It always builds from scratch.
+- **Deployments → ⋯ → Redeploy** also works, but you must **untick "Use existing
+  Build Cache"**. It is ticked by default, and reusing the cache can reuse the
+  compiled output with the old values still inlined.
+
+Vercel labels a build whose project settings have changed since it ran as
+**"Ready — Stale"**. That label is the signal that the running build predates
+your framework-preset or environment-variable changes, and needs replacing.
+
+You will end up with two kinds of URL:
+
+- A **per-deployment** URL, unique to each build. It changes on every push, and
+  URLs from superseded or failed builds return `404: NOT_FOUND`.
+- A **branch** URL containing `-git-<branch-slug>-`, which always points at the
+  newest successful build of that branch.
 
 **Use the branch URL.** It is the one to open on your phone and the one to give
-Supabase in the next step.
+Supabase in the next step. To find it: Deployments → the row whose branch is
+`claude/siteboss-pro-planning-8y80n2` **and** whose target is Preview → Visit.
 
 ## 8. Allow the URL in Supabase
 
@@ -166,8 +206,26 @@ own microphone, which types into the same field and works fine.
 ## Troubleshooting
 
 **Every route bounces to the landing page with a setup notice.**
-The environment variables are missing or were added after the last build.
-Add them and redeploy.
+The environment variables are missing, or — far more often — they were added
+*after* the build that is currently serving. They are inlined at build time, so
+the running artifact still has `undefined` compiled in. Get a fresh build: a new
+commit, or Redeploy with "Use existing Build Cache" unticked. See step 7.
+
+**"Ready — Stale" next to the deployment.**
+The build predates a change to project settings, typically the framework preset
+or the environment variables. It keeps serving, but it is not built from your
+current settings. Replace it with a fresh build.
+
+**A deployment URL returns `404: NOT_FOUND` while the branch URL works.**
+Per-deployment URLs are pinned to one build; superseded and failed builds return
+404. This is normal and is not a fault in the app. Use the branch URL. If the
+404 URL was a Production one, it is `main` failing to build, which is expected
+until Phase 1 merges.
+
+**The page loads for you but the app looks unauthenticated to everyone else.**
+Deployment Protection passes transparently in a browser already signed in to
+Vercel, so the owner sees the app while a phone or an automated check sees the
+login wall. Always confirm in a private window — see step 9.
 
 **"Could not load your dashboard" or a permission error.**
 The migrations have not been applied to this project. Redo step 2 — in
