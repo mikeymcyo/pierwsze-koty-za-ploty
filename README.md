@@ -136,13 +136,19 @@ on phones, in direct sunlight. Touch targets are at least 48px so they work with
 gloves on. Primary actions are near-black for maximum contrast, with a single
 high-vis amber reserved for the wordmark and the create action.
 
-## Deploying to Vercel
+## Deploying
 
-1. Import the repository.
-2. Set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` and
-   `NEXT_PUBLIC_SITE_URL` (your deployed origin).
-3. In Supabase, add `https://<your-domain>/auth/callback` to
-   **Authentication → URL Configuration → Redirect URLs**.
+**[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** covers putting the branch on a
+Vercel preview URL you can open on a phone, including the Supabase project setup
+and the redirect-URL configuration that email links depend on.
+
+The short version: import the repo into Vercel, set `NEXT_PUBLIC_SUPABASE_URL`
+and `NEXT_PUBLIC_SUPABASE_ANON_KEY`, apply the migrations to a hosted Supabase
+project, and allow-list `<your-url>/auth/callback` in Supabase.
+
+Leave `NEXT_PUBLIC_SITE_URL` unset on preview deployments — the app then uses
+Vercel's stable per-branch URL for email links, so you configure Supabase once
+rather than after every push.
 
 ## Roadmap
 

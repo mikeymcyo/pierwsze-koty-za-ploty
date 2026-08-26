@@ -6,6 +6,10 @@
  * NEXT_PUBLIC_* names are referenced statically so Next.js can inline them.
  */
 
+function stripTrailingSlash(value: string): string {
+  return value.replace(/\/+$/, "");
+}
+
 function required(name: string, value: string | undefined): string {
   const trimmed = value?.trim();
   if (!trimmed) {
@@ -26,12 +30,31 @@ export const env = {
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     );
   },
+  /**
+   * Origin used to build the absolute callback links in confirmation and
+   * password reset emails. Every value here must be allow-listed in Supabase
+   * under Authentication -> URL Configuration -> Redirect URLs.
+   *
+   * On Vercel the per-deployment VERCEL_URL is deliberately the last resort: it
+   * changes with every push, so relying on it would mean re-allow-listing a new
+   * URL each time. VERCEL_BRANCH_URL is stable for the life of a branch, which
+   * makes preview deployments a one-time setup.
+   */
   get siteUrl() {
-    // Used to build absolute callback URLs for password reset and email links.
     const explicit = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-    if (explicit) return explicit.replace(/\/$/, "");
-    const vercel = process.env.VERCEL_URL?.trim();
-    if (vercel) return `https://${vercel}`;
+    if (explicit) return stripTrailingSlash(explicit);
+
+    if (process.env.VERCEL_ENV === "production") {
+      const production = process.env.VERCEL_PROJECT_PRODUCTION_URL?.trim();
+      if (production) return `https://${stripTrailingSlash(production)}`;
+    }
+
+    const branch = process.env.VERCEL_BRANCH_URL?.trim();
+    if (branch) return `https://${stripTrailingSlash(branch)}`;
+
+    const deployment = process.env.VERCEL_URL?.trim();
+    if (deployment) return `https://${stripTrailingSlash(deployment)}`;
+
     return "http://localhost:3000";
   },
 };
