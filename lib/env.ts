@@ -20,9 +20,36 @@ function required(name: string, value: string | undefined): string {
   return trimmed;
 }
 
+/**
+ * The two readers below are the single source of truth for "is Supabase
+ * configured", used by both `hasSupabaseConfig()` and the `env` getters.
+ *
+ * They must not drift apart. When they did, the guard trimmed and used `||`
+ * while the getter used `??`, and the two disagreed about an **empty-string**
+ * variable: `""` is falsy but not nullish. Setting
+ * NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY to an empty value alongside a valid
+ * NEXT_PUBLIC_SUPABASE_ANON_KEY therefore passed the guard and then threw in
+ * the getter, which 500s every route - including the landing page that exists
+ * to explain the misconfiguration. An empty variable is easy to create by
+ * accident in the Vercel dashboard, so treat empty and absent as identical.
+ *
+ * NEXT_PUBLIC_* names stay statically referenced so Next.js can inline them.
+ */
+function supabaseUrl(): string | undefined {
+  return process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || undefined;
+}
+
+function supabaseKey(): string | undefined {
+  return (
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim() ||
+    undefined
+  );
+}
+
 export const env = {
   get supabaseUrl() {
-    return required("NEXT_PUBLIC_SUPABASE_URL", process.env.NEXT_PUBLIC_SUPABASE_URL);
+    return required("NEXT_PUBLIC_SUPABASE_URL", supabaseUrl());
   },
   /**
    * The browser-facing API key. Supabase is migrating from the legacy JWT
@@ -36,8 +63,7 @@ export const env = {
   get supabaseKey() {
     return required(
       "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY",
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
+      supabaseKey(),
     );
   },
   /**
@@ -71,9 +97,5 @@ export const env = {
 
 /** True when Supabase credentials are present, so the UI can guide setup. */
 export function hasSupabaseConfig(): boolean {
-  return Boolean(
-    process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() &&
-      (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY?.trim() ||
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim()),
-  );
+  return Boolean(supabaseUrl() && supabaseKey());
 }
