@@ -6,6 +6,10 @@ it says so explicitly - treat that distinction as load-bearing.
 
 **Written:** 2026-08-26 · **Branch head at writing:** `b06b878`
 
+**Updated:** 2026-08-27 - section 9 rewritten with a reproduced diagnosis; new
+`lib/env.ts` bug in section 12; section 13 re-ordered. No application code has
+been changed.
+
 > `PROJECT_STATE.md` in this repo is an earlier handoff. Where the two disagree,
 > **this file wins** - it is newer. Consider deleting PROJECT_STATE.md once you
 > have read both.
@@ -58,7 +62,14 @@ Not yet installed, needed later: OpenAI SDK (Phase 5), `@react-pdf/renderer`
 ## 3. Repository and branch
 
 - Repo: `mikeymcyo/pierwsze-koty-za-ploty` - **public**
-- **Only ever push to:** `claude/siteboss-pro-planning-8y80n2`
+- **Branches - read this before pushing.** The original instruction was *only
+  ever push to* `claude/siteboss-pro-planning-8y80n2`. The 2026-08-27 session
+  was started by the harness on a second branch,
+  `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, and this handoff update was
+  pushed there, deliberately: it leaves PR #1 and the planning branch untouched.
+  Both branches were identical at `046c11a` when it forked. **Ask the owner
+  which branch the #441 fix should land on** rather than assuming; cherry-picking
+  between them is trivial while they have not diverged.
 - Base: `main`. **`main` is completely empty** - the owner deleted the four
   legacy static files. Production builds therefore **fail**, and any Production
   URL returns `404: NOT_FOUND`. Expected; do not "fix" it.
@@ -214,6 +225,20 @@ Vercel state success.
 - `npm run build`, `typecheck`, `lint` - clean
 - The production build (`next build` + `next start`) serves correctly
 
+### Verified 2026-08-27, at `046c11a`, in a fresh container
+
+Re-checked from scratch after a clean `npm install`, with no `.env.local`:
+
+- `npm run build` clean; `npm run lint` clean; `tsc --noEmit` clean. (Note: bare
+  `tsc --noEmit` needs a prior `next build` - `app/layout.tsx` uses the
+  Next-generated `LayoutProps` global, so typecheck on a cold tree reports
+  `TS2304: Cannot find name 'LayoutProps'`. Not a bug; run the build first.)
+- All app routes still compile as dynamic (`f`), none accidentally static.
+- React error #441's meaning confirmed against React's own `codes.json`.
+- The #441 symptom **reproduced locally** in a production build - see section 9.
+- Missing Supabase env vars confirmed to 307 every route to `/`, not error.
+- A new `lib/env.ts` bug found and reproduced - see section 12.
+
 ### NOT verified
 
 **Nothing has been verified against the Vercel deployment itself.** Deployment
@@ -238,12 +263,16 @@ error in section 9, with the main content area blank.
 
 ## 9. THE LIVE BUG - React error #441 with blank main content
 
-**Reported by the owner on the deployed preview. Not reproduced here, because
-Deployment Protection blocks access.**
+**Reported by the owner on the deployed preview.** Deployment Protection still
+blocks access to the preview itself, but the **symptom has now been reproduced
+locally** in a production build, which narrows the cause considerably. See
+"What the 2026-08-27 session established" below before doing anything else.
 
 ### What #441 actually is
 
-Decoded from React's official error-code table:
+Verified 2026-08-27 against React's canonical `scripts/error-codes/codes.json`
+(fetched from the React repo, entry `441`) - the decoding below is exact, not
+inferred:
 
 > "An error occurred in the Server Components render. The specific message is
 > omitted in production builds to avoid leaking sensitive details. A digest
@@ -252,56 +281,109 @@ Decoded from React's official error-code table:
 
 This is **not a React bug and not a client bug**. It means a **Server Component
 threw during render in production**, and React deliberately withheld the real
-message. The blank main content is the same event: the thrown Server Component
-was replaced by the error boundary, so `<main>` rendered nothing useful.
+message. The two symptoms - the error and the blank main - are one fault.
 
-The two symptoms are one fault, not two.
+### What the 2026-08-27 session established
 
-### How to get the real message - do this first
+Reproduced locally with `next build` + `next start`, no Supabase credentials
+needed: a session was stubbed and a throw forced, first in the `(app)` layout
+and then in the dashboard page. The two produce **measurably different**
+responses, and that difference is the diagnostic lever:
 
-The real error exists in **Vercel's Runtime Logs**, keyed by the `digest`.
+| Where the throw happens | HTTP status | Shell (nav, top bar) in server HTML | What the user sees |
+| ----------------------- | ----------- | ----------------------------------- | ------------------ |
+| `(app)/layout.tsx` - i.e. `lib/auth/session.ts` or `lib/env.ts` | **500** | **never renders** | straight to "Something broke" |
+| any **page** under `(app)` | **200** | **renders normally** | shell + **blank main** (the `loading.tsx` skeleton), then "Something broke" |
 
-1. Reproduce on the preview and note the digest shown by `app/error.tsx`.
+In the page-throw case the served HTML contains a failed Suspense boundary
+carrying the digest, which is the exact fingerprint to look for:
+
+```html
+<main ...><div ...><!--$!--><template data-dgst="2821726327"></template>
+```
+
+A real Chromium run against that reproduction logged
+`Minified React error #441` to the console and rendered `app/error.tsx` with
+`Reference: 2821726327` - i.e. the owner's exact report.
+
+**The owner reported "the app loads and then the main content area is blank".
+That is the 200 signature.** The `(app)` layout therefore *succeeded*, which
+means env vars were present and `getSessionContext()` did resolve the company.
+
+Two of the previously top-ranked candidates are consequently **ruled out**:
+
+- **`lib/env.ts:16`** - ruled out twice over. A layout-level throw would be a
+  500 with no shell; and a build with *no* Supabase vars at all was tested
+  directly - `hasSupabaseConfig()` is false, so `proxy.ts` 307s every route to
+  `/` and no error is ever rendered.
+- **`lib/auth/session.ts:52` / `:58`** (`Could not load your company` / not
+  linked to a company) - both live in the layout, so both would be a 500 with
+  no shell.
+
+**Remaining candidate: a throw inside a page**, and given the owner lands on
+the dashboard after sign-in, `app/(app)/dashboard/page.tsx:41`
+(`Could not load your dashboard: <PostgREST message>`) is the prime suspect.
+The other page-level throws in the table below remain possible if the owner was
+on a different screen.
+
+### How to get the real message - still required
+
+The PostgREST message itself is still redacted and still lives in **Vercel's
+Runtime Logs**, keyed by the `digest`.
+
+1. On the preview, note the number after **`Reference:`** on the error screen.
+   That *is* the digest - `app/error.tsx` already prints it, so no log access is
+   needed to obtain it.
 2. Vercel -> the project -> **Logs** (Runtime Logs), filter to that deployment.
 3. Find the entry whose digest matches. That line carries the un-redacted error.
 
-Do not guess before you have the digest. Everything below is a ranked shortlist,
-not a diagnosis.
+**A digest cannot be decoded offline.** Verified in the installed Next.js:
+`next/dist/server/app-render/create-error-handler.js` computes
+`stringHash(err.message + (err.stack || ''))`. The stack contains minified chunk
+filenames and offsets that change with every build, so a digest is only
+meaningful within the one deployment that produced it - confirmed by observing
+the same error message hash to two different digests across two builds. Do not
+try to brute-force it; ask the owner for the log line.
 
 ### Candidate sources, ranked
 
 Every `throw` reachable from a Server Component render:
 
-| Location | Message |
-| -------- | ------- |
-| `lib/env.ts:16` | `Missing environment variable ...` |
-| `lib/auth/session.ts:52` | `Could not load your company: ...` |
-| `lib/auth/session.ts:58` | account not linked to a company |
-| `app/(app)/dashboard/page.tsx:41` | `Could not load your dashboard: ...` |
-| `app/(app)/projects/page.tsx:29` | `Could not load your projects: ...` |
-| `app/(app)/projects/[id]/page.tsx:55,87` | project / project data |
-| `app/(app)/reports/page.tsx:27`, `reports/new/page.tsx:26` | reports |
+| Location | Message | Status |
+| -------- | ------- | ------ |
+| `lib/env.ts:16` | `Missing environment variable ...` | **ruled out** (layout/proxy level) |
+| `lib/auth/session.ts:52` | `Could not load your company: ...` | **ruled out** (layout - would be 500) |
+| `lib/auth/session.ts:58` | account not linked to a company | **ruled out** (layout - would be 500) |
+| `app/(app)/dashboard/page.tsx:41` | `Could not load your dashboard: ...` | **prime suspect** |
+| `app/(app)/projects/page.tsx:29` | `Could not load your projects: ...` | possible |
+| `app/(app)/projects/[id]/page.tsx:55,87` | project / project data | possible |
+| `app/(app)/reports/page.tsx:27`, `reports/new/page.tsx:26` | reports | possible |
 
-Most likely, in order:
+What is still genuinely unknown is **why** a PostgREST query that passes locally
+against the same hosted Supabase fails on Vercel. Do not guess at that; get the
+log line.
 
-1. **`NEXT_PUBLIC_SUPABASE_*` missing or stale in the serving build.** If it were
-   fully missing, `hasSupabaseConfig()` would be false and `proxy.ts` would
-   redirect everything to `/` instead - so a *partial* or scope-mismatched
-   configuration is more consistent with reaching a page and then throwing.
-2. **`Could not load your company`** from a PostgREST error - permission,
-   or the clock-skew case below under an unusually long skew.
-3. Something environment-specific to Vercel's runtime that neither the local dev
-   server nor `next start` reproduces.
+### Proposed fix, not yet applied
+
+Agreed in principle with the owner on 2026-08-27, pending the real message:
+
+1. Fix the actual cause once the log line is readable.
+2. **Make this bug class self-diagnosing.** Stop `throw`ing on ordinary
+   data-load failures in pages; render an honest inline error panel inside the
+   working shell, carrying a stable code and the PostgREST error *code* (e.g.
+   `42501`). That is not leaking server internals - no message text, no stack,
+   no config - and it is consistent with D11 (no dead ends in the UI).
+3. Add `instrumentation.ts` with `onRequestError` so Runtime Logs pair each
+   digest with its message explicitly, instead of relying on Next's default.
 
 ### Note on the error page itself
 
 `app/error.tsx` renders `error.message`, which **Next.js redacts in production**.
 That is why the owner sees a generic message plus a digest rather than anything
 useful. This is correct, deliberate behaviour - do not "fix" it by leaking server
-error text to the browser. If you want a friendlier production message, branch on
-`process.env.NODE_ENV` and keep the digest visible.
-
----
+error text to the browser. The `Reference:` digest it already prints is the
+handle into the Runtime Logs, and is the reason step 1 above needs no log
+access.
 
 ## 10. Everything already attempted while debugging deployment
 
@@ -391,7 +473,19 @@ behavioural: call `signUp()` and see whether a session comes back.
 
 ## 12. Known issues and technical debt
 
-- **The live #441 bug** (section 9) - unresolved, highest priority.
+- **The live #441 bug** (section 9) - unresolved, highest priority, but now
+  narrowed to a page-level throw rather than the layout.
+- **`lib/env.ts` guard/getter mismatch - a real latent bug, found and reproduced
+  2026-08-27, not yet fixed.** `hasSupabaseConfig()` tests the two key names with
+  `||` on *trimmed* values, but `env.supabaseKey` selects between them with `??`.
+  An **empty-string** `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` alongside a valid
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY` therefore passes the guard (`""`.trim() is
+  falsy, so it falls through to the anon key) but throws in the getter (`""` is
+  not nullish, so `??` returns it). Verified: **every route 500s, including
+  `/`.** This is *not* the #441 symptom - it is a different, louder failure -
+  but it is a live trap given the handoff tells the owner to set one key
+  variable and Vercel will happily store one with an empty value. Fix by making
+  the getter use the same trimmed-`||` logic as the guard.
 - **Deployment Protection is on**, so nothing automated can reach the preview.
   This is what let #441 escape.
 - **No CI.** Four good suites, nothing runs them.
@@ -411,20 +505,26 @@ behavioural: call `signUp()` and see whether a session comes back.
 
 ## 13. Exact next actions, in priority order
 
-1. **Get the digest for #441 from Vercel Runtime Logs** and read the real error.
-   Everything else is guesswork until then. Section 9 has the procedure.
-2. **Ask the owner to turn Deployment Protection off** (Settings -> Deployment
+1. **Get the real error message for #441.** Ask the owner for the number after
+   `Reference:` on the error screen *and* which page they were on, then for the
+   matching line from Vercel -> Logs (Runtime Logs) for that deployment. Section
+   9 explains why the digest alone cannot be decoded offline. Everything about
+   the root cause is guesswork until this arrives.
+2. **Fix `lib/env.ts`** (section 12) - independent of #441, small, and testable
+   locally right now. Does not need the owner for anything.
+3. **Fix #441** based on the real message, then make the class self-diagnosing:
+   inline error panels instead of `throw` for data-load failures, plus
+   `instrumentation.ts` / `onRequestError`. Section 9 has the agreed shape.
+4. **Ask the owner to turn Deployment Protection off** (Settings -> Deployment
    Protection -> Vercel Authentication -> off -> **Save**) and confirm in a
    **private window**. Until then no automated verification of the deploy is
    possible, and this bug class can recur unseen.
-3. **Once reachable, run the suites against the deployment**, not just locally:
+5. **Once reachable, run the suites against the deployment**, not just locally:
    `E2E_BASE_URL=<alias> npm run test:e2e` and the same for `test:projects` and
    `test:isolation`. Warn the owner first that this creates throwaway accounts.
-4. **Fix #441** based on the real message, and add whatever check would have
-   caught it.
-5. **Offer a CI workflow** - typecheck, lint, build and `test:db` against a
+6. **Offer a CI workflow** - typecheck, lint, build and `test:db` against a
    `postgres:16` service container. Offered twice, never actioned.
-6. **Then Phase 3.**
+7. **Then Phase 3.**
 
 ---
 
@@ -489,8 +589,9 @@ which is older.
 
 Context you need immediately:
 
-- Work only on the branch `claude/siteboss-pro-planning-8y80n2`. Never push to
-  `main`, and do not merge PR #1.
+- There are now two working branches, `claude/siteboss-pro-planning-8y80n2` and
+  `claude/siteboss-pro-react-441-diagnosis-bhvwk8`. Ask me which one to use
+  before pushing. Never push to `main`, and do not merge PR #1.
 - Phases 1 (auth, database, app shell) and 2 (projects CRUD and the project
   detail screen) are complete and pass their test suites against my live
   Supabase project. Do not rebuild them.
@@ -502,12 +603,20 @@ Context you need immediately:
 
 There is one live bug, and it is the first priority. On the deployed preview the
 app loads but the main content area is blank and the console shows **Minified
-React error #441**. HANDOFF.md section 9 decodes that error, explains why it is a
-Server Component throwing in production with the message redacted, lists every
-`throw` that could cause it, and gives the procedure for pulling the real message
-out of Vercel's Runtime Logs via the error digest. Start there. Do not guess at
-the cause before reading the digest - ask me to fetch it from Vercel if you
-cannot reach the logs yourself.
+React error #441**. A previous session reproduced that symptom locally and
+narrowed it: the `(app)` layout is fine, so it is a **page-level** Server
+Component throw, most likely `Could not load your dashboard` at
+`app/(app)/dashboard/page.tsx:41`. HANDOFF.md section 9 has the full reasoning,
+the evidence, and what is still unknown. Read it before touching anything.
+
+What is still missing is the real PostgREST message. Ask me for two things: the
+number printed after **`Reference:`** on the error screen, and which page I was
+on. Then ask me to find the matching line in Vercel -> Logs for that deployment.
+A digest cannot be decoded offline - section 9 explains why - so do not guess at
+the cause, and do not ask me for a Vercel token.
+
+There is also a smaller, unrelated `lib/env.ts` bug written up in section 12
+that can be fixed immediately without anything from me.
 
 Also note: Vercel Deployment Protection is currently on, which SSO-walls the
 preview from any automated request. That is why this bug reached me instead of
