@@ -4,11 +4,14 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Trash2 } from "lucide-react";
 
 import { deleteReport, saveReport, type ReportFormState } from "@/app/(app)/reports/actions";
+import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
+import { PhotoUpload } from "@/components/reports/photo-upload";
 import { ReportCaptureForm } from "@/components/reports/report-capture-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
+import { signPhotoUrls } from "@/lib/photos-signing";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatReportNumber } from "@/lib/utils";
@@ -24,7 +27,7 @@ export default async function ReportCapturePage({
 }) {
   const [{ id }, { saved }] = await Promise.all([params, searchParams]);
 
-  await requireSessionContext();
+  const session = await requireSessionContext();
   const supabase = await createClient();
 
   // RLS scopes this to the caller's company, so an id from another company is
@@ -53,7 +56,7 @@ export default async function ReportCapturePage({
 
   if (!report) notFound();
 
-  const [workforceResult, plantResult] = await Promise.all([
+  const [workforceResult, plantResult, photosResult] = await Promise.all([
     withClockSkewRetry(() =>
       supabase
         .from("workforce_entries")
@@ -68,12 +71,27 @@ export default async function ReportCapturePage({
         .eq("report_id", id)
         .order("sort_order", { ascending: true }),
     ),
+    withClockSkewRetry(() =>
+      supabase
+        .from("photos")
+        .select("id, caption, category, storage_path, width, height")
+        .eq("report_id", id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+    ),
   ]);
+
+  const photoRows = photosResult.data ?? [];
+  const photoUrls = await signPhotoUrls(photoRows.map((photo) => photo.storage_path));
+  const photos: PhotoWithUrl[] = photoRows.map((photo) => ({
+    ...photo,
+    url: photoUrls.get(photo.storage_path) ?? null,
+  }));
 
   // The report itself loaded, so the screen is still usable. Rather than blank
   // it, the capture form is withheld - editing rows we failed to read would
   // silently wipe them on save - and the panel explains why.
-  const loadError = workforceResult.error ?? plantResult.error;
+  const loadError = workforceResult.error ?? plantResult.error ?? photosResult.error;
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const projectHref = project ? `/projects/${project.id}` : "/reports";
@@ -121,6 +139,28 @@ export default async function ReportCapturePage({
           cancelHref={projectHref}
           saved={saved === "1"}
         />
+      )}
+
+      {loadError ? null : (
+        <section className="flex flex-col gap-4 border-t border-line pt-6">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+              Photos
+            </h2>
+            <p className="text-sm text-ink-muted">
+              Shoot straight from the site. They are resized on your phone before
+              upload, so this works on a bad signal.
+            </p>
+          </div>
+
+          <PhotoUpload
+            companyId={session.companyId}
+            projectId={project?.id ?? report.project_id}
+            reportId={report.id}
+          />
+
+          {photos.length > 0 ? <PhotoGrid photos={photos} /> : null}
+        </section>
       )}
 
       {report.status === "draft" ? (
