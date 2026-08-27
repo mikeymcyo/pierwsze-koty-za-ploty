@@ -152,14 +152,18 @@ try {
   console.log("\n7. The report is listed everywhere it should be");
   await page.goto(`${BASE}/reports`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByRole("heading", { name: "Reports", exact: true }).waitFor({ timeout: TIMEOUT });
-  check("appears on the reports list", await page.getByText("Report 001").first().isVisible());
+  await page.getByText("Report 001").first().waitFor({ timeout: TIMEOUT });
+  check("appears on the reports list", true);
 
   await page.getByText("Report 001").first().click();
   await page.waitForURL(reportUrlPattern, { timeout: TIMEOUT });
   check("reports list links back into the report", true);
 
   await page.goto(`${BASE}/dashboard`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
-  check("appears on the dashboard", await page.getByText("Report 001").first().isVisible());
+  // Wait rather than sample: goto resolves before the dashboard's queries have
+  // rendered, and an immediate read makes this check intermittently fail.
+  await page.getByText("Report 001").first().waitFor({ timeout: TIMEOUT });
+  check("appears on the dashboard", true);
 
   console.log("\n8. A second report numbers up and carries the crew over");
   await page.goto(projectUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
