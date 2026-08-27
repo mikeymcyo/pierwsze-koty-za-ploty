@@ -6,6 +6,7 @@ import { AlertTriangle, Camera, FileText, Pencil, Plus } from "lucide-react";
 
 import { startReport } from "@/app/(app)/reports/actions";
 import { ProjectTabs } from "@/components/projects/project-tabs";
+import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { isProjectTab, type ProjectTab } from "@/lib/project-tabs";
 import { Button } from "@/components/ui/button";
@@ -14,6 +15,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
+import { signPhotoUrls } from "@/lib/photos-signing";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatReportNumber } from "@/lib/utils";
@@ -86,7 +88,7 @@ export default async function ProjectPage({
     withClockSkewRetry(() =>
       supabase
         .from("photos")
-        .select("id, caption, category, created_at")
+        .select("id, caption, category, storage_path, width, height, created_at")
         .eq("project_id", project.id)
         .order("created_at", { ascending: false }),
     ),
@@ -103,8 +105,14 @@ export default async function ProjectPage({
   const loadError = reportsResult.error ?? photosResult.error ?? issuesResult.error;
 
   const reports = reportsResult.data ?? [];
-  const photos = photosResult.data ?? [];
   const issues = issuesResult.data ?? [];
+
+  const photoRows = photosResult.data ?? [];
+  const photoUrls = await signPhotoUrls(photoRows.map((photo) => photo.storage_path));
+  const photos: PhotoWithUrl[] = photoRows.map((photo) => ({
+    ...photo,
+    url: photoUrls.get(photo.storage_path) ?? null,
+  }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -223,23 +231,10 @@ export default async function ProjectPage({
           <EmptyState
             icon={Camera}
             title="No photos yet"
-            description="Photos taken against this project's reports will collect here. Camera capture arrives in phase four."
+            description="Photos are taken against a report. Start one with New report above, and they will collect here."
           />
         ) : (
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {photos.map((photo) => (
-              <li key={photo.id}>
-                <Card>
-                  <CardContent className="p-3">
-                    <p className="truncate text-sm font-medium text-ink">
-                      {photo.caption || "Untitled"}
-                    </p>
-                    <p className="mt-1 text-xs text-ink-subtle">{photo.category}</p>
-                  </CardContent>
-                </Card>
-              </li>
-            ))}
-          </ul>
+          <PhotoGrid photos={photos} />
         )
       ) : null}
 
