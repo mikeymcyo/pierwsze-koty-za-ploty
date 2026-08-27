@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { updateProject } from "@/app/(app)/projects/actions";
 import { ProjectForm } from "@/components/projects/project-form";
+import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
@@ -22,8 +23,18 @@ export default async function EditProjectPage({
     supabase.from("projects").select("*").eq("id", id).maybeSingle(),
   );
 
+  // Without the project there is no form to prefill, but the shell and the
+  // navigation still work - so say what happened rather than blanking. See
+  // LoadError.
   if (error) {
-    throw new Error(`Could not load the project: ${error.message}`);
+    return (
+      <div className="flex flex-col gap-6">
+        <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
+          Edit project
+        </h1>
+        <LoadError what="this project" code={error.code} />
+      </div>
+    );
   }
 
   // RLS returns nothing for another company's project, so this covers both

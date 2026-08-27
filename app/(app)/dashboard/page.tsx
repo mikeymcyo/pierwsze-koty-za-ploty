@@ -6,6 +6,7 @@ import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadError } from "@/components/ui/load-error";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
@@ -36,25 +37,40 @@ export default async function DashboardPage() {
     ),
   ]);
 
-  const error = projectsResult.error ?? reportsResult.error;
-  if (error) {
-    throw new Error(`Could not load your dashboard: ${error.message}`);
-  }
+  const loadError = projectsResult.error ?? reportsResult.error;
 
   const projects = projectsResult.data ?? [];
   const reports = reportsResult.data ?? [];
 
+  const greeting = (
+    <header className="flex flex-col gap-1">
+      {/* The mobile top bar already carries the company name. */}
+      <p className="hidden text-sm font-semibold text-ink-muted md:block">
+        {session.companyName}
+      </p>
+      <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
+        Hello, {displayName(session)}
+      </h1>
+    </header>
+  );
+
+  // Shown in place rather than thrown, so the shell and navigation survive and
+  // the user gets a code they can quote - see LoadError. Both sections are
+  // dropped rather than left to render their empty states: with the queries
+  // failed we do not know that there are no projects, and saying so would be
+  // telling the user something we have not established.
+  if (loadError) {
+    return (
+      <div className="flex flex-col gap-8">
+        {greeting}
+        <LoadError what="your dashboard" code={loadError.code} />
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-1">
-        {/* The mobile top bar already carries the company name. */}
-        <p className="hidden text-sm font-semibold text-ink-muted md:block">
-          {session.companyName}
-        </p>
-        <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
-          Hello, {displayName(session)}
-        </h1>
-      </header>
+      {greeting}
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4">
