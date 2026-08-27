@@ -7,9 +7,11 @@ import { deleteReport, saveReport, type ReportFormState } from "@/app/(app)/repo
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
 import { ReportCaptureForm } from "@/components/reports/report-capture-form";
+import { ReportDraft } from "@/components/reports/report-draft";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/load-error";
+import { hasAiConfig } from "@/lib/ai/report-generation";
 import { requireSessionContext } from "@/lib/auth/session";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
@@ -56,7 +58,7 @@ export default async function ReportCapturePage({
 
   if (!report) notFound();
 
-  const [workforceResult, plantResult, photosResult] = await Promise.all([
+  const [workforceResult, plantResult, photosResult, sectionsResult] = await Promise.all([
     withClockSkewRetry(() =>
       supabase
         .from("workforce_entries")
@@ -79,6 +81,13 @@ export default async function ReportCapturePage({
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: true }),
     ),
+    withClockSkewRetry(() =>
+      supabase
+        .from("report_sections")
+        .select("id, section_type, content, ai_generated")
+        .eq("report_id", id)
+        .order("sort_order", { ascending: true }),
+    ),
   ]);
 
   const photoRows = photosResult.data ?? [];
@@ -91,7 +100,8 @@ export default async function ReportCapturePage({
   // The report itself loaded, so the screen is still usable. Rather than blank
   // it, the capture form is withheld - editing rows we failed to read would
   // silently wipe them on save - and the panel explains why.
-  const loadError = workforceResult.error ?? plantResult.error ?? photosResult.error;
+  const loadError =
+    workforceResult.error ?? plantResult.error ?? photosResult.error ?? sectionsResult.error;
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const projectHref = project ? `/projects/${project.id}` : "/reports";
@@ -161,6 +171,15 @@ export default async function ReportCapturePage({
 
           {photos.length > 0 ? <PhotoGrid photos={photos} /> : null}
         </section>
+      )}
+
+      {loadError ? null : (
+        <ReportDraft
+          reportId={report.id}
+          sections={sectionsResult.data ?? []}
+          rawNotes={report.raw_notes}
+          configured={hasAiConfig()}
+        />
       )}
 
       {report.status === "draft" ? (
