@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { FileText } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requireSessionContext } from "@/lib/auth/session";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
@@ -48,8 +49,11 @@ export default async function ReportsPage() {
 
             return (
               <li key={report.id}>
-                <Card>
-                  <CardContent className="flex items-center justify-between gap-4">
+                <Card className="transition-colors hover:border-line-strong">
+                  <Link
+                    href={`/reports/${report.id}`}
+                    className="flex items-center justify-between gap-4 p-5"
+                  >
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-ink">
                         Report {formatReportNumber(report.report_number)} ·{" "}
@@ -62,7 +66,7 @@ export default async function ReportsPage() {
                     <Badge tone={report.status === "final" ? "success" : "neutral"}>
                       {report.status === "final" ? "Final" : "Draft"}
                     </Badge>
-                  </CardContent>
+                  </Link>
                 </Card>
               </li>
             );

@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { HardHat, PlusCircle } from "lucide-react";
+import { HardHat, Plus } from "lucide-react";
 
+import { startReport } from "@/app/(app)/reports/actions";
+import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { requireSessionContext } from "@/lib/auth/session";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
@@ -17,30 +20,30 @@ export default async function NewReportPage() {
   const { data, error } = await withClockSkewRetry(() =>
     supabase
       .from("projects")
-      .select("id", { count: "exact", head: false })
+      .select("id, name, client, site_address, status")
       .neq("status", "completed")
-      .limit(1),
+      .order("updated_at", { ascending: false }),
   );
 
   if (error) {
     throw new Error(`Could not check your projects: ${error.message}`);
   }
 
-  const hasProject = (data ?? []).length > 0;
+  const projects = data ?? [];
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
-        Create report
-      </h1>
+      <header className="flex flex-col gap-1">
+        <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
+          Create report
+        </h1>
+        <p className="text-sm text-ink-muted">
+          Pick the site you are on. The date, your name and the report number are
+          filled in for you.
+        </p>
+      </header>
 
-      {hasProject ? (
-        <EmptyState
-          icon={PlusCircle}
-          title="Report capture is next"
-          description="Your projects are ready. The capture screen — photos, dictation and AI drafting — is built in the next phase."
-        />
-      ) : (
+      {projects.length === 0 ? (
         <EmptyState
           icon={HardHat}
           title="You need a project first"
@@ -51,6 +54,30 @@ export default async function NewReportPage() {
             </Button>
           }
         />
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {projects.map((project) => (
+            <li key={project.id}>
+              <Card>
+                <form action={startReport} className="flex items-center gap-4 p-5">
+                  <input type="hidden" name="projectId" value={project.id} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-ink">{project.name}</p>
+                    <p className="truncate text-sm text-ink-muted">
+                      {[project.client, project.site_address].filter(Boolean).join(" · ") ||
+                        "No client or address recorded"}
+                    </p>
+                  </div>
+                  <ProjectStatusBadge status={project.status} />
+                  <Button type="submit" size="md" className="shrink-0">
+                    <Plus aria-hidden />
+                    Start
+                  </Button>
+                </form>
+              </Card>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

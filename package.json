@@ -12,7 +12,8 @@
     "test:db": "./scripts/test-db.sh",
     "test:e2e": "node e2e/auth-smoke.mjs",
     "test:projects": "node e2e/projects-smoke.mjs",
-    "test:isolation": "node e2e/isolation-smoke.mjs"
+    "test:isolation": "node e2e/isolation-smoke.mjs",
+    "test:reports": "node e2e/reports-smoke.mjs"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.15",

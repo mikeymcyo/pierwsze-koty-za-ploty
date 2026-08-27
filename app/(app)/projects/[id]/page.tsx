@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { AlertTriangle, Camera, FileText, Pencil } from "lucide-react";
+import { AlertTriangle, Camera, FileText, Pencil, Plus } from "lucide-react";
 
+import { startReport } from "@/app/(app)/reports/actions";
 import { ProjectTabs } from "@/components/projects/project-tabs";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { isProjectTab, type ProjectTab } from "@/lib/project-tabs";
@@ -114,9 +115,16 @@ export default async function ProjectPage({
           <ProjectStatusBadge status={project.status} />
         </div>
 
-        {/* A "New report" action belongs here, but the capture screen is built
-            in phase three - no button until it goes somewhere real. */}
         <div className="flex flex-wrap gap-3">
+          {/* Posts rather than links: starting a report inserts a row and lets
+              the database assign its number, which a GET must not do. */}
+          <form action={startReport}>
+            <input type="hidden" name="projectId" value={project.id} />
+            <Button type="submit">
+              <Plus aria-hidden />
+              New report
+            </Button>
+          </form>
           <Button asChild variant="secondary">
             <Link href={`/projects/${project.id}/edit`}>
               <Pencil aria-hidden />
@@ -170,8 +178,11 @@ export default async function ProjectPage({
           <ul className="flex flex-col gap-3">
             {reports.map((report) => (
               <li key={report.id}>
-                <Card>
-                  <CardContent className="flex items-center justify-between gap-4">
+                <Card className="transition-colors hover:border-line-strong">
+                  <Link
+                    href={`/reports/${report.id}`}
+                    className="flex items-center justify-between gap-4 p-5"
+                  >
                     <div className="min-w-0">
                       <p className="font-semibold text-ink">
                         Report {formatReportNumber(report.report_number)}
@@ -183,7 +194,7 @@ export default async function ProjectPage({
                     <Badge tone={report.status === "final" ? "success" : "neutral"}>
                       {report.status === "final" ? "Final" : "Draft"}
                     </Badge>
-                  </CardContent>
+                  </Link>
                 </Card>
               </li>
             ))}

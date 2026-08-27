@@ -70,6 +70,17 @@ async function createProject(page, name) {
   return page.url().split("/projects/")[1].split("?")[0];
 }
 
+/** Starts a report on a project through the UI and returns its id. */
+async function startReport(page, projectId) {
+  await page.goto(`${BASE}/projects/${projectId}`, {
+    waitUntil: "domcontentloaded",
+    timeout: TIMEOUT,
+  });
+  await page.getByRole("button", { name: "New report" }).click();
+  await page.waitForURL(/\/reports\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
+  return page.url().split("/reports/")[1].split("?")[0];
+}
+
 /** Reads the Supabase access token out of the browser's session cookie. */
 async function accessToken(context) {
   const pattern = /^sb-.+-auth-token(\.(\d+))?$/;
@@ -140,7 +151,29 @@ try {
   await bobPage.getByText("Page not found").waitFor({ timeout: TIMEOUT });
   check("Bob cannot open the edit form for Alice's project", true);
 
-  console.log("\n5. Bob's own session token cannot fetch it from the API either");
+  console.log("\n5. Reports are isolated too");
+  const aliceReportId = await startReport(alicePage, aliceProjectId);
+  check("Alice started a report on her project", Boolean(aliceReportId));
+
+  await bobPage.goto(`${BASE}/reports/${aliceReportId}`, {
+    waitUntil: "domcontentloaded",
+    timeout: TIMEOUT,
+  });
+  await bobPage.getByText("Page not found").waitFor({ timeout: TIMEOUT });
+  check("Bob gets not-found for Alice's report id", true);
+  check(
+    "and none of Alice's project name leaks through it",
+    !(await bobPage.getByText(ALICE.project).isVisible().catch(() => false)),
+  );
+
+  await bobPage.goto(`${BASE}/reports`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await bobPage.getByRole("heading", { name: "Reports", exact: true }).waitFor({ timeout: TIMEOUT });
+  check(
+    "Alice's report is absent from Bob's reports list",
+    (await bobPage.getByText("Report 001").count()) === 0,
+  );
+
+  console.log("\n6. Bob's own session token cannot fetch it from the API either");
   const token = await accessToken(bobCtx);
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey =
@@ -174,6 +207,17 @@ try {
       "asking for Alice's project by id returns nothing",
       Array.isArray(targetedRows) && targetedRows.length === 0,
       JSON.stringify(targetedRows).slice(0, 160),
+    );
+
+    const reportRes = await fetch(
+      `${supabaseUrl}/rest/v1/reports?select=id,report_number&id=eq.${aliceReportId}`,
+      { headers: { apikey: supabaseKey, Authorization: `Bearer ${token}` } },
+    );
+    const reportRows = await reportRes.json();
+    check(
+      "asking for Alice's report by id returns nothing",
+      Array.isArray(reportRows) && reportRows.length === 0,
+      JSON.stringify(reportRows).slice(0, 160),
     );
   }
 } catch (error) {

@@ -4,7 +4,7 @@ import { FileText, FolderKanban, HardHat, Plus } from "lucide-react";
 
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
@@ -131,8 +131,11 @@ export default async function DashboardPage() {
 
               return (
                 <li key={report.id}>
-                  <Card>
-                    <CardContent className="flex items-center gap-4">
+                  <Card className="transition-colors hover:border-line-strong">
+                    <Link
+                      href={`/reports/${report.id}`}
+                      className="flex items-center gap-4 p-5"
+                    >
                       <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-surface-muted">
                         <FolderKanban className="size-5 text-ink-muted" aria-hidden />
                       </span>
@@ -145,7 +148,7 @@ export default async function DashboardPage() {
                           {formatDate(report.report_date)}
                         </p>
                       </div>
-                    </CardContent>
+                    </Link>
                   </Card>
                 </li>
               );
