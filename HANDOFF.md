@@ -4,11 +4,13 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Branch head at writing:** `b06b878`
+**Written:** 2026-08-26 · **Last updated:** 2026-08-27
 
-**Updated:** 2026-08-27 - section 9 rewritten with a reproduced diagnosis; new
-`lib/env.ts` bug in section 12; section 13 re-ordered. No application code has
-been changed.
+**Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
+**Head:** `260af4a` - Phase 5 (AI report drafting)
+
+Phases 1-5 are complete and on that branch. Phase 6 (issues + PDF) is next
+and has NOT been started.
 
 > `PROJECT_STATE.md` in this repo is an earlier handoff. Where the two disagree,
 > **this file wins** - it is newer. Consider deleting PROJECT_STATE.md once you
@@ -28,7 +30,7 @@ It is deliberately **not** a construction ERP. If a feature does not make that
 one workflow faster, it does not belong in the MVP.
 
 The MVP is seven phases: foundation/auth, projects, report capture, photos, AI
-report generation, issues + PDF, polish. Phases 1 and 2 are done.
+report generation, issues + PDF, polish. **Phases 1-5 are done.**
 
 The repo owner is a **site manager, not a developer**. Explain plainly, never
 assume they will debug for you, and never leave a button that does not work.
@@ -48,11 +50,11 @@ Verified in `package.json`:
 | UI | Hand-written shadcn/ui-style primitives + Radix slot/label + lucide-react |
 | Backend | Supabase (Postgres, Auth, Storage) via `@supabase/ssr` 0.12.5 |
 | Validation | zod 4 |
+| AI | OpenAI SDK **7.8.0**, chat completions with `json_schema` structured output |
 | Tests | Playwright 1.56.1 (pinned) + psql-driven SQL tests |
 | Hosting | Vercel (Preview only; nothing merged to main) |
 
-Not yet installed, needed later: OpenAI SDK (Phase 5), `@react-pdf/renderer`
-(Phase 6).
+Not yet installed, needed later: `@react-pdf/renderer` (Phase 6).
 
 **Route protection lives in `proxy.ts` at the repo root.** Next.js 16 deprecates
 `middleware.ts`; having both is a hard build error.
@@ -62,26 +64,28 @@ Not yet installed, needed later: OpenAI SDK (Phase 5), `@react-pdf/renderer`
 ## 3. Repository and branch
 
 - Repo: `mikeymcyo/pierwsze-koty-za-ploty` - **public**
-- **Branches - read this before pushing.** The original instruction was *only
-  ever push to* `claude/siteboss-pro-planning-8y80n2`. The 2026-08-27 session
-  was started by the harness on a second branch,
-  `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, and this handoff update was
-  pushed there, deliberately: it leaves PR #1 and the planning branch untouched.
-  Both branches were identical at `046c11a` when it forked. **Ask the owner
-  which branch the #441 fix should land on** rather than assuming; cherry-picking
-  between them is trivial while they have not diverged.
+- **Branches.** Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
+  (head `260af4a`). The older `claude/siteboss-pro-planning-8y80n2` is stale
+  at `046c11a` and carries PR #1; it has NOT been kept in sync. Ask the owner
+  which branch is canonical before pushing.
+- **`claude/phase5-staging` is rubbish and should be deleted.** It was a
+  transfer device (see F15); every commit in it is already contained in
+  `260af4a`. Delete with
+  `git push origin --delete claude/phase5-staging`. Its own Vercel Previews
+  failed by design - it never carried a lockfile - which is expected, not a
+  problem with the code.
 - Base: `main`. **`main` is completely empty** - the owner deleted the four
   legacy static files. Production builds therefore **fail**, and any Production
   URL returns `404: NOT_FOUND`. Expected; do not "fix" it.
 - **PR #1** is open and must **not** be merged yet (owner's instruction).
 - **No CI exists.** No `.github/workflows/`. Nothing runs the test suites
-  automatically. Adding one has been offered twice and not yet requested.
+  automatically. Adding one has been offered three times and not yet requested.
 
 Run `git log --oneline` for current history rather than trusting a copy here.
 
 ---
 
-## 4. What Phase 1 and Phase 2 contain
+## 4. What the completed phases contain
 
 **Phase 1** - foundation, database, auth, app shell:
 sign up / in / out / password reset as zod-validated server actions; the full
@@ -93,13 +97,40 @@ high-contrast theme; the UI primitive set.
 **Phase 2** - projects:
 `app/(app)/projects/actions.ts` (create/update/delete, zod-validated); a shared
 `ProjectForm` covering every schema column; `/projects/[id]` with **Overview /
-Reports / Photos / Open Issues** tabs driven by `?tab=` so they survive a reload
-and can be shared; `/projects/[id]/edit`; project cards linking through from the
-dashboard and list.
+Reports / Photos / Open Issues** tabs driven by `?tab=`; `/projects/[id]/edit`.
 
-Deliberately absent: a **"New report" button** on the project page. The capture
-screen is Phase 3 and a button that only explains itself is not worth having.
-Restore it in Phase 3.
+**Phase 3** - report capture:
+`app/(app)/reports/actions.ts`; `/reports/new` project picker and
+`/reports/[id]` capture screen; workforce and plant as repeatable rows that
+carry over from the project's previous report; weather; the Work Completed
+field with dictation via `lib/hooks/use-speech-input.ts`; raw notes stored
+verbatim in `reports.raw_notes`; the "New report" action on the project page.
+
+**Starting a report is a POST, never a GET** - the insert is what makes the
+`reports_assign_number` trigger allocate the next gapless number, so a link
+would burn numbers on every prefetch.
+
+**Phase 4** - photos:
+client-side resize before upload (works on a bad signal), private-bucket
+storage under `{company_id}/{project_id}/{filename}`, signed URLs via
+`lib/photos-signing.ts`, `PhotoUpload` and `PhotoGrid`.
+
+**Phase 5** - AI report drafting:
+`lib/ai/report-generation.ts` builds the prompt and calls OpenAI with
+`json_schema` structured output; `app/(app)/reports/ai-actions.ts` writes
+`report_sections` (upsert on `report_id,section_type`, so regenerating
+replaces rather than duplicates); `components/reports/report-draft.tsx`
+renders the sections, allows editing, and shows the raw notes beside them.
+
+The prompt's first rule is **never invent**, and its second is that an **empty
+section is a correct answer** - a progress report is a contractual record that
+can be read in a dispute, so padding it would be worse than not having the
+feature. Empty sections are dropped, not rendered.
+
+`reports.raw_notes` is never touched by generation. Editing a section flips
+`ai_generated` to false.
+
+**Phase 6 (issues + PDF) has not been started.**
 
 ---
 
@@ -149,7 +180,8 @@ report_sections, workforce_entries, plant_entries, photos, issues`.
 Two **private** buckets, `site-photos` and `report-pdfs`. Paths are always
 `{company_id}/{project_id}/{filename}`; policies match the leading folder via
 `public.storage_company_id()`, which returns NULL rather than raising on a
-non-uuid path. **Storage is created but entirely unused so far** - Phase 4.
+non-uuid path. `site-photos` is in use since Phase 4; `report-pdfs` is still
+unused and is Phase 6's job.
 
 ### The hosted project
 
@@ -190,14 +222,31 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
 `NEXT_PUBLIC_SUPABASE_ANON_KEY` is accepted as an alternative for older projects.
 Set one key variable, not both. `lib/env.ts` prefers the publishable name.
 
+### OpenAI (Phase 5)
+
+```
+OPENAI_API_KEY          required for drafting; NO NEXT_PUBLIC_ prefix
+OPENAI_MODEL            optional; defaults to what the installed SDK documents
+OPENAI_BASE_URL         optional; only for a proxy or the test stub
+```
+
+`OPENAI_API_KEY` is **server-side only** - never give it a `NEXT_PUBLIC_`
+prefix, which would publish it in the browser bundle. Unlike the Supabase
+variables it is read at request time, not inlined at build time, so changing it
+does not need a rebuild.
+
+**Without it the app still builds and works.** The drafting panel says the
+feature is not switched on rather than showing a button that would fail.
+
 **Do not set `NEXT_PUBLIC_SITE_URL`.** Unset, the app uses Vercel's stable
 `VERCEL_BRANCH_URL` for confirmation and reset email links, so Supabase redirect
 URLs need configuring once rather than after every push.
 
-**These are inlined at build time, not read at runtime.** A build made before
-they were saved has `undefined` compiled in permanently. A plain Redeploy is not
-enough - "Use existing Build Cache" is ticked by default and can reuse the old
-output. Push a commit, or Redeploy with the cache box unticked.
+**The `NEXT_PUBLIC_*` variables are inlined at build time, not read at
+runtime.** A build made before they were saved has `undefined` compiled in
+permanently. A plain Redeploy is not enough - "Use existing Build Cache" is
+ticked by default and can reuse the old output. Push a commit, or Redeploy with
+the cache box unticked.
 
 ### Working preview alias
 
@@ -207,204 +256,151 @@ https://pierwsze-koty-za-ploty-git-claude-siteboss-pro-b74a40-mikeymcyo.vercel.a
 
 Stable for the life of the branch; always points at the newest successful build.
 Per-deployment URLs (`...-dyte4gktb-...`) change every push and 404 once
-superseded. **Use the alias.** Latest Preview build at writing: commit `b06b878`,
-Vercel state success.
+superseded. **Use the alias.** The alias tracks whichever branch it was created
+for - confirm it points at `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
+before trusting what you see there, since work moved branches on 2026-08-27.
 
 ---
 
 ## 7. What has been verified live, and what has not
 
-### Verified against the owner's hosted Supabase (dev server, this sandbox)
+### Verified 2026-08-27 against a local Supabase (all four migrations applied)
 
-- `npm run test:e2e` - 23 checks, zero console errors
-- `npm run test:projects` - 21 checks, zero console errors
-- `npm run test:isolation` - company isolation holds through the UI, by guessed
-  URL, via the edit form, and via a direct PostgREST call with a real session
-  token
-- `npm run test:db` - schema and RLS suite passes
-- `npm run build`, `typecheck`, `lint` - clean
-- The production build (`next build` + `next start`) serves correctly
+Every suite passed, plus `build`, `lint` and `tsc --noEmit`:
 
-### Verified 2026-08-27, at `046c11a`, in a fresh container
+```
+npm run test:e2e        auth, nav, sign out, validation
+npm run test:projects   projects CRUD
+npm run test:reports    capture, numbering, carry-over, delete
+npm run test:photos     upload, resize, signed URLs
+npm run test:isolation  company isolation, incl. reports
+npm run test:ai         the whole drafting pipeline, against a local stub
+npm run test:db         schema and RLS
+```
 
-Re-checked from scratch after a clean `npm install`, with no `.env.local`:
+`npm run test:ai` needs no OpenAI key and costs nothing - `e2e/stub-openai.mjs`
+stands in for the endpoint. Run the app with
+`OPENAI_API_KEY=test OPENAI_BASE_URL=http://127.0.0.1:4010/v1 npm run dev`.
 
-- `npm run build` clean; `npm run lint` clean; `tsc --noEmit` clean. (Note: bare
-  `tsc --noEmit` needs a prior `next build` - `app/layout.tsx` uses the
-  Next-generated `LayoutProps` global, so typecheck on a cold tree reports
-  `TS2304: Cannot find name 'LayoutProps'`. Not a bug; run the build first.)
-- All app routes still compile as dynamic (`f`), none accidentally static.
-- React error #441's meaning confirmed against React's own `codes.json`.
-- The #441 symptom **reproduced locally** in a production build - see section 9.
-- Missing Supabase env vars confirmed to 307 every route to `/`, not error.
-- A new `lib/env.ts` bug found and reproduced - see section 12.
+`tsc --noEmit` must run **after** a build: `app/layout.tsx` uses the
+Next-generated `LayoutProps` global, so a cold typecheck reports `TS2304`.
 
 ### NOT verified
 
-**Nothing has been verified against the Vercel deployment itself.** Deployment
-Protection (Vercel Authentication) SSO-walls every URL from outside a signed-in
-browser, so no automated check has ever reached it. The owner sees the app
-because their browser holds a Vercel session; a phone or a script does not.
-
-That gap is why the bug in section 9 was found by the owner and not by the tests.
+- **Nothing has been verified against the Vercel deployment.** Deployment
+  Protection SSO-walls every URL, so no automated check has ever reached it.
+  That gap is why the bug in section 9 was found by the owner, not the tests.
+- **No real OpenAI model has ever been called.** The pipeline is proven; the
+  quality of actual generated prose is unknown. Expect to iterate on the prompt
+  once a real key is in place.
+- **Phase 5 was never run against the owner's hosted Supabase**, only local.
 
 ---
 
 ## 8. Current authenticated state
 
-Signup creates a company, profile and owner membership via the database trigger,
-lands on `/dashboard`, and the app shell renders. Locally and in the sandbox this
-works end to end. Projects can be created, edited and viewed.
+Signup creates a company, profile and owner membership via the database
+trigger, lands on `/dashboard`, and the app shell renders. Projects, reports,
+photos and AI drafting all work end to end locally and in the sandbox against a
+local Supabase.
 
-On the **deployed preview**, the owner reports the app loads and then hits the
-error in section 9, with the main content area blank.
+On the **deployed preview** the owner previously hit the error in section 9.
+Since Phase 5 the page-level failures render an error panel with a code instead
+of a blank screen, so a recurrence should now be self-describing.
 
 ---
 
 ## 9. THE LIVE BUG - React error #441 with blank main content
 
-**Reported by the owner on the deployed preview.** Deployment Protection still
-blocks access to the preview itself, but the **symptom has now been reproduced
-locally** in a production build, which narrows the cause considerably. See
-"What the 2026-08-27 session established" below before doing anything else.
+**Status: diagnosed, not fixed. Intermittent. Still open.**
 
-### What #441 actually is
+### What #441 is
 
-Verified 2026-08-27 against React's canonical `scripts/error-codes/codes.json`
-(fetched from the React repo, entry `441`) - the decoding below is exact, not
-inferred:
+Verified against React's canonical `codes.json`: "An error occurred in the
+Server Components render. The specific message is omitted in production builds
+... A digest property is included." A Server Component threw and React withheld
+the message. Not a React bug, not a client bug.
 
-> "An error occurred in the Server Components render. The specific message is
-> omitted in production builds to avoid leaking sensitive details. A digest
-> property is included on this error instance which may provide additional
-> details about the nature of the error."
+### What was established by reproduction
 
-This is **not a React bug and not a client bug**. It means a **Server Component
-threw during render in production**, and React deliberately withheld the real
-message. The two symptoms - the error and the blank main - are one fault.
+Reproduced locally in a production build by stubbing a session and forcing a
+throw. The two cases are **measurably different**, and that is the diagnostic
+lever:
 
-### What the 2026-08-27 session established
+| Where the throw happens | HTTP | Shell in server HTML | What the user sees |
+| --- | --- | --- | --- |
+| `(app)/layout.tsx` - `session.ts` / `env.ts` | **500** | never renders | straight to "Something broke" |
+| any **page** under `(app)` | **200** | renders normally | shell + blank main, then "Something broke" |
 
-Reproduced locally with `next build` + `next start`, no Supabase credentials
-needed: a session was stubbed and a throw forced, first in the `(app)` layout
-and then in the dashboard page. The two produce **measurably different**
-responses, and that difference is the diagnostic lever:
+The owner reported "the app loads and the main content area is blank" - the 200
+signature. **The layout therefore succeeded**, which rules out `lib/env.ts` and
+both throws in `lib/auth/session.ts`. A build with no Supabase vars was also
+tested directly: it 307s every route to `/` and never errors.
 
-| Where the throw happens | HTTP status | Shell (nav, top bar) in server HTML | What the user sees |
-| ----------------------- | ----------- | ----------------------------------- | ------------------ |
-| `(app)/layout.tsx` - i.e. `lib/auth/session.ts` or `lib/env.ts` | **500** | **never renders** | straight to "Something broke" |
-| any **page** under `(app)` | **200** | **renders normally** | shell + **blank main** (the `loading.tsx` skeleton), then "Something broke" |
+So it was a **page-level** throw. Since Phase 5 those pages no longer throw at
+all (see below), so this exact failure should now present as an error panel with
+a code instead of a blank screen.
 
-In the page-throw case the served HTML contains a failed Suspense boundary
-carrying the digest, which is the exact fingerprint to look for:
+### Outstanding evidence
 
-```html
-<main ...><div ...><!--$!--><template data-dgst="2821726327"></template>
+The owner reported a recurrence with **`Reference: 2847415232`** on the
+deployment for `046c11a`, around 14:14. That digest was never resolved to a
+message. A digest **cannot be decoded offline** - Next computes
+`stringHash(message + stack)` and the minified stack changes every build - so it
+is only meaningful in that deployment's Runtime Logs.
+
+Separately, `instrumentation.ts` caught a real occurrence during testing:
+
+```
+message="Could not load your company: JWT issued at future"  path=/dashboard?_rsc=
 ```
 
-A real Chromium run against that reproduction logged
-`Minified React error #441` to the console and rendered `app/error.tsx` with
-`Reference: 2821726327` - i.e. the owner's exact report.
+That is the F9 clock skew getting past the 6s retry budget. **It is a candidate,
+not a conclusion** - it lives in the layout, which would give a 500, not the
+blank main the owner described. Do not treat it as solved. If it recurs, the log
+line will now say so outright.
 
-**The owner reported "the app loads and then the main content area is blank".
-That is the 200 signature.** The `(app)` layout therefore *succeeded*, which
-means env vars were present and `getSessionContext()` did resolve the company.
+### How to read the next occurrence
 
-Two of the previously top-ranked candidates are consequently **ruled out**:
+`instrumentation.ts` writes one greppable line per server error:
 
-- **`lib/env.ts:16`** - ruled out twice over. A layout-level throw would be a
-  500 with no shell; and a build with *no* Supabase vars at all was tested
-  directly - `hasSupabaseConfig()` is false, so `proxy.ts` 307s every route to
-  `/` and no error is ever rendered.
-- **`lib/auth/session.ts:52` / `:58`** (`Could not load your company` / not
-  linked to a company) - both live in the layout, so both would be a 500 with
-  no shell.
+```
+[siteboss] server error digest=<n> route=<r> type=<t> path=<p> method=<m> message="<real message>"
+```
 
-**Remaining candidate: a throw inside a page**, and given the owner lands on
-the dashboard after sign-in, `app/(app)/dashboard/page.tsx:41`
-(`Could not load your dashboard: <PostgREST message>`) is the prime suspect.
-The other page-level throws in the table below remain possible if the owner was
-on a different screen.
+Ask the owner for the number after **`Reference:`** on the error screen, then
+search Vercel -> Logs for that number. No timestamp archaeology.
 
-### How to get the real message - still required
+### Error handling since Phase 5
 
-The PostgREST message itself is still redacted and still lives in **Vercel's
-Runtime Logs**, keyed by the `digest`.
+Page-level data loads no longer throw. `components/ui/load-error.tsx` renders in
+place, keeping the shell and navigation, and shows the PostgREST error **code**
+(e.g. `42501`) - short, not sensitive, and enough to diagnose. The message stays
+server-side. Where a query fails the matching empty state is **dropped**, not
+rendered: "no projects yet" under an error would assert something untrue.
 
-1. On the preview, note the number after **`Reference:`** on the error screen.
-   That *is* the digest - `app/error.tsx` already prints it, so no log access is
-   needed to obtain it.
-2. Vercel -> the project -> **Logs** (Runtime Logs), filter to that deployment.
-3. Find the entry whose digest matches. That line carries the un-redacted error.
+Still throwing deliberately: `lib/env.ts` and `lib/auth/session.ts` (layout and
+proxy, where there is genuinely nothing to render), and the mutation actions.
 
-**A digest cannot be decoded offline.** Verified in the installed Next.js:
-`next/dist/server/app-render/create-error-handler.js` computes
-`stringHash(err.message + (err.stack || ''))`. The stack contains minified chunk
-filenames and offsets that change with every build, so a digest is only
-meaningful within the one deployment that produced it - confirmed by observing
-the same error message hash to two different digests across two builds. Do not
-try to brute-force it; ask the owner for the log line.
+Do not "fix" `app/error.tsx` by leaking server error text to the browser.
 
-### Candidate sources, ranked
-
-Every `throw` reachable from a Server Component render:
-
-| Location | Message | Status |
-| -------- | ------- | ------ |
-| `lib/env.ts:16` | `Missing environment variable ...` | **ruled out** (layout/proxy level) |
-| `lib/auth/session.ts:52` | `Could not load your company: ...` | **ruled out** (layout - would be 500) |
-| `lib/auth/session.ts:58` | account not linked to a company | **ruled out** (layout - would be 500) |
-| `app/(app)/dashboard/page.tsx:41` | `Could not load your dashboard: ...` | **prime suspect** |
-| `app/(app)/projects/page.tsx:29` | `Could not load your projects: ...` | possible |
-| `app/(app)/projects/[id]/page.tsx:55,87` | project / project data | possible |
-| `app/(app)/reports/page.tsx:27`, `reports/new/page.tsx:26` | reports | possible |
-
-What is still genuinely unknown is **why** a PostgREST query that passes locally
-against the same hosted Supabase fails on Vercel. Do not guess at that; get the
-log line.
-
-### Proposed fix, not yet applied
-
-Agreed in principle with the owner on 2026-08-27, pending the real message:
-
-1. Fix the actual cause once the log line is readable.
-2. **Make this bug class self-diagnosing.** Stop `throw`ing on ordinary
-   data-load failures in pages; render an honest inline error panel inside the
-   working shell, carrying a stable code and the PostgREST error *code* (e.g.
-   `42501`). That is not leaking server internals - no message text, no stack,
-   no config - and it is consistent with D11 (no dead ends in the UI).
-3. Add `instrumentation.ts` with `onRequestError` so Runtime Logs pair each
-   digest with its message explicitly, instead of relying on Next's default.
-
-### Note on the error page itself
-
-`app/error.tsx` renders `error.message`, which **Next.js redacts in production**.
-That is why the owner sees a generic message plus a digest rather than anything
-useful. This is correct, deliberate behaviour - do not "fix" it by leaking server
-error text to the browser. The `Reference:` digest it already prints is the
-handle into the Runtime Logs, and is the reason step 1 above needs no log
-access.
+---
 
 ## 10. Everything already attempted while debugging deployment
 
-So the next session does not repeat any of it:
+Kept so nobody repeats it:
 
-- Confirmed Vercel is connected via the GitHub App and posts deployment statuses.
-- Established that Framework Preset was **Other**, not Next.js - corrected.
-- Established that env vars now live under **Settings -> Environments**.
-- Established that `NEXT_PUBLIC_*` are **build-time inlined**, so redeploying a
-  stale build cannot pick up new values, and that Redeploy reuses the build cache
-  by default.
-- Explained **"Ready - Stale"** as the signal that a build predates a settings
-  change.
-- Established that the `404: NOT_FOUND` the owner hit came from a **failed
-  Production deployment of empty `main`**, not from the Preview.
-- Confirmed nothing in the repo can cause a Ready deployment to 404: no
-  `vercel.json`, `next.config.ts` is empty (no `basePath`, `assetPrefix` or
-  `output: 'export'`), `package.json` and `app/` are at the root, and `proxy.ts`
-  only ever redirects.
-- Pushed `b06b878` (documentation only) purely to force a cache-free rebuild.
-- Polled the alias repeatedly; it SSO-walls every automated request.
+- Vercel is connected via the GitHub App and posts deployment statuses.
+- Framework Preset was **Other**, not Next.js - corrected by the owner.
+- Env vars now live under **Settings -> Environments**.
+- `NEXT_PUBLIC_*` are **build-time inlined**; Redeploy reuses the build cache by
+  default, so a stale build cannot pick up new values.
+- The `404: NOT_FOUND` came from a **failed Production deployment of empty
+  `main`**, not from the Preview.
+- Nothing in the repo can make a Ready deployment 404: no `vercel.json`,
+  `next.config.ts` is empty, `package.json` and `app/` are at the root, and
+  `proxy.ts` only ever redirects.
+- The alias SSO-walls every automated request.
 
 ---
 
@@ -441,7 +437,8 @@ the bash command running it. Resolve PIDs first, then kill by number.
 
 **F8 - Sandbox Docker needs ulimits capped.** `dockerd --default-ulimit
 nofile=20000:20000`, plus `npx supabase start -x realtime,storage-api,imgproxy,
-mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor`.
+mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor`. But read
+F15 first - starting Docker at all has a serious cost.
 
 **F9 - "JWT issued at future" is not a clock bug on our side.** Our clock and
 Supabase's agree to within a second; the skew is between Supabase's own GoTrue
@@ -469,82 +466,106 @@ GETs succeed. Use `@supabase/supabase-js` for auth probes.
 `false` long after confirmation was turned off. The reliable check is
 behavioural: call `signUp()` and see whether a session comes back.
 
+**F15 - Starting Docker in this sandbox destroys `git push`.** Bringing up a
+local Supabase needs Docker, and Docker rewrites `/etc/resolv.conf` and
+`/etc/hosts`. That breaks the session's credential injection for GitHub: reads
+(`git ls-remote`, clone) keep working because the repo is public, but every push
+fails with `could not read Username for 'https://github.com'`. It is **not
+recoverable by guessing** - the gateway is not a DNS server, the leftover Docker
+iptables rules are inert, ports 2024/2025 are not a git proxy, and re-attaching
+the repo does not refresh credentials. If you need a local Supabase, assume you
+are trading away push for the rest of the session, and land the work by spawning
+a fresh session. Do the pushing first, or accept the trade knowingly.
+
+**F16 - The project does not use Prettier.** There is no config and it is not a
+dependency, and default Prettier disagrees with the hand-maintained style - it
+reformats untouched files like `components/ui/card.tsx`. Running
+`npx prettier --write` on a file produces a huge diff of pure noise. Match the
+surrounding style by hand.
+
+**F17 - An uncontrolled textarea can merge pre-hydration typing.** A
+`<textarea defaultValue={...}>` typed into before React hydrates can end up with
+the typed text spliced onto the server-rendered value. Observed producing
+`"Rewritten by the site manager.STUBBED-SECTION summary"`. In a client-facing
+report that is silent corruption, so the report section editors are controlled
+and keyed on their content.
+
+**F18 - Do not push source without `package-lock.json`.** Vercel runs `npm ci`
+when a lockfile exists, and `npm ci` fails hard if the lockfile does not match
+`package.json`. The lockfile is ~250KB and cannot be transferred through the
+GitHub API, so a session without push must regenerate it with `npm install`
+rather than skip it.
+
 ---
 
 ## 12. Known issues and technical debt
 
-- **The live #441 bug** (section 9) - unresolved, highest priority, but now
-  narrowed to a page-level throw rather than the layout.
-- **`lib/env.ts` guard/getter mismatch - a real latent bug, found and reproduced
-  2026-08-27, not yet fixed.** `hasSupabaseConfig()` tests the two key names with
-  `||` on *trimmed* values, but `env.supabaseKey` selects between them with `??`.
-  An **empty-string** `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` alongside a valid
-  `NEXT_PUBLIC_SUPABASE_ANON_KEY` therefore passes the guard (`""`.trim() is
-  falsy, so it falls through to the anon key) but throws in the getter (`""` is
-  not nullish, so `??` returns it). Verified: **every route 500s, including
-  `/`.** This is *not* the #441 symptom - it is a different, louder failure -
-  but it is a live trap given the handoff tells the owner to set one key
-  variable and Vercel will happily store one with an empty value. Fix by making
-  the getter use the same trimmed-`||` logic as the guard.
+- **#441 is diagnosed but not closed** (section 9). Digest `2847415232` is still
+  unresolved. It is intermittent.
+- **No real OpenAI call has ever been made.** Prompt quality is unproven.
+- **`claude/phase5-staging` should be deleted** (section 3).
+- **`claude/siteboss-pro-planning-8y80n2` is stale** at `046c11a` and carries
+  PR #1, whose description is owner-written and slightly wrong (it claims seed
+  data, which does not exist, and "generated" types, which are hand-written).
 - **Deployment Protection is on**, so nothing automated can reach the preview.
-  This is what let #441 escape.
-- **No CI.** Four good suites, nothing runs them.
-- **`types/database.ts` is hand-written**, not generated - there was no live
-  project at the time. Now that the schema is applied, regenerate with
+- **No CI.** Seven good suites, nothing runs them. Offered three times.
+- **`types/database.ts` is hand-written.** Regenerate with
   `npx supabase gen types typescript --project-id <ref> > types/database.ts`.
-- **Storage buckets exist but are unused** until Phase 4.
 - **Team invites are out of scope.** `company_members` is read-only from the
-  client; the schema supports multi-user but there is no invite flow.
-- **`PROJECT_STATE.md` is superseded by this file** and should probably go.
-- **PR #1's description is owner-generated and slightly wrong** - it claims seed
-  data (none exists) and "generated" TypeScript types.
-- **Test accounts accumulate** in the hosted Supabase project. Each suite run
-  creates a few; they cannot be deleted with the publishable key.
+  client.
+- **`PROJECT_STATE.md` is superseded by this file** and should be deleted.
+- **Test accounts accumulate** in the hosted Supabase project.
+- **`saveReport` replaces workforce and plant non-atomically** (delete then
+  insert). Validation runs first so a rejected submission cannot lose rows, but
+  a mid-write failure could. Acceptable for the MVP; an RPC would fix it.
 
 ---
 
 ## 13. Exact next actions, in priority order
 
-1. **Get the real error message for #441.** Ask the owner for the number after
-   `Reference:` on the error screen *and* which page they were on, then for the
-   matching line from Vercel -> Logs (Runtime Logs) for that deployment. Section
-   9 explains why the digest alone cannot be decoded offline. Everything about
-   the root cause is guesswork until this arrives.
-2. **Fix `lib/env.ts`** (section 12) - independent of #441, small, and testable
-   locally right now. Does not need the owner for anything.
-3. **Fix #441** based on the real message, then make the class self-diagnosing:
-   inline error panels instead of `throw` for data-load failures, plus
-   `instrumentation.ts` / `onRequestError`. Section 9 has the agreed shape.
+1. **Delete the staging branch** - `git push origin --delete
+   claude/phase5-staging`. Its failed Previews are expected (F18) and clear with
+   it.
+2. **Confirm the Phase 5 Preview built.** Vercel -> Deployments, the newest
+   build of `claude/siteboss-pro-react-441-diagnosis-bhvwk8` at `260af4a`.
+3. **Add `OPENAI_API_KEY`** under Settings -> Environments -> Preview, no
+   `NEXT_PUBLIC_` prefix. Then exercise drafting against a real model and expect
+   to iterate on the prompt - nothing about real output quality is known.
 4. **Ask the owner to turn Deployment Protection off** (Settings -> Deployment
-   Protection -> Vercel Authentication -> off -> **Save**) and confirm in a
-   **private window**. Until then no automated verification of the deploy is
-   possible, and this bug class can recur unseen.
-5. **Once reachable, run the suites against the deployment**, not just locally:
-   `E2E_BASE_URL=<alias> npm run test:e2e` and the same for `test:projects` and
-   `test:isolation`. Warn the owner first that this creates throwaway accounts.
-6. **Offer a CI workflow** - typecheck, lint, build and `test:db` against a
-   `postgres:16` service container. Offered twice, never actioned.
-7. **Then Phase 3.**
+   Protection -> Vercel Authentication -> off -> Save) and confirm in a private
+   window. Until then nothing automated can check the deployment.
+5. **Once reachable, run the suites against the deployment** with
+   `E2E_BASE_URL=<alias>`. Warn the owner first: this creates throwaway accounts.
+6. **Close out #441.** If it recurs, the `[siteboss]` log line now names the
+   cause outright. If the cause is the F9 clock skew, consider widening the
+   retry budget - but only with evidence, and do not widen it to other errors.
+7. **Offer a CI workflow** - typecheck, lint, build, `test:db`. Offered three
+   times, never actioned.
+8. **Then Phase 6.**
 
 ---
 
-## 14. What Phase 3 must build
+## 14. What Phase 6 must build
 
-Report capture - the heart of the product. Get it right rather than fast.
+Two things, and they are the last of the core workflow.
 
-- Draft report creation from a project, auto-filling project, date, author and
-  the trigger-assigned report number.
-- Weather (optional). **Workforce** and **plant** entries as repeatable rows,
-  ideally pre-filled from the project's previous report to save typing.
-- **Work Completed**: a large textarea plus dictation. Wrap the Web Speech API in
-  a `useSpeechInput` hook whose contract is audio-in / text-out, so a Whisper
-  endpoint can replace it later without touching the UI. **iOS Safari does not
-  implement it** - detect support and fall back to the keyboard microphone, which
-  types into the same field and works fine.
-- Store the raw transcript **verbatim** in `reports.raw_notes`. The user must
-  always be able to see what they actually said next to what the AI wrote.
-- Restore the **"New report"** action on the project detail page.
-- Add `e2e/reports-smoke.mjs` in the shape of the existing suites.
+**Issues.** The `issues` table already exists with `priority`
+(low/medium/high/critical) and `status` (open/in_progress/closed), and the
+project detail page already has an **Open Issues** tab reading it. What is
+missing is creating, editing and closing them, and attaching them to a report.
+
+**The PDF.** `@react-pdf/renderer` is not yet installed. The report already has
+everything it needs: numbered header, project and client, date, weather,
+workforce and plant tables, the generated sections in `REPORT_SECTION_ORDER`,
+and photos with captions. Write to the private `report-pdfs` bucket under
+`{company_id}/{project_id}/{filename}` and record the path in
+`reports.pdf_path`; serve it with a signed URL exactly as photos are served in
+`lib/photos-signing.ts`.
+
+Finalising a report should set `status = 'final'` and `finalised_at`. The delete
+action already refuses to touch a finalised report - keep that.
+
+Add `e2e/pdf-smoke.mjs` in the shape of the existing suites.
 
 Useful test data - the owner's real reference project:
 Lidl South Croydon - External Works / Lidl GB / South Croydon / ref 1470 /
@@ -572,6 +593,13 @@ site manager Maciej / Active.
   than shipping a control that goes nowhere.
 - **D12** Tabs are URL state (`?tab=`), not component state, so they survive a
   reload and can be shared.
+- **D13** The drafting prompt forbids invention and treats an empty section as a
+  correct answer. A progress report is a contractual record; padding it with
+  plausible detail would be worse than not having the feature.
+- **D14** Page-level data loads render an error panel in place rather than
+  throwing. The panel carries the database error code, never the message.
+- **D15** `OPENAI_API_KEY` is server-side only and read at request time. With it
+  absent the UI says the feature is off rather than offering a dead button.
 
 ---
 
@@ -583,50 +611,35 @@ Paste everything below into a fresh Claude Code session.
 
 I'm continuing work on SiteBoss Pro, a mobile-first construction site reporting
 app. Read `HANDOFF.md` in the repository root first - it is the current verified
-state and explains the product, architecture, database, deployment, and a list of
-failed approaches that must not be repeated. Trust it over `PROJECT_STATE.md`,
-which is older.
+state and includes a list of failed approaches that must not be repeated. Ignore
+`PROJECT_STATE.md`, which is obsolete.
 
-Context you need immediately:
+Where things stand:
 
-- There are now two working branches, `claude/siteboss-pro-planning-8y80n2` and
-  `claude/siteboss-pro-react-441-diagnosis-bhvwk8`. Ask me which one to use
-  before pushing. Never push to `main`, and do not merge PR #1.
-- Phases 1 (auth, database, app shell) and 2 (projects CRUD and the project
-  detail screen) are complete and pass their test suites against my live
-  Supabase project. Do not rebuild them.
-- My hosted Supabase project has all four migrations applied and email
-  confirmation off. Ask me for the Project URL and publishable key if you need
-  them - the repo is public so they are not stored in it.
-- The app is deployed to a Vercel Preview at the branch alias listed in
-  HANDOFF.md section 6.
+- Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, head `260af4a`.
+  The other branch is stale. Never push to `main`, and do not merge PR #1.
+- **Phases 1-5 are complete**: auth and schema, projects, report capture with
+  dictation, photos, and AI drafting of the written report. All seven test
+  suites pass locally. Do not rebuild any of it.
+- **Phase 6 (issues + PDF) is next and has not been started.** Section 14 has
+  the scope. Ask me before you begin it.
 
-There is one live bug, and it is the first priority. On the deployed preview the
-app loads but the main content area is blank and the console shows **Minified
-React error #441**. A previous session reproduced that symptom locally and
-narrowed it: the `(app)` layout is fine, so it is a **page-level** Server
-Component throw, most likely `Could not load your dashboard` at
-`app/(app)/dashboard/page.tsx:41`. HANDOFF.md section 9 has the full reasoning,
-the evidence, and what is still unknown. Read it before touching anything.
+Start with the housekeeping in section 13: delete the leftover
+`claude/phase5-staging` branch, confirm the Phase 5 Preview built on Vercel, and
+tell me exactly where to put my `OPENAI_API_KEY`. No real OpenAI model has ever
+been called, so once the key is in we should expect to iterate on the prompt.
 
-What is still missing is the real PostgREST message. Ask me for two things: the
-number printed after **`Reference:`** on the error screen, and which page I was
-on. Then ask me to find the matching line in Vercel -> Logs for that deployment.
-A digest cannot be decoded offline - section 9 explains why - so do not guess at
-the cause, and do not ask me for a Vercel token.
+One bug is still open: intermittent React error #441 on the deployed preview,
+digest `2847415232`, described in section 9. It is diagnosed as a page-level
+Server Component throw, and since Phase 5 those pages render an error panel with
+a database error code instead of a blank screen - so if it recurs it should
+finally say what it is. `instrumentation.ts` also writes a `[siteboss]` log line
+pairing each digest with the real message. Do not guess at the cause; ask me for
+the log line.
 
-There is also a smaller, unrelated `lib/env.ts` bug written up in section 12
-that can be fixed immediately without anything from me.
+A warning that cost the last session badly: **do not start Docker.** Bringing up
+a local Supabase rewrites the sandbox's DNS and permanently breaks `git push`
+for the rest of the session. See F15.
 
-Also note: Vercel Deployment Protection is currently on, which SSO-walls the
-preview from any automated request. That is why this bug reached me instead of
-being caught by tests. Tell me exactly what to click to turn it off, then verify
-the deployment yourself by running the existing suites against the live URL with
-`E2E_BASE_URL`.
-
-Once the bug is fixed and the deployment is verified, ask me before starting
-Phase 3 (report capture: workforce, plant, dictation). HANDOFF.md section 14 has
-its full scope.
-
-Please verify claims by running things rather than assuming, tell me plainly when
-something is unverified, and do not leave non-functional UI in the app.
+Please verify claims by running things rather than assuming, tell me plainly
+when something is unverified, and do not leave non-functional UI in the app.
