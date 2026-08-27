@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
@@ -53,7 +54,23 @@ export default async function ProjectPage({
     supabase.from("projects").select("*").eq("id", id).maybeSingle(),
   );
 
-  if (error) throw new Error(`Could not load the project: ${error.message}`);
+  // A failed lookup leaves nothing to render a project page from, but that is
+  // still no reason to blank the screen - the shell and navigation stay, and the
+  // panel carries a code. See LoadError.
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Link
+          href="/projects"
+          className="text-sm font-semibold text-ink-muted underline underline-offset-4 hover:text-ink"
+        >
+          All projects
+        </Link>
+        <LoadError what="this project" code={error.code} />
+      </div>
+    );
+  }
+
   // RLS hides another company's project, so this covers "missing" and "not
   // yours" identically, without revealing which.
   if (!project) notFound();
@@ -84,9 +101,6 @@ export default async function ProjectPage({
   ]);
 
   const loadError = reportsResult.error ?? photosResult.error ?? issuesResult.error;
-  if (loadError) {
-    throw new Error(`Could not load this project's data: ${loadError.message}`);
-  }
 
   const reports = reportsResult.data ?? [];
   const photos = photosResult.data ?? [];
@@ -141,7 +155,9 @@ export default async function ProjectPage({
         />
       </Suspense>
 
-      {activeTab === "overview" ? (
+      {loadError ? <LoadError what="this project's data" code={loadError.code} /> : null}
+
+      {!loadError && activeTab === "overview" ? (
         <Card>
           <CardContent>
             <dl className="flex flex-col">
@@ -167,12 +183,12 @@ export default async function ProjectPage({
         </Card>
       ) : null}
 
-      {activeTab === "reports" ? (
+      {!loadError && activeTab === "reports" ? (
         reports.length === 0 ? (
           <EmptyState
             icon={FileText}
             title="No reports yet"
-            description="Report capture — photos, dictation and AI drafting — arrives in the next phase."
+            description="Start one with the New report button above - it fills in the date, your name and the report number for you."
           />
         ) : (
           <ul className="flex flex-col gap-3">
@@ -202,7 +218,7 @@ export default async function ProjectPage({
         )
       ) : null}
 
-      {activeTab === "photos" ? (
+      {!loadError && activeTab === "photos" ? (
         photos.length === 0 ? (
           <EmptyState
             icon={Camera}
@@ -227,7 +243,7 @@ export default async function ProjectPage({
         )
       ) : null}
 
-      {activeTab === "issues" ? (
+      {!loadError && activeTab === "issues" ? (
         issues.length === 0 ? (
           <EmptyState
             icon={AlertTriangle}
