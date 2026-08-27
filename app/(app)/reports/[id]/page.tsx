@@ -7,6 +7,7 @@ import { deleteReport, saveReport, type ReportFormState } from "@/app/(app)/repo
 import { ReportCaptureForm } from "@/components/reports/report-capture-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
@@ -37,7 +38,17 @@ export default async function ReportCapturePage({
   );
 
   if (error) {
-    throw new Error(`Could not load the report: ${error.message}`);
+    return (
+      <div className="flex flex-col gap-6">
+        <Button asChild variant="ghost" size="sm" className="-ml-3">
+          <Link href="/reports">
+            <ArrowLeft aria-hidden />
+            All reports
+          </Link>
+        </Button>
+        <LoadError what="this report" code={error.code} />
+      </div>
+    );
   }
 
   if (!report) notFound();
@@ -59,10 +70,10 @@ export default async function ReportCapturePage({
     ),
   ]);
 
+  // The report itself loaded, so the screen is still usable. Rather than blank
+  // it, the capture form is withheld - editing rows we failed to read would
+  // silently wipe them on save - and the panel explains why.
   const loadError = workforceResult.error ?? plantResult.error;
-  if (loadError) {
-    throw new Error(`Could not load this report's entries: ${loadError.message}`);
-  }
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const projectHref = project ? `/projects/${project.id}` : "/reports";
@@ -99,14 +110,18 @@ export default async function ReportCapturePage({
         </Badge>
       </header>
 
-      <ReportCaptureForm
-        action={save}
-        report={report}
-        workforce={workforceResult.data ?? []}
-        plant={plantResult.data ?? []}
-        cancelHref={projectHref}
-        saved={saved === "1"}
-      />
+      {loadError ? (
+        <LoadError what="this report's workforce and plant" code={loadError.code} />
+      ) : (
+        <ReportCaptureForm
+          action={save}
+          report={report}
+          workforce={workforceResult.data ?? []}
+          plant={plantResult.data ?? []}
+          cancelHref={projectHref}
+          saved={saved === "1"}
+        />
+      )}
 
       {report.status === "draft" ? (
         <form action={deleteReport} className="border-t border-line pt-6">

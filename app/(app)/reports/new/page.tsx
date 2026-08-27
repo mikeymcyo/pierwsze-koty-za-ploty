@@ -7,6 +7,7 @@ import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
@@ -25,10 +26,7 @@ export default async function NewReportPage() {
       .order("updated_at", { ascending: false }),
   );
 
-  if (error) {
-    throw new Error(`Could not check your projects: ${error.message}`);
-  }
-
+  // Shown in place rather than thrown - see LoadError.
   const projects = data ?? [];
 
   return (
@@ -43,7 +41,9 @@ export default async function NewReportPage() {
         </p>
       </header>
 
-      {projects.length === 0 ? (
+      {error ? (
+        <LoadError what="your projects" code={error.code} />
+      ) : projects.length === 0 ? (
         <EmptyState
           icon={HardHat}
           title="You need a project first"

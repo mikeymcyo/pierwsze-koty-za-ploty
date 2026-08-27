@@ -5,6 +5,7 @@ import { FileText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
@@ -24,17 +25,16 @@ export default async function ReportsPage() {
       .order("report_number", { ascending: false }),
   );
 
-  if (error) {
-    throw new Error(`Could not load your reports: ${error.message}`);
-  }
-
+  // Shown in place rather than thrown - see LoadError.
   const reports = data ?? [];
 
   return (
     <div className="flex flex-col gap-6">
       <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">Reports</h1>
 
-      {reports.length === 0 ? (
+      {error ? (
+        <LoadError what="your reports" code={error.code} />
+      ) : reports.length === 0 ? (
         <EmptyState
           icon={FileText}
           title="No reports yet"
