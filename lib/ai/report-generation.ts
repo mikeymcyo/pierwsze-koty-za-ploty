@@ -3,6 +3,7 @@ import "server-only";
 import OpenAI from "openai";
 import { z } from "zod";
 
+import { SYSTEM_PROMPT, buildPrompt, type GenerationInput } from "@/lib/ai/prompt";
 import { REPORT_SECTIONS } from "@/lib/report-sections";
 import type { ReportSectionType } from "@/types/database";
 
@@ -13,8 +14,15 @@ import type { ReportSectionType } from "@/types/database";
  * report is a contractual record: it gets sent to a client, and it can end up
  * in a dispute about who caused a delay. A model that smooths a thin note into
  * a confident paragraph about work nobody did would be worse than no feature at
- * all - so the prompt's first job is to forbid invention, and the second is to
- * allow silence. An empty section is a correct answer.
+ * all - so the prompt forbids invention, and allows silence. An empty section
+ * is a correct answer.
+ *
+ * That is not the same as forbidding a rewrite. The notes are raw material and
+ * the report is a professional document, so lifting the register, consolidating
+ * repeated notes and using the right trade terms is the job. What may not move
+ * is the facts, and in particular no claim about quality, compliance or
+ * approval may appear that the notes do not already carry. lib/ai/prompt.ts
+ * holds that instruction and the reasoning behind it.
  *
  * The raw notes are stored separately and verbatim, and shown next to this
  * output, so the user can always check what was written against what they said.
@@ -26,94 +34,15 @@ export function hasAiConfig(): boolean {
   return Boolean(process.env.OPENAI_API_KEY?.trim());
 }
 
-export type GenerationInput = {
-  projectName: string;
-  client: string | null;
-  siteAddress: string | null;
-  reportDate: string;
-  weather: string | null;
-  authorName: string | null;
-  workforce: { company_name: string; trade: string | null; operatives: number }[];
-  plant: { description: string; quantity: number }[];
-  photos: { category: string; caption: string | null }[];
-  rawNotes: string;
-};
-
 const sectionsSchema = z.object(
   Object.fromEntries(
     REPORT_SECTIONS.map((section) => [section.type, z.string()]),
   ) as Record<ReportSectionType, z.ZodString>,
 );
 
+export type { GenerationInput };
+
 export type GeneratedSections = Partial<Record<ReportSectionType, string>>;
-
-function buildPrompt(input: GenerationInput): string {
-  const workforce = input.workforce.length
-    ? input.workforce
-        .map(
-          (row) =>
-            `- ${row.company_name}${row.trade ? ` (${row.trade})` : ""}: ${row.operatives} operative(s)`,
-        )
-        .join("\n")
-    : "- none recorded";
-
-  const plant = input.plant.length
-    ? input.plant.map((row) => `- ${row.description} x${row.quantity}`).join("\n")
-    : "- none recorded";
-
-  const photos = input.photos.length
-    ? input.photos
-        .map((photo) => `- [${photo.category}] ${photo.caption ?? "no caption"}`)
-        .join("\n")
-    : "- none";
-
-  return [
-    `PROJECT: ${input.projectName}`,
-    input.client ? `CLIENT: ${input.client}` : null,
-    input.siteAddress ? `SITE: ${input.siteAddress}` : null,
-    `DATE: ${input.reportDate}`,
-    input.weather ? `WEATHER: ${input.weather}` : null,
-    input.authorName ? `REPORTED BY: ${input.authorName}` : null,
-    "",
-    "WORKFORCE ON SITE:",
-    workforce,
-    "",
-    "PLANT AND EQUIPMENT:",
-    plant,
-    "",
-    "PHOTOGRAPHS TAKEN:",
-    photos,
-    "",
-    "THE SITE MANAGER'S OWN WORDS (verbatim, may be dictated and unpunctuated):",
-    input.rawNotes,
-  ]
-    .filter((line) => line !== null)
-    .join("\n");
-}
-
-const SYSTEM_PROMPT = [
-  "You write daily progress reports for UK construction sites.",
-  "",
-  "You are given a site manager's own words, plus structured facts recorded on",
-  "site. Turn them into the report sections requested, in British English.",
-  "",
-  "RULES, in order of importance:",
-  "",
-  "1. Never invent anything. Every statement must be traceable to the notes or",
-  "   the structured facts. Do not add plausible detail, do not guess at",
-  "   quantities, trades, times or causes, and do not resolve an ambiguity by",
-  "   picking the likely reading.",
-  "2. Leave a section as an empty string when the notes do not support it. An",
-  "   empty section is correct and expected. Padding it is a serious error.",
-  "3. This is a contractual record that may be read in a dispute about delay or",
-  "   defect. Stay factual and neutral. Do not praise, apologise, or",
-  "   characterise anybody's performance.",
-  "4. Keep the site manager's meaning exactly, while fixing grammar and",
-  "   punctuation. Keep trade terms, materials and place names as written -",
-  "   they are usually right even when they look like typos.",
-  "5. Write plain sentences or short bullet lines. No headings, no markdown, no",
-  "   preamble such as 'Here is'. Just the section text.",
-].join("\n");
 
 export type GenerationResult =
   | { ok: true; sections: GeneratedSections }

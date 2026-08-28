@@ -36,7 +36,7 @@ export const REPORT_SECTIONS: {
     type: "health_safety",
     label: "Health and safety",
     brief:
-      "Briefings, inspections, incidents or near misses. Say nothing was reported rather than inventing an event.",
+      "Briefings, inspections, incidents or near misses recorded in the notes. Leave this empty if the notes do not mention safety - silence is not the same as 'nothing was reported', which is itself a claim.",
   },
   {
     type: "issues_constraints",

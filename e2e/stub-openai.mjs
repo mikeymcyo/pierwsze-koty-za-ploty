@@ -12,6 +12,11 @@
 
 import { createServer } from "node:http";
 
+// Imported rather than copied: this label is what the stub splits the prompt
+// on, and hardcoding it here once left the stub silently reading an empty
+// string after the prompt was reworded.
+import { RAW_NOTES_LABEL } from "../lib/ai/prompt.ts";
+
 export const STUB_PORT = 4010;
 
 /** Echoed back in the sections so a test can prove the text came from here. */
@@ -20,7 +25,7 @@ export const STUB_MARKER = "STUBBED-SECTION";
 export function sectionsFor(prompt) {
   // The prompt is echoed into one section so the test can assert the site
   // manager's own words actually reached the model.
-  const notes = prompt.split("THE SITE MANAGER'S OWN WORDS")[1] ?? "";
+  const notes = prompt.split(RAW_NOTES_LABEL)[1] ?? "";
   return {
     executive_summary: `${STUB_MARKER} summary`,
     works_completed: `${STUB_MARKER} works completed. Notes seen: ${notes.trim().slice(0, 60)}`,
