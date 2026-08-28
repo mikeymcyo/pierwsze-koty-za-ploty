@@ -7,12 +7,12 @@ it says so explicitly - treat that distinction as load-bearing.
 **Written:** 2026-08-26 · **Last updated:** 2026-08-28
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-**Head:** `43124e8` - absence claims, stale sections, build marker
+**Head:** `a9ed7e7` - dictation survives Safari ending the session
 
 Phases 1-5 are complete and on that branch. Phase 6 (issues + PDF) is next
-and has NOT been started. `260af4a` is Phase 5, `1d9474e` a follow-up to
-Phase 4, and `d85222f` and `43124e8` follow-ups to Phase 5; none of them start
-anything new.
+and has NOT been started. `260af4a` is Phase 5; `1d9474e` and `a9ed7e7` are
+follow-ups to Phases 4 and 3, and `d85222f` and `43124e8` to Phase 5. None of
+them start anything new.
 
 > `PROJECT_STATE.md` in this repo is an earlier handoff. Where the two disagree,
 > **this file wins** - it is newer. Consider deleting PROJECT_STATE.md once you
@@ -67,7 +67,7 @@ Not yet installed, needed later: `@react-pdf/renderer` (Phase 6).
 
 - Repo: `mikeymcyo/pierwsze-koty-za-ploty` - **public**
 - **Branches.** Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-  (head `43124e8`). The older `claude/siteboss-pro-planning-8y80n2` is stale
+  (head `a9ed7e7`). The older `claude/siteboss-pro-planning-8y80n2` is stale
   at `046c11a` and carries PR #1; it has NOT been kept in sync. Ask the owner
   which branch is canonical before pushing.
 - **`claude/phase5-staging` is rubbish and should be deleted.** It was a
@@ -105,8 +105,30 @@ Reports / Photos / Open Issues** tabs driven by `?tab=`; `/projects/[id]/edit`.
 `app/(app)/reports/actions.ts`; `/reports/new` project picker and
 `/reports/[id]` capture screen; workforce and plant as repeatable rows that
 carry over from the project's previous report; weather; the Work Completed
-field with dictation via `lib/hooks/use-speech-input.ts`; raw notes stored
+field with dictation via `lib/hooks/use-speech-input.ts` (see below); raw notes stored
 verbatim in `reports.raw_notes`; the "New report" action on the project page.
+
+**Dictation on iOS** (`a9ed7e7`). iOS Safari **does** implement
+`webkitSpeechRecognition` - it has since 14.5, so `supported` is true on an
+iPhone and the Dictate button is what gets used. An earlier comment claimed
+the opposite, and the keyboard-microphone fallback it described was never
+reached.
+
+What iOS does not honour is `continuous`: a session ends by itself after a
+short silence and is capped well under a minute. The hook used to set
+`listening` to false and stop there, so 30 seconds of dictation was stored as
+two sentences - the rest was spoken into a dead microphone with the button
+quietly back on "Dictate".
+
+The hook now holds **intent** separately from whether a session is running and
+relaunches on every end it did not ask for. `lib/speech/transcript.ts` is pure
+and alias-free, and holds the two rules that restarting needs: finals are
+counted against a watermark, because a new session renumbers its results from
+zero and engines differ on what `resultIndex` means; and the unsettled tail is
+kept, because the phrase in flight when a session ends never reaches `isFinal`
+and is otherwise lost. Three restarts with nothing recognised is treated as a
+refusal - Safari can decline to start from a timer rather than a tap - and says
+so rather than spinning. Any recognised text resets that count.
 
 **Starting a report is a POST, never a GET** - the insert is what makes the
 `reports_assign_number` trigger allocate the next gapless number, so a link
@@ -366,6 +388,7 @@ npm run test:db         schema and RLS
 npm run test:photo-sources   the three media sources, 37 checks
 npm run test:ai-prompt       the drafting prompt contract, briefs included
 npm run test:build-ref       the profile build marker
+npm run test:dictation       transcript accumulation and restart policy
 ```
 
 These three need neither Supabase nor a dev server, so they run anywhere.
@@ -403,6 +426,11 @@ Next-generated `LayoutProps` global, so a cold typecheck reports `TS2304`.
   behaviour - clearing stale AI sections while leaving user-edited ones - is
   covered by `npm run test:ai`, which needs one. The delete's PostgREST filter
   in particular has not been executed.
+- **Dictation has not been re-tested on an iPhone.** Every part of the logic
+  that can be simulated is; whether Safari will actually start a session from a
+  timer rather than a tap cannot be, and that is exactly what the refusal
+  message exists for. A 60-90 second continuous dictation compared against
+  what was said is the test that matters.
 - **The reworked prompt's prose has never been read.** `d85222f` changed what
   the model is told, not the pipeline. Whether the output now reads like a site
   manager's report is the owner's judgement, on a real generation. If it is
@@ -643,6 +671,12 @@ They sit beside the field the model is filling and can beat the system prompt
 for that field: "whether the job is on track" produced "No delay was recorded"
 while the system prompt was busy forbidding invention. Fix a drafting problem
 in the briefs before assuming the system prompt is at fault.
+
+**F23 - iOS Safari ignores `continuous`, and a comment said it had no speech
+API at all.** Both cost real dictation. `webkitSpeechRecognition` exists on
+iOS; what does not work is a session outliving a pause. Do not trust a comment
+about platform support that nobody re-checked - and do not treat `onend` as
+the user having finished. See section 4.
 ---
 
 ## 12. Known issues and technical debt
@@ -673,7 +707,9 @@ in the briefs before assuming the system prompt is at fault.
 
 ## 13. Exact next actions, in priority order
 
-1. **Have the owner judge a real generation** on the Preview for `43124e8`,
+1. **Have the owner dictate for 60-90 seconds** on the Preview for `a9ed7e7`
+   and compare the raw notes with what he said, then **judge a real
+   generation**,
    and try the photo buttons on his iPhone from both a report and
    Project -> Photos. Neither is reachable by any test here.
 2. **Run `npm run test:photos` wherever a Supabase is available** - its newest
@@ -682,7 +718,7 @@ in the briefs before assuming the system prompt is at fault.
    claude/phase5-staging`. Its failed Previews are expected (F18) and clear with
    it.
 4. **Confirm the Preview built.** Vercel -> Deployments, the newest build of
-   `claude/siteboss-pro-react-441-diagnosis-bhvwk8` at `43124e8`. The profile
+   `claude/siteboss-pro-react-441-diagnosis-bhvwk8` at `a9ed7e7`. The profile
    screen now shows the running build's short SHA, so this is checkable from
    the phone rather than the dashboard.
 5. **Add `OPENAI_API_KEY`** under Settings -> Environments -> Preview, no
@@ -781,6 +817,9 @@ site manager Maciej / Active.
   overwritten if the new draft fills that same section - that is the existing
   behaviour of a button labelled "Rewrite from my notes", not an oversight, but
   it has not been put to the owner.
+- **D22b** Dictation recovers from an end nobody asked for, and never fails
+  silently: if it cannot carry on it says so and asks for a tap. Losing a site
+  manager's words without telling him is the worst outcome available.
 - **D23** The profile screen names the running build from
   `VERCEL_GIT_COMMIT_SHA`, and nothing else from the environment. Off Vercel it
   renders nothing rather than a placeholder.
@@ -800,7 +839,7 @@ state and includes a list of failed approaches that must not be repeated. Ignore
 
 Where things stand:
 
-- Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, head `43124e8`.
+- Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, head `a9ed7e7`.
   The other branch is stale. Never push to `main`, and do not merge PR #1.
 - **Phases 1-5 are complete**: auth and schema, projects, report capture with
   dictation, photos, and AI drafting of the written report. All seven test
@@ -828,6 +867,11 @@ turn silence into a nil return. Section 4 has the banned wording and why; that
 list is my decision, so ask me before relaxing it. Regenerating now also clears
 the sections a new draft no longer supports, without touching ones I have
 edited.
+
+`a9ed7e7` fixed dictation. I spoke for 30 seconds and only a couple of
+sentences were saved: iOS ends the recognition session at the first pause, and
+nothing restarted it. It now keeps going, keeps the phrase that was in flight,
+and tells me if it cannot carry on instead of stopping quietly.
 
 The profile screen shows the running build's short commit SHA, so I can tell
 from my phone which deployment I am testing.
