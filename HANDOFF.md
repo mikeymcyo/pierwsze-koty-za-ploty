@@ -435,6 +435,9 @@ Next-generated `LayoutProps` global, so a cold typecheck reports `TS2304`.
 - **Long dictation is whole.** A continuous 60-90 second dictation was compared
   against what was actually said. The `a9ed7e7` restart loop holds on real iOS
   Safari - it does start a new session from a timer.
+- **The mobile photo UX works on the iPhone**, confirmed after `1d9474e`: Take
+  Photo, Choose from Photo Library and Choose File all behave, and photos reach
+  the report and the project.
 
 ### NOT verified
 
@@ -448,9 +451,6 @@ Next-generated `LayoutProps` global, so a cold typecheck reports `TS2304`.
   overwrite edited ones - has been exercised by hand on the phone but not by
   that suite, and the delete's PostgREST filter has never been executed in a
   test. Run it first wherever a Supabase is available.
-- **The photo UX has not been tried on a real iPhone.** Everything about it
-  that can be asserted from a desktop browser is asserted; how iOS actually
-  behaves at the three buttons is the owner's to confirm.
 
 ---
 

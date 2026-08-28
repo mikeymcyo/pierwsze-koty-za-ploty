@@ -4,15 +4,21 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Trash2 } from "lucide-react";
 
 import { deleteReport, saveReport, type ReportFormState } from "@/app/(app)/reports/actions";
+import { IssueList } from "@/components/issues/issue-list";
+import { RaiseIssue, type PhotoChoice } from "@/components/issues/raise-issue";
+import { FinaliseReport } from "@/components/reports/finalise-report";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
 import { ReportCaptureForm } from "@/components/reports/report-capture-form";
 import { ReportDraft } from "@/components/reports/report-draft";
+import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/load-error";
 import { hasAiConfig } from "@/lib/ai/report-generation";
 import { requireSessionContext } from "@/lib/auth/session";
+import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
+import { signPdfUrl } from "@/lib/pdf/signing";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
@@ -58,7 +64,8 @@ export default async function ReportCapturePage({
 
   if (!report) notFound();
 
-  const [workforceResult, plantResult, photosResult, sectionsResult] = await Promise.all([
+  const [workforceResult, plantResult, photosResult, sectionsResult, issuesResult] =
+    await Promise.all([
     withClockSkewRetry(() =>
       supabase
         .from("workforce_entries")
@@ -88,6 +95,13 @@ export default async function ReportCapturePage({
         .eq("report_id", id)
         .order("sort_order", { ascending: true }),
     ),
+    withClockSkewRetry(() =>
+      supabase
+        .from("issues")
+        .select("id, title, description, responsible, priority, status, created_at")
+        .eq("report_id", id)
+        .order("created_at", { ascending: false }),
+    ),
   ]);
 
   const photoRows = photosResult.data ?? [];
@@ -101,7 +115,21 @@ export default async function ReportCapturePage({
   // it, the capture form is withheld - editing rows we failed to read would
   // silently wipe them on save - and the panel explains why.
   const loadError =
-    workforceResult.error ?? plantResult.error ?? photosResult.error ?? sectionsResult.error;
+    workforceResult.error ??
+    plantResult.error ??
+    photosResult.error ??
+    sectionsResult.error ??
+    issuesResult.error;
+
+  const isFinal = report.status === "final";
+  const pdfUrl = isFinal ? await signPdfUrl(report.pdf_path) : null;
+
+  const photoChoices: PhotoChoice[] = photoRows.map((photo) => ({
+    id: photo.id,
+    label: photo.caption
+      ? `${photo.caption} (${PHOTO_CATEGORY_LABELS[photo.category]})`
+      : PHOTO_CATEGORY_LABELS[photo.category],
+  }));
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const projectHref = project ? `/projects/${project.id}` : "/reports";
@@ -138,9 +166,17 @@ export default async function ReportCapturePage({
         </Badge>
       </header>
 
+      {isFinal ? (
+        <Alert tone="info">
+          This report was issued{report.finalised_at ? ` on ${formatDate(report.finalised_at)}` : ""}.
+          It is a record of what was reported that day and is no longer edited. The
+          PDF below is the document that went out.
+        </Alert>
+      ) : null}
+
       {loadError ? (
         <LoadError what="this report's workforce and plant" code={loadError.code} />
-      ) : (
+      ) : isFinal ? null : (
         <ReportCaptureForm
           action={save}
           report={report}
@@ -158,27 +194,68 @@ export default async function ReportCapturePage({
               Photos
             </h2>
             <p className="text-sm text-ink-muted">
-              Shoot straight from the site. They are resized on your phone before
-              upload, so this works on a bad signal.
+              {isFinal
+                ? "The photographs as they were issued with this report."
+                : "Shoot straight from the site. They are resized on your phone before upload, so this works on a bad signal."}
             </p>
           </div>
 
-          <PhotoUpload
-            companyId={session.companyId}
-            projectId={project?.id ?? report.project_id}
-            reportId={report.id}
-          />
+          {isFinal ? null : (
+            <PhotoUpload
+              companyId={session.companyId}
+              projectId={project?.id ?? report.project_id}
+              reportId={report.id}
+            />
+          )}
 
-          {photos.length > 0 ? <PhotoGrid photos={photos} /> : null}
+          {photos.length > 0 ? <PhotoGrid photos={photos} deletable={!isFinal} /> : null}
         </section>
       )}
 
       {loadError ? null : (
+        <section className="flex flex-col gap-4 border-t border-line pt-6">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+              Issues
+            </h2>
+            <p className="text-sm text-ink-muted">
+              {isFinal
+                ? "Raised on this report. They stay open on the project until they are dealt with."
+                : "Raise it while you are stood in front of it. It stays on the project after this report is filed."}
+            </p>
+          </div>
+
+          {/* Issues outlive the report they were raised in, so a finalised
+              report still lists them - but it takes no new ones. */}
+          {isFinal ? null : (
+            <RaiseIssue
+              projectId={project?.id ?? report.project_id}
+              reportId={report.id}
+              photos={photoChoices}
+            />
+          )}
+
+          {issuesResult.data && issuesResult.data.length > 0 ? (
+            <IssueList issues={issuesResult.data} />
+          ) : null}
+        </section>
+      )}
+
+      {loadError || isFinal ? null : (
         <ReportDraft
           reportId={report.id}
           sections={sectionsResult.data ?? []}
           rawNotes={report.raw_notes}
           configured={hasAiConfig()}
+        />
+      )}
+
+      {loadError ? null : (
+        <FinaliseReport
+          reportId={report.id}
+          status={report.status}
+          pdfUrl={pdfUrl}
+          finalisedAt={report.finalised_at ? formatDate(report.finalised_at) : null}
         />
       )}
 

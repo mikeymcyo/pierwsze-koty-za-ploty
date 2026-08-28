@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireSessionContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { PHOTO_BUCKET, photoPathPrefix } from "@/lib/photos";
+import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
 
 /**
  * Photo rows are written here, but the file itself is uploaded straight from
@@ -65,6 +66,17 @@ export async function attachPhoto(input: AttachPhotoInput) {
     return { error: "That photo could not be attached - please try again." };
   }
 
+  // Photographs are part of what was issued, so an issued report takes no more
+  // of them. A project-level photo carries no report and is unaffected.
+  if (reportId) {
+    const { data: report } = await supabase
+      .from("reports")
+      .select("status")
+      .eq("id", reportId)
+      .maybeSingle();
+    if (report?.status === "final") return { error: REPORT_IS_FINAL };
+  }
+
   const { error } = await supabase.from("photos").insert({
     company_id: session.companyId,
     project_id: projectId,
@@ -97,11 +109,16 @@ export async function deletePhoto(formData: FormData) {
   // Read the path first: once the row is gone we cannot find the object.
   const { data: photo } = await supabase
     .from("photos")
-    .select("storage_path, project_id, report_id")
+    .select("storage_path, project_id, report_id, reports(status)")
     .eq("id", photoId)
     .maybeSingle();
 
   if (!photo) return;
+
+  // Removing a photograph from an issued report would leave the stored PDF
+  // showing something the report no longer claims.
+  const owner = Array.isArray(photo.reports) ? photo.reports[0] : photo.reports;
+  if (owner?.status === "final") throw new Error(REPORT_IS_FINAL);
 
   const { error } = await supabase.from("photos").delete().eq("id", photoId);
   if (error) {

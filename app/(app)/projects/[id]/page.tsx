@@ -5,6 +5,8 @@ import { Suspense } from "react";
 import { AlertTriangle, Camera, FileText, Pencil, Plus } from "lucide-react";
 
 import { startReport } from "@/app/(app)/reports/actions";
+import { IssueList } from "@/components/issues/issue-list";
+import { RaiseIssue, type PhotoChoice } from "@/components/issues/raise-issue";
 import { ProjectTabs } from "@/components/projects/project-tabs";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
@@ -16,20 +18,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
+import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatReportNumber } from "@/lib/utils";
-import type { IssuePriority } from "@/types/database";
 
 export const metadata: Metadata = { title: "Project" };
-
-const PRIORITY_TONES: Record<IssuePriority, "neutral" | "info" | "warning" | "danger"> = {
-  low: "neutral",
-  medium: "info",
-  high: "warning",
-  critical: "danger",
-};
 
 function DetailRow({ label, value }: { label: string; value: string | null }) {
   return (
@@ -45,9 +40,10 @@ export default async function ProjectPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; closed?: string }>;
 }) {
-  const [{ id }, { tab }] = await Promise.all([params, searchParams]);
+  const [{ id }, { tab, closed }] = await Promise.all([params, searchParams]);
+  const showClosed = closed === "1";
   const session = await requireSessionContext();
   const supabase = await createClient();
 
@@ -93,14 +89,19 @@ export default async function ProjectPage({
         .eq("project_id", project.id)
         .order("created_at", { ascending: false }),
     ),
-    withClockSkewRetry(() =>
-      supabase
+    withClockSkewRetry(() => {
+      const query = supabase
         .from("issues")
-        .select("id, title, responsible, priority, status")
-        .eq("project_id", project.id)
-        .neq("status", "closed")
-        .order("created_at", { ascending: false }),
-    ),
+        .select("id, title, description, responsible, priority, status, created_at")
+        .eq("project_id", project.id);
+
+      // The tab is called Open Issues and the count in it means outstanding
+      // work, so closed ones are out of the way by default - but reachable,
+      // because an issue nobody can look at again is a record nobody trusts.
+      return (showClosed ? query : query.neq("status", "closed")).order("created_at", {
+        ascending: false,
+      });
+    }),
   ]);
 
   const loadError = reportsResult.error ?? photosResult.error ?? issuesResult.error;
@@ -113,6 +114,13 @@ export default async function ProjectPage({
   const photos: PhotoWithUrl[] = photoRows.map((photo) => ({
     ...photo,
     url: photoUrls.get(photo.storage_path) ?? null,
+  }));
+
+  const photoChoices: PhotoChoice[] = photoRows.map((photo) => ({
+    id: photo.id,
+    label: photo.caption
+      ? `${photo.caption} (${PHOTO_CATEGORY_LABELS[photo.category]})`
+      : `${PHOTO_CATEGORY_LABELS[photo.category]} - ${formatDate(photo.created_at)}`,
   }));
 
   return (
@@ -250,31 +258,28 @@ export default async function ProjectPage({
       ) : null}
 
       {!loadError && activeTab === "issues" ? (
-        issues.length === 0 ? (
-          <EmptyState
-            icon={AlertTriangle}
-            title="No open issues"
-            description="Outstanding items raised on site will appear here. Issue tracking arrives in phase six."
-          />
-        ) : (
-          <ul className="flex flex-col gap-3">
-            {issues.map((issue) => (
-              <li key={issue.id}>
-                <Card>
-                  <CardContent className="flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <p className="font-semibold text-ink">{issue.title}</p>
-                      {issue.responsible ? (
-                        <p className="text-sm text-ink-muted">{issue.responsible}</p>
-                      ) : null}
-                    </div>
-                    <Badge tone={PRIORITY_TONES[issue.priority]}>{issue.priority}</Badge>
-                  </CardContent>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        )
+        <section className="flex flex-col gap-5">
+          {/* reportId is null: an issue can be raised against the project on its
+              own, and issues.report_id is nullable for exactly that. */}
+          <RaiseIssue projectId={project.id} reportId={null} photos={photoChoices} />
+
+          {issues.length === 0 ? (
+            <EmptyState
+              icon={AlertTriangle}
+              title={showClosed ? "No issues on this project" : "No open issues"}
+              description="Raise one here, or from the report you are writing on site."
+            />
+          ) : (
+            <IssueList issues={issues} />
+          )}
+
+          <Link
+            href={`/projects/${project.id}?tab=issues${showClosed ? "" : "&closed=1"}`}
+            className="self-start text-sm font-semibold text-ink-muted underline underline-offset-4 hover:text-ink"
+          >
+            {showClosed ? "Hide closed issues" : "Show closed issues too"}
+          </Link>
+        </section>
       ) : null}
     </div>
   );

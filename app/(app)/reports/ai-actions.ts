@@ -7,6 +7,7 @@ import { requireSessionContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
 import { generateSections, type GenerationInput } from "@/lib/ai/report-generation";
 import { sortOrderOf } from "@/lib/report-sections";
+import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
 import { partitionDraft } from "@/lib/reports/regeneration";
 import type { ReportSectionType } from "@/types/database";
 
@@ -47,13 +48,15 @@ export async function generateReport(
   const { data: report, error } = await supabase
     .from("reports")
     .select(
-      "id, report_date, weather, raw_notes, author_name, project_id, projects(name, client, site_address)",
+      "id, report_date, weather, raw_notes, author_name, project_id, status, projects(name, client, site_address)",
     )
     .eq("id", reportId)
     .maybeSingle();
 
   if (error) return { error: `Could not read the report: ${error.message}` };
   if (!report) return { error: "That report could not be found." };
+  // Redrafting an issued report would change a document already sent.
+  if (report.status === "final") return { error: REPORT_IS_FINAL };
 
   const [{ data: workforce }, { data: plant }, { data: photos }] = await Promise.all([
     supabase
@@ -187,6 +190,16 @@ export async function updateSection(
 
   await requireSessionContext();
   const supabase = await createClient();
+
+  // A section belongs to a report, and an issued report does not change.
+  const { data: owner } = await supabase
+    .from("report_sections")
+    .select("reports(status)")
+    .eq("id", parsed.data.sectionId)
+    .maybeSingle();
+
+  const ownerReport = Array.isArray(owner?.reports) ? owner?.reports[0] : owner?.reports;
+  if (ownerReport?.status === "final") return { error: REPORT_IS_FINAL };
 
   const { error } = await supabase
     .from("report_sections")

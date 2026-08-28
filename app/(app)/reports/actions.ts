@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { displayName, requireSessionContext } from "@/lib/auth/session";
+import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
 import { createClient } from "@/lib/supabase/server";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 
@@ -199,15 +200,25 @@ export async function saveReport(
   const session = await requireSessionContext();
   const supabase = await createClient();
 
-  // RLS already limits every statement below to the caller's company.
+  // RLS already limits every statement below to the caller's company, and
+  // status = draft is what keeps an issued report immutable. Filtering on it
+  // here rather than reading first makes the check part of the write, so two
+  // people cannot both pass it and then both save.
   const { data: report, error: reportError } = await supabase
     .from("reports")
     .update(parsed.data)
     .eq("id", reportId)
+    .eq("status", "draft")
     .select("project_id")
-    .single();
+    .maybeSingle();
 
   if (reportError) return { error: `Could not save the report: ${reportError.message}` };
+
+  // No row came back: either it is not ours, which RLS decided, or it has been
+  // finalised. Nothing below may run in either case - the workforce and plant
+  // rows are replaced by deleting them first, and that would empty an issued
+  // report.
+  if (!report) return { error: REPORT_IS_FINAL };
 
   const [{ error: workforceDeleteError }, { error: plantDeleteError }] = await Promise.all([
     supabase.from("workforce_entries").delete().eq("report_id", reportId),
