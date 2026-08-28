@@ -5,6 +5,17 @@
 
 import type { ReportSectionType } from "@/types/database";
 
+/**
+ * Briefs are not documentation: each one becomes the `description` of that
+ * property in the JSON schema sent to the model, so it sits right beside the
+ * field being filled and competes with the system prompt for that field.
+ *
+ * They are therefore written under one rule - **silence is not evidence of
+ * absence**. A brief must never ask a question the notes might not answer,
+ * because a field that must be filled will be filled: asking the summary
+ * "whether the job is on track" is what produced "No delay was recorded" from
+ * notes that said nothing about programme at all.
+ */
 export const REPORT_SECTIONS: {
   type: ReportSectionType;
   label: string;
@@ -15,22 +26,24 @@ export const REPORT_SECTIONS: {
     type: "executive_summary",
     label: "Summary",
     brief:
-      "Two or three sentences a client can read on their phone: what happened on site today and whether the job is on track.",
+      "Two or three sentences a client can read on their phone, covering the work the notes actually describe. Do not judge progress against programme and do not mention delay unless the notes record one.",
   },
   {
     type: "works_completed",
     label: "Works completed",
-    brief: "What was actually finished today, by trade and location on site.",
+    brief:
+      "What the notes record as finished, with the trade and the location only where the notes give them.",
   },
   {
     type: "works_in_progress",
     label: "Works in progress",
-    brief: "What is part-done and continuing tomorrow.",
+    brief: "What the notes describe as part-done and continuing.",
   },
   {
     type: "deliveries_plant",
     label: "Deliveries and plant",
-    brief: "Materials that arrived and machinery on site, including anything that did not arrive.",
+    brief:
+      "Deliveries and plant recorded in the notes or the structured data. Do not mention anything that did not arrive unless a non-arrival is recorded; leave this empty rather than reporting that deliveries were complete.",
   },
   {
     type: "health_safety",
@@ -41,17 +54,19 @@ export const REPORT_SECTIONS: {
   {
     type: "issues_constraints",
     label: "Issues and constraints",
-    brief: "Anything blocking or slowing the work - access, weather, information, other trades.",
+    brief:
+      "Anything the notes record as blocking or slowing the work - access, weather, information, other trades. Leave this empty if none is recorded rather than stating there were none.",
   },
   {
     type: "outstanding_items",
     label: "Outstanding items",
-    brief: "Items awaiting a decision, an instruction or another party.",
+    brief:
+      "Items the notes record as awaiting a decision, an instruction or another party. Leave this empty rather than stating that nothing is outstanding.",
   },
   {
     type: "planned_works",
     label: "Planned works",
-    brief: "What is planned for the next working day.",
+    brief: "What the notes say is planned for the next working day.",
   },
 ];
 

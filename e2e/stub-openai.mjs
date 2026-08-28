@@ -22,19 +22,30 @@ export const STUB_PORT = 4010;
 /** Echoed back in the sections so a test can prove the text came from here. */
 export const STUB_MARKER = "STUBBED-SECTION";
 
+/**
+ * Notes carrying this make the stub return a narrower draft, leaving two
+ * sections empty that a first pass filled.
+ *
+ * A real second generation legitimately supports fewer sections than the
+ * first, and that is the case worth testing: what happens to the paragraphs
+ * the new draft no longer supports.
+ */
+export const NARROW_MARKER = "NARROW-DRAFT";
+
 export function sectionsFor(prompt) {
   // The prompt is echoed into one section so the test can assert the site
   // manager's own words actually reached the model.
   const notes = prompt.split(RAW_NOTES_LABEL)[1] ?? "";
+  const narrow = notes.includes(NARROW_MARKER);
   return {
     executive_summary: `${STUB_MARKER} summary`,
     works_completed: `${STUB_MARKER} works completed. Notes seen: ${notes.trim().slice(0, 60)}`,
     works_in_progress: "",
-    deliveries_plant: `${STUB_MARKER} deliveries`,
+    deliveries_plant: narrow ? "" : `${STUB_MARKER} deliveries`,
     health_safety: "",
     issues_constraints: "",
     outstanding_items: "",
-    planned_works: `${STUB_MARKER} planned works`,
+    planned_works: narrow ? "" : `${STUB_MARKER} planned works`,
   };
 }
 

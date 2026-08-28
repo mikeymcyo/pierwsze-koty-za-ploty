@@ -172,7 +172,80 @@ check(
   flat.includes("an empty section is a correct answer"),
 );
 
-console.log("\n6. Section briefs do not ask for claims of their own");
+console.log("\n6. Nothing turns silence into a nil return");
+check(
+  "the system prompt says silence is not evidence of absence",
+  flat.includes("silence is not evidence of absence"),
+);
+for (const claim of [
+  "no delays",
+  "no issues",
+  "no incidents",
+  "no accidents",
+  "no outstanding items",
+  "no defects",
+  "nothing was reported",
+  "deliveries were complete",
+  "on programme",
+]) {
+  check(`it names "${claim}" as a claim it must not make`, flat.includes(claim));
+}
+check(
+  "and says why - a nil return is a claim",
+  flat.includes("a nil return is a claim like any other"),
+);
+
+console.log("\n7. Section briefs do not ask for claims of their own");
+
+// The brief that produced "No delay was recorded" asked the summary "whether
+// the job is on track". A brief that poses a question gets an answer, because
+// the field has to be filled - so no brief may pose one.
+for (const section of REPORT_SECTIONS) {
+  check(
+    `${section.type} does not ask a question the notes may not answer`,
+    !/\bwhether\b/i.test(section.brief),
+    section.brief,
+  );
+}
+check(
+  "the summary no longer asks about programme",
+  !/on track/i.test(
+    REPORT_SECTIONS.find((section) => section.type === "executive_summary").brief,
+  ),
+);
+check(
+  "the summary is told not to judge programme or delay",
+  /do not judge progress against programme and do not mention delay/i.test(
+    REPORT_SECTIONS.find((section) => section.type === "executive_summary").brief,
+  ),
+);
+
+const deliveries = REPORT_SECTIONS.find((section) => section.type === "deliveries_plant");
+check(
+  "deliveries no longer invites a non-arrival claim",
+  !/including anything that did not arrive/i.test(deliveries.brief),
+  deliveries.brief,
+);
+check(
+  "deliveries requires a recorded non-arrival before mentioning one",
+  /unless a non-arrival is recorded/i.test(deliveries.brief),
+  deliveries.brief,
+);
+
+// Any brief that mentions an absence at all must be forbidding it, never
+// inviting it. This is the check that catches a brief added later.
+const ABSENCE = /\bnothing\b|\bnone\b|did not arrive|no delays|no issues|were complete/i;
+const FORBIDDING = /do not|leave this empty|rather than|unless|is itself a claim/i;
+for (const section of REPORT_SECTIONS) {
+  if (!ABSENCE.test(section.brief)) continue;
+  check(
+    `${section.type} mentions an absence only to forbid it`,
+    FORBIDDING.test(section.brief),
+    section.brief,
+  );
+}
+
+console.log("\n8. The health and safety brief specifically");
 const safety = REPORT_SECTIONS.find((section) => section.type === "health_safety");
 check(
   "health and safety no longer asks the model to state nothing was reported",

@@ -5,6 +5,7 @@ import { signOut } from "@/app/(auth)/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
+import { shortBuildRef } from "@/lib/build-info";
 
 export const metadata: Metadata = { title: "Profile" };
 
@@ -19,6 +20,10 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 export default async function ProfilePage() {
   const session = await requireSessionContext();
+
+  // Read as a literal rather than passing process.env through, so the value is
+  // whatever this deployment was built and is running with.
+  const buildRef = shortBuildRef({ VERCEL_GIT_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA });
 
   return (
     <div className="flex flex-col gap-6">
@@ -44,6 +49,11 @@ export default async function ProfilePage() {
           Sign out
         </Button>
       </form>
+
+      {/* Absent off Vercel, where there is no commit to name. */}
+      {buildRef ? (
+        <p className="text-center text-xs text-ink-subtle">Build {buildRef}</p>
+      ) : null}
     </div>
   );
 }

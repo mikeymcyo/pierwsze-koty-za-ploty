@@ -15,7 +15,7 @@
  */
 
 import { chromium } from "playwright";
-import { startStub, STUB_MARKER, STUB_PORT } from "./stub-openai.mjs";
+import { NARROW_MARKER, startStub, STUB_MARKER, STUB_PORT } from "./stub-openai.mjs";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const stamp = Date.now();
@@ -149,6 +149,57 @@ try {
   await page.getByText(`${STUB_MARKER} summary`).waitFor({ timeout: TIMEOUT });
   const summaryCount = await page.getByLabel("Summary").count();
   check("still exactly one summary section", summaryCount === 1, `saw ${summaryCount}`);
+
+  console.log("\n8. A narrower draft clears what it no longer supports");
+
+  // Make one AI section the user's own, so the clear-out has something it must
+  // not touch. Deliveries is the one the narrower draft will leave empty.
+  await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await page.getByRole("button", { name: "Rewrite from my notes" }).waitFor({ timeout: TIMEOUT });
+  const keptByHand = "Two loads of plasterboard, booked in by me.";
+  await page.getByLabel("Deliveries and plant").fill(keptByHand);
+  await page
+    .locator("form")
+    .filter({ has: page.getByLabel("Deliveries and plant") })
+    .getByRole("button", { name: "Save" })
+    .click();
+  await page.getByText("Edited by you").first().waitFor({ timeout: TIMEOUT });
+
+  // Now regenerate against notes the stub answers with a narrower draft:
+  // deliveries and planned works both come back empty.
+  await page.getByLabel("Work completed").fill(`${NOTES} ${NARROW_MARKER}`);
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await page.getByText("Draft saved.").waitFor({ timeout: TIMEOUT });
+  await page.getByRole("button", { name: "Rewrite from my notes" }).click();
+  await page.getByText(`${STUB_MARKER} summary`).waitFor({ timeout: TIMEOUT });
+
+  await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  const afterNarrow = await page.locator("main").innerText();
+
+  // The paragraph the new draft no longer supports must go. Leaving it would
+  // put the previous draft's claim under a heading today's notes do not carry.
+  check(
+    "a stale AI section is cleared",
+    !afterNarrow.includes(`${STUB_MARKER} planned works`),
+    "the previous draft's planned works survived a narrower regeneration",
+  );
+  check(
+    "the sections the new draft did support are still there",
+    afterNarrow.includes(`${STUB_MARKER} summary`) &&
+      afterNarrow.includes(`${STUB_MARKER} works completed`),
+  );
+
+  // And the one a person wrote must survive, even though the new draft left
+  // that section empty. Deleting it would destroy work the app never wrote.
+  check(
+    "a section the user wrote is NOT cleared",
+    afterNarrow.includes(keptByHand),
+    "the user's own deliveries text was deleted by the clear-out",
+  );
+  check(
+    "and is still marked as theirs",
+    (await page.getByText("Edited by you").count()) >= 1,
+  );
 } catch (error) {
   failures.push(`threw: ${error.message}`);
   console.log(`\n  [FAIL] ${error.message}`);
