@@ -20,6 +20,7 @@ import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
 import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
 import { signPhotoUrls } from "@/lib/photos-signing";
+import { SUMMARY_KIND_LABELS } from "@/lib/summary-reports/sections";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatReportNumber } from "@/lib/utils";
@@ -74,13 +75,20 @@ export default async function ProjectPage({
   // yours" identically, without revealing which.
   if (!project) notFound();
 
-  const [reportsResult, photosResult, issuesResult] = await Promise.all([
+  const [reportsResult, summaryReportsResult, photosResult, issuesResult] = await Promise.all([
     withClockSkewRetry(() =>
       supabase
         .from("reports")
         .select("id, report_number, report_date, status")
         .eq("project_id", project.id)
         .order("report_number", { ascending: false }),
+    ),
+    withClockSkewRetry(() =>
+      supabase
+        .from("summary_reports")
+        .select("id, kind, number, title, period_start, period_end, status")
+        .eq("project_id", project.id)
+        .order("created_at", { ascending: false }),
     ),
     withClockSkewRetry(() =>
       supabase
@@ -92,7 +100,7 @@ export default async function ProjectPage({
     withClockSkewRetry(() => {
       const query = supabase
         .from("issues")
-        .select("id, title, description, responsible, priority, status, created_at")
+        .select("id, title, description, resolution, responsible, priority, status, created_at")
         .eq("project_id", project.id);
 
       // The tab is called Open Issues and the count in it means outstanding
@@ -104,9 +112,11 @@ export default async function ProjectPage({
     }),
   ]);
 
-  const loadError = reportsResult.error ?? photosResult.error ?? issuesResult.error;
+  const loadError =
+    reportsResult.error ?? summaryReportsResult.error ?? photosResult.error ?? issuesResult.error;
 
   const reports = reportsResult.data ?? [];
+  const summaryReports = summaryReportsResult.data ?? [];
   const issues = issuesResult.data ?? [];
 
   const photoRows = photosResult.data ?? [];
@@ -153,9 +163,21 @@ export default async function ProjectPage({
             <input type="hidden" name="projectId" value={project.id} />
             <Button type="submit">
               <Plus aria-hidden />
-              New report
+              New Daily Report
             </Button>
           </form>
+          <Button asChild variant="secondary">
+            <Link href={`/summary-reports/new?kind=progress&project=${project.id}`}>
+              <Plus aria-hidden />
+              Progress Report
+            </Link>
+          </Button>
+          <Button asChild variant="secondary">
+            <Link href={`/summary-reports/new?kind=completion&project=${project.id}`}>
+              <Plus aria-hidden />
+              Completion Report
+            </Link>
+          </Button>
           <Button asChild variant="secondary">
             <Link href={`/projects/${project.id}/edit`}>
               <Pencil aria-hidden />
@@ -168,7 +190,11 @@ export default async function ProjectPage({
       <Suspense fallback={<div className="h-12 border-b border-line" />}>
         <ProjectTabs
           active={activeTab}
-          counts={{ reports: reports.length, photos: photos.length, issues: issues.length }}
+          counts={{
+            reports: reports.length + summaryReports.length,
+            photos: photos.length,
+            issues: issues.length,
+          }}
         />
       </Suspense>
 
@@ -201,7 +227,7 @@ export default async function ProjectPage({
       ) : null}
 
       {!loadError && activeTab === "reports" ? (
-        reports.length === 0 ? (
+        reports.length === 0 && summaryReports.length === 0 ? (
           <EmptyState
             icon={FileText}
             title="No reports yet"
@@ -209,6 +235,31 @@ export default async function ProjectPage({
           />
         ) : (
           <ul className="flex flex-col gap-3">
+            {summaryReports.map((report) => (
+              <li key={report.id}>
+                <Card className="transition-colors hover:border-line-strong">
+                  <Link
+                    href={`/summary-reports/${report.id}`}
+                    className="flex items-center justify-between gap-4 p-5"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-semibold text-ink">
+                        {report.title ||
+                          `${SUMMARY_KIND_LABELS[report.kind]} ${formatReportNumber(report.number)}`}
+                      </p>
+                      <p className="text-sm text-ink-muted">
+                        {report.period_start && report.period_end
+                          ? `${formatDate(report.period_start)} to ${formatDate(report.period_end)}`
+                          : "Whole project"}
+                      </p>
+                    </div>
+                    <Badge tone={report.status === "final" ? "success" : "neutral"}>
+                      {report.status === "final" ? "Final" : "Draft"}
+                    </Badge>
+                  </Link>
+                </Card>
+              </li>
+            ))}
             {reports.map((report) => (
               <li key={report.id}>
                 <Card className="transition-colors hover:border-line-strong">

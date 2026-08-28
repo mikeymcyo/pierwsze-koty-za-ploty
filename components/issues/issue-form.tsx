@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 
@@ -17,7 +17,7 @@ import type { Issue } from "@/types/database";
 
 type EditableIssue = Pick<
   Issue,
-  "id" | "title" | "description" | "responsible" | "photo_id" | "priority" | "status"
+  "id" | "title" | "description" | "resolution" | "responsible" | "photo_id" | "priority" | "status"
 >;
 
 function SaveButton() {
@@ -40,6 +40,7 @@ export function IssueForm({
 }) {
   const save = updateIssue.bind(null, issue.id);
   const [state, formAction] = useActionState<IssueFormState, FormData>(save, {});
+  const [status, setStatus] = useState(issue.status);
   const errors = state.fieldErrors ?? {};
 
   return (
@@ -67,6 +68,21 @@ export function IssueForm({
           />
         </Field>
 
+        <Field
+          label="Resolution"
+          htmlFor="resolution"
+          optional={status !== "closed"}
+          error={errors.resolution}
+          hint="Required when the issue is closed, so the Completion Report records the outcome."
+        >
+          <Textarea
+            id="resolution"
+            name="resolution"
+            rows={3}
+            defaultValue={issue.resolution ?? ""}
+          />
+        </Field>
+
         <div className="grid gap-5 sm:grid-cols-2">
           <Field label="Priority" htmlFor="priority" error={errors.priority}>
             <Select id="priority" name="priority" defaultValue={issue.priority}>
@@ -79,7 +95,12 @@ export function IssueForm({
           </Field>
 
           <Field label="Status" htmlFor="status" error={errors.status}>
-            <Select id="status" name="status" defaultValue={issue.status}>
+            <Select
+              id="status"
+              name="status"
+              value={status}
+              onChange={(event) => setStatus(event.target.value as typeof status)}
+            >
               {ISSUE_STATUSES.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}

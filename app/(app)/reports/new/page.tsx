@@ -12,7 +12,7 @@ import { requireSessionContext } from "@/lib/auth/session";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Create report" };
+export const metadata: Metadata = { title: "Create Daily Report" };
 
 export default async function NewReportPage() {
   await requireSessionContext();
@@ -33,7 +33,7 @@ export default async function NewReportPage() {
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
-          Create report
+          Create Daily Report
         </h1>
         <p className="text-sm text-ink-muted">
           Pick the site you are on. The date, your name and the report number are

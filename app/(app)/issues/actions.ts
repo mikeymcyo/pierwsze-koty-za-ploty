@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireSessionContext } from "@/lib/auth/session";
-import { closedAtFor } from "@/lib/issues/metadata";
+import { closedAtFor, hasRequiredResolution } from "@/lib/issues/metadata";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -68,10 +68,19 @@ const createSchema = z.object({
 const updateSchema = z.object({
   title: z.string().trim().min(3, "Say what the issue is"),
   description: optionalText,
+  resolution: optionalText,
   responsible: optionalText,
   photoId: optionalUuid,
   priority: z.enum(PRIORITIES),
   status: z.enum(STATUSES),
+}).superRefine((value, context) => {
+  if (!hasRequiredResolution(value.status, value.resolution)) {
+    context.addIssue({
+      code: "custom",
+      path: ["resolution"],
+      message: "Record how this issue was resolved before closing it",
+    });
+  }
 });
 
 function read(formData: FormData, key: string): string {
@@ -93,6 +102,7 @@ export async function createIssue(
     reportId: read(formData, "reportId"),
     title: read(formData, "title"),
     description: read(formData, "description"),
+    resolution: read(formData, "resolution"),
     responsible: read(formData, "responsible"),
     photoId: read(formData, "photoId"),
     priority: read(formData, "priority"),
@@ -162,6 +172,7 @@ export async function updateIssue(
     .update({
       title: input.title,
       description: input.description,
+      resolution: input.status === "closed" ? input.resolution : null,
       responsible: input.responsible,
       photo_id: input.photoId,
       priority: input.priority,
@@ -193,6 +204,9 @@ export async function setIssueStatus(formData: FormData) {
     });
 
   if (!parsed.success) return;
+
+  // Closing needs a recorded resolution, so it goes through the edit screen.
+  if (parsed.data.status === "closed") return;
 
   await requireSessionContext();
   const supabase = await createClient();

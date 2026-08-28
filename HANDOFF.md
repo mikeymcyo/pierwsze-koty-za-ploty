@@ -7,16 +7,36 @@ it says so explicitly - treat that distinction as load-bearing.
 **Written:** 2026-08-26 · **Last updated:** 2026-08-28
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-**Head:** `9829e94` - Phase 5 complete, verified on the owner's iPhone
+**Recovery head:** `6d3f554` - summary schema validated and synchronized
 
-Phases 1-5 are complete and on that branch. **Phase 5 is closed**: the owner
-has generated reports against the real OpenAI API on his iPhone and judged the
-quality acceptable, and has dictated continuously for 60-90 seconds and
-compared the raw transcript against what he said. Phase 6 (issues + PDF) is
-next and has NOT been started - its scope is section 14, and the owner wants
-to review it before any of it is built. `260af4a` is Phase 5; `1d9474e` and `a9ed7e7` are
-follow-ups to Phases 4 and 3, and `d85222f` and `43124e8` to Phase 5. None of
-them start anything new.
+## Current state - read this before the historical sections below
+
+This block supersedes the old statements later in this file that Phase 6 has
+not started. Issues and the Daily Report PDF were completed in `5047110`. The
+Progress/Completion schema followed in `a632c4f`, with the tenant-key fix and
+durable PostgreSQL suite in `6d3f554`.
+
+The current implementation completes the remaining core workflow:
+
+- Progress Reports consolidate final Daily Reports for a fixed date range.
+- Completion Reports prefer issued Progress Reports while retaining every
+  underlying Daily Report as provenance, without feeding it to the writer
+  twice.
+- Both kinds have evidence-grounded AI drafting, protected manual edits,
+  curated photographs and issues, draft PDF previews, stored issued PDFs and
+  immutable final state.
+- Closing an issue now requires a recorded resolution. Finalising a summary
+  snapshots its issue status and resolution.
+- Reports, Project detail and Dashboard list all three document types.
+
+The migration `20260828000005_summary_reports.sql` has passed its real local
+PostgreSQL suite but has **not** been applied to hosted Supabase. Apply it
+before deploying application code that queries `summary_reports`. Never deploy
+the code first: Reports and Dashboard intentionally query the new tables.
+
+Dependency-free regression suites pass, including
+`test:summary-reports`. A production dependency install, lint, typecheck and
+build must pass in a dependency-complete environment before release.
 
 > `PROJECT_STATE.md` in this repo is an earlier handoff. Where the two disagree,
 > **this file wins** - it is newer. Consider deleting PROJECT_STATE.md once you
@@ -60,7 +80,7 @@ Verified in `package.json`:
 | Tests | Playwright 1.56.1 (pinned) + psql-driven SQL tests |
 | Hosting | Vercel (Preview only; nothing merged to main) |
 
-Not yet installed, needed later: `@react-pdf/renderer` (Phase 6).
+Installed and in use: `@react-pdf/renderer` (Daily, Progress and Completion PDFs).
 
 **Route protection lives in `proxy.ts` at the repo root.** Next.js 16 deprecates
 `middleware.ts`; having both is a hard build error.
@@ -244,7 +264,7 @@ edits: that paragraph is the site manager's, in a document going to a client
 with his name on it. The screen says which way it went rather than leaving him
 to notice.
 
-**Phase 6 (issues + PDF) has not been started.**
+**Historical note:** Phase 6 was subsequently completed in `5047110`.
 
 ---
 
@@ -294,8 +314,7 @@ report_sections, workforce_entries, plant_entries, photos, issues`.
 Two **private** buckets, `site-photos` and `report-pdfs`. Paths are always
 `{company_id}/{project_id}/{filename}`; policies match the leading folder via
 `public.storage_company_id()`, which returns NULL rather than raising on a
-non-uuid path. `site-photos` is in use since Phase 4; `report-pdfs` is still
-unused and is Phase 6's job.
+non-uuid path. Both buckets are now in use; issued PDFs are never regenerated.
 
 ### The hosted project
 
@@ -718,7 +737,7 @@ the user having finished. See section 4.
 
 ---
 
-## 13. Exact next actions, in priority order
+## 13. Historical next actions (completed or superseded)
 
 1. **Review the Phase 6 scope in section 14 with the owner before building any
    of it.** He has asked for that explicitly.
@@ -744,11 +763,11 @@ the user having finished. See section 4.
    retry budget - but only with evidence, and do not widen it to other errors.
 9. **Offer a CI workflow** - typecheck, lint, build, `test:db`. Offered three
    times, never actioned.
-10. **Then Phase 6.**
+10. **Then Phase 6.** Completed in `5047110`.
 
 ---
 
-## 14. What Phase 6 must build
+## 14. Historical Phase 6 scope (completed)
 
 Two things, and they are the last of the core workflow.
 
@@ -757,7 +776,7 @@ Two things, and they are the last of the core workflow.
 project detail page already has an **Open Issues** tab reading it. What is
 missing is creating, editing and closing them, and attaching them to a report.
 
-**The PDF.** `@react-pdf/renderer` is not yet installed. The report already has
+**The PDF.** `@react-pdf/renderer` is installed. The report already has
 everything it needs: numbered header, project and client, date, weather,
 workforce and plant tables, the generated sections in `REPORT_SECTION_ORDER`,
 and photos with captions. Write to the private `report-pdfs` bucket under
@@ -841,7 +860,7 @@ site manager Maciej / Active.
 
 ---
 
-## PROMPT FOR NEXT CLAUDE SESSION
+## ARCHIVED PROMPT FOR THE OLD PHASE 6 SESSION - DO NOT USE
 
 Paste everything below into a fresh Claude Code session.
 
@@ -860,7 +879,7 @@ Where things stand:
   report capture with dictation, photos, and AI drafting. I have tested drafting
   and long dictation on my iPhone against the real OpenAI API and they are good.
   Do not rebuild any of it.
-- **Phase 6 (issues + PDF) is next and has not been started.** Section 14 has
+- **Historical instruction only:** Phase 6 was next at the time. Section 14 has
   the scope. I want to review it with you before you build any of it.
 
 Two recent commits followed the phases rather than extending them.

@@ -23,7 +23,11 @@ export const NAV_ITEMS: NavItem[] = [
  */
 export function isNavItemActive(item: NavItem, pathname: string): boolean {
   if (item.href === "/reports") {
-    return pathname === "/reports" || /^\/reports\/(?!new$)/.test(pathname);
+    return (
+      pathname === "/reports" ||
+      /^\/reports\/(?!new$)/.test(pathname) ||
+      pathname.startsWith("/summary-reports/")
+    );
   }
   return pathname === item.href || pathname.startsWith(`${item.href}/`);
 }

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileText, FolderKanban, HardHat, Plus } from "lucide-react";
+import { FileCheck2, FileText, FolderKanban, HardHat, Plus } from "lucide-react";
 
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { LoadError } from "@/components/ui/load-error";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
+import { SUMMARY_KIND_LABELS } from "@/lib/summary-reports/sections";
 import { formatDate, formatReportNumber } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Dashboard" };
@@ -18,7 +19,7 @@ export default async function DashboardPage() {
   const session = await requireSessionContext();
   const supabase = await createClient();
 
-  const [projectsResult, reportsResult] = await Promise.all([
+  const [projectsResult, reportsResult, summaryReportsResult] = await Promise.all([
     withClockSkewRetry(() =>
       supabase
         .from("projects")
@@ -35,12 +36,20 @@ export default async function DashboardPage() {
         .order("report_number", { ascending: false })
         .limit(5),
     ),
+    withClockSkewRetry(() =>
+      supabase
+        .from("summary_reports")
+        .select("id, kind, number, title, period_start, period_end, status, created_at, projects(name)")
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ),
   ]);
 
-  const loadError = projectsResult.error ?? reportsResult.error;
+  const loadError = projectsResult.error ?? reportsResult.error ?? summaryReportsResult.error;
 
   const projects = projectsResult.data ?? [];
   const reports = reportsResult.data ?? [];
+  const summaryReports = summaryReportsResult.data ?? [];
 
   const greeting = (
     <header className="flex flex-col gap-1">
@@ -132,7 +141,7 @@ export default async function DashboardPage() {
           Recent reports
         </h2>
 
-        {reports.length === 0 ? (
+        {reports.length === 0 && summaryReports.length === 0 ? (
           <EmptyState
             icon={FileText}
             title="No reports yet"
@@ -140,6 +149,30 @@ export default async function DashboardPage() {
           />
         ) : (
           <ul className="flex flex-col gap-3">
+            {summaryReports.map((report) => {
+              const project = Array.isArray(report.projects)
+                ? report.projects[0]
+                : report.projects;
+              return (
+                <li key={report.id}>
+                  <Card className="transition-colors hover:border-line-strong">
+                    <Link href={`/summary-reports/${report.id}`} className="flex items-center gap-4 p-5">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-surface-muted">
+                        <FileCheck2 className="size-5 text-ink-muted" aria-hidden />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-ink">
+                          {report.title || `${SUMMARY_KIND_LABELS[report.kind]} ${formatReportNumber(report.number)}`}
+                        </p>
+                        <p className="truncate text-sm text-ink-muted">
+                          {project?.name ?? "Unknown project"} · {report.period_start && report.period_end ? `${formatDate(report.period_start)} to ${formatDate(report.period_end)}` : "Whole project"}
+                        </p>
+                      </div>
+                    </Link>
+                  </Card>
+                </li>
+              );
+            })}
             {reports.map((report) => {
               const project = Array.isArray(report.projects)
                 ? report.projects[0]

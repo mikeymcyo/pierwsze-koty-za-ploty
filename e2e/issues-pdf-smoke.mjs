@@ -20,6 +20,7 @@ import {
   ISSUE_PRIORITY_LABELS,
   ISSUE_STATUS_LABELS,
   closedAtFor,
+  hasRequiredResolution,
   sortIssues,
 } from "../lib/issues/metadata.ts";
 import {
@@ -149,6 +150,9 @@ check(
 );
 check("reopening clears it", closedAtFor("open", "2026-08-01T00:00:00.000Z") === null);
 check("so does moving it to in progress", closedAtFor("in_progress", "2026-08-01T00:00:00.000Z") === null);
+check("an open issue does not require a resolution", hasRequiredResolution("open", null));
+check("a closed issue does require a resolution", !hasRequiredResolution("closed", "  "));
+check("a recorded outcome allows closure", hasRequiredResolution("closed", "Damaged unit replaced."));
 
 const listed = sortIssues([
   { id: "old-medium", priority: "medium", created_at: "2026-08-01" },

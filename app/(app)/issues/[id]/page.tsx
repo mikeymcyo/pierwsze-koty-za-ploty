@@ -21,7 +21,7 @@ export default async function IssuePage({ params }: { params: Promise<{ id: stri
   const { data: issue, error } = await withClockSkewRetry(() =>
     supabase
       .from("issues")
-      .select("id, title, description, responsible, photo_id, priority, status, project_id, created_at")
+      .select("id, title, description, resolution, responsible, photo_id, priority, status, project_id, created_at")
       .eq("id", id)
       .maybeSingle(),
   );

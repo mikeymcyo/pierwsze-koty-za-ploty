@@ -254,7 +254,7 @@ export async function saveReport(
   redirect(`/reports/${reportId}?saved=1`);
 }
 
-/** Deletes a draft. Finalised reports are kept; Phase 6 owns that transition. */
+/** Deletes a draft. Finalised reports are immutable issued records. */
 export async function deleteReport(formData: FormData) {
   const reportId = String(formData.get("reportId") ?? "").trim();
   if (!reportId) return;

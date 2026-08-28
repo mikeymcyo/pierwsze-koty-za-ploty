@@ -3,10 +3,9 @@
 Mobile-first construction site reporting. Photograph the site, speak for a minute,
 and get a professional, client-ready progress report as a PDF.
 
-> **Status: Phase 1 complete.** Authentication, the multi-tenant database with Row
-> Level Security, the design system and the app shell are built and tested.
-> Projects, report capture, photos, AI generation and PDF export follow in
-> Phases 2–7.
+> **Status: core workflow implemented.** Daily Reports, Progress Reports and
+> Completion Reports now share one evidence-led workflow, including issue
+> history, curated photographs, AI-assisted drafting and immutable issued PDFs.
 
 ## Stack
 
@@ -80,6 +79,7 @@ landing page, which explains what is missing.
 | `npm run test:db`        | Applies migrations to a throwaway database and runs the schema/RLS tests |
 | `npm run test:e2e`       | Browser test of the sign-up, sign-in and navigation flows   |
 | `npm run test:isolation` | Proves one company cannot see another's data                |
+| `npm run test:summary-reports` | Checks consolidated-report sections, provenance and issuing rules |
 
 `test:db` needs a reachable PostgreSQL 15+ and the standard `PG*` environment
 variables. `test:e2e` and `test:isolation` need `npm run dev` and a local
@@ -155,9 +155,9 @@ rather than after every push.
 | Phase | Scope                                                  |
 | ----- | ------------------------------------------------------ |
 | 1 ✅  | Foundation, database, auth, app shell                   |
-| 2     | Projects CRUD and the project detail tabs               |
-| 3     | Report capture: details, workforce, plant, dictation    |
-| 4     | Photos: camera, upload, captions, before/after pairs    |
-| 5     | AI report generation and the preview editor             |
-| 6     | Issues and the PDF export                               |
-| 7     | End-to-end polish                                       |
+| 2 ✅  | Projects CRUD and the project detail tabs               |
+| 3 ✅  | Daily Report capture: workforce, plant and dictation    |
+| 4 ✅  | Photos: camera, upload and captions                     |
+| 5 ✅  | AI-assisted drafting and protected manual edits        |
+| 6 ✅  | Issues, resolution history and Daily Report PDFs        |
+| 7 ✅  | Progress and Completion Reports with auditable sources  |

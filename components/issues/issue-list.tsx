@@ -18,7 +18,7 @@ import type { Issue } from "@/types/database";
 
 export type IssueRow = Pick<
   Issue,
-  "id" | "title" | "description" | "responsible" | "priority" | "status" | "created_at"
+  "id" | "title" | "description" | "resolution" | "responsible" | "priority" | "status" | "created_at"
 >;
 
 /**
@@ -59,17 +59,26 @@ export function IssueList({ issues }: { issues: IssueRow[] }) {
                 <p className="whitespace-pre-wrap text-sm text-ink">{issue.description}</p>
               ) : null}
 
+              {issue.resolution ? (
+                <p className="text-sm text-ink"><span className="font-semibold">Resolution:</span> {issue.resolution}</p>
+              ) : null}
+
               <div className="flex flex-wrap items-center gap-2">
                 {ISSUE_STATUSES.filter((option) => option.value !== issue.status).map(
-                  (option) => (
-                    <form action={setIssueStatus} key={option.value}>
-                      <input type="hidden" name="issueId" value={issue.id} />
-                      <input type="hidden" name="status" value={option.value} />
-                      <Button type="submit" variant="secondary" size="sm">
-                        {option.value === "closed" ? "Close" : `Mark ${option.label.toLowerCase()}`}
+                  (option) =>
+                    option.value === "closed" ? (
+                      <Button asChild variant="secondary" size="sm" key={option.value}>
+                        <Link href={`/issues/${issue.id}`}>Resolve and close</Link>
                       </Button>
-                    </form>
-                  ),
+                    ) : (
+                      <form action={setIssueStatus} key={option.value}>
+                        <input type="hidden" name="issueId" value={issue.id} />
+                        <input type="hidden" name="status" value={option.value} />
+                        <Button type="submit" variant="secondary" size="sm">
+                          Mark {option.label.toLowerCase()}
+                        </Button>
+                      </form>
+                    ),
                 )}
 
                 <Button asChild variant="ghost" size="sm">

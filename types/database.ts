@@ -39,6 +39,22 @@ export type PhotoCategory =
 export type PhotoPairRole = "before" | "after";
 export type IssuePriority = "low" | "medium" | "high" | "critical";
 export type IssueStatus = "open" | "in_progress" | "closed";
+export type SummaryReportKind = "progress" | "completion";
+export type SummarySectionType =
+  | "period_summary"
+  | "key_activities"
+  | "works_completed"
+  | "works_in_progress"
+  | "resources_and_plant"
+  | "next_period"
+  | "project_overview"
+  | "scope_of_works"
+  | "stages_of_works"
+  | "key_technical_activities"
+  | "completed_works"
+  | "photographic_record"
+  | "sign_off"
+  | "issues_and_resolutions";
 
 type Timestamps = {
   created_at: string;
@@ -156,6 +172,224 @@ export type Database = {
             referencedColumns: ["id"];
           },
         ];
+      };
+      issue_events: {
+        Row: {
+          id: string;
+          company_id: string;
+          issue_id: string;
+          from_status: IssueStatus | null;
+          to_status: IssueStatus;
+          note: string | null;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          issue_id: string;
+          from_status?: IssueStatus | null;
+          to_status: IssueStatus;
+          note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          issue_id?: string;
+          from_status?: IssueStatus | null;
+          to_status?: IssueStatus;
+          note?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      summary_reports: {
+        Row: Timestamps & {
+          id: string;
+          company_id: string;
+          project_id: string;
+          kind: SummaryReportKind;
+          number: number;
+          revision: number;
+          supersedes_id: string | null;
+          title: string | null;
+          period_start: string | null;
+          period_end: string | null;
+          status: ReportStatus;
+          pdf_path: string | null;
+          finalised_at: string | null;
+          created_by: string | null;
+        };
+        Insert: Partial<Timestamps> & {
+          id?: string;
+          company_id: string;
+          project_id: string;
+          kind: SummaryReportKind;
+          number?: number;
+          revision?: number;
+          supersedes_id?: string | null;
+          title?: string | null;
+          period_start?: string | null;
+          period_end?: string | null;
+          status?: ReportStatus;
+          pdf_path?: string | null;
+          finalised_at?: string | null;
+          created_by?: string | null;
+        };
+        Update: Partial<Timestamps> & {
+          id?: string;
+          company_id?: string;
+          project_id?: string;
+          kind?: SummaryReportKind;
+          number?: number;
+          revision?: number;
+          supersedes_id?: string | null;
+          title?: string | null;
+          period_start?: string | null;
+          period_end?: string | null;
+          status?: ReportStatus;
+          pdf_path?: string | null;
+          finalised_at?: string | null;
+          created_by?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "summary_reports_project_id_company_id_fkey";
+            columns: ["project_id", "company_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id", "company_id"];
+          },
+        ];
+      };
+      summary_report_sections: {
+        Row: Timestamps & {
+          id: string;
+          company_id: string;
+          summary_report_id: string;
+          section_type: SummarySectionType;
+          content: string | null;
+          ai_generated: boolean;
+          sort_order: number;
+        };
+        Insert: Partial<Timestamps> & {
+          id?: string;
+          company_id: string;
+          summary_report_id: string;
+          section_type: SummarySectionType;
+          content?: string | null;
+          ai_generated?: boolean;
+          sort_order?: number;
+        };
+        Update: Partial<Timestamps> & {
+          id?: string;
+          company_id?: string;
+          summary_report_id?: string;
+          section_type?: SummarySectionType;
+          content?: string | null;
+          ai_generated?: boolean;
+          sort_order?: number;
+        };
+        Relationships: [];
+      };
+      summary_report_sources: {
+        Row: {
+          id: string;
+          company_id: string;
+          summary_report_id: string;
+          report_id: string | null;
+          source_summary_report_id: string | null;
+          via_summary_report_id: string | null;
+          sort_order: number;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          summary_report_id: string;
+          report_id?: string | null;
+          source_summary_report_id?: string | null;
+          via_summary_report_id?: string | null;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          summary_report_id?: string;
+          report_id?: string | null;
+          source_summary_report_id?: string | null;
+          via_summary_report_id?: string | null;
+          sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      summary_report_photos: {
+        Row: {
+          id: string;
+          company_id: string;
+          summary_report_id: string;
+          photo_id: string;
+          sort_order: number;
+          caption_override: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          summary_report_id: string;
+          photo_id: string;
+          sort_order?: number;
+          caption_override?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          summary_report_id?: string;
+          photo_id?: string;
+          sort_order?: number;
+          caption_override?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      summary_report_issues: {
+        Row: {
+          id: string;
+          company_id: string;
+          summary_report_id: string;
+          issue_id: string;
+          sort_order: number;
+          status_at_issue: IssueStatus | null;
+          resolution_at_issue: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          summary_report_id: string;
+          issue_id: string;
+          sort_order?: number;
+          status_at_issue?: IssueStatus | null;
+          resolution_at_issue?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          summary_report_id?: string;
+          issue_id?: string;
+          sort_order?: number;
+          status_at_issue?: IssueStatus | null;
+          resolution_at_issue?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
       };
       reports: {
         Row: Timestamps & {
@@ -405,6 +639,7 @@ export type Database = {
           report_id: string | null;
           title: string;
           description: string | null;
+          resolution: string | null;
           photo_id: string | null;
           responsible: string | null;
           priority: IssuePriority;
@@ -419,6 +654,7 @@ export type Database = {
           report_id?: string | null;
           title: string;
           description?: string | null;
+          resolution?: string | null;
           photo_id?: string | null;
           responsible?: string | null;
           priority?: IssuePriority;
@@ -433,6 +669,7 @@ export type Database = {
           report_id?: string | null;
           title?: string;
           description?: string | null;
+          resolution?: string | null;
           photo_id?: string | null;
           responsible?: string | null;
           priority?: IssuePriority;
@@ -489,6 +726,8 @@ export type Database = {
       project_status: ProjectStatus;
       report_section_type: ReportSectionType;
       report_status: ReportStatus;
+      summary_report_kind: SummaryReportKind;
+      summary_section_type: SummarySectionType;
     };
     CompositeTypes: Record<never, never>;
   };
@@ -513,3 +752,9 @@ export type WorkforceEntry = Tables<"workforce_entries">;
 export type PlantEntry = Tables<"plant_entries">;
 export type Photo = Tables<"photos">;
 export type Issue = Tables<"issues">;
+export type IssueEvent = Tables<"issue_events">;
+export type SummaryReport = Tables<"summary_reports">;
+export type SummaryReportSection = Tables<"summary_report_sections">;
+export type SummaryReportSource = Tables<"summary_report_sources">;
+export type SummaryReportPhoto = Tables<"summary_report_photos">;
+export type SummaryReportIssue = Tables<"summary_report_issues">;

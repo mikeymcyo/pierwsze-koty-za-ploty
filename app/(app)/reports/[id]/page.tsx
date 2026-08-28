@@ -98,7 +98,7 @@ export default async function ReportCapturePage({
     withClockSkewRetry(() =>
       supabase
         .from("issues")
-        .select("id, title, description, responsible, priority, status, created_at")
+        .select("id, title, description, resolution, responsible, priority, status, created_at")
         .eq("report_id", id)
         .order("created_at", { ascending: false }),
     ),

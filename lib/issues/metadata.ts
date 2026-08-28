@@ -63,3 +63,8 @@ export function closedAtFor(status: IssueStatus, existing: string | null): strin
   if (status === "closed") return existing ?? new Date().toISOString();
   return null;
 }
+
+/** A closed issue needs an outcome before it can appear honestly in a completion record. */
+export function hasRequiredResolution(status: IssueStatus, resolution: string | null): boolean {
+  return status !== "closed" || Boolean(resolution?.trim());
+}
