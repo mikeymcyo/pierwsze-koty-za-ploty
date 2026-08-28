@@ -144,18 +144,32 @@ try {
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   check("the edit persisted", (await page.getByLabel("Summary").inputValue()) === edited);
 
-  console.log("\n7. Regenerating replaces rather than duplicating");
+  console.log("\n7. Regenerating does not overwrite what the user wrote");
   await page.getByRole("button", { name: "Rewrite from my notes" }).click();
-  await page.getByText(`${STUB_MARKER} summary`).waitFor({ timeout: TIMEOUT });
+  // The outcome alert is what settles the action - the summary deliberately
+  // does not change, so waiting on its text would wait for something that must
+  // never arrive.
+  await page.getByText(/you had edited/i).waitFor({ timeout: TIMEOUT });
+  check("the screen says a section was kept", true);
+
+  await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  check(
+    "the edited summary is untouched",
+    (await page.getByLabel("Summary").inputValue()) === edited,
+    await page.getByLabel("Summary").inputValue(),
+  );
+  check("and is still marked as the user's", (await page.getByText("Edited by you").count()) === 1);
+  check(
+    "the sections the AI owns were rewritten",
+    (await page.locator("main").innerText()).includes(`${STUB_MARKER} works completed`),
+  );
   const summaryCount = await page.getByLabel("Summary").count();
   check("still exactly one summary section", summaryCount === 1, `saw ${summaryCount}`);
 
   console.log("\n8. A narrower draft clears what it no longer supports");
 
-  // Make one AI section the user's own, so the clear-out has something it must
-  // not touch. Deliveries is the one the narrower draft will leave empty.
-  await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
-  await page.getByRole("button", { name: "Rewrite from my notes" }).waitFor({ timeout: TIMEOUT });
+  // A second edited section, this time one the narrower draft will leave
+  // empty - so it is exposed to the clear-out as well as to the overwrite.
   const keptByHand = "Two loads of plasterboard, booked in by me.";
   await page.getByLabel("Deliveries and plant").fill(keptByHand);
   await page
@@ -163,7 +177,7 @@ try {
     .filter({ has: page.getByLabel("Deliveries and plant") })
     .getByRole("button", { name: "Save" })
     .click();
-  await page.getByText("Edited by you").first().waitFor({ timeout: TIMEOUT });
+  await page.getByText("Edited by you").nth(1).waitFor({ timeout: TIMEOUT });
 
   // Now regenerate against notes the stub answers with a narrower draft:
   // deliveries and planned works both come back empty.
@@ -171,7 +185,7 @@ try {
   await page.getByRole("button", { name: "Save draft" }).click();
   await page.getByText("Draft saved.").waitFor({ timeout: TIMEOUT });
   await page.getByRole("button", { name: "Rewrite from my notes" }).click();
-  await page.getByText(`${STUB_MARKER} summary`).waitFor({ timeout: TIMEOUT });
+  await page.getByText(/you had edited/i).waitFor({ timeout: TIMEOUT });
 
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   const afterNarrow = await page.locator("main").innerText();
@@ -184,21 +198,26 @@ try {
     "the previous draft's planned works survived a narrower regeneration",
   );
   check(
-    "the sections the new draft did support are still there",
-    afterNarrow.includes(`${STUB_MARKER} summary`) &&
-      afterNarrow.includes(`${STUB_MARKER} works completed`),
+    "the section the new draft did support was rewritten",
+    afterNarrow.includes(`${STUB_MARKER} works completed`),
   );
 
-  // And the one a person wrote must survive, even though the new draft left
-  // that section empty. Deleting it would destroy work the app never wrote.
+  // Both sections a person wrote must survive: one the draft covered and would
+  // have overwritten, one it left empty and would have deleted.
   check(
-    "a section the user wrote is NOT cleared",
+    "the edited section the draft covered is not overwritten",
+    afterNarrow.includes(edited),
+    "the user's summary was replaced by a regeneration",
+  );
+  check(
+    "the edited section the draft dropped is not cleared",
     afterNarrow.includes(keptByHand),
     "the user's own deliveries text was deleted by the clear-out",
   );
   check(
-    "and is still marked as theirs",
-    (await page.getByText("Edited by you").count()) >= 1,
+    "both are still marked as theirs",
+    (await page.getByText("Edited by you").count()) === 2,
+    `saw ${await page.getByText("Edited by you").count()}`,
   );
 } catch (error) {
   failures.push(`threw: ${error.message}`);

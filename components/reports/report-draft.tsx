@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { REPORT_SECTION_LABELS } from "@/lib/report-sections";
+import { describeRegeneration } from "@/lib/reports/regeneration";
 import type { ReportSection } from "@/types/database";
 
 type DraftSection = Pick<ReportSection, "id" | "section_type" | "content" | "ai_generated">;
@@ -134,6 +135,12 @@ export function ReportDraft({
       )}
 
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
+
+      {!state.error && state.generated !== undefined ? (
+        <Alert tone="info">
+          {describeRegeneration({ generated: state.generated, kept: state.kept ?? 0 })}
+        </Alert>
+      ) : null}
 
       {sections.length > 0 ? (
         <div className="flex flex-col gap-6">
