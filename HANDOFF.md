@@ -7,11 +7,11 @@ it says so explicitly - treat that distinction as load-bearing.
 **Written:** 2026-08-26 · **Last updated:** 2026-08-28
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-**Head:** `1d9474e` - Phase 4 photo UX (three media sources, project photos)
+**Head:** `d85222f` - Phase 5 drafting prompt reworked
 
 Phases 1-5 are complete and on that branch. Phase 6 (issues + PDF) is next
-and has NOT been started. `260af4a` is Phase 5; `1d9474e` is a follow-up to
-Phase 4 and starts nothing new.
+and has NOT been started. `260af4a` is Phase 5, `1d9474e` a follow-up to
+Phase 4 and `d85222f` a follow-up to Phase 5; neither starts anything new.
 
 > `PROJECT_STATE.md` in this repo is an earlier handoff. Where the two disagree,
 > **this file wins** - it is newer. Consider deleting PROJECT_STATE.md once you
@@ -66,7 +66,7 @@ Not yet installed, needed later: `@react-pdf/renderer` (Phase 6).
 
 - Repo: `mikeymcyo/pierwsze-koty-za-ploty` - **public**
 - **Branches.** Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-  (head `1d9474e`). The older `claude/siteboss-pro-planning-8y80n2` is stale
+  (head `d85222f`). The older `claude/siteboss-pro-planning-8y80n2` is stale
   at `046c11a` and carries PR #1; it has NOT been kept in sync. Ask the owner
   which branch is canonical before pushing.
 - **`claude/phase5-staging` is rubbish and should be deleted.** It was a
@@ -156,6 +156,38 @@ screen - or later in that report's PDF. `photos-smoke.mjs` asserts that.
 `report_sections` (upsert on `report_id,section_type`, so regenerating
 replaces rather than duplicates); `components/reports/report-draft.tsx`
 renders the sections, allows editing, and shows the raw notes beside them.
+
+Reworked on 2026-08-28 (`d85222f`) after the owner generated a real report and
+found the output was his own notes with the commas moved. The prompt is now in
+`lib/ai/prompt.ts`, apart from the client that sends it.
+
+**Why it was literal.** The old prompt told the model to "keep the site
+manager's meaning exactly, while fixing grammar and punctuation" - a
+commission to copy-edit - handed the notes over as "THE SITE MANAGER'S OWN
+WORDS (verbatim)", and asked for "plain sentences". Under a hard ban on
+invention with nothing saying that **register is not a fact**, echoing the
+source is the safest thing a model can do. It was not malfunctioning.
+
+**What it says now.** That this is a rewrite and not a proofread; what should
+change (register, UK trade terminology, structure, impersonal past voice);
+that scattered notes about the same work are to be consolidated rather than
+followed in order; and a worked example of a rough note becoming report prose.
+
+**The line between register and fact.** Neutral presentation and process
+wording is allowed where the notes support it - "making-good works were
+undertaken", "to provide a consistent finished appearance" after redecoration.
+Claims of quality, compliance, approval or fitness for purpose are not, unless
+the source data says so explicitly: **secure, watertight, compliant, to
+specification, correctly installed, satisfactory, satisfactorily completed,
+approved, inspected, certified, tested, safe, suitable, complete in accordance
+with requirements.** A note about rods and washers cannot support "a secure
+installation", and that is the sentence a dispute turns on. Do not relax this
+list without asking the owner - it was his call, on his liability.
+
+Photo tags are labelled as evidence that a photograph exists, not that an
+event occurred. The `health_safety` brief no longer tells the model to say
+nothing was reported when the notes are silent; a nil return is itself a
+claim.
 
 The prompt's first rule is **never invent**, and its second is that an **empty
 section is a correct answer** - a progress report is a contractual record that
@@ -320,6 +352,7 @@ npm run test:db         schema and RLS
 
 ```
 npm run test:photo-sources   the three media sources, 37 checks
+npm run test:ai-prompt       the drafting prompt contract (added by d85222f)
 ```
 
 That suite is deliberately the one photo test that needs **neither Supabase
@@ -351,6 +384,11 @@ Next-generated `LayoutProps` global, so a cold typecheck reports `TS2304`.
   quality of actual generated prose is unknown. Expect to iterate on the prompt
   once a real key is in place.
 - **Phase 5 was never run against the owner's hosted Supabase**, only local.
+- **The reworked prompt's prose has never been read.** `d85222f` changed what
+  the model is told, not the pipeline. Whether the output now reads like a site
+  manager's report is the owner's judgement, on a real generation. If it is
+  still too literal the next lever is the worked example in
+  `lib/ai/prompt.ts` - add a second one - not loosening the fact rules.
 - **The photo UX has not been tried on a real iPhone.** Everything about it
   that can be asserted from a desktop browser is asserted; how iOS actually
   behaves at the three buttons is the owner's to confirm.
@@ -572,6 +610,13 @@ camera and offers no way out. Swapping the attribute on a shared input before
 opens, not when React commits, so the tap can race the render. Give each
 source its own input with fixed attributes. See section 4.
 
+
+**F21 - A test double that copies a string from the app will silently stop
+testing anything.** `e2e/stub-openai.mjs` found the notes by splitting the
+prompt on a hardcoded copy of its heading. Rewording the prompt left the stub
+reading an empty string, and the pipeline test would have passed on nothing.
+It imports the label from `lib/ai/prompt.ts` now. Import the contract; do not
+retype it.
 ---
 
 ## 12. Known issues and technical debt
@@ -602,16 +647,16 @@ source its own input with fixed attributes. See section 4.
 
 ## 13. Exact next actions, in priority order
 
-1. **Have the owner try the photo buttons on his iPhone**, on the Preview for
-   `1d9474e`, from both a report and Project -> Photos. That is the one thing
-   no test here can reach.
+1. **Have the owner judge a real generation** on the Preview for `d85222f`,
+   and try the photo buttons on his iPhone from both a report and
+   Project -> Photos. Neither is reachable by any test here.
 2. **Run `npm run test:photos` wherever a Supabase is available** - its newest
    assertions have never been executed (section 7).
 3. **Delete the staging branch** - `git push origin --delete
    claude/phase5-staging`. Its failed Previews are expected (F18) and clear with
    it.
 4. **Confirm the Preview built.** Vercel -> Deployments, the newest build of
-   `claude/siteboss-pro-react-441-diagnosis-bhvwk8` at `1d9474e`.
+   `claude/siteboss-pro-react-441-diagnosis-bhvwk8` at `d85222f`.
 5. **Add `OPENAI_API_KEY`** under Settings -> Environments -> Preview, no
    `NEXT_PUBLIC_` prefix. Then exercise drafting against a real model and expect
    to iterate on the prompt - nothing about real output quality is known.
@@ -693,6 +738,12 @@ site manager Maciej / Active.
   privilege. A project photo must not render on a report screen.
 - **D18** A file that is not an image is refused in the browser with a message,
   not uploaded. `accept` filters a picker; it does not guarantee what arrives.
+- **D19** Drafting rewrites, it does not proofread. Lifting the register and
+  consolidating notes is the job; the facts stay put. "Never invent" was always
+  meant to protect the facts, never to force the model to echo the wording.
+- **D20** Neutral presentation wording is allowed where the notes support it;
+  quality, compliance, approval and fitness-for-purpose wording is not. The
+  banned list is in `lib/ai/prompt.ts` and is the owner's decision.
 
 ---
 
@@ -709,7 +760,7 @@ state and includes a list of failed approaches that must not be repeated. Ignore
 
 Where things stand:
 
-- Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, head `1d9474e`.
+- Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, head `d85222f`.
   The other branch is stale. Never push to `main`, and do not merge PR #1.
 - **Phases 1-5 are complete**: auth and schema, projects, report capture with
   dictation, photos, and AI drafting of the written report. All seven test
@@ -717,23 +768,33 @@ Where things stand:
 - **Phase 6 (issues + PDF) is next and has not been started.** Section 14 has
   the scope. Ask me before you begin it.
 
-The most recent commit, `1d9474e`, reworked the Phase 4 photo UX: the uploader
-was sending my iPhone straight to the camera with no way to reach the photo
-library. It now offers Take Photo, Choose from Photo Library and Choose File as
-three separate buttons, the library and Files pickers take several photos at
-once, and photos can be added to a project as well as to a report. Section 4
-explains what iOS will and will not let us control there - do not try to bypass
-Safari's own sheet, it cannot be done.
+Two recent commits followed the phases rather than extending them.
 
-Two things about it are unverified: I have not tried it on my iPhone yet, and
-the browser-level assertions added to `e2e/photos-smoke.mjs` have never been
-run, because that needs a Supabase and starting Docker costs the session its
-push (F15). `npm run test:photo-sources` does run anywhere and passes.
+`1d9474e` reworked the Phase 4 photo UX: the uploader was sending my iPhone
+straight to the camera with no way to reach the photo library. It now offers
+Take Photo, Choose from Photo Library and Choose File as three separate
+buttons, the library and Files pickers take several photos at once, and photos
+can be added to a project as well as to a report. Section 4 explains what iOS
+will and will not let us control there - do not try to bypass Safari's own
+sheet, it cannot be done.
+
+`d85222f` reworked the Phase 5 drafting prompt. Drafting works against the real
+OpenAI API - I have generated a report on my phone - but the output was my own
+notes with the commas moved, because the old prompt asked for grammar to be
+fixed rather than for a report to be written. It now commissions a rewrite, and
+draws an explicit line between register, which may change, and facts and
+quality claims, which may not. Section 4 has the banned wording and why it is
+banned; that list is my decision, so ask me before relaxing it.
+
+Unverified on both: I have not tried the photo buttons on my iPhone, I have not
+yet read a draft from the new prompt, and the browser-level assertions in
+`e2e/photos-smoke.mjs` have never been run - that needs a Supabase, and starting
+Docker costs the session its push (F15). `npm run test:photo-sources` and
+`npm run test:ai-prompt` run anywhere and pass.
 
 Then the housekeeping in section 13: delete the leftover
-`claude/phase5-staging` branch, confirm the Preview built on Vercel, and
-tell me exactly where to put my `OPENAI_API_KEY`. No real OpenAI model has ever
-been called, so once the key is in we should expect to iterate on the prompt.
+`claude/phase5-staging` branch and confirm the Preview built on Vercel. My
+`OPENAI_API_KEY` is in place under Settings -> Environments -> Preview.
 
 One bug is still open: intermittent React error #441 on the deployed preview,
 digest `2847415232`, described in section 9. It is diagnosed as a page-level
