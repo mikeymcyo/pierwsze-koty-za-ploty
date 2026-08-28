@@ -4,13 +4,14 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Last updated:** 2026-08-27
+**Written:** 2026-08-26 · **Last updated:** 2026-08-28
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-**Head:** `260af4a` - Phase 5 (AI report drafting)
+**Head:** `1d9474e` - Phase 4 photo UX (three media sources, project photos)
 
 Phases 1-5 are complete and on that branch. Phase 6 (issues + PDF) is next
-and has NOT been started.
+and has NOT been started. `260af4a` is Phase 5; `1d9474e` is a follow-up to
+Phase 4 and starts nothing new.
 
 > `PROJECT_STATE.md` in this repo is an earlier handoff. Where the two disagree,
 > **this file wins** - it is newer. Consider deleting PROJECT_STATE.md once you
@@ -65,7 +66,7 @@ Not yet installed, needed later: `@react-pdf/renderer` (Phase 6).
 
 - Repo: `mikeymcyo/pierwsze-koty-za-ploty` - **public**
 - **Branches.** Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-  (head `260af4a`). The older `claude/siteboss-pro-planning-8y80n2` is stale
+  (head `1d9474e`). The older `claude/siteboss-pro-planning-8y80n2` is stale
   at `046c11a` and carries PR #1; it has NOT been kept in sync. Ask the owner
   which branch is canonical before pushing.
 - **`claude/phase5-staging` is rubbish and should be deleted.** It was a
@@ -114,6 +115,40 @@ would burn numbers on every prefetch.
 client-side resize before upload (works on a bad signal), private-bucket
 storage under `{company_id}/{project_id}/{filename}`, signed URLs via
 `lib/photos-signing.ts`, `PhotoUpload` and `PhotoGrid`.
+
+Revisited on 2026-08-28 (`1d9474e`) after the owner found the uploader
+unusable on an iPhone. It had one input carrying `capture="environment"`,
+which sends Safari straight to the camera with **no gesture that reaches the
+photo library** - so photos taken earlier in the day could not be attached.
+
+`lib/photo-sources.ts` now holds the source table, and each source gets its
+own input with fixed attributes:
+
+| Button | accept | capture | multiple |
+| ------ | ------ | ------- | -------- |
+| Take Photo | `image/*` | `environment` | no |
+| Choose from Photo Library | `image/*` | - | **yes** |
+| Choose File | `image/*` + extensions | - | **yes** |
+
+**Only `capture` is a hard instruction to iOS.** Without it Safari shows its
+own sheet (Photo Library / Take Photo / Choose File); no attribute exists
+that opens the library directly. So the two non-camera buttons do not skip
+that sheet - what they do is stop the tap landing in the camera, with
+multi-select enabled when it gets there. Do not "fix" this by trying to
+bypass the sheet; it cannot be done from the web.
+
+`isSupportedImageFile` guards what actually arrives, because `accept` is a
+filter on the picker and not a promise: a Files pick can turn up as
+`application/octet-stream`, so HEIC is judged on its extension and a PDF is
+refused with a message rather than uploaded into a tile that never loads.
+
+**Photos can also be added to the project itself**, from Project -> Photos,
+with `reportId` null. That was always supported and is not a loosening:
+`photos.report_id` is nullable and commented "photos captured against the
+project outside of any report", `attachSchema` has always taken a nullable
+`reportId`, and photo RLS is company-scoped rather than report-scoped. A
+project photo carries no `report_id`, so it must never appear on a report
+screen - or later in that report's PDF. `photos-smoke.mjs` asserts that.
 
 **Phase 5** - AI report drafting:
 `lib/ai/report-generation.ts` builds the prompt and calls OpenAI with
@@ -278,6 +313,28 @@ npm run test:ai         the whole drafting pipeline, against a local stub
 npm run test:db         schema and RLS
 ```
 
+### Verified 2026-08-28, in a sandbox with no Supabase and no Docker
+
+`1d9474e` (the photo UX work) was checked with `build`, `lint`,
+`tsc --noEmit` and:
+
+```
+npm run test:photo-sources   the three media sources, 37 checks
+```
+
+That suite is deliberately the one photo test that needs **neither Supabase
+nor a dev server**, so it runs anywhere: it asserts the source table and the
+file-type guard directly, then makes a real Chromium parse those exact
+attributes and hold a multi-photo selection. It imports `lib/photo-sources.ts`
+straight into Node, which works because Node 22 strips types - which is also
+why that module must stay free of path aliases and runtime imports.
+
+**The browser-level photo assertions added to `photos-smoke.mjs` in that
+commit have never been executed** - the three buttons on the live capture
+screen, the real multi-photo upload, and the project-level photo. They need
+Supabase, which needs Docker, which costs `git push` for the session (F15).
+Run them before trusting them.
+
 `npm run test:ai` needs no OpenAI key and costs nothing - `e2e/stub-openai.mjs`
 stands in for the endpoint. Run the app with
 `OPENAI_API_KEY=test OPENAI_BASE_URL=http://127.0.0.1:4010/v1 npm run dev`.
@@ -294,6 +351,9 @@ Next-generated `LayoutProps` global, so a cold typecheck reports `TS2304`.
   quality of actual generated prose is unknown. Expect to iterate on the prompt
   once a real key is in place.
 - **Phase 5 was never run against the owner's hosted Supabase**, only local.
+- **The photo UX has not been tried on a real iPhone.** Everything about it
+  that can be asserted from a desktop browser is asserted; how iOS actually
+  behaves at the three buttons is the owner's to confirm.
 
 ---
 
@@ -496,6 +556,22 @@ when a lockfile exists, and `npm ci` fails hard if the lockfile does not match
 GitHub API, so a session without push must regenerate it with `npm install`
 rather than skip it.
 
+**F19 - A fresh session starts from a fresh clone; uncommitted work is gone.**
+The container is rebuilt per session and the repo re-cloned, so whatever the
+last session had in its working tree does not survive - there is no stash and
+nothing to recover. It also checks out whichever branch the session is
+configured with, which may not be the branch the work is on: check
+`git log --oneline -1` before believing you are where you think you are. The
+cost is only ever redoing that work, so commit early rather than holding a
+tree.
+
+**F20 - One `<input type="file">` cannot serve both the camera and the photo
+library on iOS.** `capture="environment"` is not a hint there: it opens the
+camera and offers no way out. Swapping the attribute on a shared input before
+`.click()` does not fix it either - Safari reads `capture` when the picker
+opens, not when React commits, so the tap can race the render. Give each
+source its own input with fixed attributes. See section 4.
+
 ---
 
 ## 12. Known issues and technical debt
@@ -515,6 +591,9 @@ rather than skip it.
   client.
 - **`PROJECT_STATE.md` is superseded by this file** and should be deleted.
 - **Test accounts accumulate** in the hosted Supabase project.
+- **The photo assertions in `photos-smoke.mjs` added by `1d9474e` are
+  unexecuted** (section 7). The rest of that suite is unchanged and passed on
+  2026-08-27.
 - **`saveReport` replaces workforce and plant non-atomically** (delete then
   insert). Validation runs first so a rejected submission cannot lose rows, but
   a mid-write failure could. Acceptable for the MVP; an RPC would fix it.
@@ -523,25 +602,30 @@ rather than skip it.
 
 ## 13. Exact next actions, in priority order
 
-1. **Delete the staging branch** - `git push origin --delete
+1. **Have the owner try the photo buttons on his iPhone**, on the Preview for
+   `1d9474e`, from both a report and Project -> Photos. That is the one thing
+   no test here can reach.
+2. **Run `npm run test:photos` wherever a Supabase is available** - its newest
+   assertions have never been executed (section 7).
+3. **Delete the staging branch** - `git push origin --delete
    claude/phase5-staging`. Its failed Previews are expected (F18) and clear with
    it.
-2. **Confirm the Phase 5 Preview built.** Vercel -> Deployments, the newest
-   build of `claude/siteboss-pro-react-441-diagnosis-bhvwk8` at `260af4a`.
-3. **Add `OPENAI_API_KEY`** under Settings -> Environments -> Preview, no
+4. **Confirm the Preview built.** Vercel -> Deployments, the newest build of
+   `claude/siteboss-pro-react-441-diagnosis-bhvwk8` at `1d9474e`.
+5. **Add `OPENAI_API_KEY`** under Settings -> Environments -> Preview, no
    `NEXT_PUBLIC_` prefix. Then exercise drafting against a real model and expect
    to iterate on the prompt - nothing about real output quality is known.
-4. **Ask the owner to turn Deployment Protection off** (Settings -> Deployment
+6. **Ask the owner to turn Deployment Protection off** (Settings -> Deployment
    Protection -> Vercel Authentication -> off -> Save) and confirm in a private
    window. Until then nothing automated can check the deployment.
-5. **Once reachable, run the suites against the deployment** with
+7. **Once reachable, run the suites against the deployment** with
    `E2E_BASE_URL=<alias>`. Warn the owner first: this creates throwaway accounts.
-6. **Close out #441.** If it recurs, the `[siteboss]` log line now names the
+8. **Close out #441.** If it recurs, the `[siteboss]` log line now names the
    cause outright. If the cause is the F9 clock skew, consider widening the
    retry budget - but only with evidence, and do not widen it to other errors.
-7. **Offer a CI workflow** - typecheck, lint, build, `test:db`. Offered three
+9. **Offer a CI workflow** - typecheck, lint, build, `test:db`. Offered three
    times, never actioned.
-8. **Then Phase 6.**
+10. **Then Phase 6.**
 
 ---
 
@@ -600,6 +684,15 @@ site manager Maciej / Active.
   throwing. The panel carries the database error code, never the message.
 - **D15** `OPENAI_API_KEY` is server-side only and read at request time. With it
   absent the UI says the feature is off rather than offering a dead button.
+- **D16** The media source is named in the app - Take Photo / Choose from Photo
+  Library / Choose File - rather than left to iOS's sheet, and each has its own
+  input. `capture` appears on the camera input and nowhere else. Adding it back
+  to a shared input re-breaks the library (F20).
+- **D17** Photos may belong to a project with no report. `report_id` was
+  designed nullable for it and photo RLS is company-scoped, so this adds no
+  privilege. A project photo must not render on a report screen.
+- **D18** A file that is not an image is refused in the browser with a message,
+  not uploaded. `accept` filters a picker; it does not guarantee what arrives.
 
 ---
 
@@ -616,7 +709,7 @@ state and includes a list of failed approaches that must not be repeated. Ignore
 
 Where things stand:
 
-- Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, head `260af4a`.
+- Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, head `1d9474e`.
   The other branch is stale. Never push to `main`, and do not merge PR #1.
 - **Phases 1-5 are complete**: auth and schema, projects, report capture with
   dictation, photos, and AI drafting of the written report. All seven test
@@ -624,8 +717,21 @@ Where things stand:
 - **Phase 6 (issues + PDF) is next and has not been started.** Section 14 has
   the scope. Ask me before you begin it.
 
-Start with the housekeeping in section 13: delete the leftover
-`claude/phase5-staging` branch, confirm the Phase 5 Preview built on Vercel, and
+The most recent commit, `1d9474e`, reworked the Phase 4 photo UX: the uploader
+was sending my iPhone straight to the camera with no way to reach the photo
+library. It now offers Take Photo, Choose from Photo Library and Choose File as
+three separate buttons, the library and Files pickers take several photos at
+once, and photos can be added to a project as well as to a report. Section 4
+explains what iOS will and will not let us control there - do not try to bypass
+Safari's own sheet, it cannot be done.
+
+Two things about it are unverified: I have not tried it on my iPhone yet, and
+the browser-level assertions added to `e2e/photos-smoke.mjs` have never been
+run, because that needs a Supabase and starting Docker costs the session its
+push (F15). `npm run test:photo-sources` does run anywhere and passes.
+
+Then the housekeeping in section 13: delete the leftover
+`claude/phase5-staging` branch, confirm the Preview built on Vercel, and
 tell me exactly where to put my `OPENAI_API_KEY`. No real OpenAI model has ever
 been called, so once the key is in we should expect to iterate on the prompt.
 
