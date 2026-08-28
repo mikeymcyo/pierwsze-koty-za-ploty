@@ -7,6 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSpeechInput } from "@/lib/hooks/use-speech-input";
+import { joinTranscript } from "@/lib/speech/transcript";
 
 /**
  * The day's work, spoken or typed.
@@ -27,8 +28,10 @@ export function DictationField({
   const [value, setValue] = useState(defaultValue);
 
   const { supported, listening, error, start, stop } = useSpeechInput({
-    onText: (text) =>
-      setValue((current) => (current.trim() ? `${current.trim()} ${text}` : text)),
+    // The functional form matters: chunks can arrive faster than React
+    // re-renders, and each one must build on the last rather than on whatever
+    // this closure captured.
+    onText: (text) => setValue((current) => joinTranscript(current, text)),
   });
 
   return (

@@ -18,7 +18,8 @@
     "test:photo-sources": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/photo-sources-smoke.mjs",
     "test:ai": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/ai-smoke.mjs",
     "test:ai-prompt": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/ai-prompt-smoke.mjs",
-    "test:build-ref": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/build-ref-smoke.mjs"
+    "test:build-ref": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/build-ref-smoke.mjs",
+    "test:dictation": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/dictation-smoke.mjs"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.15",
