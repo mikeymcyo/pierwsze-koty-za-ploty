@@ -1,7 +1,8 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Camera, Loader2 } from "lucide-react";
+import { Camera, FolderOpen, Images, Loader2 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { attachPhoto } from "@/app/(app)/reports/photo-actions";
 import { Alert } from "@/components/ui/alert";
@@ -10,6 +11,11 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { PHOTO_BUCKET, PHOTO_CATEGORIES, photoPathPrefix } from "@/lib/photos";
+import {
+  PHOTO_SOURCES,
+  isSupportedImageFile,
+  type PhotoSourceId,
+} from "@/lib/photo-sources";
 import type { PhotoCategory } from "@/types/database";
 
 /**
@@ -22,6 +28,13 @@ import type { PhotoCategory } from "@/types/database";
  */
 const MAX_EDGE = 1600;
 const JPEG_QUALITY = 0.82;
+
+/** Kept beside the source table rather than in it, so lib/photo-sources.ts stays server-safe. */
+const SOURCE_ICONS: Record<PhotoSourceId, LucideIcon> = {
+  camera: Camera,
+  library: Images,
+  files: FolderOpen,
+};
 
 type Compressed = { blob: Blob; width: number; height: number };
 
@@ -63,6 +76,14 @@ async function compress(file: File): Promise<Compressed> {
   }
 }
 
+/**
+ * Adds photos to a report, or to the project itself.
+ *
+ * `reportId` is null on the project's Photos tab. The photos table allows it -
+ * report_id is nullable and documented as "photos captured against the project
+ * outside of any report" - and its RLS is company-scoped, not report-scoped,
+ * so nothing about the security model changes between the two callers.
+ */
 export function PhotoUpload({
   companyId,
   projectId,
@@ -72,14 +93,33 @@ export function PhotoUpload({
   projectId: string;
   reportId: string | null;
 }) {
-  const inputRef = useRef<HTMLInputElement>(null);
+  // One ref per source: the attributes that decide what iOS opens are fixed on
+  // each input rather than swapped on the shared one before a click.
+  const inputRefs = useRef(new Map<PhotoSourceId, HTMLInputElement | null>());
   const [category, setCategory] = useState<PhotoCategory>("progress");
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function handleFiles(files: FileList) {
-    const list = Array.from(files);
-    if (list.length === 0) return;
+  async function handleFiles(source: PhotoSourceId, files: FileList) {
+    const chosen = Array.from(files);
+    if (chosen.length === 0) return;
+
+    // A picker's `accept` is a filter, not a promise. Anything that is not an
+    // image is dropped here, before it can occupy a tile that will never load.
+    const list = chosen.filter(isSupportedImageFile);
+    const skipped = chosen.length - list.length;
+    const skippedNote =
+      skipped > 0
+        ? ` ${skipped} ${skipped === 1 ? "file was" : "files were"} not a photo and ${
+            skipped === 1 ? "was" : "were"
+          } skipped.`
+        : "";
+
+    if (list.length === 0) {
+      setError(`Nothing uploaded.${skippedNote}`.trim());
+      resetInput(source);
+      return;
+    }
 
     setError(null);
     setBusy({ done: 0, total: list.length });
@@ -119,63 +159,103 @@ export function PhotoUpload({
     }
 
     setBusy(null);
-    if (inputRef.current) inputRef.current.value = "";
+    resetInput(source);
 
     if (failures.length) {
       setError(
-        failures.length === list.length
+        (failures.length === list.length
           ? `Nothing uploaded. ${failures[0]}`
-          : `${list.length - failures.length} of ${list.length} uploaded. ${failures[0]}`,
+          : `${list.length - failures.length} of ${list.length} uploaded. ${failures[0]}`) +
+          skippedNote,
+      );
+    } else if (skipped > 0) {
+      setError(
+        `${list.length} ${list.length === 1 ? "photo" : "photos"} uploaded.${skippedNote}`,
       );
     }
   }
 
+  // Clearing the value is what lets the same photo be chosen twice running -
+  // without it the second pick fires no change event.
+  function resetInput(source: PhotoSourceId) {
+    const input = inputRefs.current.get(source);
+    if (input) input.value = "";
+  }
+
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex min-w-40 flex-col gap-2">
-          <Label htmlFor="photo-category">Tag these as</Label>
-          <Select
-            id="photo-category"
-            value={category}
-            onChange={(event) => setCategory(event.target.value as PhotoCategory)}
-          >
-            {PHOTO_CATEGORIES.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </Select>
-        </div>
-
-        <Button
-          type="button"
-          size="lg"
-          onClick={() => inputRef.current?.click()}
-          loading={busy !== null}
-          disabled={busy !== null}
+      <div className="flex min-w-40 max-w-xs flex-col gap-2">
+        <Label htmlFor="photo-category">Tag these as</Label>
+        <Select
+          id="photo-category"
+          value={category}
+          onChange={(event) => setCategory(event.target.value as PhotoCategory)}
         >
-          {busy ? <Loader2 className="animate-spin" aria-hidden /> : <Camera aria-hidden />}
-          {busy ? `Uploading ${busy.done} of ${busy.total}…` : "Add photos"}
-        </Button>
+          {PHOTO_CATEGORIES.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </Select>
       </div>
 
       {/*
-        capture="environment" asks a phone for the rear camera directly, while
-        still allowing the gallery. It is a hint: desktops ignore it and show a
-        file picker, which is what we want there.
+        Three buttons rather than one: on a phone the choice between the camera
+        and the library is the whole interaction, and it is made before the
+        picker opens rather than inside someone else's sheet.
       */}
-      <input
-        ref={inputRef}
-        type="file"
-        accept="image/*"
-        capture="environment"
-        multiple
-        className="sr-only"
-        onChange={(event) => {
-          if (event.target.files) void handleFiles(event.target.files);
-        }}
-      />
+      <div className="grid gap-2 sm:grid-cols-3">
+        {PHOTO_SOURCES.map((source) => {
+          const Icon = SOURCE_ICONS[source.id];
+
+          return (
+            <div key={source.id} className="flex flex-col gap-1">
+              <Button
+                type="button"
+                size="lg"
+                variant={source.id === "camera" ? "primary" : "secondary"}
+                className="w-full justify-start text-left text-base sm:justify-center sm:text-center"
+                onClick={() => inputRefs.current.get(source.id)?.click()}
+                disabled={busy !== null}
+                data-photo-source-button={source.id}
+              >
+                <Icon aria-hidden />
+                {source.label}
+              </Button>
+              <p className="text-xs text-ink-muted">{source.hint}</p>
+
+              {/*
+                Fixed attributes, one input per source. Hidden from assistive
+                technology because the button above is the real control and
+                carries its name.
+              */}
+              <input
+                ref={(node) => {
+                  inputRefs.current.set(source.id, node);
+                }}
+                type="file"
+                accept={source.accept}
+                {...(source.capture ? { capture: source.capture } : {})}
+                multiple={source.multiple}
+                data-photo-source={source.id}
+                className="sr-only"
+                tabIndex={-1}
+                aria-hidden
+                onChange={(event) => {
+                  if (event.target.files) void handleFiles(source.id, event.target.files);
+                }}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {busy ? (
+        <p role="status" className="flex items-center gap-2 text-sm font-semibold text-ink-muted">
+          <Loader2 className="size-4 animate-spin" aria-hidden />
+          Uploading {busy.done} of {busy.total}…
+        </p>
+      ) : null}
 
       {error ? <Alert tone="danger">{error}</Alert> : null}
     </div>

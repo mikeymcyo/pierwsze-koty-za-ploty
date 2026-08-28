@@ -4,6 +4,11 @@
  * Drives a real file through the browser: compression, the direct upload to
  * Supabase Storage, the photos row, the signed thumbnail URL, and deletion.
  *
+ * Also covers the mobile media-source UX: the three explicit choices, the
+ * attributes each one puts in the live DOM, a real multi-photo selection, and
+ * photos added to the project rather than to a report. The half of that which
+ * needs neither Supabase nor a dev server lives in photo-sources-smoke.mjs.
+ *
  * Prerequisites - in separate terminals:
  *   npx supabase start      (or point .env.local at a hosted project)
  *   npm run dev
@@ -79,9 +84,45 @@ try {
     await page.getByLabel("Tag these as").isVisible(),
   );
 
+  // The choice is made in the app, before iOS shows a sheet - not left to a
+  // single input that would go straight to the camera and stay there.
+  for (const label of ["Take Photo", "Choose from Photo Library", "Choose File"]) {
+    check(`"${label}" is offered`, await page.getByRole("button", { name: label }).isVisible());
+  }
+
+  // What the browser actually parsed on the live page, which is what decides
+  // where an iPhone goes.
+  const liveAttributes = await page.evaluate(() =>
+    Object.fromEntries(
+      [...document.querySelectorAll("input[data-photo-source]")].map((el) => [
+        el.dataset.photoSource,
+        { accept: el.accept, multiple: el.multiple, capture: el.getAttribute("capture") },
+      ]),
+    ),
+  );
+
+  check(
+    "the camera input asks for the rear camera",
+    liveAttributes.camera?.capture === "environment",
+    JSON.stringify(liveAttributes.camera),
+  );
+  check("the camera input takes one shot", liveAttributes.camera?.multiple === false);
+  check(
+    "the library input does NOT force the camera",
+    liveAttributes.library?.capture === null,
+    JSON.stringify(liveAttributes.library),
+  );
+  check("the library input is multi-select", liveAttributes.library?.multiple === true);
+  check(
+    "the Choose File input does NOT force the camera",
+    liveAttributes.files?.capture === null,
+    JSON.stringify(liveAttributes.files),
+  );
+  check("the Choose File input is multi-select", liveAttributes.files?.multiple === true);
+
   console.log("\n3. Upload a photo");
   await page.getByLabel("Tag these as").selectOption("safety");
-  await page.locator('input[type="file"]').setInputFiles({
+  await page.locator('input[data-photo-source="library"]').setInputFiles({
     name: "site.png",
     mimeType: "image/png",
     buffer: PNG_2X2,
@@ -134,6 +175,74 @@ try {
   await page.goto(`${projectUrl}?tab=photos`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByText("No photos yet").waitFor({ timeout: TIMEOUT });
   check("and from the project tab", true);
+
+  console.log("\n6. The library picks several photos in one go");
+  await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await page.locator('input[data-photo-source="library"]').setInputFiles([
+    { name: "one.png", mimeType: "image/png", buffer: PNG_2X2 },
+    { name: "two.png", mimeType: "image/png", buffer: PNG_2X2 },
+    { name: "three.png", mimeType: "image/png", buffer: PNG_2X2 },
+  ]);
+
+  await page
+    .getByRole("button", { name: /Delete photo/ })
+    .nth(2)
+    .waitFor({ timeout: TIMEOUT });
+  const afterMulti = await page.getByRole("button", { name: /Delete photo/ }).count();
+  check("all three arrived from one selection", afterMulti === 3, `saw ${afterMulti}`);
+
+  console.log("\n7. Photos can be added to the project itself");
+  await page.goto(`${projectUrl}?tab=photos`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  check(
+    "the Photos tab offers Take Photo",
+    await page.getByRole("button", { name: "Take Photo" }).isVisible(),
+  );
+  check(
+    "the Photos tab offers the library",
+    await page.getByRole("button", { name: "Choose from Photo Library" }).isVisible(),
+  );
+
+  await page.getByLabel("Tag these as").selectOption("delivery");
+  await page.locator('input[data-photo-source="library"]').setInputFiles({
+    name: "project-level.png",
+    mimeType: "image/png",
+    buffer: PNG_2X2,
+  });
+
+  await page
+    .getByRole("button", { name: /Delete photo/ })
+    .nth(3)
+    .waitFor({ timeout: TIMEOUT });
+  const projectTotal = await page.getByRole("button", { name: /Delete photo/ }).count();
+  check("it lands on the project tab", projectTotal === 4, `saw ${projectTotal}`);
+
+  const projectTile = page
+    .getByRole("listitem")
+    .filter({ hasText: "Delivery" })
+    .first();
+  check("tagging still works with no report", await projectTile.isVisible());
+
+  const projectImg = projectTile.locator("img");
+  await projectImg.waitFor({ timeout: TIMEOUT });
+  check(
+    "a project photo is served by a signed URL too",
+    ((await projectImg.getAttribute("src")) ?? "").includes("token="),
+  );
+
+  // A project photo carries no report_id, so it must not turn up on the
+  // report's own screen - that would put it in a day's report nobody filed it
+  // against, and later into that report's PDF.
+  await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await page
+    .getByRole("button", { name: /Delete photo/ })
+    .nth(2)
+    .waitFor({ timeout: TIMEOUT });
+  const backOnReport = await page.getByRole("button", { name: /Delete photo/ }).count();
+  check(
+    "and stays off the report screen",
+    backOnReport === 3,
+    `report shows ${backOnReport} photos, expected the 3 shot against it`,
+  );
 } catch (error) {
   failures.push(`threw: ${error.message}`);
   console.log(`\n  [FAIL] ${error.message}`);

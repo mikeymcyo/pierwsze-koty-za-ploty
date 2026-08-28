@@ -15,6 +15,7 @@
     "test:isolation": "node e2e/isolation-smoke.mjs",
     "test:reports": "node e2e/reports-smoke.mjs",
     "test:photos": "node e2e/photos-smoke.mjs",
+    "test:photo-sources": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/photo-sources-smoke.mjs",
     "test:ai": "node e2e/ai-smoke.mjs"
   },
   "dependencies": {

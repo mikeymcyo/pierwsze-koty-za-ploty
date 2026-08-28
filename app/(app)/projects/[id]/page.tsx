@@ -7,6 +7,7 @@ import { AlertTriangle, Camera, FileText, Pencil, Plus } from "lucide-react";
 import { startReport } from "@/app/(app)/reports/actions";
 import { ProjectTabs } from "@/components/projects/project-tabs";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
+import { PhotoUpload } from "@/components/reports/photo-upload";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { isProjectTab, type ProjectTab } from "@/lib/project-tabs";
 import { Button } from "@/components/ui/button";
@@ -47,7 +48,7 @@ export default async function ProjectPage({
   searchParams: Promise<{ tab?: string }>;
 }) {
   const [{ id }, { tab }] = await Promise.all([params, searchParams]);
-  await requireSessionContext();
+  const session = await requireSessionContext();
   const supabase = await createClient();
 
   const activeTab: ProjectTab = isProjectTab(tab) ? tab : "overview";
@@ -227,15 +228,25 @@ export default async function ProjectPage({
       ) : null}
 
       {!loadError && activeTab === "photos" ? (
-        photos.length === 0 ? (
-          <EmptyState
-            icon={Camera}
-            title="No photos yet"
-            description="Photos are taken against a report. Start one with New report above, and they will collect here."
-          />
-        ) : (
-          <PhotoGrid photos={photos} />
-        )
+        <section className="flex flex-col gap-5">
+          {/*
+            reportId is null here: these belong to the project rather than to
+            any one day's report. The photos table allows it - report_id is
+            nullable by design - and its RLS is company-scoped, so a project
+            photo is protected exactly as a report photo is.
+          */}
+          <PhotoUpload companyId={session.companyId} projectId={project.id} reportId={null} />
+
+          {photos.length === 0 ? (
+            <EmptyState
+              icon={Camera}
+              title="No photos yet"
+              description="Add them here for the project as a whole, or take them against a report - both collect on this tab."
+            />
+          ) : (
+            <PhotoGrid photos={photos} />
+          )}
+        </section>
       ) : null}
 
       {!loadError && activeTab === "issues" ? (
