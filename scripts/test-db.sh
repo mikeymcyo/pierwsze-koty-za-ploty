@@ -31,7 +31,10 @@ for file in "$ROOT"/supabase/migrations/*.sql; do
 done
 
 echo "==> Running tests"
-psql -v ON_ERROR_STOP=1 -q -d "$DB_NAME" -f "$ROOT/supabase/tests/01_rls_test.sql"
+for test in "$ROOT"/supabase/tests/0[1-9]*.sql; do
+  echo "    $(basename "$test")"
+  psql -v ON_ERROR_STOP=1 -q -d "$DB_NAME" -f "$test"
+done
 
 echo "==> Dropping database '$DB_NAME'"
 psql -q -d postgres -c "DROP DATABASE IF EXISTS $DB_NAME;" >/dev/null

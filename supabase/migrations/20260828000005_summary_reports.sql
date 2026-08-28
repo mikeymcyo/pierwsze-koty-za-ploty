@@ -32,6 +32,23 @@
 -- without it.
 alter table public.issues add column if not exists resolution text;
 
+-- Nothing referenced issues as a parent until now, so it never needed the
+-- composite key that every other parent in this schema carries. Both
+-- issue_events and summary_report_issues point at (issue_id, company_id), and
+-- a composite foreign key needs a matching unique constraint to point at - so
+-- without this the migration fails outright, which is how it was found.
+--
+-- id is already the primary key, so this constrains nothing new. It exists to
+-- make the tenant-scoped foreign keys below possible.
+do $$
+begin
+  alter table public.issues add constraint issues_id_company_id_key unique (id, company_id);
+exception
+  when duplicate_table then null;
+  when duplicate_object then null;
+end;
+$$;
+
 -- Append-only history of status transitions.
 --
 -- closed_at already tells you when something closed, but nothing recorded a
