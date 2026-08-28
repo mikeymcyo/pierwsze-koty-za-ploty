@@ -7,10 +7,14 @@ it says so explicitly - treat that distinction as load-bearing.
 **Written:** 2026-08-26 · **Last updated:** 2026-08-28
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-**Head:** `a9ed7e7` - dictation survives Safari ending the session
+**Head:** `9829e94` - Phase 5 complete, verified on the owner's iPhone
 
-Phases 1-5 are complete and on that branch. Phase 6 (issues + PDF) is next
-and has NOT been started. `260af4a` is Phase 5; `1d9474e` and `a9ed7e7` are
+Phases 1-5 are complete and on that branch. **Phase 5 is closed**: the owner
+has generated reports against the real OpenAI API on his iPhone and judged the
+quality acceptable, and has dictated continuously for 60-90 seconds and
+compared the raw transcript against what he said. Phase 6 (issues + PDF) is
+next and has NOT been started - its scope is section 14, and the owner wants
+to review it before any of it is built. `260af4a` is Phase 5; `1d9474e` and `a9ed7e7` are
 follow-ups to Phases 4 and 3, and `d85222f` and `43124e8` to Phase 5. None of
 them start anything new.
 
@@ -67,7 +71,7 @@ Not yet installed, needed later: `@react-pdf/renderer` (Phase 6).
 
 - Repo: `mikeymcyo/pierwsze-koty-za-ploty` - **public**
 - **Branches.** Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-  (head `a9ed7e7`). The older `claude/siteboss-pro-planning-8y80n2` is stale
+  (head `9829e94`). The older `claude/siteboss-pro-planning-8y80n2` is stale
   at `046c11a` and carries PR #1; it has NOT been kept in sync. Ask the owner
   which branch is canonical before pushing.
 - **`claude/phase5-staging` is rubbish and should be deleted.** It was a
@@ -231,6 +235,15 @@ feature. Empty sections are dropped, not rendered.
 `reports.raw_notes` is never touched by generation. Editing a section flips
 `ai_generated` to false.
 
+Regenerating is bounded by two rules that pull against each other, both in
+`lib/reports/regeneration.ts`. It **replaces** what the model wrote, clearing
+sections a new draft no longer supports - a stale paragraph under a heading
+today's notes do not carry is a false claim. It **never touches** a section
+carrying `ai_generated = false`, which `updateSection` sets the moment anybody
+edits: that paragraph is the site manager's, in a document going to a client
+with his name on it. The screen says which way it went rather than leaving him
+to notice.
+
 **Phase 6 (issues + PDF) has not been started.**
 
 ---
@@ -389,6 +402,7 @@ npm run test:photo-sources   the three media sources, 37 checks
 npm run test:ai-prompt       the drafting prompt contract, briefs included
 npm run test:build-ref       the profile build marker
 npm run test:dictation       transcript accumulation and restart policy
+npm run test:regeneration    what a regeneration may and may not overwrite
 ```
 
 These three need neither Supabase nor a dev server, so they run anywhere.
@@ -413,29 +427,27 @@ stands in for the endpoint. Run the app with
 `tsc --noEmit` must run **after** a build: `app/layout.tsx` uses the
 Next-generated `LayoutProps` global, so a cold typecheck reports `TS2304`.
 
+### Verified on the owner's iPhone, against the hosted Supabase and real OpenAI
+
+- **Report drafting quality is acceptable** (Phase 5's last open question). The
+  prompt at `d85222f` plus the brief fixes at `43124e8` produce professional
+  construction-report prose rather than a paraphrase of the notes.
+- **Long dictation is whole.** A continuous 60-90 second dictation was compared
+  against what was actually said. The `a9ed7e7` restart loop holds on real iOS
+  Safari - it does start a new session from a timer.
+
 ### NOT verified
 
-- **Nothing has been verified against the Vercel deployment.** Deployment
-  Protection SSO-walls every URL, so no automated check has ever reached it.
-  That gap is why the bug in section 9 was found by the owner, not the tests.
-- **No real OpenAI model has ever been called.** The pipeline is proven; the
-  quality of actual generated prose is unknown. Expect to iterate on the prompt
-  once a real key is in place.
-- **Phase 5 was never run against the owner's hosted Supabase**, only local.
-- **`43124e8` has never been run against a Supabase.** Its regeneration
-  behaviour - clearing stale AI sections while leaving user-edited ones - is
-  covered by `npm run test:ai`, which needs one. The delete's PostgREST filter
-  in particular has not been executed.
-- **Dictation has not been re-tested on an iPhone.** Every part of the logic
-  that can be simulated is; whether Safari will actually start a session from a
-  timer rather than a tap cannot be, and that is exactly what the refusal
-  message exists for. A 60-90 second continuous dictation compared against
-  what was said is the test that matters.
-- **The reworked prompt's prose has never been read.** `d85222f` changed what
-  the model is told, not the pipeline. Whether the output now reads like a site
-  manager's report is the owner's judgement, on a real generation. If it is
-  still too literal the next lever is the worked example in
-  `lib/ai/prompt.ts` - add a second one - not loosening the fact rules.
+- **No automated check has ever reached the Vercel deployment.** Deployment
+  Protection SSO-walls every URL. Everything confirmed on the Preview was
+  confirmed by the owner by hand, which is why the bug in section 9 was found
+  by him and not by the tests. The profile screen's build marker is there so he
+  can at least say which commit he was looking at.
+- **`npm run test:ai` has not been run since `43124e8`.** The regeneration
+  behaviour it covers - clearing stale AI sections, and now refusing to
+  overwrite edited ones - has been exercised by hand on the phone but not by
+  that suite, and the delete's PostgREST filter has never been executed in a
+  test. Run it first wherever a Supabase is available.
 - **The photo UX has not been tried on a real iPhone.** Everything about it
   that can be asserted from a desktop browser is asserted; how iOS actually
   behaves at the three buttons is the owner's to confirm.
@@ -683,13 +695,14 @@ the user having finished. See section 4.
 
 - **#441 is diagnosed but not closed** (section 9). Digest `2847415232` is still
   unresolved. It is intermittent.
-- **No real OpenAI call has ever been made.** Prompt quality is unproven.
 - **`claude/phase5-staging` should be deleted** (section 3).
 - **`claude/siteboss-pro-planning-8y80n2` is stale** at `046c11a` and carries
   PR #1, whose description is owner-written and slightly wrong (it claims seed
   data, which does not exist, and "generated" types, which are hand-written).
 - **Deployment Protection is on**, so nothing automated can reach the preview.
-- **No CI.** Seven good suites, nothing runs them. Offered three times.
+- **No CI.** Eleven suites now, nothing runs them. Offered three times. Five
+  of them need neither Supabase nor a dev server, so a workflow running
+  those plus typecheck, lint and build would be cheap and worth having.
 - **`types/database.ts` is hand-written.** Regenerate with
   `npx supabase gen types typescript --project-id <ref> > types/database.ts`.
 - **Team invites are out of scope.** `company_members` is read-only from the
@@ -707,23 +720,20 @@ the user having finished. See section 4.
 
 ## 13. Exact next actions, in priority order
 
-1. **Have the owner dictate for 60-90 seconds** on the Preview for `a9ed7e7`
-   and compare the raw notes with what he said, then **judge a real
-   generation**,
-   and try the photo buttons on his iPhone from both a report and
-   Project -> Photos. Neither is reachable by any test here.
-2. **Run `npm run test:photos` wherever a Supabase is available** - its newest
-   assertions have never been executed (section 7).
+1. **Review the Phase 6 scope in section 14 with the owner before building any
+   of it.** He has asked for that explicitly.
+2. **Run `npm run test:photos` and `npm run test:ai` wherever a Supabase is
+   available** - the newest assertions in both have never been executed
+   (section 7).
 3. **Delete the staging branch** - `git push origin --delete
    claude/phase5-staging`. Its failed Previews are expected (F18) and clear with
    it.
 4. **Confirm the Preview built.** Vercel -> Deployments, the newest build of
-   `claude/siteboss-pro-react-441-diagnosis-bhvwk8` at `a9ed7e7`. The profile
+   `claude/siteboss-pro-react-441-diagnosis-bhvwk8` at `9829e94`. The profile
    screen now shows the running build's short SHA, so this is checkable from
    the phone rather than the dashboard.
-5. **Add `OPENAI_API_KEY`** under Settings -> Environments -> Preview, no
-   `NEXT_PUBLIC_` prefix. Then exercise drafting against a real model and expect
-   to iterate on the prompt - nothing about real output quality is known.
+5. **`OPENAI_API_KEY` is already set** under Settings -> Environments ->
+   Preview, and drafting has been exercised against a real model.
 6. **Ask the owner to turn Deployment Protection off** (Settings -> Deployment
    Protection -> Vercel Authentication -> off -> Save) and confirm in a private
    window. Until then nothing automated can check the deployment.
@@ -820,6 +830,11 @@ site manager Maciej / Active.
 - **D22b** Dictation recovers from an end nobody asked for, and never fails
   silently: if it cannot carry on it says so and asks for a tap. Losing a site
   manager's words without telling him is the worst outcome available.
+- **D24** A section a person has edited is theirs. Regeneration neither
+  overwrites nor deletes it, and the screen says how many were kept - skipping
+  silently would confuse as much as overwriting silently. `ai_generated` is the
+  only thing separating the two, so nothing may write it true on content a user
+  supplied.
 - **D23** The profile screen names the running build from
   `VERCEL_GIT_COMMIT_SHA`, and nothing else from the environment. Off Vercel it
   renders nothing rather than a placeholder.
@@ -839,13 +854,14 @@ state and includes a list of failed approaches that must not be repeated. Ignore
 
 Where things stand:
 
-- Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, head `a9ed7e7`.
+- Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, head `9829e94`.
   The other branch is stale. Never push to `main`, and do not merge PR #1.
-- **Phases 1-5 are complete**: auth and schema, projects, report capture with
-  dictation, photos, and AI drafting of the written report. All seven test
-  suites pass locally. Do not rebuild any of it.
+- **Phases 1-5 are complete and Phase 5 is closed.** Auth and schema, projects,
+  report capture with dictation, photos, and AI drafting. I have tested drafting
+  and long dictation on my iPhone against the real OpenAI API and they are good.
+  Do not rebuild any of it.
 - **Phase 6 (issues + PDF) is next and has not been started.** Section 14 has
-  the scope. Ask me before you begin it.
+  the scope. I want to review it with you before you build any of it.
 
 Two recent commits followed the phases rather than extending them.
 
