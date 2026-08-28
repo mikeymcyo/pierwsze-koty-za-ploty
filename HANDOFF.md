@@ -7,11 +7,12 @@ it says so explicitly - treat that distinction as load-bearing.
 **Written:** 2026-08-26 · **Last updated:** 2026-08-28
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-**Head:** `d85222f` - Phase 5 drafting prompt reworked
+**Head:** `43124e8` - absence claims, stale sections, build marker
 
 Phases 1-5 are complete and on that branch. Phase 6 (issues + PDF) is next
 and has NOT been started. `260af4a` is Phase 5, `1d9474e` a follow-up to
-Phase 4 and `d85222f` a follow-up to Phase 5; neither starts anything new.
+Phase 4, and `d85222f` and `43124e8` follow-ups to Phase 5; none of them start
+anything new.
 
 > `PROJECT_STATE.md` in this repo is an earlier handoff. Where the two disagree,
 > **this file wins** - it is newer. Consider deleting PROJECT_STATE.md once you
@@ -66,7 +67,7 @@ Not yet installed, needed later: `@react-pdf/renderer` (Phase 6).
 
 - Repo: `mikeymcyo/pierwsze-koty-za-ploty` - **public**
 - **Branches.** Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-  (head `d85222f`). The older `claude/siteboss-pro-planning-8y80n2` is stale
+  (head `43124e8`). The older `claude/siteboss-pro-planning-8y80n2` is stale
   at `046c11a` and carries PR #1; it has NOT been kept in sync. Ask the owner
   which branch is canonical before pushing.
 - **`claude/phase5-staging` is rubbish and should be deleted.** It was a
@@ -183,6 +184,17 @@ approved, inspected, certified, tested, safe, suitable, complete in accordance
 with requirements.** A note about rods and washers cannot support "a secure
 installation", and that is the sentence a dispute turns on. Do not relax this
 list without asking the owner - it was his call, on his liability.
+
+**Silence is not evidence of absence** (`43124e8`). The first real generation
+produced "No delay was recorded" from notes that never mentioned programme.
+The cause was not the system prompt but `lib/report-sections.ts`: each brief
+becomes the `description` of that property in the JSON schema, so it sits
+beside the field being filled and competes with the system prompt for it. The
+summary brief asked "whether the job is on track", and a field that must be
+filled gets filled. **No brief may pose a question the notes might not
+answer** - the guard test asserts none contains the word "whether" - and the
+system prompt now names the nil returns outright: no delays, no issues, no
+incidents, nothing reported, deliveries complete, on programme.
 
 Photo tags are labelled as evidence that a photograph exists, not that an
 event occurred. The `health_safety` brief no longer tells the model to say
@@ -352,8 +364,11 @@ npm run test:db         schema and RLS
 
 ```
 npm run test:photo-sources   the three media sources, 37 checks
-npm run test:ai-prompt       the drafting prompt contract (added by d85222f)
+npm run test:ai-prompt       the drafting prompt contract, briefs included
+npm run test:build-ref       the profile build marker
 ```
+
+These three need neither Supabase nor a dev server, so they run anywhere.
 
 That suite is deliberately the one photo test that needs **neither Supabase
 nor a dev server**, so it runs anywhere: it asserts the source table and the
@@ -384,6 +399,10 @@ Next-generated `LayoutProps` global, so a cold typecheck reports `TS2304`.
   quality of actual generated prose is unknown. Expect to iterate on the prompt
   once a real key is in place.
 - **Phase 5 was never run against the owner's hosted Supabase**, only local.
+- **`43124e8` has never been run against a Supabase.** Its regeneration
+  behaviour - clearing stale AI sections while leaving user-edited ones - is
+  covered by `npm run test:ai`, which needs one. The delete's PostgREST filter
+  in particular has not been executed.
 - **The reworked prompt's prose has never been read.** `d85222f` changed what
   the model is told, not the pipeline. Whether the output now reads like a site
   manager's report is the owner's judgement, on a real generation. If it is
@@ -617,6 +636,13 @@ prompt on a hardcoded copy of its heading. Rewording the prompt left the stub
 reading an empty string, and the pipeline test would have passed on nothing.
 It imports the label from `lib/ai/prompt.ts` now. Import the contract; do not
 retype it.
+
+**F22 - A JSON-schema property `description` is an instruction, not a comment.**
+`lib/report-sections.ts` briefs are sent as the description of each property.
+They sit beside the field the model is filling and can beat the system prompt
+for that field: "whether the job is on track" produced "No delay was recorded"
+while the system prompt was busy forbidding invention. Fix a drafting problem
+in the briefs before assuming the system prompt is at fault.
 ---
 
 ## 12. Known issues and technical debt
@@ -647,7 +673,7 @@ retype it.
 
 ## 13. Exact next actions, in priority order
 
-1. **Have the owner judge a real generation** on the Preview for `d85222f`,
+1. **Have the owner judge a real generation** on the Preview for `43124e8`,
    and try the photo buttons on his iPhone from both a report and
    Project -> Photos. Neither is reachable by any test here.
 2. **Run `npm run test:photos` wherever a Supabase is available** - its newest
@@ -656,7 +682,9 @@ retype it.
    claude/phase5-staging`. Its failed Previews are expected (F18) and clear with
    it.
 4. **Confirm the Preview built.** Vercel -> Deployments, the newest build of
-   `claude/siteboss-pro-react-441-diagnosis-bhvwk8` at `d85222f`.
+   `claude/siteboss-pro-react-441-diagnosis-bhvwk8` at `43124e8`. The profile
+   screen now shows the running build's short SHA, so this is checkable from
+   the phone rather than the dashboard.
 5. **Add `OPENAI_API_KEY`** under Settings -> Environments -> Preview, no
    `NEXT_PUBLIC_` prefix. Then exercise drafting against a real model and expect
    to iterate on the prompt - nothing about real output quality is known.
@@ -744,6 +772,18 @@ site manager Maciej / Active.
 - **D20** Neutral presentation wording is allowed where the notes support it;
   quality, compliance, approval and fitness-for-purpose wording is not. The
   banned list is in `lib/ai/prompt.ts` and is the owner's decision.
+- **D21** Silence is not evidence of absence. No section brief may pose a
+  question the notes might not answer, and a nil return - "no delays", "nothing
+  reported" - is a claim like any other.
+- **D22** Regenerating clears the sections it no longer supports, but only ones
+  the AI wrote. `ai_generated` is what separates them: `updateSection` flips it
+  to false, so an edited section survives regeneration's clear-out. It is still
+  overwritten if the new draft fills that same section - that is the existing
+  behaviour of a button labelled "Rewrite from my notes", not an oversight, but
+  it has not been put to the owner.
+- **D23** The profile screen names the running build from
+  `VERCEL_GIT_COMMIT_SHA`, and nothing else from the environment. Off Vercel it
+  renders nothing rather than a placeholder.
 
 ---
 
@@ -760,7 +800,7 @@ state and includes a list of failed approaches that must not be repeated. Ignore
 
 Where things stand:
 
-- Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, head `d85222f`.
+- Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, head `43124e8`.
   The other branch is stale. Never push to `main`, and do not merge PR #1.
 - **Phases 1-5 are complete**: auth and schema, projects, report capture with
   dictation, photos, and AI drafting of the written report. All seven test
@@ -778,19 +818,26 @@ can be added to a project as well as to a report. Section 4 explains what iOS
 will and will not let us control there - do not try to bypass Safari's own
 sheet, it cannot be done.
 
-`d85222f` reworked the Phase 5 drafting prompt. Drafting works against the real
-OpenAI API - I have generated a report on my phone - but the output was my own
-notes with the commas moved, because the old prompt asked for grammar to be
-fixed rather than for a report to be written. It now commissions a rewrite, and
-draws an explicit line between register, which may change, and facts and
-quality claims, which may not. Section 4 has the banned wording and why it is
-banned; that list is my decision, so ask me before relaxing it.
+`d85222f` and `43124e8` reworked the Phase 5 drafting. Drafting works against
+the real OpenAI API - I have generated a report on my phone - but the output was
+my own notes with the commas moved, and the summary asserted "No delay was
+recorded" from notes that never mentioned programme. The prompt now commissions
+a rewrite rather than a proofread, draws an explicit line between register,
+which may change, and facts and quality claims, which may not, and refuses to
+turn silence into a nil return. Section 4 has the banned wording and why; that
+list is my decision, so ask me before relaxing it. Regenerating now also clears
+the sections a new draft no longer supports, without touching ones I have
+edited.
 
-Unverified on both: I have not tried the photo buttons on my iPhone, I have not
-yet read a draft from the new prompt, and the browser-level assertions in
-`e2e/photos-smoke.mjs` have never been run - that needs a Supabase, and starting
-Docker costs the session its push (F15). `npm run test:photo-sources` and
-`npm run test:ai-prompt` run anywhere and pass.
+The profile screen shows the running build's short commit SHA, so I can tell
+from my phone which deployment I am testing.
+
+Unverified: I have not tried the photo buttons on my iPhone, I have not yet read
+a draft from the reworked prompt, and the browser-level assertions in
+`e2e/photos-smoke.mjs` and `e2e/ai-smoke.mjs` have never been run - those need a
+Supabase, and starting Docker costs the session its push (F15).
+`npm run test:photo-sources`, `test:ai-prompt` and `test:build-ref` run anywhere
+and pass.
 
 Then the housekeeping in section 13: delete the leftover
 `claude/phase5-staging` branch and confirm the Preview built on Vercel. My
