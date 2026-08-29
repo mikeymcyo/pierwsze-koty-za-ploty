@@ -4,39 +4,89 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Last updated:** 2026-08-28
+**Written:** 2026-08-26 · **Last updated:** 2026-08-29
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-**Recovery head:** `6d3f554` - summary schema validated and synchronized
+**Recovery head:** `00a3bfb` - report lifecycle, deletion and PDF navigation
 
 ## Current state - read this before the historical sections below
 
 This block supersedes the old statements later in this file that Phase 6 has
-not started. Issues and the Daily Report PDF were completed in `5047110`. The
-Progress/Completion schema followed in `a632c4f`, with the tenant-key fix and
-durable PostgreSQL suite in `6d3f554`.
+not started, that an issued report cannot be edited, and that migration
+`000005` is outstanding. All three are wrong now.
 
-The current implementation completes the remaining core workflow:
+Issues and the Daily Report PDF were completed in `5047110`. The
+Progress/Completion schema followed in `a632c4f`, with the tenant-key fix and
+durable PostgreSQL suite in `6d3f554`, and the workflow itself in `26409e3`.
+The report lifecycle landed in **`00a3bfb`**.
+
+The current implementation completes the core workflow:
 
 - Progress Reports consolidate final Daily Reports for a fixed date range.
 - Completion Reports prefer issued Progress Reports while retaining every
   underlying Daily Report as provenance, without feeding it to the writer
   twice.
 - Both kinds have evidence-grounded AI drafting, protected manual edits,
-  curated photographs and issues, draft PDF previews, stored issued PDFs and
-  immutable final state.
+  curated photographs and issues, draft PDF previews and stored issued PDFs.
 - Closing an issue now requires a recorded resolution. Finalising a summary
   snapshots its issue status and resolution.
 - Reports, Project detail and Dashboard list all three document types.
 
-The migration `20260828000005_summary_reports.sql` has passed its real local
-PostgreSQL suite but has **not** been applied to hosted Supabase. Apply it
-before deploying application code that queries `summary_reports`. Never deploy
-the code first: Reports and Dashboard intentionally query the new tables.
+### The lifecycle batch, `00a3bfb` - owner-tested and working
 
-Dependency-free regression suites pass, including
-`test:summary-reports`. A production dependency install, lint, typecheck and
-build must pass in a dependency-complete environment before release.
+Confirmed by the owner on the deployed Vercel Preview, on an iPad, after the
+commit was pushed. This is not a sandbox-only claim.
+
+- **Reopen, edit and re-issue** for Daily, Progress and Completion Reports.
+  "Edit final report" returns the report to draft behind a confirmation. The
+  already-issued PDF is deliberately left in place and stays current, so
+  abandoning an edit destroys nothing. Re-issuing writes a **new** file rather
+  than overwriting, and a consolidated report counts its next `revision` at
+  that moment - never at reopen - so an abandoned edit cannot inflate it.
+  A reopened report is derived state, `status = 'draft' AND pdf_path IS NOT
+  NULL`; there is no extra column and nothing to drift.
+- **Deleting reports**, drafts and issued records alike. An issued one requires
+  the word DELETE typed, not tapped.
+- **Dependency protection.** A report that an issued Progress or Completion
+  Report is built on - by source row *or* by one of its photographs being
+  printed - refuses to delete and names the documents in the way. A cascade
+  there would strand an issued PDF citing evidence that no longer exists.
+- **Deleting projects**, behind a typed confirmation that counts exactly what
+  goes. Storage paths are gathered *before* the cascade, so photographs and
+  PDFs are cleared rather than stranded in the buckets.
+- **PDF preview navigation.** Opening a PDF with `target="_blank"` handed it to
+  iOS's own full-screen viewer, which has no route back - people were closing
+  the app to escape it. PDFs now render in `/reports/[id]/pdf` and
+  `/summary-reports/[id]/pdf` with Back above the fold; full screen is still
+  one tap away and doubles as the fallback where a frame will not render one.
+
+**No database migration was required for that batch**, and none was written.
+That was verified rather than assumed, read-only against the live database:
+`reports` has no constraint tying `status` to `pdf_path`; `summary_reports`'
+CHECK passes any draft row; the update and delete policies on both tables are
+`is_company_member(company_id)` with **no status qualifier**; and both storage
+buckets have delete policies. Immutability had only ever been enforced in
+application code, which is what changed.
+
+### Migration `20260828000005_summary_reports.sql` is APPLIED
+
+Verified 2026-08-29 against the hosted database (project `anwzyzfgfcuxrrpuaxwk`),
+read-only, by schema inspection rather than by trusting this file. All six
+tables exist with RLS on and the expected policy counts; `issues.resolution`
+is present; both enums, both triggers, both functions, the
+`issues_id_company_id_key` tenant key, all six CHECK constraints and every
+declared index are in place; a column-by-column diff of the migration against
+`information_schema` was **identical, 56 of 56, zero differences**; and
+`anon` holds no privileges on any of the new tables.
+
+Do **not** reapply it. Note that `supabase_migrations.schema_migrations` is
+empty - it was applied through the SQL editor, not the CLI - so schema
+inspection is the only source of truth here, and `supabase db push` would try
+to replay all five migrations and fail on this non-idempotent one.
+
+Dependency-free regression suites pass, including `test:lifecycle` and
+`test:summary-reports`. Lint, typecheck and a production build pass in a
+dependency-complete environment.
 
 > `PROJECT_STATE.md` in this repo is an earlier handoff. Where the two disagree,
 > **this file wins** - it is newer. Consider deleting PROJECT_STATE.md once you
@@ -325,7 +375,8 @@ Project URL and publishable key from Project Settings -> API. Neither is secret 
 the publishable key is designed for browser bundles and RLS is what protects the
 data - but there is no reason to publish them.
 
-State verified live: **all four migrations applied**; anonymous requests return
+State verified live: **all five migrations applied**, including `000005`
+(re-verified by schema inspection on 2026-08-29); anonymous requests return
 `401 / 42501 permission denied` on every table; **email confirmation is OFF** so
 signup returns a session immediately.
 
@@ -445,6 +496,17 @@ stands in for the endpoint. Run the app with
 
 `tsc --noEmit` must run **after** a build: `app/layout.tsx` uses the
 Next-generated `LayoutProps` global, so a cold typecheck reports `TS2304`.
+
+### Verified 2026-08-29 by the owner on the deployed Vercel Preview, on an iPad
+
+The `00a3bfb` lifecycle batch. Reopening an issued report, correcting it,
+issuing it again, deleting reports and projects, and the new PDF viewer with
+its Back control were all exercised against the real Preview and the hosted
+Supabase, and behave correctly. This is the first batch confirmed on the
+deployment rather than only in a sandbox.
+
+Still unexercised by any automated suite: the reopen and delete flows have no
+Supabase-backed test. `test:lifecycle` covers the rules, not the round trip.
 
 ### Verified on the owner's iPhone, against the hosted Supabase and real OpenAI
 
@@ -713,7 +775,8 @@ the user having finished. See section 4.
 ## 12. Known issues and technical debt
 
 - **#441 is diagnosed but not closed** (section 9). Digest `2847415232` is still
-  unresolved. It is intermittent.
+  unresolved. It is intermittent, and has not recurred through the `26409e3`
+  or `00a3bfb` work.
 - **`claude/phase5-staging` should be deleted** (section 3).
 - **`claude/siteboss-pro-planning-8y80n2` is stale** at `046c11a` and carries
   PR #1, whose description is owner-written and slightly wrong (it claims seed
@@ -731,6 +794,26 @@ the user having finished. See section 4.
 - **The photo assertions in `photos-smoke.mjs` added by `1d9474e` are
   unexecuted** (section 7). The rest of that suite is unchanged and passed on
   2026-08-27.
+- **Superseded PDFs accumulate.** Re-issuing a corrected report leaves the
+  previous file in the bucket on purpose - that is the preservation guarantee -
+  but deleting a report only removes the path it currently points at, so older
+  revisions are orphaned. Tracking them would need a column and a revision UI,
+  both deliberately out of scope.
+- **The photo curation picker is not scoped to a report's own evidence.**
+  `summary-reports/[id]/page.tsx` offers every photograph on the project, and
+  `saveSummaryCuration` accepts the same, so a photograph from a Daily Report
+  the document is not built from can be curated into it. Established by
+  reproduction on 2026-08-29; the seeding and de-duplication either side of it
+  are correct. It now interacts with deletion: a photograph curated from a
+  non-source daily makes that daily undeletable - right behaviour, surprising
+  reason.
+- **`summary_report_photos` records no provenance.** A photograph's originating
+  Daily Report is only ever derived at read time from `photos.report_id`. Fine
+  today; a nullable `source_report_id` would be the minimum fix if issued
+  photo provenance ever needs to be frozen.
+- **Reopen is not safe against two people at once.** The `.eq("status",
+  "final")` guard rejects a double reopen, but two people editing one reopened
+  report overwrite each other - as they would any draft.
 - **`saveReport` replaces workforce and plant non-atomically** (delete then
   insert). Validation runs first so a rejected submission cannot lose rows, but
   a mid-write failure could. Acceptable for the MVP; an RPC would fix it.
