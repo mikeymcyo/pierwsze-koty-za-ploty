@@ -32,6 +32,8 @@ export function ConfirmAction({
   confirmVariant = "danger",
   hiddenFields = {},
   error,
+  defaultOpen = false,
+  onCancel,
 }: {
   action: (formData: FormData) => void | Promise<void>;
   trigger: string;
@@ -45,8 +47,12 @@ export function ConfirmAction({
   confirmVariant?: "danger" | "primary";
   hiddenFields?: Record<string, string>;
   error?: string;
+  /** Opened already, for a caller that has its own way of asking. */
+  defaultOpen?: boolean;
+  /** Told when Cancel is pressed, so a caller can put its own row back. */
+  onCancel?: () => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(defaultOpen);
   const [typed, setTyped] = useState("");
   const fieldId = useId();
   const ready = !requireTyping || typed.trim().toUpperCase() === DELETE_CONFIRMATION;
@@ -101,7 +107,15 @@ export function ConfirmAction({
       )}
 
       <div className="flex flex-wrap gap-3">
-        <Button type="button" variant="secondary" onClick={() => { setOpen(false); setTyped(""); }}>
+        <Button
+          type="button"
+          variant="secondary"
+          onClick={() => {
+            setOpen(false);
+            setTyped("");
+            onCancel?.();
+          }}
+        >
           Cancel
         </Button>
         <ConfirmButton

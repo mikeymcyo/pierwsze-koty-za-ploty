@@ -14,6 +14,7 @@ import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { LinkedStoreCard, UnknownStoreCard } from "@/components/stores/linked-store-card";
+import { BackLink } from "@/components/ui/back-link";
 import { isProjectTab, type ProjectTab } from "@/lib/project-tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,12 +68,7 @@ export default async function ProjectPage({
   if (error) {
     return (
       <div className="flex flex-col gap-6">
-        <Link
-          href="/projects"
-          className="text-sm font-semibold text-ink-muted underline underline-offset-4 hover:text-ink"
-        >
-          All projects
-        </Link>
+        <BackLink href="/projects">All projects</BackLink>
         <LoadError what="this project" code={error.code} />
       </div>
     );
@@ -179,12 +175,7 @@ export default async function ProjectPage({
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-3">
-        <Link
-          href="/projects"
-          className="text-sm font-semibold text-ink-muted underline underline-offset-4 hover:text-ink"
-        >
-          All projects
-        </Link>
+        <BackLink href="/projects">All projects</BackLink>
 
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">

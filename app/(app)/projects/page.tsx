@@ -1,13 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronRight, HardHat, Plus } from "lucide-react";
+import { HardHat, Plus } from "lucide-react";
 
-import { ProjectStatusBadge } from "@/components/projects/status-badge";
+import { ProjectRow } from "@/components/projects/project-row";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
+import { tallyOpenIssues } from "@/lib/projects/row-summary";
+import { storeFor } from "@/lib/stores/catalogue";
+import { storeLinkOf } from "@/lib/stores/project-link";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 
@@ -17,17 +19,30 @@ export default async function ProjectsPage() {
   await requireSessionContext();
   const supabase = await createClient();
 
-  const { data, error } = await withClockSkewRetry(() =>
-    supabase
-      .from("projects")
-      .select("id, name, client, site_address, project_reference, status")
-      // Active first, then on hold, then completed; newest within each group.
-      .order("status", { ascending: true })
-      .order("created_at", { ascending: false }),
-  );
+  const [projectsResult, issuesResult] = await Promise.all([
+    withClockSkewRetry(() =>
+      supabase
+        .from("projects")
+        .select(
+          "id, name, client, site_address, project_reference, status, location_directory, location_code",
+        )
+        // Active first, then on hold, then completed; newest within each group.
+        .order("status", { ascending: true })
+        .order("created_at", { ascending: false }),
+    ),
+    // One flat query rather than a count per card: ids only, tallied here.
+    // RLS keeps it to this company, so a card can never count another's work.
+    withClockSkewRetry(() =>
+      supabase.from("issues").select("project_id").neq("status", "closed"),
+    ),
+  ]);
 
+  const { data, error } = projectsResult;
   // Shown in place rather than thrown - see LoadError.
   const projects = data ?? [];
+  // An outstanding-issue count is a nicety; failing to get one is not worth
+  // holding the whole list back for, so the cards simply do not mention it.
+  const openIssues = tallyOpenIssues(issuesResult.data ?? []);
 
   return (
     <div className="flex flex-col gap-6">
@@ -62,33 +77,25 @@ export default async function ProjectsPage() {
           }
         />
       ) : (
-        <ul className="flex flex-col gap-3">
-          {projects.map((project) => (
-            <li key={project.id}>
-              <Card className="transition-colors hover:border-line-strong">
-                <Link
-                  href={`/projects/${project.id}`}
-                  className="flex items-center gap-4 p-5"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-ink">{project.name}</p>
-                    <p className="truncate text-sm text-ink-muted">
-                      {[project.client, project.site_address].filter(Boolean).join(" · ") ||
-                        "No client or address recorded"}
-                    </p>
-                    {project.project_reference ? (
-                      <p className="mt-1 text-xs font-medium text-ink-subtle">
-                        Ref {project.project_reference}
-                      </p>
-                    ) : null}
-                  </div>
-                  <ProjectStatusBadge status={project.status} />
-                  <ChevronRight className="size-5 shrink-0 text-ink-subtle" aria-hidden />
-                </Link>
-              </Card>
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="flex flex-col gap-3">
+            {projects.map((project) => {
+              const link = storeLinkOf(project);
+              return (
+                <li key={project.id}>
+                  <ProjectRow
+                    project={project}
+                    store={link ? storeFor(link.directory, link.code) : null}
+                    openIssues={openIssues.get(project.id) ?? 0}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-center text-xs text-ink-subtle">
+            Swipe a project left, or use its menu, for Edit and Delete.
+          </p>
+        </>
       )}
     </div>
   );

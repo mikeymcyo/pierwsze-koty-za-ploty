@@ -88,6 +88,37 @@ application code, which is what changed.
 - The issued PDF gains a Supporting Documents table whose optional columns
   appear only when something fills them.
 
+### Navigation and project UX
+
+- **Project rows swipe left** for Edit and Delete, with the gesture deliberately
+  hard to trigger: it must commit clearly to going sideways before the row moves
+  (vertical wins ties, so a scroll is never mistaken for a swipe), the pointer is
+  captured so a fast swipe cannot strand a row half open, and a mouse drag is
+  never a swipe. **Revealing the actions is not destructive.** Delete opens the
+  same confirmation as the project's danger zone, the word DELETE still has to be
+  typed, and `canDeleteProject` checks it again on the server. The identical two
+  actions sit behind an always-visible menu button, so nothing depends on knowing
+  the gesture or on having a touchscreen. `lib/ui/swipe.ts` holds the arithmetic
+  and is tested directly.
+- **Project cards** now carry name, client, the linked store (number and all)
+  where there is one, status, open-issue count and reference. The store replaces
+  the address rather than joining it. Open issues come from one flat query of
+  ids, tallied in `lib/projects/row-summary.ts` - not a count per card.
+- **Dashboard** leads with three one-tap actions (Daily report, New project,
+  Store locator), then drafts to finish, then open critical and high issues,
+  before the existing active projects and recent reports. Both new queries are
+  additions: if either fails its section is simply absent rather than taking the
+  dashboard down.
+- `components/ui/back-link.tsx` gives one Back that always means "up a level"
+  rather than into history.
+- Nav is unchanged in shape: five targets on the phone with Create centred,
+  Profile in the top bar.
+
+**Archive is not implemented** - SiteBoss has no archive concept, only the
+project status (active / on hold / completed), which is edited on the project
+itself. Nothing was invented for it.
+
+
 ### Store Locator - the client store directory inside SiteBoss
 
 The Lidl Store Locator (github.com/mikeymcyo/lidl-store-locator) is now a

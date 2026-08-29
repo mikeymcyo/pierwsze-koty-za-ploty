@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ChevronRight, MapPin, Moon, Plus } from "lucide-react";
+import { ChevronRight, MapPin, Moon, Plus } from "lucide-react";
 
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Button } from "@/components/ui/button";
+import { BackLink } from "@/components/ui/back-link";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireSessionContext } from "@/lib/auth/session";
 import { findStoreAnywhere } from "@/lib/stores/catalogue";
@@ -60,13 +61,7 @@ export default async function StorePage({
 
   return (
     <div className="flex flex-col gap-6">
-      <Link
-        href="/stores"
-        className="inline-flex items-center gap-2 text-sm font-semibold text-ink-muted hover:text-ink"
-      >
-        <ArrowLeft className="size-4" aria-hidden />
-        Store locator
-      </Link>
+      <BackLink href="/stores">Store locator</BackLink>
 
       <header className="flex flex-col gap-2">
         <p className="text-sm font-semibold text-ink-muted">{store.client}</p>

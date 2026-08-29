@@ -24,6 +24,7 @@
     "test:issue-closing": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/issue-closing-smoke.mjs",
     "test:pdf-template": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/pdf-template-smoke.mjs",
     "test:stores": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/store-locator-smoke.mjs",
+    "test:navigation": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/navigation-smoke.mjs",
     "test:issues-pdf": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/issues-pdf-smoke.mjs",
     "test:summary-reports": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/summary-reports-smoke.mjs",
     "test:lifecycle": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/lifecycle-smoke.mjs",

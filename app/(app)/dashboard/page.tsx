@@ -1,13 +1,24 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileCheck2, FileText, FolderKanban, HardHat, Plus } from "lucide-react";
+import {
+  AlertTriangle,
+  FileCheck2,
+  FilePen,
+  FileText,
+  FolderKanban,
+  HardHat,
+  Plus,
+  Store,
+} from "lucide-react";
 
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
+import { ISSUE_PRIORITY_LABELS, ISSUE_PRIORITY_TONES } from "@/lib/issues/metadata";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 import { SUMMARY_KIND_LABELS } from "@/lib/summary-reports/sections";
@@ -19,7 +30,8 @@ export default async function DashboardPage() {
   const session = await requireSessionContext();
   const supabase = await createClient();
 
-  const [projectsResult, reportsResult, summaryReportsResult] = await Promise.all([
+  const [projectsResult, reportsResult, summaryReportsResult, draftsResult, issuesResult] =
+    await Promise.all([
     withClockSkewRetry(() =>
       supabase
         .from("projects")
@@ -43,6 +55,28 @@ export default async function DashboardPage() {
         .order("created_at", { ascending: false })
         .limit(5),
     ),
+    // What somebody started and did not finish. This is the first thing they
+    // want on a Monday morning and the thing that is otherwise three taps and
+    // a guess away.
+    withClockSkewRetry(() =>
+      supabase
+        .from("reports")
+        .select("id, report_number, report_date, updated_at, projects(name)")
+        .eq("status", "draft")
+        .order("updated_at", { ascending: false })
+        .limit(3),
+    ),
+    // What is still outstanding, worst first.
+    withClockSkewRetry(() =>
+      supabase
+        .from("issues")
+        .select("id, title, priority, status, project_id, projects(name)")
+        .neq("status", "closed")
+        .in("priority", ["critical", "high"])
+        .order("priority", { ascending: true })
+        .order("created_at", { ascending: false })
+        .limit(4),
+    ),
   ]);
 
   const loadError = projectsResult.error ?? reportsResult.error ?? summaryReportsResult.error;
@@ -50,6 +84,11 @@ export default async function DashboardPage() {
   const projects = projectsResult.data ?? [];
   const reports = reportsResult.data ?? [];
   const summaryReports = summaryReportsResult.data ?? [];
+  // Both are additions to the page rather than the page itself: if either
+  // query fails the section is simply not shown, which is honest, instead of
+  // taking the dashboard down with it.
+  const drafts = draftsResult.data ?? [];
+  const openIssues = issuesResult.data ?? [];
 
   const greeting = (
     <header className="flex flex-col gap-1">
@@ -80,6 +119,79 @@ export default async function DashboardPage() {
   return (
     <div className="flex flex-col gap-8">
       {greeting}
+
+      {/* The three things somebody opens this app to do, one tap from the top
+          of the screen rather than found through a menu. */}
+      <div className="grid grid-cols-3 gap-3">
+        <QuickAction href="/reports/new" icon={<FileText aria-hidden />} label="Daily report" primary />
+        <QuickAction href="/projects/new" icon={<Plus aria-hidden />} label="New project" />
+        <QuickAction href="/stores" icon={<Store aria-hidden />} label="Store locator" />
+      </div>
+
+      {drafts.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+            Finish what you started
+          </h2>
+          <ul className="flex flex-col gap-3">
+            {drafts.map((draft) => {
+              const project = Array.isArray(draft.projects) ? draft.projects[0] : draft.projects;
+              return (
+                <li key={draft.id}>
+                  <Card className="transition-colors hover:border-line-strong">
+                    <Link href={`/reports/${draft.id}`} className="flex items-center gap-4 p-5">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-soft">
+                        <FilePen className="size-5 text-warning" aria-hidden />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-ink">
+                          Report {formatReportNumber(draft.report_number)} · draft
+                        </p>
+                        <p className="truncate text-sm text-ink-muted">
+                          {project?.name ?? "Unknown project"} · {formatDate(draft.report_date)}
+                        </p>
+                      </div>
+                    </Link>
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
+
+      {openIssues.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+            Needs attention
+          </h2>
+          <ul className="flex flex-col gap-3">
+            {openIssues.map((issue) => {
+              const project = Array.isArray(issue.projects) ? issue.projects[0] : issue.projects;
+              return (
+                <li key={issue.id}>
+                  <Card className="transition-colors hover:border-line-strong">
+                    <Link href={`/issues/${issue.id}`} className="flex items-center gap-4 p-5">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-surface-muted">
+                        <AlertTriangle className="size-5 text-warning" aria-hidden />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-ink">{issue.title}</p>
+                        <p className="truncate text-sm text-ink-muted">
+                          {project?.name ?? "Unknown project"}
+                        </p>
+                      </div>
+                      <Badge tone={ISSUE_PRIORITY_TONES[issue.priority]}>
+                        {ISSUE_PRIORITY_LABELS[issue.priority]}
+                      </Badge>
+                    </Link>
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4">
@@ -206,5 +318,32 @@ export default async function DashboardPage() {
         )}
       </section>
     </div>
+  );
+}
+
+/** One of the three things worth a tap from the top of the dashboard. */
+function QuickAction({
+  href,
+  icon,
+  label,
+  primary,
+}: {
+  href: string;
+  icon: React.ReactNode;
+  label: string;
+  primary?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={
+        primary
+          ? "flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl bg-primary p-3 text-center text-sm font-semibold text-ink-inverse [&_svg]:size-6"
+          : "flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border border-line bg-surface p-3 text-center text-sm font-semibold text-ink shadow-sm [&_svg]:size-6"
+      }
+    >
+      {icon}
+      {label}
+    </Link>
   );
 }
