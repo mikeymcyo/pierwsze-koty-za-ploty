@@ -38,6 +38,7 @@
     "test:photo-ai": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/photo-ai-smoke.mjs",
     "test:master-review": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/master-review-smoke.mjs",
     "test:document-package": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/document-package-smoke.mjs",
+    "test:standalone": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/standalone-progress-smoke.mjs",
     "test:export": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/pdf-export-smoke.mjs",
     "test:activity": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/activity-smoke.mjs",
     "test:pdf": "node e2e/pdf-smoke.mjs"

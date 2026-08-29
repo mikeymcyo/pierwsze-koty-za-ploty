@@ -4,6 +4,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 
 import { SUMMARY_SYSTEM_PROMPT } from "@/lib/ai/summary-prompt";
+import { evidenceHeading, provenanceInstruction } from "@/lib/summary-reports/provenance";
 import { summarySectionsFor } from "@/lib/summary-reports/sections";
 import type { SummaryReportKind, SummarySectionType } from "@/types/database";
 
@@ -16,6 +17,12 @@ export type SummaryGenerationInput = {
   periodEnd: string | null;
   evidence: string;
   issues: string;
+  /**
+   * True where the report has no source reports behind it - a survey, or a
+   * Progress Report written directly. The model is then told so plainly, and
+   * the evidence is labelled for what it actually is.
+   */
+  standalone?: boolean;
 };
 
 export type SummaryGenerationResult =
@@ -33,7 +40,7 @@ export async function generateSummarySections(
     return {
       ok: false,
       error:
-        input.kind === "survey"
+        input.kind === "survey" || input.standalone
           ? "Write some notes, or add captioned photographs, before drafting. There is nothing to work from yet."
           : "The selected source reports contain no written evidence.",
     };
@@ -61,11 +68,15 @@ export async function generateSummarySections(
       ? `REPORTING PERIOD: ${input.periodStart} to ${input.periodEnd}`
       : "REPORTING PERIOD: whole project record",
     "",
-    "ISSUED SOURCE EVIDENCE:",
+    // Labelled for what it is. A block headed "issued source evidence" is how
+    // a model comes to write "as recorded in the daily reports" about a report
+    // that has none.
+    evidenceHeading(input.kind, Boolean(input.standalone)),
     input.evidence,
     "",
     "ISSUE RECORD:",
     input.issues || "No issue rows were selected. Do not claim that no issues occurred.",
+    provenanceInstruction(Boolean(input.standalone)),
   ]
     .filter((line) => line !== null)
     .join("\n");

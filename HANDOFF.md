@@ -32,6 +32,42 @@ The current implementation completes the core workflow:
   snapshots its issue status and resolution.
 - Reports, Project detail and Dashboard list all three document types.
 
+### Progress Reports can be written directly - no Daily Reports required
+
+The old rule ("there are no final Daily Reports in that period yet") blocked a
+real week: the site manager is not on site, operatives send updates and
+photographs by WhatsApp, and the client still wants a Progress Report. **No
+migration - a report either has source rows or it does not, and that absence is
+the fact.** See `lib/summary-reports/provenance.ts`.
+
+- **Two modes on the create form**, for Progress only: *From issued Daily
+  Reports* (unchanged, still the default, still freezes and prints the source
+  record) and *Write it directly* (`sourceMode=standalone`). A Completion Report
+  has no choice: it is a consolidation by definition and still requires at least
+  one source.
+- **A standalone report has no sources at all.** No source rows are inserted,
+  no daily-report photographs are pre-linked, no source record prints in the
+  PDF, and the report screen says plainly that it has no Daily Reports behind
+  it. That is what stops it claiming provenance it does not have.
+- `canFinaliseSummary` now only requires sources for `completion`. Progress and
+  survey need a written section and nothing else.
+- **The photographs** use the survey's own workspace (`ReportPhotos`): take,
+  upload, multi-select from the project, caption, AI description, remove -
+  the existing photo/storage system, not a second one. Issues, supporting
+  documents, preview, finalise, share and the PDF styles are all as they were.
+- **AI drafting** reads what was typed into the report's own sections (the
+  survey branch, generalised to "no sources"), plus the curated photo captions
+  and the issue record. The evidence block is labelled
+  `INFORMATION RECORDED DIRECTLY FOR THIS PERIOD (there are no daily reports)`
+  rather than `ISSUED SOURCE EVIDENCE`, and the prompt carries an explicit
+  instruction not to refer to daily reports, source reports or issued records.
+  Without that the model writes "as recorded in the daily reports" over
+  material that came off a phone.
+- `npm run test:standalone` covers both workflows, including that the issued
+  PDF of a standalone report names no daily report and prints no source record,
+  and that the consolidating path still freezes every Daily Report in the
+  period.
+
 ### PDF export: sharing, three styles, a cover photo and a sign-off
 
 One batch across Daily, Survey, Progress and Completion PDFs. **No migration -

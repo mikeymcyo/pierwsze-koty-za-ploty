@@ -137,11 +137,14 @@ check(
   !canFinaliseSummary({ status: "draft", kind: "survey", sourceCount: 0, sectionCount: 0 }).ok,
 );
 check(
-  "a progress report still needs its evidence",
-  !canFinaliseSummary({ status: "draft", kind: "progress", sourceCount: 0, sectionCount: 3 }).ok,
+  // A Progress Report can now also be written directly, with no Daily Reports
+  // behind it - see e2e/standalone-progress-smoke.mjs, which covers what stops
+  // one claiming a provenance it does not have.
+  "a progress report no longer needs sources either",
+  canFinaliseSummary({ status: "draft", kind: "progress", sourceCount: 0, sectionCount: 3 }).ok,
 );
 check(
-  "and so does a completion report",
+  "but a completion report still does: it is a consolidation by definition",
   !canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 0, sectionCount: 3 }).ok,
 );
 check(
@@ -306,8 +309,12 @@ check(
   /const requestedPhotos = photosIncluded \? formData\.getAll\("photoId"\)/.test(flatActions),
 );
 check(
+  // `direct` is a survey or a Progress Report written directly: both work
+  // their photographs in place, because neither has an earlier report that
+  // collected them.
   "the survey page shows the workspace and hides the picker",
-  /showPhotos=\{!survey\}/.test(read("../app/(app)/summary-reports/[id]/page.tsx")) &&
+  /const direct = survey \|\| standalone/.test(read("../app/(app)/summary-reports/[id]/page.tsx")) &&
+    /showPhotos=\{!direct\}/.test(read("../app/(app)/summary-reports/[id]/page.tsx")) &&
     /<ReportPhotos/.test(read("../app/(app)/summary-reports/[id]/page.tsx")),
 );
 

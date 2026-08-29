@@ -48,9 +48,21 @@ check("covered evidence names its first reviewed route", plan.daily[1].via === "
 check("uncovered evidence remains direct", plan.daily[2].via === null);
 
 console.log("\n3. Issuing rules");
-check("a populated sourced draft can be issued", canFinaliseSummary({ status: "draft", sourceCount: 3, sectionCount: 4 }).ok);
-check("a report without evidence cannot", !canFinaliseSummary({ status: "draft", sourceCount: 0, sectionCount: 4 }).ok);
-check("a report without written sections cannot", !canFinaliseSummary({ status: "draft", sourceCount: 3, sectionCount: 0 }).ok);
+check(
+  "a populated sourced draft can be issued",
+  canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 3, sectionCount: 4 }).ok,
+);
+check(
+  // The kind now matters: only a Completion Report must have something to
+  // consolidate. A Progress Report can be written directly and a survey always
+  // could - see e2e/standalone-progress-smoke.mjs.
+  "a completion report without evidence cannot",
+  !canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 0, sectionCount: 4 }).ok,
+);
+check(
+  "a report without written sections cannot",
+  !canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 3, sectionCount: 0 }).ok,
+);
 check("an issued report cannot be issued again", !canFinaliseSummary({ status: "final", sourceCount: 3, sectionCount: 4 }).ok);
 
 console.log("\n4. Stored filenames identify the document");

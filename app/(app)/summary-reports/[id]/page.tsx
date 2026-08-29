@@ -27,6 +27,7 @@ import { requireSessionContext } from "@/lib/auth/session";
 import { issuedPdfFileName } from "@/lib/pdf/presentation";
 import { photoPrintLabelText } from "@/lib/photo-captions";
 import { signPhotoUrls } from "@/lib/photos-signing";
+import { describeProvenance, isStandalone } from "@/lib/summary-reports/provenance";
 import {
   SUMMARY_KIND_LABELS,
   SUMMARY_SECTION_LABELS,
@@ -136,10 +137,14 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
     selected: selectedIssueIds.has(issue.id),
   }));
 
-  // A survey works its photographs in place, in the order they will print.
+  // A survey works its photographs in place, in the order they will print - and
+  // so does a Progress Report written directly, which is the same situation:
+  // there is no earlier report to have collected them.
   const survey = isSurvey(report.kind);
+  const standalone = isStandalone(sources.length);
+  const direct = survey || standalone;
   const photoById = new Map(photos.map((photo) => [photo.id, photo]));
-  const surveyPhotos: ReportPhoto[] = (photoLinksResult.data ?? []).flatMap((link) => {
+  const attachedPhotos: ReportPhoto[] = (photoLinksResult.data ?? []).flatMap((link) => {
     const photo = photoById.get(link.photo_id);
     return photo
       ? [{ id: photo.id, url: photo.url, caption: photo.caption, category: photo.category }]
@@ -219,6 +224,15 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
 
       {/* A survey has none: it is written from a visit rather than
           consolidated from issued reports. */}
+      {/* Written directly rather than consolidated. Said plainly on the screen,
+          because the difference is the whole point: this document has no Daily
+          Reports behind it and never claims any. */}
+      {!loadError && !survey && standalone ? (
+        <p className="rounded-xl border border-line bg-surface-muted px-3 py-2 text-sm text-ink-muted">
+          {describeProvenance(report.kind, 0)}
+        </p>
+      ) : null}
+
       {!loadError && sourceItems.length > 0 ? (
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">Source evidence</h2>
@@ -236,15 +250,17 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
         </section>
       ) : null}
 
-      {/* Taken, captioned and removed without leaving the survey. The
-          consolidated reports keep curating from what the project already
-          holds, because they are written after the fact. */}
-      {!loadError && !isFinal && survey ? (
+      {/* Taken, captioned and removed without leaving the report - for a survey,
+          and for a Progress Report written directly, where the photographs
+          arrive with the report rather than before it. A report that
+          consolidates issued Daily Reports keeps curating from what the project
+          already holds, because it is written after the fact. */}
+      {!loadError && !isFinal && direct ? (
         <ReportPhotos
           reportId={id}
           companyId={session.companyId}
           projectId={report.project_id}
-          photos={surveyPhotos}
+          photos={attachedPhotos}
           available={availablePhotos}
           aiConfigured={hasAiConfig()}
         />
@@ -255,7 +271,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
           reportId={id}
           photos={photos}
           issues={issues}
-          showPhotos={!survey}
+          showPhotos={!direct}
         />
       ) : null}
 

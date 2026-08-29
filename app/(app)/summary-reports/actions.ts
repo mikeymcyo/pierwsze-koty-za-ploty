@@ -9,6 +9,7 @@ import { PDF_BUCKET } from "@/lib/pdf/signing";
 import { dependentsOfSummaryReport } from "@/lib/reports/dependents";
 import { canDelete } from "@/lib/reports/lifecycle";
 import { SUMMARY_REPORT_IS_FINAL } from "@/lib/summary-reports/finalisation";
+import { NO_DAILY_REPORTS, sourceModeOf } from "@/lib/summary-reports/provenance";
 import { summarySectionsFor } from "@/lib/summary-reports/sections";
 import { completionSourcePlan } from "@/lib/summary-reports/source-plan";
 import { createClient } from "@/lib/supabase/server";
@@ -40,6 +41,12 @@ const createSchema = z
     title: optionalText,
     periodStart: optionalDate,
     periodEnd: optionalDate,
+    /**
+     * Whether this Progress Report consolidates issued Daily Reports or is
+     * written directly. Ignored for a Completion Report, which is a
+     * consolidation by definition.
+     */
+    sourceMode: z.enum(["sources", "standalone"]),
   })
   .superRefine((value, context) => {
     if ((value.periodStart === null) !== (value.periodEnd === null)) {
@@ -80,6 +87,13 @@ function stringOf(formData: FormData, key: string): string {
  * Progress uses final Daily Reports in the selected period. Completion prefers
  * issued Progress Reports, records their Daily Reports underneath as `via`
  * provenance, and adds any remaining final Daily Reports directly.
+ *
+ * A Progress Report can also be written directly, with no Daily Reports behind
+ * it - the real case where the work was reported by phone or by message rather
+ * than written up on site. It then has no sources at all, which is exactly
+ * what stops it claiming any: no source rows, no source record in the PDF, and
+ * a drafting prompt told plainly that there are none. See
+ * lib/summary-reports/provenance.ts.
  */
 export async function startSummaryReport(
   _previous: SummaryFormState,
@@ -91,6 +105,7 @@ export async function startSummaryReport(
     title: stringOf(formData, "title"),
     periodStart: stringOf(formData, "periodStart"),
     periodEnd: stringOf(formData, "periodEnd"),
+    sourceMode: sourceModeOf(stringOf(formData, "sourceMode")),
   });
   if (!parsed.success) return { fieldErrors: errorsOf(parsed.error) };
 
@@ -105,12 +120,19 @@ export async function startSummaryReport(
     .maybeSingle();
   if (!project) return { error: "That project could not be found." };
 
-  const { data: allDaily, error: dailyError } = await supabase
-    .from("reports")
-    .select("id, report_date")
-    .eq("project_id", input.projectId)
-    .eq("status", "final")
-    .order("report_date", { ascending: true });
+  // A standalone Progress Report is not built from Daily Reports, so it does
+  // not go looking for any. Nothing is linked, nothing is frozen, and nothing
+  // can later be mistaken for provenance.
+  const standalone = input.kind === "progress" && input.sourceMode === "standalone";
+
+  const { data: allDaily, error: dailyError } = standalone
+    ? { data: [], error: null }
+    : await supabase
+        .from("reports")
+        .select("id, report_date")
+        .eq("project_id", input.projectId)
+        .eq("status", "final")
+        .order("report_date", { ascending: true });
   if (dailyError) return { error: `Could not read the Daily Reports: ${dailyError.message}` };
 
   const daily = (allDaily ?? []).filter(
@@ -172,8 +194,8 @@ export async function startSummaryReport(
     }
   }
 
-  if (input.kind === "progress" && daily.length === 0) {
-    return { error: "There are no final Daily Reports in that period yet." };
+  if (input.kind === "progress" && !standalone && daily.length === 0) {
+    return { error: NO_DAILY_REPORTS };
   }
   if (input.kind === "completion" && daily.length === 0 && progressForCompletion.length === 0) {
     return { error: "There are no issued reports to build this Completion Report from yet." };
@@ -233,10 +255,14 @@ export async function startSummaryReport(
     }
   }
 
-  const { error: sourcesError } = await supabase.from("summary_report_sources").insert(sources);
-  if (sourcesError) {
-    await supabase.from("summary_reports").delete().eq("id", summary.id);
-    return { error: `Could not save the report evidence: ${sourcesError.message}` };
+  // Nothing to freeze on a standalone report, and an empty insert would be a
+  // round trip that says nothing.
+  if (sources.length > 0) {
+    const { error: sourcesError } = await supabase.from("summary_report_sources").insert(sources);
+    if (sourcesError) {
+      await supabase.from("summary_reports").delete().eq("id", summary.id);
+      return { error: `Could not save the report evidence: ${sourcesError.message}` };
+    }
   }
 
   const { error: sectionsError } = await supabase.from("summary_report_sections").insert(

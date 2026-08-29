@@ -7,6 +7,7 @@ import { generateSummarySections } from "@/lib/ai/summary-generation";
 import { requireSessionContext } from "@/lib/auth/session";
 import { partitionDraft } from "@/lib/reports/regeneration";
 import { SUMMARY_REPORT_IS_FINAL } from "@/lib/summary-reports/finalisation";
+import { isStandalone } from "@/lib/summary-reports/provenance";
 import { summarySortOrder } from "@/lib/summary-reports/sections";
 import { createClient } from "@/lib/supabase/server";
 import type { SummarySectionType } from "@/types/database";
@@ -209,19 +210,28 @@ export async function generateSummaryReport(
     })
     .join("\n");
 
-  // A survey has no source reports - it is written from a visit. What it does
-  // have is what the surveyor typed on site, so that is the evidence, together
-  // with the photographs and issues they recorded. Anything they wrote by hand
-  // is protected from being overwritten further down, so this reads their
-  // notes without replacing them.
-  if (report.kind === "survey") {
+  // A report with no source reports is written rather than consolidated - a
+  // survey from a visit, or a Progress Report for a period the site manager
+  // spent off site, put together from what operatives sent them. What it does
+  // have is what they typed here, so that is the evidence, together with the
+  // photographs and issues they recorded. Anything written by hand is
+  // protected from being overwritten further down, so this reads those notes
+  // without replacing them.
+  const standalone = isStandalone((sources ?? []).length);
+  if (standalone) {
     const { data: own } = await supabase
       .from("summary_report_sections")
       .select("section_type, content, sort_order")
       .eq("summary_report_id", reportId)
       .order("sort_order", { ascending: true });
     const written = sectionText(own ?? []);
-    if (written) evidenceBlocks.push(`SURVEY NOTES RECORDED ON SITE\n${written}`);
+    if (written) {
+      evidenceBlocks.push(
+        report.kind === "survey"
+          ? `SURVEY NOTES RECORDED ON SITE\n${written}`
+          : `SITE INFORMATION RECORDED FOR THIS PERIOD\n${written}`,
+      );
+    }
   }
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
@@ -239,6 +249,7 @@ export async function generateSummaryReport(
       .filter(Boolean)
       .join("\n\n"),
     issues: issueEvidence,
+    standalone,
   });
   if (!result.ok) return { error: result.error };
 

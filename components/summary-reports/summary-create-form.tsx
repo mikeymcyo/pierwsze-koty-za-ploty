@@ -10,7 +10,32 @@ import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import type { SummarySourceMode } from "@/lib/summary-reports/provenance";
+import { cn } from "@/lib/utils";
 import type { SummaryReportKind } from "@/types/database";
+
+/**
+ * The two honest ways to write a Progress Report.
+ *
+ * Consolidating issued Daily Reports is the original path and stays the
+ * default. Writing it directly is for the week the site manager was not there
+ * and the work came back by phone, by message and by photograph - which is a
+ * real week on a real job, and used to be impossible.
+ */
+const SOURCE_MODES: { value: SummarySourceMode; label: string; description: string }[] = [
+  {
+    value: "sources",
+    label: "From issued Daily Reports",
+    description:
+      "Every final Daily Report in the period becomes the evidence, and is listed in the PDF as the source record.",
+  },
+  {
+    value: "standalone",
+    label: "Write it directly",
+    description:
+      "No Daily Reports needed. Type or dictate what happened, add photographs and issues, and draft from those. The report will not claim any Daily Reports behind it.",
+  },
+];
 
 function StartButton() {
   const { pending } = useFormStatus();
@@ -31,6 +56,7 @@ export function SummaryCreateForm({
   defaultKind: SummaryReportKind;
 }) {
   const [kind, setKind] = useState<SummaryReportKind>(defaultKind);
+  const [sourceMode, setSourceMode] = useState<SummarySourceMode>("sources");
   const [state, action] = useActionState<SummaryFormState, FormData>(startSummaryReport, {});
   const errors = state.fieldErrors ?? {};
 
@@ -58,6 +84,38 @@ export function SummaryCreateForm({
           ))}
         </Select>
       </Field>
+
+      {/* Only a Progress Report has the choice. A Completion Report is a
+          consolidation by definition - it is the record of a job, drawn from
+          what was issued while the job ran. */}
+      {kind === "progress" ? (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1 text-sm font-medium text-ink">Where the content comes from</legend>
+          <input type="hidden" name="sourceMode" value={sourceMode} />
+          <div className="grid gap-2 sm:grid-cols-2">
+            {SOURCE_MODES.map((mode) => {
+              const active = mode.value === sourceMode;
+              return (
+                <button
+                  key={mode.value}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => setSourceMode(mode.value)}
+                  className={cn(
+                    "flex min-h-(--ui-control-min) flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors",
+                    active
+                      ? "border-brand bg-brand-soft"
+                      : "border-line bg-surface hover:border-line-strong",
+                  )}
+                >
+                  <span className="font-semibold text-ink">{mode.label}</span>
+                  <span className="text-xs text-ink-muted">{mode.description}</span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+      ) : null}
 
       <Field
         label="Document title"
@@ -89,9 +147,11 @@ export function SummaryCreateForm({
       </div>
 
       <Alert tone="info">
-        {kind === "progress"
-          ? "All final Daily Reports in this period become the evidence for the draft."
-          : "Issued Progress Reports are used first, with every underlying Daily Report retained as provenance. Leave the dates blank for the whole project."}
+        {kind === "completion"
+          ? "Issued Progress Reports are used first, with every underlying Daily Report retained as provenance. Leave the dates blank for the whole project."
+          : sourceMode === "standalone"
+            ? "Nothing is consolidated. You write the report from your own notes, photographs, issues and documents, and it says so - there is no source record and nothing claims to come from a Daily Report."
+            : "All final Daily Reports in this period become the evidence for the draft."}
       </Alert>
 
       <div className="flex flex-wrap gap-3">
