@@ -5,6 +5,7 @@ import { Camera, FolderOpen, Images, Loader2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { attachPhoto } from "@/app/(app)/reports/photo-actions";
+import { attachSummaryPhoto } from "@/app/(app)/summary-reports/photo-actions";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -77,26 +78,36 @@ async function compress(file: File): Promise<Compressed> {
 }
 
 /**
- * Adds photos to a report, or to the project itself.
+ * Adds photos to a report, to a survey, or to the project itself.
  *
  * `reportId` is null on the project's Photos tab. The photos table allows it -
  * report_id is nullable and documented as "photos captured against the project
  * outside of any report" - and its RLS is company-scoped, not report-scoped,
- * so nothing about the security model changes between the two callers.
+ * so nothing about the security model changes between the callers.
+ *
+ * `summaryReportId` is the survey or consolidated report a photograph should
+ * join the moment it is taken. Everything above this line is identical either
+ * way: the same bucket, the same company folder, the same compression, the
+ * same validation. Only the row that records where it belongs differs.
  */
 export function PhotoUpload({
   companyId,
   projectId,
   reportId,
+  summaryReportId = null,
+  defaultCategory = "progress",
 }: {
   companyId: string;
   projectId: string;
   reportId: string | null;
+  summaryReportId?: string | null;
+  /** A survey documents what is there now, so it starts on Before. */
+  defaultCategory?: PhotoCategory;
 }) {
   // One ref per source: the attributes that decide what iOS opens are fixed on
   // each input rather than swapped on the shared one before a click.
   const inputRefs = useRef(new Map<PhotoSourceId, HTMLInputElement | null>());
-  const [category, setCategory] = useState<PhotoCategory>("progress");
+  const [category, setCategory] = useState<PhotoCategory>(defaultCategory);
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -140,15 +151,24 @@ export function PhotoUpload({
         if (uploadError) {
           failures.push(uploadError.message);
         } else {
-          const result = await attachPhoto({
-            projectId,
-            reportId,
-            storagePath: path,
-            caption: null,
-            category,
-            width: width || null,
-            height: height || null,
-          });
+          const result = summaryReportId
+            ? await attachSummaryPhoto({
+                summaryReportId,
+                storagePath: path,
+                caption: null,
+                category,
+                width: width || null,
+                height: height || null,
+              })
+            : await attachPhoto({
+                projectId,
+                reportId,
+                storagePath: path,
+                caption: null,
+                category,
+                width: width || null,
+                height: height || null,
+              });
           if (result?.error) failures.push(result.error);
         }
       } catch (cause) {

@@ -159,6 +159,22 @@ lifecycle.
   and opens with the heavier title block. Store identity, photo plates,
   the issue record, the document register and appendices all come from the V2
   template unchanged.
+- **Photographs are taken inside the survey.** `components/summary-reports/report-photos.tsx`
+  puts the camera, library and files buttons on the survey itself; a photograph
+  taken there is linked to the survey the moment it lands, so nothing has to be
+  found on the project tab afterwards. Thumbnails appear immediately with the
+  same P01/P02 references the PDF prints, captions and AI descriptions are the
+  existing `PhotoDetails`, and Remove takes the **link only** - the photograph
+  stays on the project. Project photographs can still be pulled in.
+  Underneath it is the same uploader, the same private bucket under
+  `{company}/{project}/`, the same `photos` table and the same
+  `summary_report_photos` link the PDF already reads. **No second photo system
+  and no migration.**
+  - The trap this created and the guard against it: a survey's curation form
+    still exists for its issues, and `saveSummaryCuration` rewrites photo links
+    by deleting them first. The form now carries a `photosIncluded` marker and
+    the action only touches photographs when it is present, so saving the issue
+    selection on a survey cannot empty its plates.
 - **AI drafting reads the surveyor's own notes** (the sections they typed) plus
   curated photograph captions and issues, since there are no source reports.
   Hand-written sections are still protected from being overwritten.

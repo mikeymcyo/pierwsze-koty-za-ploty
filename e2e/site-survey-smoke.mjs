@@ -217,7 +217,101 @@ for (const forbidden of ["Workforce", "Plant and equipment", "Deliveries"]) {
   check(`the consolidated PDF has no ${forbidden} section`, !pdf.includes(`>${forbidden}<`));
 }
 
-console.log("\n9. Everything else about a survey is the systems already there");
+console.log("\n9. Photographs are taken inside the survey, on the system already there");
+const photoActions = read("../app/(app)/summary-reports/photo-actions.ts");
+const workspace = read("../components/summary-reports/report-photos.tsx");
+const uploader = read("../components/reports/photo-upload.tsx");
+
+check("there is no second photo table", !/create table|from\("survey_photos"\)/.test(photoActions));
+check(
+  "a photograph goes into the same photos table",
+  /\.from\("photos"\)\s*\n\s*\.insert\(/.test(photoActions),
+);
+check(
+  "and into the link the PDF already reads",
+  /from\("summary_report_photos"\)\.insert\(/.test(photoActions.replace(/\s+/g, " ")),
+);
+check(
+  "the storage path is checked against this company and project",
+  /photoPathPrefix\(session\.companyId, report\.projectId\)/.test(photoActions),
+);
+check(
+  "an issued report takes no more photographs",
+  /status === "final"[\s\S]{0,80}SUMMARY_REPORT_IS_FINAL/.test(photoActions),
+);
+check(
+  "a photograph is only ever added from its own project",
+  /\.eq\("project_id", report\.projectId\)/.test(photoActions),
+);
+check(
+  "removing takes the link and not the photograph",
+  /\.from\("summary_report_photos"\)[\s\S]{0,60}\.delete\(\)/.test(photoActions) &&
+    !/from\("photos"\)[\s\S]{0,40}\.delete\(\)/.test(photoActions),
+);
+check(
+  "a new plate lands after the ones already there",
+  /nextSortOrder/.test(photoActions),
+);
+
+check("the uploader is the application's own", /<PhotoUpload/.test(workspace));
+check(
+  "and it attaches straight to this report",
+  /summaryReportId=\{reportId\}/.test(workspace),
+);
+check(
+  "one uploader, two destinations, one code path",
+  /summaryReportId\s*\?\s*await attachSummaryPhoto/.test(uploader.replace(/\n\s*/g, " ")),
+);
+check(
+  "captions and AI descriptions are the ones used everywhere else",
+  /<PhotoDetails/.test(workspace),
+);
+check(
+  "the screen shows the plate references the PDF will print",
+  /photoReference\(index\)/.test(workspace),
+);
+check(
+  "project photographs can still be pulled in",
+  /linkSummaryPhotos/.test(workspace),
+);
+check(
+  "a survey documents what is there now, so it starts on Before",
+  /defaultCategory="before"/.test(workspace),
+);
+
+// The trap this design creates, and the guard against it: the curation form
+// still exists on a survey for its issues, and it rewrites the photo links by
+// deleting them first.
+const curation = read("../components/summary-reports/summary-curation.tsx");
+const summaryActions = read("../app/(app)/summary-reports/actions.ts");
+check(
+  "a survey's curation form carries no photograph fields",
+  /showPhotos = true/.test(curation) && /\{showPhotos \? \(/.test(curation),
+);
+check(
+  "it marks whether it carried a selection at all",
+  /name="photosIncluded"/.test(curation),
+);
+const flatActions = summaryActions.replace(/\s+/g, " ");
+check(
+  "the action knows whether a selection was carried",
+  /const photosIncluded = formData\.get\("photosIncluded"\) !== null/.test(summaryActions),
+);
+check(
+  "saving issues alone deletes no photograph links",
+  /photosIncluded \? supabase\.from\("summary_report_photos"\)\.delete\(\)/.test(flatActions),
+);
+check(
+  "and reads no photograph fields either",
+  /const requestedPhotos = photosIncluded \? formData\.getAll\("photoId"\)/.test(flatActions),
+);
+check(
+  "the survey page shows the workspace and hides the picker",
+  /showPhotos=\{!survey\}/.test(read("../app/(app)/summary-reports/[id]/page.tsx")) &&
+    /<ReportPhotos/.test(read("../app/(app)/summary-reports/[id]/page.tsx")),
+);
+
+console.log("\n10. Everything else about a survey is the systems already there");
 const detail = read("../app/(app)/summary-reports/[id]/page.tsx");
 check("photographs and issues are curated the same way", /<SummaryCuration/.test(detail));
 check("documents are the same documents", /Supporting documents/.test(detail));

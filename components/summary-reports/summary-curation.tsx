@@ -39,10 +39,18 @@ export function SummaryCuration({
   reportId,
   photos,
   issues,
+  showPhotos = true,
 }: {
   reportId: string;
   photos: CuratedPhotoChoice[];
   issues: CuratedIssueChoice[];
+  /**
+   * False on a survey, which manages its photographs in place - taking them,
+   * captioning them and removing them without leaving the document. Two photo
+   * pickers on one screen, each saving through a different action, would be a
+   * way to lose a caption.
+   */
+  showPhotos?: boolean;
 }) {
   const save = saveSummaryCuration.bind(null, reportId);
   const [state, action] = useActionState<SummaryFormState, FormData>(save, {});
@@ -50,11 +58,21 @@ export function SummaryCuration({
     <form action={action} className="flex flex-col gap-6 border-t border-line pt-6">
       <div>
         <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">What the client sees</h2>
-        <p className="mt-1 text-sm text-ink-muted">Choose the photographs and issues included in this document.</p>
+        <p className="mt-1 text-sm text-ink-muted">
+          {showPhotos
+            ? "Choose the photographs and issues included in this document."
+            : "Choose the issues included in this document."}
+        </p>
       </div>
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
       {state.saved ? <Alert tone="success">Selection saved.</Alert> : null}
 
+      {/* Tells the action this form carried a photograph selection at all. A
+          survey manages its own photographs, so its form must not be read as
+          "no photographs selected" and empty the report. */}
+      {showPhotos ? <input type="hidden" name="photosIncluded" value="1" /> : null}
+
+      {showPhotos ? (
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-2 font-semibold text-ink">Photographs</legend>
         {photos.length === 0 ? (
@@ -91,6 +109,7 @@ export function SummaryCuration({
           </div>
         )}
       </fieldset>
+      ) : null}
 
       <fieldset className="flex flex-col gap-3">
         <legend className="mb-2 font-semibold text-ink">Issues</legend>

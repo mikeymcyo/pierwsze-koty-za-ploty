@@ -336,7 +336,11 @@ export async function saveSummaryCuration(
   _previous: SummaryFormState,
   formData: FormData,
 ): Promise<SummaryFormState> {
-  const requestedPhotos = formData.getAll("photoId").map(String);
+  // A survey manages its photographs in place and its curation form carries
+  // no photograph fields at all. Without this marker an issue-only save would
+  // read as "nothing selected" and delete every plate in the report.
+  const photosIncluded = formData.get("photosIncluded") !== null;
+  const requestedPhotos = photosIncluded ? formData.getAll("photoId").map(String) : [];
   const requestedIssues = formData.getAll("issueId").map(String);
   const session = await requireSessionContext();
   const supabase = await createClient();
@@ -363,7 +367,9 @@ export async function saveSummaryCuration(
   ]);
 
   const [{ error: photoDeleteError }, { error: issueDeleteError }] = await Promise.all([
-    supabase.from("summary_report_photos").delete().eq("summary_report_id", reportId),
+    photosIncluded
+      ? supabase.from("summary_report_photos").delete().eq("summary_report_id", reportId)
+      : Promise.resolve({ error: null }),
     supabase.from("summary_report_issues").delete().eq("summary_report_id", reportId),
   ]);
   const deleteError = photoDeleteError ?? issueDeleteError;

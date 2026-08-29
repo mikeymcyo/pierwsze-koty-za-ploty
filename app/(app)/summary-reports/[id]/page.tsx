@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 import { saveSummaryReportDocuments } from "@/app/(app)/documents/actions";
 import { applySummaryReview, reviewSummaryReportAction } from "@/app/(app)/reports/review-actions";
 import { SummaryCuration, type CuratedIssueChoice, type CuratedPhotoChoice } from "@/components/summary-reports/summary-curation";
+import { ReportPhotos, type ReportPhoto } from "@/components/summary-reports/report-photos";
 import { SummaryDetails } from "@/components/summary-reports/summary-details";
 import { SummaryDraft } from "@/components/summary-reports/summary-draft";
 import { DocumentPicker, type PickableDocument } from "@/components/documents/document-picker";
@@ -27,6 +28,7 @@ import { signPhotoUrls } from "@/lib/photos-signing";
 import {
   SUMMARY_KIND_LABELS,
   SUMMARY_SECTION_LABELS,
+  isSurvey,
   summaryPeriodLabel,
 } from "@/lib/summary-reports/sections";
 import { createClient } from "@/lib/supabase/server";
@@ -132,6 +134,24 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
     selected: selectedIssueIds.has(issue.id),
   }));
 
+  // A survey works its photographs in place, in the order they will print.
+  const survey = isSurvey(report.kind);
+  const photoById = new Map(photos.map((photo) => [photo.id, photo]));
+  const surveyPhotos: ReportPhoto[] = (photoLinksResult.data ?? []).flatMap((link) => {
+    const photo = photoById.get(link.photo_id);
+    return photo
+      ? [{ id: photo.id, url: photo.url, caption: photo.caption, category: photo.category }]
+      : [];
+  });
+  const availablePhotos: ReportPhoto[] = photos
+    .filter((photo) => !selectedPhotoIds.has(photo.id))
+    .map((photo) => ({
+      id: photo.id,
+      url: photo.url,
+      caption: photo.caption,
+      category: photo.category,
+    }));
+
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const isFinal = report.status === "final";
   const reopened = isReopened({ status: report.status, pdfPath: report.pdf_path });
@@ -214,8 +234,27 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
         </section>
       ) : null}
 
+      {/* Taken, captioned and removed without leaving the survey. The
+          consolidated reports keep curating from what the project already
+          holds, because they are written after the fact. */}
+      {!loadError && !isFinal && survey ? (
+        <ReportPhotos
+          reportId={id}
+          companyId={session.companyId}
+          projectId={report.project_id}
+          photos={surveyPhotos}
+          available={availablePhotos}
+          aiConfigured={hasAiConfig()}
+        />
+      ) : null}
+
       {!loadError && !isFinal ? (
-        <SummaryCuration reportId={id} photos={photos} issues={issues} />
+        <SummaryCuration
+          reportId={id}
+          photos={photos}
+          issues={issues}
+          showPhotos={!survey}
+        />
       ) : null}
 
       {!loadError ? (
