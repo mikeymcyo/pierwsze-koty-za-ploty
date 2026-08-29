@@ -58,7 +58,7 @@ const projectSchema = z
     start_date: optionalDate,
     expected_completion_date: optionalDate,
     description: optionalText,
-    status: z.enum(["active", "on_hold", "completed"]),
+    status: z.enum(["active", "survey", "on_hold", "completed"]),
   })
   .refine(
     (values) =>

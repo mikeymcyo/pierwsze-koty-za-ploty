@@ -7,7 +7,11 @@ import type { SummaryPdfData } from "@/lib/pdf/summary-document";
 import { reportSite } from "@/lib/reports/site-identity";
 import { storeFor } from "@/lib/stores/catalogue";
 import { storeLinkOf } from "@/lib/stores/project-link";
-import { SUMMARY_SECTION_LABELS, summarySectionOrder } from "@/lib/summary-reports/sections";
+import {
+  SUMMARY_SECTION_LABELS,
+  summaryPeriodLabel,
+  summarySectionOrder,
+} from "@/lib/summary-reports/sections";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatReportNumber } from "@/lib/utils";
 
@@ -180,10 +184,13 @@ export async function loadSummaryPdfData(
       content: section.content?.trim() ?? "",
     }));
 
-  const periodLabel =
-    report.period_start && report.period_end
-      ? `${formatDate(report.period_start)} to ${formatDate(report.period_end)}`
-      : "Whole project record";
+  // A survey is a visit, not a span - see summaryPeriodLabel.
+  const periodLabel = summaryPeriodLabel(
+    report.kind,
+    report.period_start,
+    report.period_end,
+    formatDate,
+  );
 
   return {
     ok: true,

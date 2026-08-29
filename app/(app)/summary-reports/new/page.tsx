@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { ArrowLeft, FileText } from "lucide-react";
 
 import { SummaryCreateForm } from "@/components/summary-reports/summary-create-form";
@@ -19,6 +20,11 @@ export default async function NewSummaryReportPage({
   searchParams: Promise<{ kind?: string; project?: string }>;
 }) {
   const { kind, project } = await searchParams;
+  // A survey is not built from issued evidence, so it has its own flow. Sending
+  // somebody here with ?kind=survey would quietly start a Progress Report.
+  if (kind === "survey") {
+    redirect(project ? `/surveys/new?project=${project}` : "/surveys/new");
+  }
   await requireSessionContext();
   const supabase = await createClient();
   const { data, error } = await withClockSkewRetry(() =>

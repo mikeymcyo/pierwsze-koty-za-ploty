@@ -103,37 +103,65 @@ swipe: it carries a warning about a PDF a client may already hold, and stays on
 the report. A draft offers Edit, an issued report offers Open. The ••• button is
 always visible for desktop and for anyone not using the gesture.
 
-### Site Survey - migration prepared, NOT APPLIED
+### Migration `20260831000008_site_surveys.sql` is APPLIED
 
-`supabase/migrations/20260831000008_site_surveys.sql`. Enum values only, no
-table, column, constraint, policy, index or backfill:
+Applied to the hosted project on 2026-08-30 with the owner's explicit approval,
+through `apply_migration` - **not** `db push`. Do not reapply it.
 
-- `summary_report_kind` += `survey`
-- `summary_section_type` += `survey_purpose`, `existing_condition`,
-  `measurements`, `access_and_constraints`, `proposed_works`, `requirements`,
-  `pricing_notes`
-- `project_status` += `survey`, sorted after `active`
+Enum values only. Verified against the live schema afterwards:
+`summary_report_kind` is `progress, completion, survey`; `summary_section_type`
+holds 21 values (the 14 that were there plus the 7 survey sections);
+`project_status` is `active, survey, on_hold, completed` - `survey` sorts
+immediately after `active`, so enquiries sit above on-hold and completed work.
+**Nothing else moved:** `projects` still has 17 columns, every table kept its
+policy count (67 across the schema), `anon` still holds no grant anywhere, row
+counts are unchanged, the `projects` md5 fingerprint is identical before and
+after, and `select count(*) from projects where status = 'survey'` was **0**
+straight after applying - no records were created and no data was altered.
 
-A survey is a `summary_reports` kind because that table already means "a
-standalone document about a project, issued once then immutable", numbered per
-kind with revisions, sections, curated photographs, an issue record and a
-document register. It has no source reports, and nothing in the schema requires
-any - that minimum is an application rule.
+**PostgreSQL cannot remove an enum value.** Rolling this back means leaving the
+values in place and unused, which is inert.
 
-It still belongs to a project because `photos.project_id` and
-`documents.project_id` are NOT NULL with composite foreign keys and their
-storage objects live under `{company_id}/{project_id}/`, matched by the bucket
-policies. Starting a survey from a store therefore creates the project in the
-same action, at `survey` status - an enquiry, not a live job. That is also why
-"associate the survey with a project later" needs nothing: the survey, its
-photographs, documents and issues are already on the project, and awarding the
-work is a change of status.
+### Site Survey / Inspection Report
 
-**PostgreSQL cannot remove an enum value**, so this is not revertible by a drop;
-rolling back means leaving the values unused, which is inert. Validated against
-a real PostgreSQL 16 with every migration applied; the schema test's enum counts
-are updated. Adding `survey` to the TypeScript `ProjectStatus` union and its
-label comes with the implementation, not with the migration.
+A visit made before anybody has worked on a site, to investigate, measure and
+photograph so the works can be priced. A third `summary_reports` kind, so it
+inherits per-kind numbering, revisions, sections, curated photographs, the issue
+record, the document register and the whole draft/preview/finalise/reopen
+lifecycle.
+
+- **`survey` project status is an enquiry.** Labelled "Survey / enquiry" in an
+  info-toned badge, and audited everywhere it matters: the dashboard's active
+  projects are still `.eq("status", "active")` so enquiries never distort the
+  count, a Daily Report cannot be started against one, and the project form's
+  zod enum accepts the value. An enquiry's project page offers the survey and
+  nothing else - no Daily, Progress or Completion Report - plus a one-tap
+  **Work awarded** that flips it to `active`. `awardProject` only updates a row
+  that is still `survey`, so an active or completed project cannot be reset.
+- **Store -> Start a site survey** creates the enquiry in the same action, with
+  the store's client, address, postcode and link carried across and the project
+  reference deliberately left blank. Several surveys can be run at one store:
+  each creates its own enquiry, or attaches to a project already chosen.
+- **A survey can also be started inside an existing project**, and from the
+  reports list. `/summary-reports/new?kind=survey` redirects to the survey flow
+  so a consolidated report can never be started by mistake.
+- **Seven sections** - purpose, findings and existing condition, measurements,
+  access and constraints, recommended works, materials/plant/access
+  requirements, notes for pricing. **No workforce, plant, deliveries or works
+  completed anywhere**, and the briefs forbid describing proposed work as done,
+  instructed or approved. Defects observed are issues, raised through the
+  existing system and printed in the report's own issue record.
+- **`canFinaliseSummary` no longer demands a source report for a survey** - it
+  is written from a visit, not consolidated - but still demands at least one
+  written section, and an issued survey is still immutable.
+- **The PDF is titled SITE SURVEY / INSPECTION REPORT**, carries "Date of visit"
+  rather than a reporting period, prints no Source record when there is none,
+  and opens with the heavier title block. Store identity, photo plates,
+  the issue record, the document register and appendices all come from the V2
+  template unchanged.
+- **AI drafting reads the surveyor's own notes** (the sections they typed) plus
+  curated photograph captions and issues, since there are no source reports.
+  Hand-written sections are still protected from being overwritten.
 
 ### Navigation and project UX
 

@@ -209,6 +209,21 @@ export async function generateSummaryReport(
     })
     .join("\n");
 
+  // A survey has no source reports - it is written from a visit. What it does
+  // have is what the surveyor typed on site, so that is the evidence, together
+  // with the photographs and issues they recorded. Anything they wrote by hand
+  // is protected from being overwritten further down, so this reads their
+  // notes without replacing them.
+  if (report.kind === "survey") {
+    const { data: own } = await supabase
+      .from("summary_report_sections")
+      .select("section_type, content, sort_order")
+      .eq("summary_report_id", reportId)
+      .order("sort_order", { ascending: true });
+    const written = sectionText(own ?? []);
+    if (written) evidenceBlocks.push(`SURVEY NOTES RECORDED ON SITE\n${written}`);
+  }
+
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const result = await generateSummarySections({
     kind: report.kind,

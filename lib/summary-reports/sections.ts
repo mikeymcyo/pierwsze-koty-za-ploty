@@ -89,8 +89,67 @@ export const COMPLETION_SECTIONS: SummarySectionDefinition[] = [
   },
 ];
 
+/**
+ * The site survey.
+ *
+ * A visit made before anybody has worked here, to investigate, measure and
+ * photograph so the works can be priced. Nothing below asks what was
+ * completed, who was on site, what was delivered or what plant was used -
+ * those are the wrong questions for a survey, and a document that asks them
+ * implies work happened.
+ *
+ * Defects observed are deliberately not a section. They are issues, raised
+ * through the existing issue system so they can be tracked, closed and carried
+ * into the job if the work is awarded, and printed in this report's own issue
+ * record.
+ */
+export const SURVEY_SECTIONS: SummarySectionDefinition[] = [
+  {
+    type: "survey_purpose",
+    label: "Purpose of visit",
+    brief:
+      "Why this visit was made and what was being investigated - the question the survey set out to answer. Never a statement about work carried out.",
+  },
+  {
+    type: "existing_condition",
+    label: "Findings and existing condition",
+    brief:
+      "What was actually found on site: the condition of what is there now, as observed. Only what was seen. Never an assessment of compliance, adequacy or cause unless the observation supports it.",
+  },
+  {
+    type: "measurements",
+    label: "Measurements",
+    brief:
+      "Dimensions, quantities and areas actually taken on site, with what each one refers to. Never an estimate presented as a measurement.",
+  },
+  {
+    type: "access_and_constraints",
+    label: "Access and site constraints",
+    brief:
+      "How the area is reached and what limits working there: access routes, restrictions, trading hours, height, storage, permits observed to be needed. Only constraints actually established on the visit.",
+  },
+  {
+    type: "proposed_works",
+    label: "Recommended works",
+    brief:
+      "What is proposed to put the findings right, as a recommendation. Explicitly proposed, never described as done, agreed, instructed or approved.",
+  },
+  {
+    type: "requirements",
+    label: "Materials, plant and access requirements",
+    brief:
+      "What carrying out the recommended works would require: materials, plant, access equipment, attendances. A requirement, never a record of anything supplied or used.",
+  },
+  {
+    type: "pricing_notes",
+    label: "Notes for pricing",
+    brief:
+      "What whoever prices this needs to know and could not tell from the rest: unknowns, risks, assumptions, anything that will need confirming. Leave empty rather than filling it with restated findings.",
+  },
+];
+
 export const SUMMARY_SECTION_LABELS: Record<SummarySectionType, string> = Object.fromEntries(
-  [...PROGRESS_SECTIONS, ...COMPLETION_SECTIONS].map((section) => [
+  [...PROGRESS_SECTIONS, ...COMPLETION_SECTIONS, ...SURVEY_SECTIONS].map((section) => [
     section.type,
     section.label,
   ]),
@@ -99,9 +158,52 @@ export const SUMMARY_SECTION_LABELS: Record<SummarySectionType, string> = Object
 export const SUMMARY_KIND_LABELS: Record<SummaryReportKind, string> = {
   progress: "Progress Report",
   completion: "Completion Report",
+  survey: "Site Survey",
 };
 
+/** What the issued document calls itself. */
+export const SUMMARY_DOCUMENT_TITLES: Record<SummaryReportKind, string> = {
+  progress: "Progress Report",
+  completion: "Completion Report",
+  survey: "Site Survey / Inspection Report",
+};
+
+/**
+ * A survey is a visit, not a period, and it is built from nothing.
+ *
+ * Everything that treats a consolidated report as "a span of time consolidated
+ * from issued evidence" has to ask this rather than assume it - the source
+ * requirement, the period wording and the document title all turn on it.
+ */
+export function isSurvey(kind: SummaryReportKind): boolean {
+  return kind === "survey";
+}
+
+/** How the document describes when it applies. */
+export function summaryPeriodLabel(
+  kind: SummaryReportKind,
+  start: string | null,
+  end: string | null,
+  format: (value: string) => string | null = (value) => value,
+): string {
+  if (isSurvey(kind)) {
+    // Both dates hold the visit date, so "29 August to 29 August" would be
+    // nonsense. One date, named for what it is.
+    const visited = start ?? end;
+    return visited ? (format(visited) ?? visited) : "Date not recorded";
+  }
+  if (start && end) return `${format(start) ?? start} to ${format(end) ?? end}`;
+  return "Whole project record";
+}
+
+/** What the control panel calls that date. */
+export function summaryPeriodFieldLabel(kind: SummaryReportKind): string {
+  if (isSurvey(kind)) return "Date of visit";
+  return kind === "completion" ? "Project record" : "Reporting period";
+}
+
 export function summarySectionsFor(kind: SummaryReportKind): SummarySectionDefinition[] {
+  if (kind === "survey") return SURVEY_SECTIONS;
   return kind === "progress" ? PROGRESS_SECTIONS : COMPLETION_SECTIONS;
 }
 

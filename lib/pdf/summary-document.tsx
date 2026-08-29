@@ -21,6 +21,11 @@ import {
 import { photoReference } from "@/lib/pdf/photo-evidence";
 import { storeLine } from "@/lib/reports/site-identity";
 import { createPdfStyles, defaultPdfTheme } from "@/lib/pdf/theme";
+import {
+  SUMMARY_DOCUMENT_TITLES,
+  isSurvey,
+  summaryPeriodFieldLabel,
+} from "@/lib/summary-reports/sections";
 
 /**
  * The consolidated report: Progress, and Completion.
@@ -91,7 +96,8 @@ function plateRange(count: number): string | undefined {
 
 export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
   const completion = data.kind === "completion";
-  const documentType = completion ? "Completion Report" : "Progress Report";
+  const survey = isSurvey(data.kind);
+  const documentType = SUMMARY_DOCUMENT_TITLES[data.kind];
   const documentLabel = `${documentType} No. ${data.number}${
     data.revision ? ` Rev ${data.revision}` : ""
   }`;
@@ -116,7 +122,7 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
           // The Completion Report opens harder because it is the document the
           // job is remembered by. A stronger title block, not a cover sheet -
           // a page carrying six words would be the wrong kind of impressive.
-          large={completion}
+          large={completion || survey}
         />
 
         <ControlPanel
@@ -126,7 +132,7 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
             // in letters twice this size directly above, and repeating it
             // here would spend a line of the control panel saying nothing.
             { label: "Title", value: data.title },
-            { label: completion ? "Project record" : "Reporting period", value: data.periodLabel },
+            { label: summaryPeriodFieldLabel(data.kind), value: data.periodLabel },
             { label: "Store", value: storeLine(data.store) },
             { label: "Project reference", value: data.projectReference },
             { label: "Revision", value: data.revision ? String(data.revision) : null },
@@ -201,14 +207,19 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
           </>
         ) : null}
 
-        <>
-          <SectionHeading s={s}>Source record</SectionHeading>
-          {data.sourceLabels.map((source) => (
-            <Text key={source} style={s.sourceLine}>
-              {source}
-            </Text>
-          ))}
-        </>
+        {/* A survey has no source record: it is written from a visit, not
+            consolidated from issued reports. Printing an empty heading would
+            imply evidence that does not exist. */}
+        {data.sourceLabels.length > 0 ? (
+          <>
+            <SectionHeading s={s}>Source record</SectionHeading>
+            {data.sourceLabels.map((source) => (
+              <Text key={source} style={s.sourceLine}>
+                {source}
+              </Text>
+            ))}
+          </>
+        ) : null}
 
         <RunningFooter
           s={s}

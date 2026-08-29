@@ -23,6 +23,9 @@ export default async function NewReportPage() {
       .from("projects")
       .select("id, name, client, site_address, status")
       .neq("status", "completed")
+      // An enquiry is not a job yet, so there is nothing to write a day's
+      // record against. Surveys are started from the store or the project.
+      .neq("status", "survey")
       .order("updated_at", { ascending: false }),
   );
 

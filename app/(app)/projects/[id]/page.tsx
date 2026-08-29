@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { AlertTriangle, Camera, FileText, Pencil, Plus } from "lucide-react";
+import { AlertTriangle, Camera, ClipboardList, FileText, Pencil, Plus } from "lucide-react";
 
 import { startReport } from "@/app/(app)/reports/actions";
 import { IssueList } from "@/components/issues/issue-list";
@@ -12,7 +12,8 @@ import { DocumentUpload } from "@/components/documents/document-upload";
 import { ProjectTabs } from "@/components/projects/project-tabs";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
-import { ProjectStatusBadge } from "@/components/projects/status-badge";
+import { AwardProject } from "@/components/projects/award-project";
+import { ProjectStatusBadge, isEnquiry } from "@/components/projects/status-badge";
 import { ReportRow } from "@/components/reports/report-row";
 import { SummaryRow } from "@/components/summary-reports/summary-row";
 import { LinkedStoreCard, UnknownStoreCard } from "@/components/stores/linked-store-card";
@@ -81,6 +82,7 @@ export default async function ProjectPage({
   // Resolved from the directory that ships with this build, not from anything
   // stored on the project, so a corrected address reaches every project at the
   // store at once.
+  const enquiry = isEnquiry(project.status);
   const storeLink = storeLinkOf(project);
   const linkedStore = storeLink ? storeFor(storeLink.directory, storeLink.code) : null;
 
@@ -191,25 +193,38 @@ export default async function ProjectPage({
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {/* Posts rather than links: starting a report inserts a row and lets
-              the database assign its number, which a GET must not do. */}
-          <form action={startReport}>
-            <input type="hidden" name="projectId" value={project.id} />
-            <Button type="submit">
-              <Plus aria-hidden />
-              New Daily Report
-            </Button>
-          </form>
-          <Button asChild variant="secondary">
-            <Link href={`/summary-reports/new?kind=progress&project=${project.id}`}>
-              <Plus aria-hidden />
-              Progress Report
-            </Link>
-          </Button>
-          <Button asChild variant="secondary">
-            <Link href={`/summary-reports/new?kind=completion&project=${project.id}`}>
-              <Plus aria-hidden />
-              Completion Report
+          {/* An enquiry has no works to report on yet, so it is offered the
+              survey and nothing else. Daily, Progress and Completion Reports
+              appear the moment the work is awarded. */}
+          {enquiry ? null : (
+            <>
+              {/* Posts rather than links: starting a report inserts a row and
+                  lets the database assign its number, which a GET must not do. */}
+              <form action={startReport}>
+                <input type="hidden" name="projectId" value={project.id} />
+                <Button type="submit">
+                  <Plus aria-hidden />
+                  New Daily Report
+                </Button>
+              </form>
+              <Button asChild variant="secondary">
+                <Link href={`/summary-reports/new?kind=progress&project=${project.id}`}>
+                  <Plus aria-hidden />
+                  Progress Report
+                </Link>
+              </Button>
+              <Button asChild variant="secondary">
+                <Link href={`/summary-reports/new?kind=completion&project=${project.id}`}>
+                  <Plus aria-hidden />
+                  Completion Report
+                </Link>
+              </Button>
+            </>
+          )}
+          <Button asChild variant={enquiry ? "primary" : "secondary"}>
+            <Link href={`/surveys/new?project=${project.id}`}>
+              <ClipboardList aria-hidden />
+              Site survey
             </Link>
           </Button>
           <Button asChild variant="secondary">
@@ -220,6 +235,16 @@ export default async function ProjectPage({
           </Button>
         </div>
       </header>
+
+      {enquiry ? (
+        <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface-muted p-4">
+          <p className="text-sm text-ink-muted">
+            This is an enquiry: somebody is pricing work here, not doing it. It is kept out of
+            active projects and off the dashboard until the work is awarded.
+          </p>
+          <AwardProject projectId={project.id} />
+        </div>
+      ) : null}
 
       <Suspense fallback={<div className="h-12 border-b border-line" />}>
         <ProjectTabs

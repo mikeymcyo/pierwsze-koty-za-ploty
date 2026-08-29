@@ -39,6 +39,7 @@ export default async function ReportsPage() {
           <Button asChild variant="secondary" size="sm"><Link href="/reports/new"><Plus aria-hidden />Daily</Link></Button>
           <Button asChild variant="secondary" size="sm"><Link href="/summary-reports/new?kind=progress"><Plus aria-hidden />Progress</Link></Button>
           <Button asChild variant="secondary" size="sm"><Link href="/summary-reports/new?kind=completion"><Plus aria-hidden />Completion</Link></Button>
+          <Button asChild variant="secondary" size="sm"><Link href="/surveys/new"><Plus aria-hidden />Survey</Link></Button>
         </div>
       </header>
 

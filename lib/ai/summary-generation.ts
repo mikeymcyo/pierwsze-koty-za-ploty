@@ -30,7 +30,13 @@ export async function generateSummarySections(
   if (!apiKey) return { ok: false, error: "AI drafting is not configured on this deployment." };
 
   if (!input.evidence.trim()) {
-    return { ok: false, error: "The selected source reports contain no written evidence." };
+    return {
+      ok: false,
+      error:
+        input.kind === "survey"
+          ? "Write some notes, or add captioned photographs, before drafting. There is nothing to work from yet."
+          : "The selected source reports contain no written evidence.",
+    };
   }
 
   const definitions = summarySectionsFor(input.kind);

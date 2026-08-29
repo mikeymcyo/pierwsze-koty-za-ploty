@@ -16,7 +16,12 @@ export type Json =
   | Json[];
 
 export type CompanyRole = "owner" | "member";
-export type ProjectStatus = "active" | "on_hold" | "completed";
+/**
+ * `survey` is an enquiry: somebody is pricing work here, not doing it. It
+ * exists so a survey can use the ordinary photo, document, issue and report
+ * systems without the enquiry appearing in active workload.
+ */
+export type ProjectStatus = "active" | "survey" | "on_hold" | "completed";
 export type ReportStatus = "draft" | "final";
 export type ReportSectionType =
   | "executive_summary"
@@ -50,7 +55,7 @@ export type DocumentType =
 export type PhotoPairRole = "before" | "after";
 export type IssuePriority = "low" | "medium" | "high" | "critical";
 export type IssueStatus = "open" | "in_progress" | "closed";
-export type SummaryReportKind = "progress" | "completion";
+export type SummaryReportKind = "progress" | "completion" | "survey";
 export type SummarySectionType =
   | "period_summary"
   | "key_activities"
@@ -65,7 +70,16 @@ export type SummarySectionType =
   | "completed_works"
   | "photographic_record"
   | "sign_off"
-  | "issues_and_resolutions";
+  | "issues_and_resolutions"
+  // Site survey. A visit made before works, so nothing here asks what was
+  // completed, who was on site or what was delivered.
+  | "survey_purpose"
+  | "existing_condition"
+  | "measurements"
+  | "access_and_constraints"
+  | "proposed_works"
+  | "requirements"
+  | "pricing_notes";
 
 type Timestamps = {
   created_at: string;

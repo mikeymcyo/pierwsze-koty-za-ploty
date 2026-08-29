@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, MapPin, Moon, Plus } from "lucide-react";
+import { ChevronRight, ClipboardList, MapPin, Moon, Plus } from "lucide-react";
 
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Button } from "@/components/ui/button";
@@ -115,6 +115,16 @@ export default async function StorePage({
           </Link>
         </Button>
       </div>
+
+      {/* The visit that happens before there is a job. Starting one from here
+          creates the enquiry it needs to keep its photographs and documents,
+          so nothing has to be set up first. */}
+      <Button asChild size="lg" variant="secondary">
+        <Link href={`/surveys/new?directory=${store.directoryId}&store=${store.code}`}>
+          <ClipboardList aria-hidden />
+          Start a site survey
+        </Link>
+      </Button>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-bold uppercase tracking-wide text-ink-muted">

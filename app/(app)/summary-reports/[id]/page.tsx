@@ -24,7 +24,11 @@ import { signDocumentUrls } from "@/lib/documents/signing";
 import { isReopened } from "@/lib/reports/lifecycle";
 import { requireSessionContext } from "@/lib/auth/session";
 import { signPhotoUrls } from "@/lib/photos-signing";
-import { SUMMARY_KIND_LABELS, SUMMARY_SECTION_LABELS } from "@/lib/summary-reports/sections";
+import {
+  SUMMARY_KIND_LABELS,
+  SUMMARY_SECTION_LABELS,
+  summaryPeriodLabel,
+} from "@/lib/summary-reports/sections";
 import { createClient } from "@/lib/supabase/server";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { formatDate, formatReportNumber } from "@/lib/utils";
@@ -173,7 +177,12 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
             {report.title || `${label} ${formatReportNumber(report.number)}`}
           </h1>
           <p className="mt-1 text-sm text-ink-muted">
-            {[project?.name, report.period_start && report.period_end ? `${formatDate(report.period_start)} to ${formatDate(report.period_end)}` : "Whole project"].filter(Boolean).join(" · ")}
+            {[
+              project?.name,
+              summaryPeriodLabel(report.kind, report.period_start, report.period_end, formatDate),
+            ]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
         <Badge tone={isFinal ? "success" : "neutral"}>{isFinal ? "Final" : reopened ? "Reopened" : "Draft"}</Badge>
@@ -186,7 +195,9 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
         <SummaryDetails reportId={id} title={report.title} />
       ) : null}
 
-      {!loadError ? (
+      {/* A survey has none: it is written from a visit rather than
+          consolidated from issued reports. */}
+      {!loadError && sourceItems.length > 0 ? (
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">Source evidence</h2>
           <Card><CardContent>

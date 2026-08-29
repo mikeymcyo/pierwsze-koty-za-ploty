@@ -5,11 +5,18 @@ export const SUMMARY_REPORT_IS_FINAL =
 
 export function canFinaliseSummary(input: {
   status: "draft" | "final";
+  kind: SummaryReportKind;
   sourceCount: number;
   sectionCount: number;
 }): { ok: true } | { ok: false; message: string } {
   if (input.status === "final") return { ok: false, message: SUMMARY_REPORT_IS_FINAL };
-  if (input.sourceCount === 0) {
+  // A survey is built from a visit, not from issued reports. Requiring a
+  // source would make it impossible to issue one, which is the whole point of
+  // the document: it exists before there is anything to consolidate.
+  //
+  // Compared here rather than through isSurvey so this module keeps no runtime
+  // imports and can be tested by loading it directly.
+  if (input.kind !== "survey" && input.sourceCount === 0) {
     return { ok: false, message: "Add at least one issued source report before finalising." };
   }
   if (input.sectionCount === 0) {

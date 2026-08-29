@@ -78,6 +78,7 @@ export async function finaliseSummaryReport(
   if (!loaded.ok) return { error: loaded.error };
   const check = canFinaliseSummary({
     status: loaded.report.status,
+    kind: loaded.data.kind,
     sourceCount: loaded.sourceCount,
     sectionCount: loaded.sectionCount,
   });
