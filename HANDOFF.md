@@ -32,6 +32,38 @@ The current implementation completes the core workflow:
   snapshots its issue status and resolution.
 - Reports, Project detail and Dashboard list all three document types.
 
+### Project activity - the job's history, on the project's own page
+
+`/projects/[id]?tab=activity`. Surveys, Daily, Progress and Completion Reports,
+issues raised and issues closed, newest first, each row opening the record it
+came from.
+
+- **There is no activity table and there must not be one.** Every entry already
+  exists as a report or an issue; a second copy would be one more thing to keep
+  in step and a migration to pay for it. No migration was added for this.
+- The rules live in `lib/projects/activity.ts` - pure, no runtime imports, no
+  `@/` aliases, so `npm run test:activity` exercises them without a database.
+  Date formatting is passed in for the same reason.
+- Issues are read from `issues.created_at` and `issues.closed_at`, **not** from
+  `issue_events`: that table has no `project_id` (it would cost a second
+  lookup) and it logs every open/in-progress move, which is a log rather than a
+  job history. A reopened-and-reclosed issue therefore shows one closing, at
+  the time it currently holds.
+- **No N+1.** Daily and summary rows come from the two queries the page already
+  ran; only `created_at` was added to their selects. Issues need one extra
+  query, because the Issues tab hides closed ones and the timeline needs them -
+  and it only runs when the Activity tab is the one being shown.
+- Every item is keyed `kind:rowId`, so merging a source in twice cannot
+  duplicate an event. Capped at 100 so a two-year job does not push a thousand
+  rows at a phone.
+- If the issues query fails the timeline still renders the reports and says one
+  line about what is missing, rather than an error card over the lot.
+- Times are read on **Europe/London** (`formatTime`, `ukDay` in `lib/utils.ts`).
+  The servers are UTC, and without that an entry made just after midnight in
+  the summer would show an hour early, on the day before.
+- Nothing about reports or issues changed. The component is read-only: no
+  action, no insert, no update, no delete - the test asserts it.
+
 ### The lifecycle batch, `00a3bfb` - owner-tested and working
 
 Confirmed by the owner on the deployed Vercel Preview, on an iPad, after the

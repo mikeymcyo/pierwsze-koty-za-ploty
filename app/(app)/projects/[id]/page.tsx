@@ -9,6 +9,7 @@ import { IssueList } from "@/components/issues/issue-list";
 import { RaiseIssue, type PhotoChoice } from "@/components/issues/raise-issue";
 import { DocumentCard, type DocumentCardData } from "@/components/documents/document-card";
 import { DocumentUpload } from "@/components/documents/document-upload";
+import { ProjectActivity } from "@/components/projects/project-activity";
 import { ProjectTabs } from "@/components/projects/project-tabs";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
@@ -25,7 +26,14 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { hasAiConfig } from "@/lib/ai/report-generation";
 import { requireSessionContext } from "@/lib/auth/session";
+import { ISSUE_PRIORITY_LABELS } from "@/lib/issues/metadata";
 import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
+import {
+  dailyActivity,
+  issueActivity,
+  mergeActivity,
+  summaryActivity,
+} from "@/lib/projects/activity";
 import { signDocumentUrls } from "@/lib/documents/signing";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import { storeFor } from "@/lib/stores/catalogue";
@@ -86,19 +94,30 @@ export default async function ProjectPage({
   const storeLink = storeLinkOf(project);
   const linkedStore = storeLink ? storeFor(storeLink.directory, storeLink.code) : null;
 
-  const [reportsResult, summaryReportsResult, photosResult, issuesResult, documentsResult] =
-    await Promise.all([
+  // The Activity tab reads issues that the Issues tab hides - closed ones,
+  // and when each was closed - so it needs its own query rather than a
+  // filtered view of that one. It is only run on the tab that shows it.
+  const wantsActivity = activeTab === "activity";
+
+  const [
+    reportsResult,
+    summaryReportsResult,
+    photosResult,
+    issuesResult,
+    documentsResult,
+    activityIssuesResult,
+  ] = await Promise.all([
     withClockSkewRetry(() =>
       supabase
         .from("reports")
-        .select("id, report_number, report_date, status")
+        .select("id, report_number, report_date, status, created_at")
         .eq("project_id", project.id)
         .order("report_number", { ascending: false }),
     ),
     withClockSkewRetry(() =>
       supabase
         .from("summary_reports")
-        .select("id, kind, number, revision, title, period_start, period_end, status")
+        .select("id, kind, number, revision, title, period_start, period_end, status, created_at")
         .eq("project_id", project.id)
         .order("created_at", { ascending: false }),
     ),
@@ -131,6 +150,15 @@ export default async function ProjectPage({
         .eq("project_id", project.id)
         .order("created_at", { ascending: false }),
     ),
+    wantsActivity
+      ? withClockSkewRetry(() =>
+          supabase
+            .from("issues")
+            .select("id, title, priority, status, resolution, created_at, closed_at")
+            .eq("project_id", project.id)
+            .order("created_at", { ascending: false }),
+        )
+      : Promise.resolve(null),
   ]);
 
   const loadError =
@@ -166,6 +194,18 @@ export default async function ProjectPage({
     fileSize: row.file_size,
     url: documentUrls.get(row.storage_path) ?? null,
   }));
+
+  // Built from the rows already fetched above plus that one extra query, so
+  // the whole history costs no more round trips than the tab it sits beside.
+  // A source that failed is simply absent and named on the tab; it does not
+  // take the rest of the history down with it.
+  const activityItems = wantsActivity
+    ? mergeActivity([
+        dailyActivity(reports, formatDate),
+        summaryActivity(summaryReports, formatDate),
+        issueActivity(activityIssuesResult?.data ?? [], ISSUE_PRIORITY_LABELS),
+      ])
+    : [];
 
   const photoChoices: PhotoChoice[] = photoRows.map((photo) => ({
     id: photo.id,
@@ -359,6 +399,13 @@ export default async function ProjectPage({
             <PhotoGrid photos={photos} aiConfigured={hasAiConfig()} />
           )}
         </section>
+      ) : null}
+
+      {!loadError && activeTab === "activity" ? (
+        <ProjectActivity
+          items={activityItems}
+          unavailable={activityIssuesResult?.error ? "Issues" : null}
+        />
       ) : null}
 
       {!loadError && activeTab === "issues" ? (
