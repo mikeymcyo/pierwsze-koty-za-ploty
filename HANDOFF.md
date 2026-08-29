@@ -88,6 +88,66 @@ application code, which is what changed.
 - The issued PDF gains a Supporting Documents table whose optional columns
   appear only when something fills them.
 
+### Supporting documents inside the issued PDF, `d596235`
+
+Owner-tested on the iPad and passing. Each document carries its own **Open
+document** action, so one attachment can be inspected without opening the whole
+package. A per-report **Include supporting documents in the final PDF** toggle
+decides whether they are merged in. The merge is page-level, through `pdf-lib`
+`copyPages` in `lib/pdf/merge.ts` - text stays text, a drawing stays vector,
+nothing is rasterised and no expiring signed URL is printed into the file. The
+order is deterministic. A document that cannot be read fails the whole merge
+and is named, rather than issuing a package with a hole in it. The draft
+preview renders the **same** combined bytes the finalise step would store, so
+what is checked is what goes out; once issued, the stored file is immutable and
+superseding the project's copy of a drawing cannot reach inside it.
+
+### Master AI - Review and Polish Report, `d0cde9c` and `218c37e`
+
+A whole-report review that never writes on its own. The model's reply is
+reconciled in `lib/reports/master-review.ts` against the report as it actually
+stands: an invented section is discarded, a section it omitted is carried
+through unchanged, and its own `changed` flag is ignored in favour of comparing
+the text. Only sections the user ticks are written, and "Accept all" is limited
+to AI-drafted sections - hand-written paragraphs are offered one at a time.
+
+**Contradictions are flagged, never resolved. Gaps are raised, never filled.**
+This is the behaviour the owner confirmed on the iPad, where the review noticed
+that the narrative said a cable issue had been sorted while the Issue record
+was still OPEN and warned rather than silently closing it. Do not change it.
+
+### The issue-closing bug, and PDF issue pagination
+
+Two faults found on a real iPad.
+
+**Closing an issue printed a validator sentence.** `updateIssue` in
+`app/(app)/issues/actions.ts` built its parse object without a `resolution`
+key, while the schema required a string - so zod reported exactly what it saw,
+"Invalid input: expected string, received undefined", under the Resolution box.
+The form had always sent the field. This broke *every* save from the edit form
+and meant the close rule never ran at all. The field is read now; the optional
+text fields tolerate a missing key rather than reporting on it; a resolution
+typed against a non-closed status is kept instead of being discarded on save.
+
+`lib/issues/validation.ts` is the deeper fix: no validator vocabulary can reach
+a screen. Anything that reads like parser output is replaced with a plain
+sentence, so a future form/action mismatch degrades to something harmless
+rather than to nonsense under a field.
+
+**Issues no longer own a page each.** The cause was a hard `<View break>` in
+front of the Photographs section in both PDF documents: a short Issues section
+ended its page early because the next section was forced onto a new one.
+Removed in both. Whole sections no longer carry `wrap={false}` either - that
+made a section jump a page rather than split. Headings now use
+`minPresenceAhead` so they are not stranded at a page foot. Per-issue cards,
+per-photo cells and table rows keep `wrap={false}`: those must stay whole.
+
+Measured by rendering the real layouts and counting pages - daily report, three
+short issues and two photographs: **3 pages before, 2 after**; six issues and
+four photographs: **3 before, 2 after**; consolidated report, one short issue
+and two photographs: **2 before, 1 after**. No migration.
+
+
 ### Migration `20260828000005_summary_reports.sql` is APPLIED
 
 Verified 2026-08-29 against the hosted database (project `anwzyzfgfcuxrrpuaxwk`),

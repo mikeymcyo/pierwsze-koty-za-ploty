@@ -223,14 +223,18 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
             the notes did not support were never generated, so nothing here is
             padded to fill a heading. */}
         {data.sections.map((section) => (
-          <View key={section.type} wrap={false}>
-            <Text style={styles.sectionHeading}>{section.label}</Text>
+          <View key={section.type}>
+            <Text style={styles.sectionHeading} minPresenceAhead={48}>
+              {section.label}
+            </Text>
             <Text style={styles.body}>{section.content}</Text>
           </View>
         ))}
 
-        <View wrap={false}>
-          <Text style={styles.sectionHeading}>Workforce on site</Text>
+        <View>
+          <Text style={styles.sectionHeading} minPresenceAhead={48}>
+            Workforce on site
+          </Text>
           {data.workforce.length === 0 ? (
             <Text style={styles.empty}>None recorded.</Text>
           ) : (
@@ -251,8 +255,10 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
           )}
         </View>
 
-        <View wrap={false}>
-          <Text style={styles.sectionHeading}>Plant and equipment</Text>
+        <View>
+          <Text style={styles.sectionHeading} minPresenceAhead={48}>
+            Plant and equipment
+          </Text>
           {data.plant.length === 0 ? (
             <Text style={styles.empty}>None recorded.</Text>
           ) : (
@@ -273,7 +279,9 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
 
         {data.issues.length > 0 ? (
           <View>
-            <Text style={styles.sectionHeading}>Issues raised</Text>
+            <Text style={styles.sectionHeading} minPresenceAhead={48}>
+              Issues raised
+            </Text>
             {data.issues.map((issue) => (
               <View key={issue.id} style={styles.issue} wrap={false}>
                 <Text style={styles.issueTitle}>{issue.title}</Text>
@@ -289,15 +297,23 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
         ) : null}
 
         {data.supportingDocuments.length > 0 ? (
-          <View wrap={false}>
-            <Text style={styles.sectionHeading}>Supporting documents</Text>
+          <View>
+            <Text style={styles.sectionHeading} minPresenceAhead={48}>
+              Supporting documents
+            </Text>
             <DocumentTable rows={data.supportingDocuments} />
           </View>
         ) : null}
 
         {data.photos.length > 0 ? (
-          <View break>
-            <Text style={styles.sectionHeading}>Photographs</Text>
+          // No page break. Forcing one here ended whatever preceded it - often
+          // a single short issue - halfway up a page and left the rest blank.
+          // The grid flows, and each cell still holds its image and caption
+          // together.
+          <View>
+            <Text style={styles.sectionHeading} minPresenceAhead={90}>
+              Photographs
+            </Text>
             <View style={styles.photoGrid}>
               {data.photos.map((photo) => (
                 // wrap={false} keeps an image and its caption together: a

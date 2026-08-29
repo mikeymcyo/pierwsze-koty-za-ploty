@@ -21,6 +21,7 @@
     "test:build-ref": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/build-ref-smoke.mjs",
     "test:dictation": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/dictation-smoke.mjs",
     "test:regeneration": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/regeneration-smoke.mjs",
+    "test:issue-closing": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/issue-closing-smoke.mjs",
     "test:issues-pdf": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/issues-pdf-smoke.mjs",
     "test:summary-reports": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/summary-reports-smoke.mjs",
     "test:lifecycle": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/lifecycle-smoke.mjs",

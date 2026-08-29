@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { requireSessionContext } from "@/lib/auth/session";
 import { closedAtFor, hasRequiredResolution } from "@/lib/issues/metadata";
+import { RESOLUTION_REQUIRED, fieldErrorsFrom } from "@/lib/issues/validation";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -30,26 +31,35 @@ export type IssueFormState = {
   saved?: boolean;
 };
 
+/**
+ * Never the validator's own words. See lib/issues/validation.ts - a missing
+ * form field once printed "expected string, received undefined" under the
+ * Resolution box, and nobody could close an issue.
+ */
 function fieldErrorsOf(error: z.ZodError): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const issue of error.issues) {
-    const key = issue.path[0];
-    if (typeof key === "string" && !result[key]) result[key] = issue.message;
-  }
-  return result;
+  return fieldErrorsFrom(error.issues);
 }
 
+/**
+ * An optional free-text field.
+ *
+ * Tolerates the key being missing as well as empty. A browser omits an
+ * unchecked control entirely, and an action that forgets to read one should
+ * produce a saved record rather than a validator message about `undefined`.
+ */
 const optionalText = z
-  .string()
-  .trim()
-  .transform((value) => (value.length > 0 ? value : null))
-  .nullable();
+  .union([z.string(), z.undefined(), z.null()])
+  .transform((value) => {
+    const trimmed = (value ?? "").trim();
+    return trimmed.length > 0 ? trimmed : null;
+  });
 
 const optionalUuid = z
-  .string()
-  .trim()
-  .transform((value) => (value.length > 0 ? value : null))
-  .nullable()
+  .union([z.string(), z.undefined(), z.null()])
+  .transform((value) => {
+    const trimmed = (value ?? "").trim();
+    return trimmed.length > 0 ? trimmed : null;
+  })
   .refine((value) => value === null || z.uuid().safeParse(value).success, "Pick a valid photo");
 
 const PRIORITIES = ["low", "medium", "high", "critical"] as const;
@@ -62,7 +72,7 @@ const createSchema = z.object({
   description: optionalText,
   responsible: optionalText,
   photoId: optionalUuid,
-  priority: z.enum(PRIORITIES),
+  priority: z.enum(PRIORITIES, { message: "Choose a priority" }),
 });
 
 const updateSchema = z.object({
@@ -71,14 +81,14 @@ const updateSchema = z.object({
   resolution: optionalText,
   responsible: optionalText,
   photoId: optionalUuid,
-  priority: z.enum(PRIORITIES),
-  status: z.enum(STATUSES),
+  priority: z.enum(PRIORITIES, { message: "Choose a priority" }),
+  status: z.enum(STATUSES, { message: "Choose a status" }),
 }).superRefine((value, context) => {
   if (!hasRequiredResolution(value.status, value.resolution)) {
     context.addIssue({
       code: "custom",
       path: ["resolution"],
-      message: "Record how this issue was resolved before closing it",
+      message: RESOLUTION_REQUIRED,
     });
   }
 });
@@ -102,7 +112,6 @@ export async function createIssue(
     reportId: read(formData, "reportId"),
     title: read(formData, "title"),
     description: read(formData, "description"),
-    resolution: read(formData, "resolution"),
     responsible: read(formData, "responsible"),
     photoId: read(formData, "photoId"),
     priority: read(formData, "priority"),
@@ -144,6 +153,9 @@ export async function updateIssue(
   const parsed = updateSchema.safeParse({
     title: read(formData, "title"),
     description: read(formData, "description"),
+    // Read, at last. Omitting this is what produced "expected string, received
+    // undefined" under the Resolution box and made closing an issue impossible.
+    resolution: read(formData, "resolution"),
     responsible: read(formData, "responsible"),
     photoId: read(formData, "photoId"),
     priority: read(formData, "priority"),
@@ -172,7 +184,10 @@ export async function updateIssue(
     .update({
       title: input.title,
       description: input.description,
-      resolution: input.status === "closed" ? input.resolution : null,
+      // Stored as typed, whatever the status. Someone who writes how a thing
+      // was put right while it is still in progress should not lose those words
+      // on save; hasRequiredResolution is what gates closing.
+      resolution: input.resolution,
       responsible: input.responsible,
       photo_id: input.photoId,
       priority: input.priority,

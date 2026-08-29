@@ -163,7 +163,7 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
         </View>
 
         {data.sections.map((section) => (
-          <View key={section.type} wrap={false}>
+          <View key={section.type}>
             <Text style={styles.heading}>{section.label}</Text>
             <Text style={styles.paragraph}>{section.content}</Text>
           </View>
@@ -171,7 +171,9 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
 
         {data.issues.length > 0 ? (
           <View>
-            <Text style={styles.heading}>Issue record</Text>
+            <Text style={styles.heading} minPresenceAhead={48}>
+              Issue record
+            </Text>
             {data.issues.map((issue) => (
               <View key={issue.id} style={styles.issue} wrap={false}>
                 <Text style={styles.issueTitle}>{issue.title}</Text>
@@ -188,8 +190,12 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
         ) : null}
 
         {data.photos.length > 0 ? (
-          <View break>
-            <Text style={styles.heading}>Photographic record</Text>
+          // No page break - see report-document.tsx. It stranded short issue
+          // records at the top of an otherwise empty page.
+          <View>
+            <Text style={styles.heading} minPresenceAhead={90}>
+              Photographic record
+            </Text>
             <View style={styles.photoGrid}>
               {data.photos.map((photo) => (
                 <View key={photo.id} style={styles.photo} wrap={false}>
@@ -209,13 +215,17 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
 
         {data.supportingDocuments.length > 0 ? (
           <View>
-            <Text style={styles.heading}>Supporting documents</Text>
+            <Text style={styles.heading} minPresenceAhead={48}>
+              Supporting documents
+            </Text>
             <SummaryDocumentTable rows={data.supportingDocuments} />
           </View>
         ) : null}
 
         <View>
-          <Text style={styles.heading}>Source record</Text>
+          <Text style={styles.heading} minPresenceAhead={48}>
+            Source record
+          </Text>
           {data.sourceLabels.map((source) => (
             <Text key={source} style={styles.source}>• {source}</Text>
           ))}
