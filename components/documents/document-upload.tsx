@@ -6,11 +6,16 @@ import { FilePlus2 } from "lucide-react";
 import { attachDocument } from "@/app/(app)/documents/actions";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  DOCUMENT_ACCEPT,
+  PDF_CONTENT_TYPE,
+  PDF_SIGNATURE_BYTES,
+  checkDocumentFile,
+  describeUploadOutcome,
+} from "@/lib/documents/file-validation";
 import { DOCUMENT_BUCKET, DOCUMENT_TYPES, titleFromFilename } from "@/lib/documents/metadata";
 import { createClient } from "@/lib/supabase/client";
 import type { DocumentType } from "@/types/database";
-
-const MAX_BYTES = 25 * 1024 * 1024;
 
 /**
  * Uploads a PDF straight from the browser to Supabase Storage, then records it.
@@ -21,10 +26,13 @@ const MAX_BYTES = 25 * 1024 * 1024;
  * caller's own company folder, so the direct upload is no less protected than
  * a proxied one.
  *
- * On iOS the file input opens Files, which covers iCloud Drive, On My iPhone
- * and anything else the user has connected - which is where a drawing emailed
- * that morning actually lives. `accept` filters the picker; the check below is
- * what enforces it, because a picker's accept is a hint and not a promise.
+ * This one component serves the project Documents tab and both kinds of
+ * report, so the picker and the checks cannot drift apart between them.
+ *
+ * On iOS the input opens Files, which covers iCloud Drive, On My iPhone and
+ * every provider the user has connected - which is where a drawing emailed
+ * that morning actually lives. What it asks for, and why it no longer names a
+ * MIME type, is explained in lib/documents/file-validation.ts.
  */
 export function DocumentUpload({
   companyId,
@@ -44,44 +52,55 @@ export function DocumentUpload({
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  /**
+   * The first bytes, or null if they cannot be read.
+   *
+   * A provider that has not finished materialising a file from iCloud can fail
+   * this read, and that is not the user's fault - checkDocumentFile falls back
+   * to the name and declared type rather than refusing outright.
+   */
+  async function readSignature(file: File): Promise<Uint8Array | null> {
+    try {
+      const head = await file.slice(0, PDF_SIGNATURE_BYTES).arrayBuffer();
+      return new Uint8Array(head);
+    } catch {
+      return null;
+    }
+  }
+
   async function handleFiles(files: FileList) {
     const chosen = Array.from(files);
     if (chosen.length === 0) return;
 
-    const list = chosen.filter(
-      (file) => file.type === "application/pdf" || /\.pdf$/i.test(file.name),
-    );
-    const skipped = chosen.length - list.length;
-    const oversized = list.filter((file) => file.size > MAX_BYTES);
-
-    if (list.length === 0) {
-      setError(
-        `Nothing uploaded. ${skipped} ${skipped === 1 ? "file was" : "files were"} not a PDF.`,
-      );
-      if (input.current) input.current.value = "";
-      return;
-    }
-
     setError(null);
-    setBusy({ done: 0, total: list.length - oversized.length });
+    setBusy({ done: 0, total: chosen.length });
 
     const supabase = createClient();
     const failures: string[] = [];
-    let done = 0;
+    let uploaded = 0;
 
-    for (const file of list) {
-      if (file.size > MAX_BYTES) {
-        failures.push(`${file.name} is larger than 25 MB.`);
+    for (const [index, file] of chosen.entries()) {
+      const check = checkDocumentFile(file, await readSignature(file));
+      if (!check.ok) {
+        failures.push(check.reason);
+        setBusy({ done: index + 1, total: chosen.length });
         continue;
       }
+
       try {
         const path = `${companyId}/${projectId}/${crypto.randomUUID()}.pdf`;
         const { error: uploadError } = await supabase.storage
           .from(DOCUMENT_BUCKET)
-          .upload(path, file, { contentType: "application/pdf", upsert: false });
+          .upload(path, file, {
+            // Normalised: the bucket is PDF-only and iOS routinely hands over a
+            // genuine PDF as an empty string or octet-stream. Safe to assert
+            // here only because the signature check above has passed.
+            contentType: PDF_CONTENT_TYPE,
+            upsert: false,
+          });
 
         if (uploadError) {
-          failures.push(uploadError.message);
+          failures.push(`${file.name} could not be uploaded. ${uploadError.message}`);
         } else {
           const result = await attachDocument({
             projectId,
@@ -92,26 +111,21 @@ export function DocumentUpload({
             originalFilename: file.name,
             docType,
             fileSize: file.size,
-            mimeType: "application/pdf",
+            mimeType: PDF_CONTENT_TYPE,
           });
           if (result?.error) failures.push(result.error);
+          else uploaded += 1;
         }
       } catch (cause) {
-        failures.push(cause instanceof Error ? cause.message : "Upload failed");
+        failures.push(cause instanceof Error ? cause.message : `${file.name} could not be uploaded.`);
       }
-      done += 1;
-      setBusy({ done, total: list.length - oversized.length });
+
+      setBusy({ done: index + 1, total: chosen.length });
     }
 
     setBusy(null);
     if (input.current) input.current.value = "";
-
-    if (failures.length) setError(failures[0]);
-    else if (skipped > 0) {
-      setError(
-        `${list.length} uploaded. ${skipped} ${skipped === 1 ? "file was" : "files were"} not a PDF and ${skipped === 1 ? "was" : "were"} skipped.`,
-      );
-    }
+    setError(describeUploadOutcome({ uploaded, failures }));
   }
 
   return (
@@ -152,7 +166,7 @@ export function DocumentUpload({
       <input
         ref={input}
         type="file"
-        accept="application/pdf,.pdf"
+        accept={DOCUMENT_ACCEPT}
         multiple
         className="sr-only"
         onChange={(event) => {
@@ -160,7 +174,8 @@ export function DocumentUpload({
         }}
       />
       <p className="text-xs text-ink-subtle">
-        PDFs up to 25 MB. You can rename it and add a reference, revision or date afterwards.
+        PDFs up to 25 MB, from Files, iCloud Drive or anywhere else on the device. You can rename it
+        and add a reference, revision or date afterwards.
       </p>
     </div>
   );
