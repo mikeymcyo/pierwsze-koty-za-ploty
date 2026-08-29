@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { PROJECT_STATUS_LABELS } from "@/components/projects/status-badge";
+import { StorePicker } from "@/components/stores/store-picker";
+import type { ResolvedStore } from "@/lib/stores/directory";
 import type { Project, ProjectStatus } from "@/types/database";
 
 type ProjectFormProps = {
@@ -26,6 +28,12 @@ type ProjectFormProps = {
   defaults?: Partial<Project>;
   /** Shown above the form to say where these values came from. */
   banner?: ReactNode;
+  /**
+   * The store this project is at, when it has one. Null offers the picker;
+   * leaving it unselected keeps the project an ordinary manually entered one,
+   * which is what every project made before the directory existed stays.
+   */
+  store?: ResolvedStore | null;
   submitLabel: string;
   cancelHref: string;
 };
@@ -44,6 +52,7 @@ export function ProjectForm({
   project,
   defaults,
   banner,
+  store = null,
   submitLabel,
   cancelHref,
 }: ProjectFormProps) {
@@ -70,6 +79,13 @@ export function ProjectForm({
             aria-invalid={Boolean(errors.name)}
           />
         </Field>
+
+        {/* The place, before the paperwork about the place. Selecting a store
+            fills in the fields below that are still empty. */}
+        <StorePicker initial={store} />
+        {errors.location_code ? (
+          <Alert tone="danger">{errors.location_code}</Alert>
+        ) : null}
 
         <Field label="Client" htmlFor="client" optional error={errors.client}>
           <Input

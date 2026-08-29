@@ -129,26 +129,57 @@ absent from every client chunk in the production build.
 `directoryId` is what stops this becoming a Lidl-only application: a second
 client's list is another JSON file and a line in `lib/stores/catalogue.ts`.
 
-### Migration `20260830000007_project_locations.sql` - WRITTEN, NOT APPLIED
+### Migration `20260830000007_project_locations.sql` is APPLIED
 
-**Awaiting the owner's approval. Do not apply it.** Nothing in the application
-reads or writes these columns yet, so the unapplied file cannot affect the
-running app.
+Applied to the hosted project on 2026-08-30 with the owner's explicit approval,
+through `apply_migration` - **not** `db push`. Do not reapply it.
 
-Two nullable text columns on `projects`, `location_directory` and
-`location_code`, a CHECK that refuses half a link, a length CHECK, and a
-partial index on `(company_id, location_directory, location_code)`. No new
-table, no policy change: the columns sit on `projects`, which already has four
-company-scoped policies and no `anon` grant. Additive, no default, no backfill
-- every existing project stays working and unlinked, and issued PDFs are stored
-files this cannot reach. Rollback is `drop column`.
+Verified against the live schema. `projects` went from 15 columns to 17 and
+gained exactly `location_directory` and `location_code`, both `text`, both
+nullable, neither with a default; both carry their comments; the two CHECK
+constraints and the partial index `projects_location_idx` read back exactly as
+the migration wrote them. **Policies stayed at 4, `anon` still holds no grant,
+and the full grant string is byte-identical before and after.** All 19 tables
+kept their policy counts. Row counts unchanged (10 projects, 10 reports, 2
+summary reports, 10 issued PDFs in storage), and md5 fingerprints of every
+report's `(id, pdf_path, status)` and every summary report's `(id, pdf_path,
+status, revision)` are **identical before and after** - no historical data
+moved. `linked_projects` was 0 straight after applying: no backfill.
 
-Validated against a real PostgreSQL 16 with every migration applied:
-`supabase/tests/04_project_locations_test.sql` passes alongside the other three
-suites, and proves one store can carry two projects, that half a link is
-refused, that an existing project can be linked afterwards, and that `anon`
-still holds no grant on `projects`.
+A behavioural test then ran on hosted inside a transaction and was rolled back,
+leaving nothing behind (verified: 0 rows matching the fixture). It proved an
+unlinked project still saves, an existing project can adopt a store afterwards,
+half a link is refused both ways, an unbounded directory is refused, and one
+store carries several projects.
 
+The ledger now holds two rows, `20260829133924 documents` and
+`20260829171913 project_locations`. The first five migrations are still absent,
+so **`supabase db push` remains dangerous** - it would replay them and fail on
+the non-idempotent `000005`. Schema inspection is still the only source of truth.
+
+### Store linkage, end to end
+
+- **Create/edit a project** carries a store picker that searches the directory
+  through a server action (`app/(app)/stores/actions.ts`), so the 150 KB list
+  never reaches the browser - confirmed absent from every client chunk in the
+  production build. Selecting a store fills the client, site address and
+  postcode **only where they are empty**; anything already written is left
+  alone. Removing the selection unlinks. A project without a store is an
+  ordinary project and always was.
+- The link is validated against the shipped directory before it is saved, so a
+  project cannot record a store that does not exist.
+- **The project page** shows the store, its RDC, its night shift and keyless
+  Directions, resolved from the directory at render time rather than copied on
+  to the project. A link to a store this build no longer lists says so rather
+  than going quiet.
+- **The store page** lists that company's projects at the store. RLS scopes it,
+  so the directory is shared and the jobs in it are not.
+- **New report output** resolves the place through `lib/reports/site-identity.ts`:
+  what is written on the project always wins and the store fills the gaps, so
+  linking a store adds information and never overrules a person. All three PDFs
+  gain a **Store** entry in the document-control panel beside - never instead
+  of - the project reference. Issued PDFs are stored files, so every historical
+  report is untouched.
 
 ### PDF template v2 - the shared document system
 

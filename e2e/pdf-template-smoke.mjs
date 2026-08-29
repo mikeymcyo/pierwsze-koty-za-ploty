@@ -84,6 +84,7 @@ function daily(overrides = {}) {
     photos: [],
     supportingDocuments: [],
     documentsAppended: false,
+    store: null,
     ...overrides,
   };
 }
@@ -111,6 +112,7 @@ function summary(kind, overrides = {}) {
     sourceLabels: ["Daily Report 008 · 28 August 2026"],
     supportingDocuments: [],
     documentsAppended: false,
+    store: null,
     ...overrides,
   };
 }
@@ -247,7 +249,41 @@ check("the issue carries its priority and status as badges", dailyText.includes(
 check("the responsible party is labelled", dailyText.includes("Responsible") && dailyText.includes("M&E subcontractor"));
 check("no resolution label appears where there is no resolution", !dailyText.includes("Resolution"));
 
-console.log("\n5. Empty fields are dropped rather than labelled");
+console.log("\n5. A linked store reaches the report, and an unlinked one prints nothing");
+// The store number and the project reference are different numbers, so the
+// fixture gives them different values and the report must print both.
+const withStore = textJoined(
+  createElement(ReportDocument, {
+    data: daily({
+      store: { name: "South Croydon", code: "1470" },
+      projectReference: "EI-2026-114",
+    }),
+  }),
+);
+check("the store is named", withStore.includes("South Croydon · 1470"));
+check("under its own label", withStore.includes("Store"));
+check(
+  "the project reference is still the project's own",
+  withStore.includes("EI-2026-114") && withStore.includes("Project reference"),
+);
+check(
+  "a project with no store prints no store line",
+  !textJoined(createElement(ReportDocument, { data: daily() })).includes("Store"),
+);
+for (const kind of ["progress", "completion"]) {
+  const text = textJoined(
+    createElement(SummaryReportDocument, {
+      data: summary(kind, { store: { name: "South Croydon", code: "1470" } }),
+    }),
+  );
+  check(`${kind}: names the store too`, text.includes("South Croydon · 1470"));
+  check(
+    `${kind}: and prints nothing without one`,
+    !textJoined(createElement(SummaryReportDocument, { data: summary(kind) })).includes("Store"),
+  );
+}
+
+console.log("\n6. Empty fields are dropped rather than labelled");
 const bare = textJoined(
   createElement(ReportDocument, {
     data: daily({ client: null, weather: null, authorName: null, projectReference: null }),
@@ -267,7 +303,7 @@ check(
   notAppended.includes("held on the project record") && !notAppended.includes("as appendices"),
 );
 
-console.log("\n6. The consolidated reports use the same system");
+console.log("\n7. The consolidated reports use the same system");
 for (const kind of ["progress", "completion"]) {
   const tree = createElement(SummaryReportDocument, {
     data: summary(kind, {
@@ -288,7 +324,7 @@ for (const kind of ["progress", "completion"]) {
   check(`${kind}: carries the revision`, text.includes("Revision"));
 }
 
-console.log("\n7. Every page is identifiable");
+console.log("\n8. Every page is identifiable");
 for (const [name, tree] of [
   ["daily", dailyTree],
   ["consolidated", createElement(SummaryReportDocument, { data: summary("progress") })],
@@ -304,7 +340,7 @@ for (const [name, tree] of [
   check(`${name}: the header and footer repeat on every page`, fixed.length === 2);
 }
 
-console.log("\n8. Nothing forces a page break, and only cards stay whole");
+console.log("\n9. Nothing forces a page break, and only cards stay whole");
 for (const [name, file] of [
   ["daily", "../lib/pdf/report-document.tsx"],
   ["consolidated", "../lib/pdf/summary-document.tsx"],
@@ -352,7 +388,7 @@ check(
 );
 check("headings reserve room below them", /minPresenceAhead=\{reserve\}/.test(parts));
 
-console.log("\n9. Real renders: page counts");
+console.log("\n10. Real renders: page counts");
 const counts = {};
 counts.dailyBare = await dailyPages(daily());
 counts.dailyOnePhoto = await dailyPages(daily({ photos: [photo("a", "One.", "before", LANDSCAPE)] }));
@@ -409,7 +445,7 @@ check("twelve photographs stay within a daily report's budget", counts.dailyMany
 check("a progress report with one plate is one page", counts.progress === 1, String(counts.progress));
 check("a completion report with six plates stays compact", counts.completion <= 3, String(counts.completion));
 
-console.log("\n10. Appendices still attach, and the report is still first");
+console.log("\n11. Appendices still attach, and the report is still first");
 const supporting = await PDFDocument.create();
 supporting.addPage();
 supporting.addPage();

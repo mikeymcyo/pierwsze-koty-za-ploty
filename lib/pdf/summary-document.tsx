@@ -19,6 +19,7 @@ import {
   priorityColour,
 } from "@/lib/pdf/components";
 import { photoReference } from "@/lib/pdf/photo-evidence";
+import { storeLine } from "@/lib/reports/site-identity";
 import { createPdfStyles, defaultPdfTheme } from "@/lib/pdf/theme";
 
 /**
@@ -71,6 +72,11 @@ export type SummaryPdfData = {
   supportingDocuments: ResolvedDocument[];
   /** Whether the listed documents follow as appendices, so the register says so. */
   documentsAppended: boolean;
+  /**
+   * The client's own name for the place, where the project is linked to one.
+   * Null on a project entered by hand, which prints exactly as it always did.
+   */
+  store: { name: string; code: string } | null;
 };
 
 const theme = defaultPdfTheme;
@@ -121,6 +127,7 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
             // here would spend a line of the control panel saying nothing.
             { label: "Title", value: data.title },
             { label: completion ? "Project record" : "Reporting period", value: data.periodLabel },
+            { label: "Store", value: storeLine(data.store) },
             { label: "Project reference", value: data.projectReference },
             { label: "Revision", value: data.revision ? String(data.revision) : null },
             { label: "Issued", value: data.issuedAt },

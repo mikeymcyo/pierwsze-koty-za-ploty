@@ -6,6 +6,8 @@ import { DeleteProject } from "@/components/projects/project-delete";
 import { ProjectForm } from "@/components/projects/project-form";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
+import { storeFor } from "@/lib/stores/catalogue";
+import { storeLinkOf } from "@/lib/stores/project-link";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 
@@ -44,6 +46,13 @@ export default async function EditProjectPage({
 
   const action = updateProject.bind(null, project.id);
 
+  // Resolved for display only. A project linked to a store this build's
+  // directory no longer lists still edits and saves - the picker simply shows
+  // nothing selected, and the columns are left as they are unless the user
+  // changes them.
+  const link = storeLinkOf(project);
+  const store = link ? storeFor(link.directory, link.code) : null;
+
   // Counted so the confirmation can say exactly what is about to go, rather
   // than asking the user to guess how much work is behind the project.
   const [reports, summaries, photos, issues] = await Promise.all([
@@ -68,6 +77,7 @@ export default async function EditProjectPage({
       <ProjectForm
         action={action}
         project={project}
+        store={store}
         submitLabel="Save changes"
         cancelHref={`/projects/${project.id}`}
       />

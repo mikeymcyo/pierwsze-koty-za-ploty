@@ -27,7 +27,14 @@ import {
   searchStores,
 } from "../lib/stores/directory.ts";
 import { directionsUrl, mapUrl } from "../lib/stores/directions.ts";
-import { newProjectHref, storeProjectDefaults } from "../lib/stores/project-link.ts";
+import {
+  newProjectHref,
+  parseStoreLink,
+  storeColumns,
+  storeLinkOf,
+  storeProjectDefaults,
+} from "../lib/stores/project-link.ts";
+import { reportSite, storeLine } from "../lib/reports/site-identity.ts";
 
 const failures = [];
 function check(label, ok, detail = "") {
@@ -165,7 +172,51 @@ check(
   newProjectHref(croydon),
 );
 
-console.log("\n8. Nothing here reaches a company's own data");
+console.log("\n8. The link a project stores");
+check("a project with no store has no link", storeLinkOf({}) === null);
+check(
+  "a project with one does",
+  JSON.stringify(storeLinkOf({ location_directory: "lidl-gb", location_code: "1470" })) ===
+    JSON.stringify({ directory: "lidl-gb", code: "1470" }),
+);
+check(
+  "half a link read from anywhere is treated as none",
+  storeLinkOf({ location_directory: "lidl-gb" }) === null &&
+    storeLinkOf({ location_code: "1470" }) === null,
+);
+check("selecting nothing is a normal answer", parseStoreLink("", "").ok && parseStoreLink("", "").link === null);
+check("half a link from a form is refused", !parseStoreLink("lidl-gb", "").ok);
+check("and the other half too", !parseStoreLink("", "1470").ok);
+check("an unbounded directory is refused", !parseStoreLink("x".repeat(41), "1470").ok);
+check(
+  "unlinking writes two nulls",
+  JSON.stringify(storeColumns(null)) ===
+    JSON.stringify({ location_directory: null, location_code: null }),
+);
+check(
+  "linking writes the pair",
+  JSON.stringify(storeColumns({ directory: "lidl-gb", code: "1470" })) ===
+    JSON.stringify({ location_directory: "lidl-gb", location_code: "1470" }),
+);
+
+console.log("\n9. What a report says about the place");
+const linked = reportSite({ client: null, site_address: null }, croydon);
+check("an unwritten client comes from the store", linked.client === "Lidl GB");
+check("an unwritten address too", linked.siteAddress === croydon.address);
+check("and the store is named", storeLine(linked.store) === "South Croydon · 1470");
+const written = reportSite(
+  { client: "Lidl GB (North)", site_address: "Compound entrance, Brighton Road" },
+  croydon,
+);
+check("what somebody wrote on the project always wins", written.client === "Lidl GB (North)");
+check("including the address", written.siteAddress === "Compound entrance, Brighton Road");
+check("the store is still named alongside it", storeLine(written.store) === "South Croydon · 1470");
+const unlinked = reportSite({ client: "Riverside Ltd", site_address: "14 Wharf Road" }, null);
+check("a project with no store prints no store line", storeLine(unlinked.store) === null);
+check("and keeps its own client and address", unlinked.client === "Riverside Ltd");
+check("whitespace on the project does not count as written", reportSite({ client: "   " }, croydon).client === "Lidl GB");
+
+console.log("\n10. Nothing here reaches a company's own data");
 for (const file of ["../lib/stores/directory.ts", "../lib/stores/directions.ts", "../lib/stores/project-link.ts"]) {
   const source = readFileSync(new URL(file, import.meta.url), "utf8");
   check(

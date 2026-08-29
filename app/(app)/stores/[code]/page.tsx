@@ -1,14 +1,17 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, MapPin, Moon, Plus } from "lucide-react";
+import { ArrowLeft, ChevronRight, MapPin, Moon, Plus } from "lucide-react";
 
+import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireSessionContext } from "@/lib/auth/session";
 import { findStoreAnywhere } from "@/lib/stores/catalogue";
 import { directionsUrl } from "@/lib/stores/directions";
 import { newProjectHref } from "@/lib/stores/project-link";
+import { withClockSkewRetry } from "@/lib/supabase/retry";
+import { createClient } from "@/lib/supabase/server";
 
 export async function generateMetadata({
   params,
@@ -39,6 +42,21 @@ export default async function StorePage({
   if (!store) notFound();
 
   const directions = directionsUrl(store);
+
+  // The projects this company has run here. RLS scopes it to the caller's own
+  // company, so a shared store page shows each company only its own work -
+  // the directory is shared, the jobs in it are not.
+  const supabase = await createClient();
+  const { data: projects, error: projectsError } = await withClockSkewRetry(() =>
+    supabase
+      .from("projects")
+      .select("id, name, project_reference, status, start_date")
+      .eq("location_directory", store.directoryId)
+      .eq("location_code", store.code)
+      .order("status", { ascending: true })
+      .order("created_at", { ascending: false }),
+  );
+  const here = projects ?? [];
 
   return (
     <div className="flex flex-col gap-6">
@@ -103,10 +121,46 @@ export default async function StorePage({
         </Button>
       </div>
 
-      <p className="text-sm text-ink-subtle">
-        A store is the place; a project is one package of works at it. The same store can
-        carry several projects over the years, each with its own reports, issues and photographs.
-      </p>
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-ink-muted">
+          Projects at this store
+        </h2>
+        {projectsError ? (
+          <p className="text-sm text-ink-muted">
+            The project list could not be loaded. The store details above are unaffected.
+          </p>
+        ) : here.length === 0 ? (
+          <p className="text-sm text-ink-muted">
+            None yet. A store is the place; a project is one package of works at it, and the
+            same store can carry several over the years - each with its own reports, issues
+            and photographs.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-3">
+            {here.map((project) => (
+              <li key={project.id}>
+                <Card className="transition-colors hover:border-line-strong">
+                  <Link
+                    href={`/projects/${project.id}`}
+                    className="flex items-center gap-4 p-4"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-ink">{project.name}</p>
+                      {project.project_reference ? (
+                        <p className="truncate text-sm text-ink-muted">
+                          Ref {project.project_reference}
+                        </p>
+                      ) : null}
+                    </div>
+                    <ProjectStatusBadge status={project.status} />
+                    <ChevronRight className="size-5 shrink-0 text-ink-subtle" aria-hidden />
+                  </Link>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }

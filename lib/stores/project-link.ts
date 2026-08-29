@@ -50,3 +50,63 @@ export function newProjectHref(store: { directoryId: string; code: string }): st
   });
   return `/projects/new?${params}`;
 }
+
+// ---------------------------------------------------------------------------
+// The link, as the database holds it
+// ---------------------------------------------------------------------------
+
+/** The pair a project stores. Both present, or neither. */
+export type StoreLink = { directory: string; code: string };
+
+/**
+ * The link on a project, or null.
+ *
+ * Half a link is treated as none. The database refuses to store one, but a row
+ * read from anywhere else should not be able to produce a lookup that cannot
+ * resolve.
+ */
+export function storeLinkOf(project: {
+  location_directory?: string | null;
+  location_code?: string | null;
+}): StoreLink | null {
+  const directory = project.location_directory?.trim();
+  const code = project.location_code?.trim();
+  return directory && code ? { directory, code } : null;
+}
+
+/**
+ * A link from what a form submitted, or null where nothing was selected.
+ *
+ * Returns `invalid` rather than throwing, so the caller can say so in the same
+ * way it says anything else about a form.
+ */
+export function parseStoreLink(
+  directory: string | null | undefined,
+  code: string | null | undefined,
+): { ok: true; link: StoreLink | null } | { ok: false } {
+  const d = (directory ?? "").trim();
+  const c = (code ?? "").trim();
+  if (!d && !c) return { ok: true, link: null };
+  if (!d || !c) return { ok: false };
+  if (d.length > 40 || c.length > 32) return { ok: false };
+  return { ok: true, link: { directory: d, code: c } };
+}
+
+/** What a project row records for a selected store, or for none. */
+export function storeColumns(link: StoreLink | null): {
+  location_directory: string | null;
+  location_code: string | null;
+} {
+  return {
+    location_directory: link?.directory ?? null,
+    location_code: link?.code ?? null,
+  };
+}
+
+/** One line naming the place, for a report or a heading. */
+export function storeLabel(store: { displayName: string; displayCode: string }): string {
+  return `${store.displayName} · Store ${store.displayCode}`;
+}
+
+export const STORE_NOT_FOUND =
+  "That store is not in the directory. Search for it again, or leave the store blank.";

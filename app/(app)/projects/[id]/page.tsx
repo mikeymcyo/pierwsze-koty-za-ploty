@@ -13,6 +13,7 @@ import { ProjectTabs } from "@/components/projects/project-tabs";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
+import { LinkedStoreCard, UnknownStoreCard } from "@/components/stores/linked-store-card";
 import { isProjectTab, type ProjectTab } from "@/lib/project-tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +25,8 @@ import { requireSessionContext } from "@/lib/auth/session";
 import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
 import { signDocumentUrls } from "@/lib/documents/signing";
 import { signPhotoUrls } from "@/lib/photos-signing";
+import { storeFor } from "@/lib/stores/catalogue";
+import { storeLinkOf } from "@/lib/stores/project-link";
 import { SUMMARY_KIND_LABELS } from "@/lib/summary-reports/sections";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
@@ -78,6 +81,12 @@ export default async function ProjectPage({
   // RLS hides another company's project, so this covers "missing" and "not
   // yours" identically, without revealing which.
   if (!project) notFound();
+
+  // Resolved from the directory that ships with this build, not from anything
+  // stored on the project, so a corrected address reaches every project at the
+  // store at once.
+  const storeLink = storeLinkOf(project);
+  const linkedStore = storeLink ? storeFor(storeLink.directory, storeLink.code) : null;
 
   const [reportsResult, summaryReportsResult, photosResult, issuesResult, documentsResult] =
     await Promise.all([
@@ -233,6 +242,17 @@ export default async function ProjectPage({
       </Suspense>
 
       {loadError ? <LoadError what="this project's data" code={loadError.code} /> : null}
+
+      {/* The place, above the paperwork about the place. Only when the project
+          actually records one - a project entered by hand shows nothing here
+          and is not missing anything. */}
+      {!loadError && activeTab === "overview" && storeLink ? (
+        linkedStore ? (
+          <LinkedStoreCard store={linkedStore} />
+        ) : (
+          <UnknownStoreCard link={storeLink} />
+        )
+      ) : null}
 
       {!loadError && activeTab === "overview" ? (
         <Card>

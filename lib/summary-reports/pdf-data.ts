@@ -4,6 +4,9 @@ import { resolveDocument } from "@/lib/documents/metadata";
 import { loadReferencedDocuments } from "@/lib/documents/snapshot";
 import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS } from "@/lib/issues/metadata";
 import type { SummaryPdfData } from "@/lib/pdf/summary-document";
+import { reportSite } from "@/lib/reports/site-identity";
+import { storeFor } from "@/lib/stores/catalogue";
+import { storeLinkOf } from "@/lib/stores/project-link";
 import { SUMMARY_SECTION_LABELS, summarySectionOrder } from "@/lib/summary-reports/sections";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatReportNumber } from "@/lib/utils";
@@ -33,7 +36,7 @@ export async function loadSummaryPdfData(
   const { data: report, error } = await supabase
     .from("summary_reports")
     .select(
-      "id, project_id, kind, number, revision, title, period_start, period_end, status, pdf_path, projects(name, client, site_address, project_reference)",
+      "id, project_id, kind, number, revision, title, period_start, period_end, status, pdf_path, projects(name, client, site_address, project_reference, location_directory, location_code)",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -158,6 +161,15 @@ export async function loadSummaryPdfData(
   });
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
+
+  // See lib/reports/site-identity.ts: what is written on the project wins, the
+  // store fills the gaps, and an already issued PDF is untouched either way.
+  const link = project ? storeLinkOf(project) : null;
+  const site = reportSite(
+    project ?? {},
+    link ? storeFor(link.directory, link.code) : null,
+  );
+
   const order = summarySectionOrder(report.kind);
   const sections = (sectionsResult.data ?? [])
     .filter((section) => section.content?.trim() && order.includes(section.section_type))
@@ -182,8 +194,8 @@ export async function loadSummaryPdfData(
       kind: report.kind,
       companyName: identity.companyName,
       projectName: project?.name ?? "Project",
-      client: project?.client ?? null,
-      siteAddress: project?.site_address ?? null,
+      client: site.client,
+      siteAddress: site.siteAddress,
       projectReference: project?.project_reference ?? null,
       title: report.title,
       number: formatReportNumber(report.number),
@@ -224,6 +236,7 @@ export async function loadSummaryPdfData(
       }),
       sourceLabels,
       supportingDocuments,
+      store: site.store,
     },
   };
 }

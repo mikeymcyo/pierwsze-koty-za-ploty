@@ -10,6 +10,9 @@ import {
 import { loadDocumentAttachments } from "@/lib/pdf/document-attachments";
 import { mergeReportWithDocuments } from "@/lib/pdf/merge";
 import { renderReportPdf } from "@/lib/pdf/render";
+import { reportSite } from "@/lib/reports/site-identity";
+import { storeFor } from "@/lib/stores/catalogue";
+import { storeLinkOf } from "@/lib/stores/project-link";
 import { PDF_BUCKET } from "@/lib/pdf/signing";
 import {
   issuesForReport,
@@ -58,7 +61,7 @@ export async function finaliseReport(
   const { data: report, error } = await supabase
     .from("reports")
     .select(
-      "id, project_id, report_number, report_date, weather, raw_notes, author_name, status, pdf_path, projects(name, client, site_address, project_reference)",
+      "id, project_id, report_number, report_date, weather, raw_notes, author_name, status, pdf_path, projects(name, client, site_address, project_reference, location_directory, location_code)",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -144,6 +147,15 @@ export async function finaliseReport(
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const finalisedAt = new Date();
 
+  // Resolved at the moment of issue and written into the file. A report issued
+  // before the project was linked to a store keeps saying what it said - an
+  // issued PDF is a stored file and nothing here can reach it.
+  const link = project ? storeLinkOf(project) : null;
+  const site = reportSite(
+    project ?? {},
+    link ? storeFor(link.directory, link.code) : null,
+  );
+
   // Decided before the render, not after: the register printed inside the
   // report has to say whether the drawings actually follow it.
   const includeDocuments = shouldIncludeDocuments(
@@ -156,8 +168,8 @@ export async function finaliseReport(
     pdf = await renderReportPdf({
       companyName: session.companyName,
       projectName: project?.name ?? "Project",
-      client: project?.client ?? null,
-      siteAddress: project?.site_address ?? null,
+      client: site.client,
+      siteAddress: site.siteAddress,
       projectReference: project?.project_reference ?? null,
       reportNumber: reportNumberLabel(report.report_number),
       reportDate: formatDate(report.report_date) ?? report.report_date,
@@ -171,6 +183,7 @@ export async function finaliseReport(
       photos: photosWithData(photoRows, downloaded),
       supportingDocuments,
       documentsAppended: includeDocuments,
+      store: site.store,
     });
   } catch (cause) {
     console.error("[siteboss] PDF render failed:", cause);

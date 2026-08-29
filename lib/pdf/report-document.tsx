@@ -20,6 +20,7 @@ import {
   priorityColour,
 } from "@/lib/pdf/components";
 import { photoReference } from "@/lib/pdf/photo-evidence";
+import { storeLine } from "@/lib/reports/site-identity";
 import { compactPdfTheme, createPdfStyles } from "@/lib/pdf/theme";
 
 /**
@@ -82,6 +83,11 @@ export type ReportPdfData = {
   supportingDocuments: ResolvedDocument[];
   /** Whether the listed documents follow as appendices, so the register says so. */
   documentsAppended: boolean;
+  /**
+   * The client's own name for the place, where the project is linked to one.
+   * Null on a project entered by hand, which prints exactly as it always did.
+   */
+  store: { name: string; code: string } | null;
 };
 
 const theme = compactPdfTheme;
@@ -121,6 +127,10 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
           s={s}
           items={[
             { label: "Report date", value: data.reportDate },
+            // The store, where the project is linked to one. It sits beside
+            // the project reference rather than replacing it: one names the
+            // building, the other names this package of works.
+            { label: "Store", value: storeLine(data.store) },
             { label: "Project reference", value: data.projectReference },
             { label: "Weather", value: data.weather },
             { label: "Reported by", value: data.authorName },

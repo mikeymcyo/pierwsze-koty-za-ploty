@@ -5,6 +5,9 @@ import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS } from "@/lib/issues/metadat
 import { loadDocumentAttachments } from "@/lib/pdf/document-attachments";
 import { mergeReportWithDocuments } from "@/lib/pdf/merge";
 import { renderReportPdf } from "@/lib/pdf/render";
+import { reportSite } from "@/lib/reports/site-identity";
+import { storeFor } from "@/lib/stores/catalogue";
+import { storeLinkOf } from "@/lib/stores/project-link";
 import {
   issuesForReport,
   orderedSections,
@@ -44,7 +47,7 @@ export async function GET(
   const { data: report } = await supabase
     .from("reports")
     .select(
-      "id, project_id, report_number, report_date, weather, raw_notes, author_name, status, pdf_path, projects(name, client, site_address, project_reference)",
+      "id, project_id, report_number, report_date, weather, raw_notes, author_name, status, pdf_path, projects(name, client, site_address, project_reference, location_directory, location_code)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -108,6 +111,15 @@ export async function GET(
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
 
+  // The place, resolved through the project's link at render time. What is
+  // written on the project always wins; the store only fills the gaps. See
+  // lib/reports/site-identity.ts.
+  const link = project ? storeLinkOf(project) : null;
+  const site = reportSite(
+    project ?? {},
+    link ? storeFor(link.directory, link.code) : null,
+  );
+
   // Decided before the render, not after: the register printed inside the
   // report has to say whether the drawings actually follow it.
   const include = shouldIncludeDocuments(
@@ -118,8 +130,8 @@ export async function GET(
   let pdf = await renderReportPdf({
     companyName: session.companyName,
     projectName: project?.name ?? "Project",
-    client: project?.client ?? null,
-    siteAddress: project?.site_address ?? null,
+    client: site.client,
+    siteAddress: site.siteAddress,
     projectReference: project?.project_reference ?? null,
     reportNumber: reportNumberLabel(report.report_number),
     reportDate: formatDate(report.report_date) ?? report.report_date,
@@ -133,6 +145,7 @@ export async function GET(
     photos: photosWithData(photoRows, downloaded),
     supportingDocuments,
     documentsAppended: include,
+    store: site.store,
   });
 
   // The preview is the package the client would receive, appendices and all -

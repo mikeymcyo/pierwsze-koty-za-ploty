@@ -7,6 +7,12 @@ import { z } from "zod";
 import { requireSessionContext } from "@/lib/auth/session";
 import { PDF_BUCKET } from "@/lib/pdf/signing";
 import { canDeleteProject } from "@/lib/reports/lifecycle";
+import { storeFor } from "@/lib/stores/catalogue";
+import {
+  STORE_NOT_FOUND,
+  parseStoreLink,
+  storeColumns,
+} from "@/lib/stores/project-link";
 import { createClient } from "@/lib/supabase/server";
 import type { ProjectStatus } from "@/types/database";
 
@@ -65,6 +71,28 @@ const projectSchema = z
     },
   );
 
+/**
+ * The store this project is at, as columns to save.
+ *
+ * Checked against the directory this build ships rather than trusted from the
+ * form: a link that resolves to nothing would put a store number on a report
+ * with no store behind it. Selecting nothing is a normal answer - a project
+ * without a store is an ordinary project.
+ */
+function parseStore(
+  formData: FormData,
+):
+  | { ok: true; columns: { location_directory: string | null; location_code: string | null } }
+  | { ok: false } {
+  const link = parseStoreLink(
+    String(formData.get("location_directory") ?? ""),
+    String(formData.get("location_code") ?? ""),
+  );
+  if (!link.ok) return { ok: false };
+  if (link.link && !storeFor(link.link.directory, link.link.code)) return { ok: false };
+  return { ok: true, columns: storeColumns(link.link) };
+}
+
 function parse(formData: FormData) {
   return projectSchema.safeParse({
     name: formData.get("name") ?? "",
@@ -86,6 +114,8 @@ export async function createProject(
 ): Promise<ProjectFormState> {
   const parsed = parse(formData);
   if (!parsed.success) return { fieldErrors: fieldErrorsOf(parsed.error) };
+  const store = parseStore(formData);
+  if (!store.ok) return { fieldErrors: { location_code: STORE_NOT_FOUND } };
 
   const session = await requireSessionContext();
   const supabase = await createClient();
@@ -94,6 +124,7 @@ export async function createProject(
     .from("projects")
     .insert({
       ...parsed.data,
+      ...store.columns,
       company_id: session.companyId,
       created_by: session.userId,
     })
@@ -104,6 +135,8 @@ export async function createProject(
 
   revalidatePath("/projects");
   revalidatePath("/dashboard");
+  // So the store's own page lists it straight away.
+  if (store.columns.location_code) revalidatePath(`/stores/${store.columns.location_code}`);
   redirect(`/projects/${data.id}`);
 }
 
@@ -114,6 +147,11 @@ export async function updateProject(
 ): Promise<ProjectFormState> {
   const parsed = parse(formData);
   if (!parsed.success) return { fieldErrors: fieldErrorsOf(parsed.error) };
+  // Unlinking is a normal edit: the picker submits nothing, and both columns
+  // go back to null. The reports already issued are stored files and keep
+  // whatever they were issued with.
+  const store = parseStore(formData);
+  if (!store.ok) return { fieldErrors: { location_code: STORE_NOT_FOUND } };
 
   await requireSessionContext();
   const supabase = await createClient();
@@ -121,7 +159,7 @@ export async function updateProject(
   // No company_id filter needed: RLS already limits this to the caller's company.
   const { error } = await supabase
     .from("projects")
-    .update(parsed.data)
+    .update({ ...parsed.data, ...store.columns })
     .eq("id", projectId);
 
   if (error) return { error: `Could not save your changes: ${error.message}` };
@@ -129,6 +167,7 @@ export async function updateProject(
   revalidatePath("/projects");
   revalidatePath("/dashboard");
   revalidatePath(`/projects/${projectId}`);
+  if (store.columns.location_code) revalidatePath(`/stores/${store.columns.location_code}`);
   redirect(`/projects/${projectId}`);
 }
 

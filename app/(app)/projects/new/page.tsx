@@ -42,6 +42,7 @@ export default async function NewProjectPage({
       <ProjectForm
         action={createProject}
         defaults={store ? storeProjectDefaults(store) : undefined}
+        store={store}
         banner={
           store ? (
             <div className="rounded-2xl border border-line bg-surface-muted p-4">

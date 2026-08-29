@@ -143,6 +143,10 @@ export type Database = {
           description: string | null;
           status: ProjectStatus;
           created_by: string | null;
+          /** Which client store directory location_code belongs to, e.g. "lidl-gb". */
+          location_directory: string | null;
+          /** The client's own number for the place. Never the project reference. */
+          location_code: string | null;
         };
         Insert: Partial<Timestamps> & {
           id?: string;
@@ -158,6 +162,8 @@ export type Database = {
           description?: string | null;
           status?: ProjectStatus;
           created_by?: string | null;
+          location_directory?: string | null;
+          location_code?: string | null;
         };
         Update: Partial<Timestamps> & {
           id?: string;
@@ -173,6 +179,8 @@ export type Database = {
           description?: string | null;
           status?: ProjectStatus;
           created_by?: string | null;
+          location_directory?: string | null;
+          location_code?: string | null;
         };
         Relationships: [
           {
