@@ -5,8 +5,12 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireSessionContext } from "@/lib/auth/session";
+import { PDF_BUCKET } from "@/lib/pdf/signing";
+import { canDeleteProject } from "@/lib/reports/lifecycle";
 import { createClient } from "@/lib/supabase/server";
 import type { ProjectStatus } from "@/types/database";
+
+export type DeleteState = { error?: string };
 
 export type ProjectFormState = {
   error?: string;
@@ -128,20 +132,62 @@ export async function updateProject(
   redirect(`/projects/${projectId}`);
 }
 
-export async function deleteProject(formData: FormData) {
-  const projectId = String(formData.get("projectId") ?? "");
-  if (!projectId) return;
+/**
+ * Removes a project and everything recorded against it.
+ *
+ * The most destructive action in the product, so it asks for the word to be
+ * typed. Nothing outside a project can depend on it - its reports, photographs
+ * and issues are all its own - so there is nothing to block on here, only a
+ * cascade to carry out properly.
+ *
+ * The database cascade handles the rows. It knows nothing about the storage
+ * buckets, so the photograph and PDF paths are gathered first and the files
+ * removed after the project row is gone. Collecting them afterwards would be
+ * too late: the rows naming them no longer exist, and the files would be
+ * stranded in the bucket for good.
+ */
+export async function deleteProject(
+  projectId: string,
+  _previous: DeleteState,
+  formData: FormData,
+): Promise<DeleteState> {
+  if (!z.uuid().safeParse(projectId).success) return { error: "That project could not be found." };
 
   await requireSessionContext();
   const supabase = await createClient();
 
-  const { error } = await supabase.from("projects").delete().eq("id", projectId);
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, name")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (!project) return { error: "That project could not be found." };
 
-  if (error) {
-    throw new Error(`Could not delete the project: ${error.message}`);
-  }
+  const check = canDeleteProject({
+    projectName: project.name,
+    typedConfirmation: String(formData.get("confirmation") ?? ""),
+  });
+  if (!check.ok) return { error: check.message };
+
+  const [{ data: photos }, { data: reports }, { data: summaries }] = await Promise.all([
+    supabase.from("photos").select("storage_path").eq("project_id", projectId),
+    supabase.from("reports").select("pdf_path").eq("project_id", projectId),
+    supabase.from("summary_reports").select("pdf_path").eq("project_id", projectId),
+  ]);
+
+  const photoPaths = (photos ?? []).map((row) => row.storage_path).filter(Boolean);
+  const pdfPaths = [...(reports ?? []), ...(summaries ?? [])]
+    .map((row) => row.pdf_path)
+    .filter((path): path is string => Boolean(path));
+
+  const { error } = await supabase.from("projects").delete().eq("id", projectId);
+  if (error) return { error: `Could not delete the project: ${error.message}` };
+
+  if (photoPaths.length > 0) await supabase.storage.from("site-photos").remove(photoPaths);
+  if (pdfPaths.length > 0) await supabase.storage.from(PDF_BUCKET).remove(pdfPaths);
 
   revalidatePath("/projects");
   revalidatePath("/dashboard");
+  revalidatePath("/reports");
   redirect("/projects");
 }

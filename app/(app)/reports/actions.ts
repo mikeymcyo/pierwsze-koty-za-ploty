@@ -5,9 +5,14 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { displayName, requireSessionContext } from "@/lib/auth/session";
+import { PDF_BUCKET } from "@/lib/pdf/signing";
+import { dependentsOfDailyReport } from "@/lib/reports/dependents";
 import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
+import { canDelete } from "@/lib/reports/lifecycle";
 import { createClient } from "@/lib/supabase/server";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
+
+export type DeleteState = { error?: string };
 
 export type ReportFormState = {
   error?: string;
@@ -255,29 +260,61 @@ export async function saveReport(
 }
 
 /** Deletes a draft. Finalised reports are immutable issued records. */
-export async function deleteReport(formData: FormData) {
-  const reportId = String(formData.get("reportId") ?? "").trim();
-  if (!reportId) return;
+/**
+ * Removes a report and everything stored for it.
+ *
+ * Two things stand in the way on purpose. A report that an issued Progress or
+ * Completion Report is built on is that document's evidence, so deletion is
+ * refused and the blocking documents are named - a cascade here would leave an
+ * issued PDF citing a report that no longer exists. And an issued report needs
+ * the confirmation typed rather than tapped.
+ *
+ * Storage is cleared explicitly. The database cascade removes the photo rows
+ * but knows nothing about the buckets, so the files are collected first and
+ * deleted after the row is gone; a file left behind is untidy, whereas a file
+ * deleted before a failed delete would be lost from a report that still exists.
+ */
+export async function deleteReport(
+  reportId: string,
+  _previous: DeleteState,
+  formData: FormData,
+): Promise<DeleteState> {
+  if (!z.uuid().safeParse(reportId).success) return { error: "That report could not be found." };
 
   await requireSessionContext();
   const supabase = await createClient();
 
   const { data: report } = await withClockSkewRetry(() =>
-    supabase.from("reports").select("project_id").eq("id", reportId).maybeSingle(),
+    supabase
+      .from("reports")
+      .select("id, project_id, status, pdf_path")
+      .eq("id", reportId)
+      .maybeSingle(),
   );
+  if (!report) return { error: "That report could not be found." };
 
-  const { error } = await supabase
-    .from("reports")
-    .delete()
-    .eq("id", reportId)
-    .eq("status", "draft");
+  const dependents = await dependentsOfDailyReport(supabase, reportId);
+  const check = canDelete({
+    status: report.status,
+    dependents,
+    typedConfirmation: String(formData.get("confirmation") ?? ""),
+  });
+  if (!check.ok) return { error: check.message };
 
-  if (error) {
-    throw new Error(`Could not delete the report: ${error.message}`);
-  }
+  const { data: photos } = await supabase
+    .from("photos")
+    .select("storage_path")
+    .eq("report_id", reportId);
+
+  const { error } = await supabase.from("reports").delete().eq("id", reportId);
+  if (error) return { error: `Could not delete the report: ${error.message}` };
+
+  const photoPaths = (photos ?? []).map((row) => row.storage_path);
+  if (photoPaths.length > 0) await supabase.storage.from("site-photos").remove(photoPaths);
+  if (report.pdf_path) await supabase.storage.from(PDF_BUCKET).remove([report.pdf_path]);
 
   revalidatePath("/reports");
   revalidatePath("/dashboard");
-  if (report?.project_id) revalidatePath(`/projects/${report.project_id}`);
+  revalidatePath(`/projects/${report.project_id}`);
   redirect("/reports");
 }

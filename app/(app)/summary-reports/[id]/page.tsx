@@ -1,21 +1,21 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
-import { deleteSummaryReport } from "@/app/(app)/summary-reports/actions";
 import { SummaryCuration, type CuratedIssueChoice, type CuratedPhotoChoice } from "@/components/summary-reports/summary-curation";
 import { SummaryDetails } from "@/components/summary-reports/summary-details";
 import { SummaryDraft } from "@/components/summary-reports/summary-draft";
 import { SummaryFinalise } from "@/components/summary-reports/summary-finalise";
+import { DeleteSummaryReport } from "@/components/summary-reports/summary-lifecycle";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadError } from "@/components/ui/load-error";
 import { hasAiConfig } from "@/lib/ai/report-generation";
+import { isReopened } from "@/lib/reports/lifecycle";
 import { requireSessionContext } from "@/lib/auth/session";
-import { signPdfUrl } from "@/lib/pdf/signing";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import { SUMMARY_KIND_LABELS, SUMMARY_SECTION_LABELS } from "@/lib/summary-reports/sections";
 import { createClient } from "@/lib/supabase/server";
@@ -123,7 +123,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const isFinal = report.status === "final";
-  const pdfUrl = isFinal ? await signPdfUrl(report.pdf_path) : null;
+  const reopened = isReopened({ status: report.status, pdfPath: report.pdf_path });
   const label = SUMMARY_KIND_LABELS[report.kind];
 
   return (
@@ -141,7 +141,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
             {[project?.name, report.period_start && report.period_end ? `${formatDate(report.period_start)} to ${formatDate(report.period_end)}` : "Whole project"].filter(Boolean).join(" · ")}
           </p>
         </div>
-        <Badge tone={isFinal ? "success" : "neutral"}>{isFinal ? "Final" : "Draft"}</Badge>
+        <Badge tone={isFinal ? "success" : "neutral"}>{isFinal ? "Final" : reopened ? "Reopened" : "Draft"}</Badge>
       </header>
 
       {isFinal ? <Alert tone="info">This document has been issued and is no longer editable.</Alert> : null}
@@ -188,15 +188,17 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
       ) : null}
 
       {!loadError ? (
-        <SummaryFinalise reportId={id} status={report.status} pdfUrl={pdfUrl} finalisedAt={formatDate(report.finalised_at)} />
+        <SummaryFinalise
+          reportId={id}
+          status={report.status}
+          hasPdf={Boolean(report.pdf_path)}
+          finalisedAt={formatDate(report.finalised_at)}
+        />
       ) : null}
 
-      {!loadError && !isFinal ? (
-        <form action={deleteSummaryReport} className="border-t border-line pt-6">
-          <input type="hidden" name="reportId" value={id} />
-          <Button type="submit" variant="ghost" className="text-ink-muted hover:text-danger"><Trash2 aria-hidden />Delete this draft</Button>
-        </form>
-      ) : null}
+      <div className="border-t border-line pt-6">
+        <DeleteSummaryReport reportId={id} status={report.status} label={label} />
+      </div>
     </div>
   );
 }

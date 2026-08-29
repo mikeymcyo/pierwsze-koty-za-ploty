@@ -18,6 +18,7 @@ import {
 } from "@/lib/pdf/report-data";
 import { REPORT_SECTION_LABELS, REPORT_SECTION_ORDER } from "@/lib/report-sections";
 import { canFinalise, pdfFileName } from "@/lib/reports/finalisation";
+import { canReopen } from "@/lib/reports/lifecycle";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 
@@ -28,11 +29,12 @@ export type FinaliseState = { error?: string; finalised?: boolean };
  *
  * The snapshot model is the point. While a report is a draft everything about
  * it is editable; finalising turns it into the issued record, and from then on
- * the stored PDF is what the client was sent. Nothing here regenerates or
- * replaces an existing one - a progress report that changes after it has gone
- * out is worth less than no report at all when somebody is arguing about who
- * caused a delay. Corrections belong in a revision workflow that keeps the
- * original, which is deliberately not built.
+ * the stored PDF is what the client was sent.
+ *
+ * A correction goes through reopenReport, which returns the report to draft
+ * while leaving the issued PDF in place and current. Issuing again renders a
+ * fresh file under a new name - the timestamp in the name means it never
+ * collides with, or overwrites, the file already in the bucket.
  *
  * The PDF goes to the private report-pdfs bucket under
  * {company_id}/{project_id}/, the same path shape and the same storage
@@ -178,4 +180,48 @@ export async function finaliseReport(
   revalidatePath(`/reports/${reportId}`);
   revalidatePath(`/projects/${report.project_id}`);
   return { finalised: true };
+}
+
+/**
+ * Reopens an issued report so a correction can be made.
+ *
+ * The stored PDF and the finalised date are deliberately left alone. Until the
+ * report is issued again that file is still the document the client holds, so
+ * abandoning an edit leaves the record exactly as it was. Finalising again
+ * renders a fresh PDF under a new name and points the report at it; the
+ * previous file stays in the bucket rather than being overwritten.
+ */
+export async function reopenReport(
+  reportId: string,
+  _prev: FinaliseState,
+  _formData: FormData,
+): Promise<FinaliseState> {
+  await requireSessionContext();
+  const supabase = await createClient();
+
+  const { data: report, error } = await supabase
+    .from("reports")
+    .select("id, project_id, status, pdf_path")
+    .eq("id", reportId)
+    .maybeSingle();
+  if (error) return { error: `Could not read the report: ${error.message}` };
+  if (!report) return { error: "That report could not be found." };
+
+  const check = canReopen({ status: report.status, pdfPath: report.pdf_path });
+  if (!check.ok) return { error: check.message };
+
+  const { data: updated, error: writeError } = await supabase
+    .from("reports")
+    .update({ status: "draft" })
+    .eq("id", reportId)
+    .eq("status", "final")
+    .select("id")
+    .maybeSingle();
+  if (writeError) return { error: `Could not reopen the report: ${writeError.message}` };
+  if (!updated) return { error: "This report is no longer issued, so there was nothing to reopen." };
+
+  revalidatePath(`/reports/${reportId}`);
+  revalidatePath(`/projects/${report.project_id}`);
+  revalidatePath("/reports");
+  return { finalised: false };
 }

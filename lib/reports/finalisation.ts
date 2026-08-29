@@ -5,12 +5,13 @@
  * tested without a database and read the same way from the action and the
  * screen.
  *
- * Finalising is the moment a working document becomes an issued record. After
- * it, the report and its PDF are a snapshot of what was said on that date and
- * are not edited again - a progress report that changes after it has been sent
- * is worth less than no report at all in a dispute. Corrections to an issued
- * report belong in a revision workflow (Rev 1, Rev 2, keeping the original),
- * which is deliberately not built yet.
+ * Finalising is the moment a working document becomes an issued record: the
+ * report and its PDF are a snapshot of what was said on that date.
+ *
+ * An issued report is not edited in place. Correcting one means reopening it
+ * first (see lib/reports/lifecycle.ts), which returns it to draft while the
+ * already-issued PDF stays in place as the current document, and then issuing
+ * it again. That keeps the rule below simple: only a draft can be finalised.
  */
 
 export type FinalisationInput = {

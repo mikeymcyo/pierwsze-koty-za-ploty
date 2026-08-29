@@ -5,11 +5,16 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { requireSessionContext } from "@/lib/auth/session";
+import { PDF_BUCKET } from "@/lib/pdf/signing";
+import { dependentsOfSummaryReport } from "@/lib/reports/dependents";
+import { canDelete } from "@/lib/reports/lifecycle";
 import { SUMMARY_REPORT_IS_FINAL } from "@/lib/summary-reports/finalisation";
 import { summarySectionsFor } from "@/lib/summary-reports/sections";
 import { completionSourcePlan } from "@/lib/summary-reports/source-plan";
 import { createClient } from "@/lib/supabase/server";
 import type { SummaryReportKind } from "@/types/database";
+
+export type DeleteState = { error?: string };
 
 export type SummaryFormState = {
   error?: string;
@@ -395,25 +400,47 @@ export async function saveSummaryCuration(
   return { saved: true };
 }
 
-export async function deleteSummaryReport(formData: FormData) {
-  const reportId = stringOf(formData, "reportId");
-  if (!z.uuid().safeParse(reportId).success) return;
+/**
+ * Removes a consolidated report.
+ *
+ * A Completion Report built on this one blocks the delete: its issued PDF
+ * cites this document by number, and removing it would strand that reference.
+ *
+ * Only this document's own PDF is removed from storage. The photographs and
+ * Daily Reports underneath belong to the project, not to this report, and are
+ * deliberately left where they are - they are evidence for everything else too.
+ */
+export async function deleteSummaryReport(
+  reportId: string,
+  _previous: DeleteState,
+  formData: FormData,
+): Promise<DeleteState> {
+  if (!z.uuid().safeParse(reportId).success) return { error: "That report could not be found." };
   await requireSessionContext();
   const supabase = await createClient();
+
   const { data: report } = await supabase
     .from("summary_reports")
-    .select("project_id")
+    .select("id, project_id, status, pdf_path")
     .eq("id", reportId)
-    .eq("status", "draft")
     .maybeSingle();
-  if (!report) return;
-  const { error } = await supabase
-    .from("summary_reports")
-    .delete()
-    .eq("id", reportId)
-    .eq("status", "draft");
-  if (error) throw new Error(`Could not delete the report: ${error.message}`);
+  if (!report) return { error: "That report could not be found." };
+
+  const dependents = await dependentsOfSummaryReport(supabase, reportId);
+  const check = canDelete({
+    status: report.status,
+    dependents,
+    typedConfirmation: String(formData.get("confirmation") ?? ""),
+  });
+  if (!check.ok) return { error: check.message };
+
+  const { error } = await supabase.from("summary_reports").delete().eq("id", reportId);
+  if (error) return { error: `Could not delete the report: ${error.message}` };
+
+  if (report.pdf_path) await supabase.storage.from(PDF_BUCKET).remove([report.pdf_path]);
+
   revalidatePath("/reports");
+  revalidatePath("/dashboard");
   revalidatePath(`/projects/${report.project_id}`);
   redirect("/reports");
 }

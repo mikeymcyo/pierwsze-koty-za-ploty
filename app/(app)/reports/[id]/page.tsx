@@ -1,12 +1,13 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Trash2 } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
 
-import { deleteReport, saveReport, type ReportFormState } from "@/app/(app)/reports/actions";
+import { saveReport, type ReportFormState } from "@/app/(app)/reports/actions";
 import { IssueList } from "@/components/issues/issue-list";
 import { RaiseIssue, type PhotoChoice } from "@/components/issues/raise-issue";
 import { FinaliseReport } from "@/components/reports/finalise-report";
+import { DeleteReport } from "@/components/reports/report-lifecycle";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
 import { ReportCaptureForm } from "@/components/reports/report-capture-form";
@@ -17,8 +18,8 @@ import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/load-error";
 import { hasAiConfig } from "@/lib/ai/report-generation";
 import { requireSessionContext } from "@/lib/auth/session";
+import { isReopened } from "@/lib/reports/lifecycle";
 import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
-import { signPdfUrl } from "@/lib/pdf/signing";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
@@ -122,7 +123,7 @@ export default async function ReportCapturePage({
     issuesResult.error;
 
   const isFinal = report.status === "final";
-  const pdfUrl = isFinal ? await signPdfUrl(report.pdf_path) : null;
+  const reopened = isReopened({ status: report.status, pdfPath: report.pdf_path });
 
   const photoChoices: PhotoChoice[] = photoRows.map((photo) => ({
     id: photo.id,
@@ -162,7 +163,7 @@ export default async function ReportCapturePage({
           </p>
         </div>
         <Badge tone={report.status === "final" ? "success" : "neutral"}>
-          {report.status === "final" ? "Final" : "Draft"}
+          {report.status === "final" ? "Final" : reopened ? "Reopened" : "Draft"}
         </Badge>
       </header>
 
@@ -254,20 +255,14 @@ export default async function ReportCapturePage({
         <FinaliseReport
           reportId={report.id}
           status={report.status}
-          pdfUrl={pdfUrl}
+          hasPdf={Boolean(report.pdf_path)}
           finalisedAt={report.finalised_at ? formatDate(report.finalised_at) : null}
         />
       )}
 
-      {report.status === "draft" ? (
-        <form action={deleteReport} className="border-t border-line pt-6">
-          <input type="hidden" name="reportId" value={report.id} />
-          <Button type="submit" variant="ghost" className="text-ink-muted hover:text-danger">
-            <Trash2 aria-hidden />
-            Delete this draft
-          </Button>
-        </form>
-      ) : null}
+      <div className="border-t border-line pt-6">
+        <DeleteReport reportId={report.id} status={report.status} />
+      </div>
     </div>
   );
 }

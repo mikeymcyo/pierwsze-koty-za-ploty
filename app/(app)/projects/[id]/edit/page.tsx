@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { updateProject } from "@/app/(app)/projects/actions";
+import { DeleteProject } from "@/components/projects/project-delete";
 import { ProjectForm } from "@/components/projects/project-form";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
@@ -43,6 +44,18 @@ export default async function EditProjectPage({
 
   const action = updateProject.bind(null, project.id);
 
+  // Counted so the confirmation can say exactly what is about to go, rather
+  // than asking the user to guess how much work is behind the project.
+  const [reports, summaries, photos, issues] = await Promise.all([
+    supabase.from("reports").select("id", { count: "exact", head: true }).eq("project_id", project.id),
+    supabase
+      .from("summary_reports")
+      .select("id", { count: "exact", head: true })
+      .eq("project_id", project.id),
+    supabase.from("photos").select("id", { count: "exact", head: true }).eq("project_id", project.id),
+    supabase.from("issues").select("id", { count: "exact", head: true }).eq("project_id", project.id),
+  ]);
+
   return (
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
@@ -58,6 +71,20 @@ export default async function EditProjectPage({
         submitLabel="Save changes"
         cancelHref={`/projects/${project.id}`}
       />
+
+      <section className="flex flex-col gap-3 border-t border-line pt-6">
+        <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">Danger zone</h2>
+        <DeleteProject
+          projectId={project.id}
+          projectName={project.name}
+          counts={{
+            reports: reports.count ?? 0,
+            summaries: summaries.count ?? 0,
+            photos: photos.count ?? 0,
+            issues: issues.count ?? 0,
+          }}
+        />
+      </section>
     </div>
   );
 }

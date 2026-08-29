@@ -23,6 +23,7 @@
     "test:regeneration": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/regeneration-smoke.mjs",
     "test:issues-pdf": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/issues-pdf-smoke.mjs",
     "test:summary-reports": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/summary-reports-smoke.mjs",
+    "test:lifecycle": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/lifecycle-smoke.mjs",
     "test:pdf": "node e2e/pdf-smoke.mjs"
   },
   "dependencies": {
