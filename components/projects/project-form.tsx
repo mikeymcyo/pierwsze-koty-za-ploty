@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -17,6 +18,14 @@ import type { Project, ProjectStatus } from "@/types/database";
 type ProjectFormProps = {
   action: (state: ProjectFormState, formData: FormData) => Promise<ProjectFormState>;
   project?: Project;
+  /**
+   * Starting values for a new project, from a selected store. Ignored when an
+   * existing project is being edited - what is already saved always wins over
+   * a suggestion.
+   */
+  defaults?: Partial<Project>;
+  /** Shown above the form to say where these values came from. */
+  banner?: ReactNode;
   submitLabel: string;
   cancelHref: string;
 };
@@ -33,22 +42,28 @@ function SaveButton({ label }: { label: string }) {
 export function ProjectForm({
   action,
   project,
+  defaults,
+  banner,
   submitLabel,
   cancelHref,
 }: ProjectFormProps) {
   const [state, formAction] = useActionState<ProjectFormState, FormData>(action, {});
   const errors = state.fieldErrors ?? {};
+  // A saved project is never overridden by a suggestion; a new one starts from
+  // whatever the store filled in, and every field stays editable.
+  const initial = project ?? defaults;
 
   return (
     <form action={formAction} className="flex flex-col gap-6">
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
+      {banner}
 
       <div className="flex flex-col gap-5">
         <Field label="Project name" htmlFor="name" error={errors.name}>
           <Input
             id="name"
             name="name"
-            defaultValue={project?.name ?? ""}
+            defaultValue={initial?.name ?? ""}
             placeholder="Lidl South Croydon — External Works"
             autoCapitalize="words"
             required
@@ -60,7 +75,7 @@ export function ProjectForm({
           <Input
             id="client"
             name="client"
-            defaultValue={project?.client ?? ""}
+            defaultValue={initial?.client ?? ""}
             placeholder="Lidl GB"
             autoCapitalize="words"
           />
@@ -70,7 +85,7 @@ export function ProjectForm({
           <Input
             id="site_address"
             name="site_address"
-            defaultValue={project?.site_address ?? ""}
+            defaultValue={initial?.site_address ?? ""}
             placeholder="South Croydon"
             autoCapitalize="words"
           />
@@ -81,7 +96,7 @@ export function ProjectForm({
             <Input
               id="postcode"
               name="postcode"
-              defaultValue={project?.postcode ?? ""}
+              defaultValue={initial?.postcode ?? ""}
               placeholder="CR2 6EA"
               autoCapitalize="characters"
             />
@@ -96,7 +111,7 @@ export function ProjectForm({
             <Input
               id="project_reference"
               name="project_reference"
-              defaultValue={project?.project_reference ?? ""}
+              defaultValue={initial?.project_reference ?? ""}
               placeholder="1470"
             />
           </Field>
@@ -106,7 +121,7 @@ export function ProjectForm({
           <Input
             id="site_manager"
             name="site_manager"
-            defaultValue={project?.site_manager ?? ""}
+            defaultValue={initial?.site_manager ?? ""}
             placeholder="Maciej"
             autoCapitalize="words"
           />
@@ -118,7 +133,7 @@ export function ProjectForm({
               id="start_date"
               name="start_date"
               type="date"
-              defaultValue={project?.start_date ?? ""}
+              defaultValue={initial?.start_date ?? ""}
             />
           </Field>
 
@@ -132,7 +147,7 @@ export function ProjectForm({
               id="expected_completion_date"
               name="expected_completion_date"
               type="date"
-              defaultValue={project?.expected_completion_date ?? ""}
+              defaultValue={initial?.expected_completion_date ?? ""}
               aria-invalid={Boolean(errors.expected_completion_date)}
             />
           </Field>
@@ -152,7 +167,7 @@ export function ProjectForm({
           <Textarea
             id="description"
             name="description"
-            defaultValue={project?.description ?? ""}
+            defaultValue={initial?.description ?? ""}
             placeholder="Scope of works, access arrangements, anything the team should know."
             rows={4}
           />

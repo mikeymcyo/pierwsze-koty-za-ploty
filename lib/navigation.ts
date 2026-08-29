@@ -1,4 +1,4 @@
-import { FileText, FolderKanban, LayoutDashboard, Plus, User } from "lucide-react";
+import { FileText, FolderKanban, LayoutDashboard, Plus, Store, User } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -6,15 +6,25 @@ export type NavItem = {
   icon: typeof LayoutDashboard;
   /** The raised centre action in the mobile bar. */
   primary?: boolean;
+  /**
+   * Kept out of the phone's bottom bar. Six targets there would push the
+   * raised Create button off centre, and Profile is the one destination
+   * nobody opens with gloves on - it moves to the top bar instead.
+   */
+  deskOnly?: boolean;
 };
 
 export const NAV_ITEMS: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/reports/new", label: "Create", icon: Plus, primary: true },
+  { href: "/stores", label: "Stores", icon: Store },
   { href: "/reports", label: "Reports", icon: FileText },
-  { href: "/profile", label: "Profile", icon: User },
+  { href: "/profile", label: "Profile", icon: User, deskOnly: true },
 ];
+
+/** What the phone's bottom bar shows: five targets, Create in the middle. */
+export const MOBILE_NAV_ITEMS: NavItem[] = NAV_ITEMS.filter((item) => !item.deskOnly);
 
 /**
  * A nav item is active for its own route and anything beneath it. "/reports/new"

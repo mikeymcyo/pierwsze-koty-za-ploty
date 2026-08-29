@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { NAV_ITEMS, isNavItemActive } from "@/lib/navigation";
+import { MOBILE_NAV_ITEMS, isNavItemActive } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 /**
@@ -19,7 +19,7 @@ export function BottomNav() {
       className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-safe md:hidden"
     >
       <ul className="mx-auto flex max-w-lg items-stretch">
-        {NAV_ITEMS.map((item) => {
+        {MOBILE_NAV_ITEMS.map((item) => {
           const active = isNavItemActive(item, pathname);
           const Icon = item.icon;
 

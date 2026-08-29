@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { User } from "lucide-react";
 
 import { Wordmark } from "@/components/brand/wordmark";
 
@@ -10,9 +11,20 @@ export function TopBar({ companyName }: { companyName: string }) {
         <Link href="/dashboard" aria-label="SiteBoss Pro dashboard">
           <Wordmark />
         </Link>
-        <span className="truncate text-sm font-semibold text-ink-muted">
-          {companyName}
-        </span>
+        <div className="flex min-w-0 items-center gap-2">
+          <span className="truncate text-sm font-semibold text-ink-muted">
+            {companyName}
+          </span>
+          {/* Profile lives here rather than in the bottom bar: see
+              lib/navigation.ts. */}
+          <Link
+            href="/profile"
+            aria-label="Profile"
+            className="grid size-10 shrink-0 place-items-center rounded-xl text-ink-muted hover:bg-surface-muted hover:text-ink"
+          >
+            <User className="size-5" aria-hidden />
+          </Link>
+        </div>
       </div>
     </header>
   );
