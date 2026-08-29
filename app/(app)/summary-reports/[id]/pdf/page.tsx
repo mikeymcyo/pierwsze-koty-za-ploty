@@ -16,10 +16,13 @@ export default async function SummaryReportPdfPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ draft?: string }>;
+  searchParams: Promise<{ draft?: string; documents?: string }>;
 }) {
   const { id } = await params;
-  const wantsDraft = (await searchParams).draft === "1";
+  const search = await searchParams;
+  const wantsDraft = search.draft === "1";
+  // Carried through so the preview is the exact package that would be issued.
+  const documentsFlag = search.documents === "0" ? "&documents=0" : "";
   await requireSessionContext();
   const supabase = await createClient();
 
@@ -35,7 +38,7 @@ export default async function SummaryReportPdfPage({
   // of the corrections in progress. Both are legitimate questions to ask.
   const showingIssued =
     issued || (isReopened({ status: report.status, pdfPath: report.pdf_path }) && !wantsDraft);
-  const src = showingIssued ? await signPdfUrl(report.pdf_path) : `/summary-reports/${id}/preview`;
+  const src = showingIssued ? await signPdfUrl(report.pdf_path) : `/summary-reports/${id}/preview?draft=1${documentsFlag}`;
 
   const note = issued
     ? `Issued${report.finalised_at ? ` on ${formatDate(report.finalised_at)}` : ""}. This is the stored PDF, not a new render.`

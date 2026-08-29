@@ -7,6 +7,8 @@ import {
   ISSUE_PRIORITY_LABELS,
   ISSUE_STATUS_LABELS,
 } from "@/lib/issues/metadata";
+import { loadDocumentAttachments } from "@/lib/pdf/document-attachments";
+import { mergeReportWithDocuments } from "@/lib/pdf/merge";
 import { renderReportPdf } from "@/lib/pdf/render";
 import { PDF_BUCKET } from "@/lib/pdf/signing";
 import {
@@ -18,6 +20,7 @@ import {
 import { REPORT_SECTION_LABELS, REPORT_SECTION_ORDER } from "@/lib/report-sections";
 import { canFinalise, pdfFileName } from "@/lib/reports/finalisation";
 import { resolveDocument } from "@/lib/documents/metadata";
+import { shouldIncludeDocuments } from "@/lib/reports/document-package";
 import {
   loadReferencedDocuments,
   snapshotDocumentReferences,
@@ -47,7 +50,7 @@ export type FinaliseState = { error?: string; finalised?: boolean };
 export async function finaliseReport(
   reportId: string,
   _prev: FinaliseState,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<FinaliseState> {
   const session = await requireSessionContext();
   const supabase = await createClient();
@@ -164,6 +167,22 @@ export async function finaliseReport(
   } catch (cause) {
     console.error("[siteboss] PDF render failed:", cause);
     return { error: "The report could not be turned into a PDF. Nothing has been finalised." };
+  }
+
+  // The supporting documents are appended to the rendered report, so the
+  // issued file is one self-contained package. A signed URL printed into a PDF
+  // would stop working within the hour; these are pages.
+  if (shouldIncludeDocuments(String(formData.get("includeDocuments") ?? ""), supportingDocuments.length > 0)) {
+    const loaded = await loadDocumentAttachments(supabase, {
+      table: "report_documents",
+      column: "report_id",
+      id: reportId,
+    });
+    if (!loaded.ok) return { error: loaded.error };
+
+    const merged = await mergeReportWithDocuments(pdf, loaded.attachments);
+    if (!merged.ok) return { error: merged.error };
+    pdf = merged.pdf;
   }
 
   const path = `${session.companyId}/${report.project_id}/${pdfFileName(

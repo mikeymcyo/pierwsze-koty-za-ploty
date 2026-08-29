@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 import { requireSessionContext } from "@/lib/auth/session";
 import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS } from "@/lib/issues/metadata";
+import { loadDocumentAttachments } from "@/lib/pdf/document-attachments";
+import { mergeReportWithDocuments } from "@/lib/pdf/merge";
 import { renderReportPdf } from "@/lib/pdf/render";
 import {
   issuesForReport,
@@ -12,6 +14,7 @@ import {
 import { REPORT_SECTION_LABELS, REPORT_SECTION_ORDER } from "@/lib/report-sections";
 import { resolveDocument } from "@/lib/documents/metadata";
 import { loadReferencedDocuments } from "@/lib/documents/snapshot";
+import { shouldIncludeDocuments } from "@/lib/reports/document-package";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 
@@ -29,7 +32,7 @@ import { formatDate } from "@/lib/utils";
  * been sent.
  */
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
@@ -105,7 +108,7 @@ export async function GET(
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
 
-  const pdf = await renderReportPdf({
+  let pdf = await renderReportPdf({
     companyName: session.companyName,
     projectName: project?.name ?? "Project",
     client: project?.client ?? null,
@@ -123,6 +126,25 @@ export async function GET(
     photos: photosWithData(photoRows, downloaded),
     supportingDocuments,
   });
+
+  // The preview is the package the client would receive, appendices and all -
+  // a preview that only listed the drawings would not be a preview of what is
+  // about to be issued.
+  const include = shouldIncludeDocuments(
+    new URL(request.url).searchParams.get("documents"),
+    supportingDocuments.length > 0,
+  );
+  if (include) {
+    const loaded = await loadDocumentAttachments(supabase, {
+      table: "report_documents",
+      column: "report_id",
+      id,
+    });
+    if (!loaded.ok) return new NextResponse(loaded.error, { status: 409 });
+    const merged = await mergeReportWithDocuments(pdf, loaded.attachments);
+    if (!merged.ok) return new NextResponse(merged.error, { status: 409 });
+    pdf = merged.pdf;
+  }
 
   return new NextResponse(new Uint8Array(pdf), {
     headers: {

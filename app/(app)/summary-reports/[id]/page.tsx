@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, ExternalLink } from "lucide-react";
 
 import { saveSummaryReportDocuments } from "@/app/(app)/documents/actions";
 import { applySummaryReview, reviewSummaryReportAction } from "@/app/(app)/reports/review-actions";
@@ -218,17 +218,34 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
             ) : (
               <ul className="flex flex-col gap-2">
                 {referencedDocuments.map((document) => (
-                  <li key={document.id} className="rounded-xl border border-line p-3">
-                    <span className="font-medium text-ink">{document.title}</span>
-                    <span className="mt-1 block text-xs text-ink-muted">
-                      {[
-                        documentTypeLabel(document.docType),
-                        document.reference ? `Ref ${document.reference}` : null,
-                        document.revision ? `Rev ${document.revision}` : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
+                  <li
+                    key={document.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line p-3"
+                  >
+                    <span className="min-w-0">
+                      <span className="font-medium text-ink">{document.title}</span>
+                      <span className="mt-1 block text-xs text-ink-muted">
+                        {[
+                          documentTypeLabel(document.docType),
+                          document.reference ? `Ref ${document.reference}` : null,
+                          document.revision ? `Rev ${document.revision}` : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
                     </span>
+                    {document.url ? (
+                      <Button asChild variant="secondary">
+                        <a href={document.url} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink aria-hidden />
+                          Open document
+                        </a>
+                      </Button>
+                    ) : (
+                      <span className="text-xs text-ink-subtle">
+                        No longer stored on the project.
+                      </span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -278,6 +295,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
           reportId={id}
           status={report.status}
           hasPdf={Boolean(report.pdf_path)}
+          documentCount={referencedDocuments.length}
           finalisedAt={formatDate(report.finalised_at)}
         />
       ) : null}

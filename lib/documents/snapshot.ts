@@ -78,7 +78,7 @@ export async function snapshotDocumentReferences(
 
   const { data: documents, error: documentError } = await supabase
     .from("documents")
-    .select("id, title, doc_type, reference, revision, document_date")
+    .select("id, title, doc_type, reference, revision, document_date, storage_path")
     .in(
       "id",
       links.map((link) => link.document_id),
@@ -125,12 +125,15 @@ export async function loadReferencedDocuments(
       revision_at_issue: string | null;
       document_date_at_issue: string | null;
     };
+    documentId: string;
+    sortOrder: number;
     live: {
       title: string;
       doc_type: string;
       reference: string | null;
       revision: string | null;
       document_date: string | null;
+      storage_path: string;
     } | null;
   }[]
 > {
@@ -139,7 +142,7 @@ export async function loadReferencedDocuments(
 
   const { data: documents } = await supabase
     .from("documents")
-    .select("id, title, doc_type, reference, revision, document_date")
+    .select("id, title, doc_type, reference, revision, document_date, storage_path")
     .in(
       "id",
       links.map((link) => link.document_id),
@@ -147,6 +150,8 @@ export async function loadReferencedDocuments(
   const byId = new Map((documents ?? []).map((document) => [document.id, document]));
 
   return links.map((link) => ({
+    documentId: link.document_id,
+    sortOrder: link.sort_order,
     snapshot: {
       title_at_issue: link.title_at_issue,
       type_at_issue: link.type_at_issue,

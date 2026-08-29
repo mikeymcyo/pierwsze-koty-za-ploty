@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { FileCheck2, FileText } from "lucide-react";
 
@@ -12,6 +12,7 @@ import {
 import { ReopenSummaryReport } from "@/components/summary-reports/summary-lifecycle";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { describePackageChoice, documentsFlag } from "@/lib/reports/document-package";
 
 function IssueButton({ reissue }: { reissue: boolean }) {
   const { pending } = useFormStatus();
@@ -28,15 +29,20 @@ export function SummaryFinalise({
   status,
   hasPdf,
   finalisedAt,
+  documentCount = 0,
 }: {
   reportId: string;
   status: "draft" | "final";
   hasPdf: boolean;
   finalisedAt: string | null;
+  /** Linked supporting documents, which the issued PDF can carry in full. */
+  documentCount?: number;
 }) {
   const finalise = finaliseSummaryReport.bind(null, reportId);
   const [state, action] = useActionState<SummaryFinaliseState, FormData>(finalise, {});
   const reopened = status === "draft" && hasPdf;
+  // Default on: somebody who linked a drawing meant it to go with the report.
+  const [includeDocuments, setIncludeDocuments] = useState(true);
 
   if (status === "final") {
     return (
@@ -82,15 +88,37 @@ export function SummaryFinalise({
 
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
 
+      {documentCount > 0 ? (
+        <label className="flex items-start gap-3 rounded-xl border border-line p-3">
+          <input
+            type="checkbox"
+            checked={includeDocuments}
+            onChange={(event) => setIncludeDocuments(event.target.checked)}
+            className="mt-0.5 size-5 shrink-0 accent-black"
+          />
+          <span className="min-w-0">
+            <span className="block font-medium text-ink">
+              Include supporting documents in the PDF
+            </span>
+            <span className="mt-1 block text-sm text-ink-muted">
+              {describePackageChoice({ include: includeDocuments, documentCount })}
+            </span>
+          </span>
+        </label>
+      ) : null}
+
       <div className="flex flex-wrap gap-3">
         <form action={action}>
+          <input type="hidden" name="includeDocuments" value={documentsFlag(includeDocuments)} />
           <IssueButton reissue={reopened} />
         </form>
 
         <Button asChild variant="secondary" size="lg">
-          <Link href={`/summary-reports/${reportId}/pdf${reopened ? "?draft=1" : ""}`}>
+          <Link
+            href={`/summary-reports/${reportId}/pdf?draft=1&documents=${documentsFlag(includeDocuments)}`}
+          >
             <FileText aria-hidden />
-            {reopened ? "Preview your changes" : "Preview PDF"}
+            {reopened ? "Preview your changes" : "Preview final PDF"}
           </Link>
         </Button>
 

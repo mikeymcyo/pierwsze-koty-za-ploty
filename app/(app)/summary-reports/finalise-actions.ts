@@ -3,9 +3,12 @@
 import { revalidatePath } from "next/cache";
 
 import { displayName, requireSessionContext } from "@/lib/auth/session";
+import { loadDocumentAttachments } from "@/lib/pdf/document-attachments";
+import { mergeReportWithDocuments } from "@/lib/pdf/merge";
 import { renderSummaryReportPdf } from "@/lib/pdf/summary-render";
 import { PDF_BUCKET } from "@/lib/pdf/signing";
 import { snapshotDocumentReferences } from "@/lib/documents/snapshot";
+import { shouldIncludeDocuments } from "@/lib/reports/document-package";
 import { canReopen, nextRevision } from "@/lib/reports/lifecycle";
 import { canFinaliseSummary, summaryPdfFileName } from "@/lib/summary-reports/finalisation";
 import { loadSummaryPdfData } from "@/lib/summary-reports/pdf-data";
@@ -17,7 +20,7 @@ export type SummaryFinaliseState = { error?: string; finalised?: boolean };
 export async function finaliseSummaryReport(
   reportId: string,
   _previous: SummaryFinaliseState,
-  _formData: FormData,
+  formData: FormData,
 ): Promise<SummaryFinaliseState> {
   const session = await requireSessionContext();
   const supabase = await createClient();
@@ -86,6 +89,26 @@ export async function finaliseSummaryReport(
   } catch (cause) {
     console.error("[siteboss] summary PDF render failed:", cause);
     return { error: "The report could not be turned into a PDF. Nothing has been finalised." };
+  }
+
+  // Appended to the rendered report, so the issued file is one self-contained
+  // package rather than a document pointing at links that expire.
+  if (
+    shouldIncludeDocuments(
+      String(formData.get("includeDocuments") ?? ""),
+      loaded.data.supportingDocuments.length > 0,
+    )
+  ) {
+    const attachments = await loadDocumentAttachments(supabase, {
+      table: "summary_report_documents",
+      column: "summary_report_id",
+      id: reportId,
+    });
+    if (!attachments.ok) return { error: attachments.error };
+
+    const merged = await mergeReportWithDocuments(pdf, attachments.attachments);
+    if (!merged.ok) return { error: merged.error };
+    pdf = merged.pdf;
   }
 
   // Counted here rather than at reopen, so an abandoned edit never inflates
