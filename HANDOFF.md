@@ -88,6 +88,53 @@ application code, which is what changed.
 - The issued PDF gains a Supporting Documents table whose optional columns
   appear only when something fills them.
 
+### Swipe actions on every list
+
+`components/ui/swipe-row.tsx` is the one gesture: project rows, Daily Report
+rows and Progress/Completion rows all use it. Same behaviour, same visual
+language, arithmetic in `lib/ui/swipe.ts` and tested there.
+
+**Deletion is never reimplemented.** Each row hands off to the component that
+already owns that confirmation - `DeleteProject`, `DeleteReport`,
+`DeleteSummaryReport` - which keeps its own wording, its typed confirmation for
+an issued record, and the server-side dependency checks. A swipe only ever
+opens a confirmation. Reopening an issued report is deliberately *not* behind a
+swipe: it carries a warning about a PDF a client may already hold, and stays on
+the report. A draft offers Edit, an issued report offers Open. The ••• button is
+always visible for desktop and for anyone not using the gesture.
+
+### Site Survey - migration prepared, NOT APPLIED
+
+`supabase/migrations/20260831000008_site_surveys.sql`. Enum values only, no
+table, column, constraint, policy, index or backfill:
+
+- `summary_report_kind` += `survey`
+- `summary_section_type` += `survey_purpose`, `existing_condition`,
+  `measurements`, `access_and_constraints`, `proposed_works`, `requirements`,
+  `pricing_notes`
+- `project_status` += `survey`, sorted after `active`
+
+A survey is a `summary_reports` kind because that table already means "a
+standalone document about a project, issued once then immutable", numbered per
+kind with revisions, sections, curated photographs, an issue record and a
+document register. It has no source reports, and nothing in the schema requires
+any - that minimum is an application rule.
+
+It still belongs to a project because `photos.project_id` and
+`documents.project_id` are NOT NULL with composite foreign keys and their
+storage objects live under `{company_id}/{project_id}/`, matched by the bucket
+policies. Starting a survey from a store therefore creates the project in the
+same action, at `survey` status - an enquiry, not a live job. That is also why
+"associate the survey with a project later" needs nothing: the survey, its
+photographs, documents and issues are already on the project, and awarding the
+work is a change of status.
+
+**PostgreSQL cannot remove an enum value**, so this is not revertible by a drop;
+rolling back means leaving the values unused, which is inert. Validated against
+a real PostgreSQL 16 with every migration applied; the schema test's enum counts
+are updated. Adding `survey` to the TypeScript `ProjectStatus` union and its
+label comes with the implementation, not with the migration.
+
 ### Navigation and project UX
 
 - **Project rows swipe left** for Edit and Delete, with the gesture deliberately

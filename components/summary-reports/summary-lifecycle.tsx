@@ -41,10 +41,15 @@ export function DeleteSummaryReport({
   reportId,
   status,
   label,
+  defaultOpen,
+  onCancel,
 }: {
   reportId: string;
   status: "draft" | "final";
   label: string;
+  /** Opened already, for a caller that has its own way of asking - see SwipeRow. */
+  defaultOpen?: boolean;
+  onCancel?: () => void;
 }) {
   const remove = deleteSummaryReport.bind(null, reportId);
   const [state, action] = useActionState<DeleteState, FormData>(remove, {});
@@ -63,6 +68,8 @@ export function DeleteSummaryReport({
       confirmLabel="Delete report"
       pendingLabel="Deleting…"
       requireTyping={isFinal}
+      defaultOpen={defaultOpen}
+      onCancel={onCancel}
       error={state.error}
     />
   );

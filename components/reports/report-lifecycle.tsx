@@ -37,9 +37,14 @@ export function ReopenReport({
 export function DeleteReport({
   reportId,
   status,
+  defaultOpen,
+  onCancel,
 }: {
   reportId: string;
   status: "draft" | "final";
+  /** Opened already, for a caller that has its own way of asking - see SwipeRow. */
+  defaultOpen?: boolean;
+  onCancel?: () => void;
 }) {
   const remove = deleteReport.bind(null, reportId);
   const [state, action] = useActionState<DeleteState, FormData>(remove, {});
@@ -58,6 +63,8 @@ export function DeleteReport({
       confirmLabel="Delete report"
       pendingLabel="Deleting…"
       requireTyping={isFinal}
+      defaultOpen={defaultOpen}
+      onCancel={onCancel}
       error={state.error}
     />
   );

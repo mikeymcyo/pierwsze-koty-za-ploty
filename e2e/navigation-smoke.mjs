@@ -101,36 +101,61 @@ check("issues are tallied per project", tally.get("a") === 2 && tally.get("b") =
 check("a project with none is simply absent", tally.get("c") === undefined);
 
 console.log("\n5. A swipe cannot delete anything");
-const row = read("../components/projects/project-row.tsx");
-check("Delete goes through the existing project deletion action", /deleteProject\.bind\(null, project\.id\)/.test(row));
-check("which still demands the word be typed", /requireTyping/.test(row));
-check("revealing the actions writes nothing", !/action=\{action\}[\s\S]{0,200}revealed/.test(row));
+const rows = {
+  project: read("../components/projects/project-row.tsx"),
+  daily: read("../components/reports/report-row.tsx"),
+  consolidated: read("../components/summary-reports/summary-row.tsx"),
+};
+// Deletion is never reimplemented: every row hands off to the component that
+// already owns that confirmation, its wording and its server-side checks.
+for (const [name, component, owner] of [
+  ["project", rows.project, "DeleteProject"],
+  ["daily", rows.daily, "DeleteReport"],
+  ["consolidated", rows.consolidated, "DeleteSummaryReport"],
+]) {
+  check(`${name}: Delete goes through the existing ${owner}`, new RegExp(`<${owner}\\b`).test(component));
+  check(`${name}: no deletion action is called directly`, !/\.bind\(null,/.test(component));
+  check(`${name}: the swipe opens a confirmation rather than deleting`, /setConfirming\(true\)/.test(component));
+  check(`${name}: which arrives already open`, /defaultOpen/.test(component));
+  check(`${name}: cancelling puts the row back`, /onCancel=\{\(\) => setConfirming\(false\)\}/.test(component));
+}
 check(
-  "the confirmation names the project",
-  /Delete \$\{project\.name\}\?/.test(row),
+  "an issued record still has to have the word typed",
+  /requireTyping=\{isFinal\}/.test(read("../components/reports/report-lifecycle.tsx")) &&
+    /requireTyping=\{isFinal\}/.test(read("../components/summary-reports/summary-lifecycle.tsx")),
 );
 check(
-  "and says what goes with it",
-  /every report, photograph, issue and document/.test(row),
+  "reopening an issued report is not offered behind a swipe",
+  !/<ReopenReport/.test(rows.daily) && !/<ReopenSummaryReport/.test(rows.consolidated),
 );
-check("cancelling puts the row back", /onCancel=\{\(\) => \{[\s\S]{0,120}setConfirming\(false\)/.test(row));
+check(
+  "a draft is edited and an issued report is opened",
+  /isFinal \? "Open" : "Edit"/.test(rows.daily) && /isFinal \? "Open" : "Edit"/.test(rows.consolidated),
+);
 
 console.log("\n6. Nothing depends on knowing the gesture");
-check("there is a menu button as well", /aria-label=\{`Actions for \$\{project\.name\}`\}/.test(row));
-check("it says whether it is open", /aria-expanded=\{revealed\}/.test(row));
-check("it toggles the same actions the swipe reveals", /setRevealed\(\(open\) => !open\)/.test(row));
-check("a mouse drag is not a swipe", /event\.pointerType !== "touch"/.test(row));
-check(
-  "the browser is told it keeps vertical scrolling",
-  /touchAction: "pan-y"/.test(row),
-);
+const swipe = read("../components/ui/swipe-row.tsx");
+check("there is one row component, not three", /export function SwipeRow/.test(swipe));
+for (const [name, component] of Object.entries(rows)) {
+  check(`${name}: uses it rather than its own gesture`, /<SwipeRow/.test(component));
+  check(`${name}: and carries no gesture code of its own`, !/pointerType|touchAction/.test(component));
+}
+check("there is a menu button as well", /aria-label=\{`Actions for \$\{label\}`\}/.test(swipe));
+check("it says whether it is open", /aria-expanded=\{revealed\}/.test(swipe));
+check("it toggles the same actions the swipe reveals", /setRevealed\(\(open\) => !open\)/.test(swipe));
+check("a mouse drag is not a swipe", /event\.pointerType !== "touch"/.test(swipe));
+check("the browser is told it keeps vertical scrolling", /touchAction: "pan-y"/.test(swipe));
 check(
   "the actions are not in the page while the row is closed",
-  /\{revealed \? \(\s*<div className="absolute/.test(row),
+  /\{revealed \? \(\s*<div className="absolute/.test(swipe),
 );
 check(
-  "the list says the actions are there",
+  "the project list says the actions are there",
   /Swipe a project left, or use its menu/.test(read("../app/(app)/projects/page.tsx")),
+);
+check(
+  "and so does the report list",
+  /Swipe a report left, or use its menu/.test(read("../app/(app)/reports/page.tsx")),
 );
 
 console.log("\n7. Getting around");

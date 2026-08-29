@@ -1,17 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { FileCheck2, FileText, Plus } from "lucide-react";
+import { FileText, Plus } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
+import { ReportRow } from "@/components/reports/report-row";
+import { SummaryRow } from "@/components/summary-reports/summary-row";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
-import { SUMMARY_KIND_LABELS } from "@/lib/summary-reports/sections";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatReportNumber } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Reports" };
 
@@ -35,7 +33,7 @@ export default async function ReportsPage() {
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">Reports</h1>
-          <p className="mt-1 text-sm text-ink-muted">Daily records, client progress updates and project completion documents.</p>
+          <p className="mt-1 text-sm text-ink-muted">Daily records, client progress updates and project completion documents. Swipe a report left, or use its menu, for its actions.</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button asChild variant="secondary" size="sm"><Link href="/reports/new"><Plus aria-hidden />Daily</Link></Button>
@@ -60,16 +58,7 @@ export default async function ReportsPage() {
                   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
                   return (
                     <li key={report.id}>
-                      <Card className="transition-colors hover:border-line-strong">
-                        <Link href={`/summary-reports/${report.id}`} className="flex items-center gap-4 p-5">
-                          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-surface-muted"><FileCheck2 className="size-5 text-ink-muted" aria-hidden /></span>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate font-semibold text-ink">{report.title || `${SUMMARY_KIND_LABELS[report.kind]} ${formatReportNumber(report.number)}`}</p>
-                            <p className="truncate text-sm text-ink-muted">{project?.name ?? "Unknown project"}{report.period_start && report.period_end ? ` · ${formatDate(report.period_start)} to ${formatDate(report.period_end)}` : " · Whole project"}</p>
-                          </div>
-                          <Badge tone={report.status === "final" ? "success" : "neutral"}>{report.status === "final" ? "Final" : "Draft"}</Badge>
-                        </Link>
-                      </Card>
+                      <SummaryRow report={{ ...report, projectName: project?.name ?? null }} />
                     </li>
                   );
                 })}
@@ -87,15 +76,7 @@ export default async function ReportsPage() {
                   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
                   return (
                     <li key={report.id}>
-                      <Card className="transition-colors hover:border-line-strong">
-                        <Link href={`/reports/${report.id}`} className="flex items-center justify-between gap-4 p-5">
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate font-semibold text-ink">Daily Report {formatReportNumber(report.report_number)} · {formatDate(report.report_date)}</p>
-                            <p className="truncate text-sm text-ink-muted">{project?.name ?? "Unknown project"}</p>
-                          </div>
-                          <Badge tone={report.status === "final" ? "success" : "neutral"}>{report.status === "final" ? "Final" : "Draft"}</Badge>
-                        </Link>
-                      </Card>
+                      <ReportRow report={{ ...report, projectName: project?.name ?? null }} />
                     </li>
                   );
                 })}

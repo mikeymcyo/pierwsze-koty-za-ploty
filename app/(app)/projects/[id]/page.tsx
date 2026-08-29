@@ -13,11 +13,12 @@ import { ProjectTabs } from "@/components/projects/project-tabs";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
+import { ReportRow } from "@/components/reports/report-row";
+import { SummaryRow } from "@/components/summary-reports/summary-row";
 import { LinkedStoreCard, UnknownStoreCard } from "@/components/stores/linked-store-card";
 import { BackLink } from "@/components/ui/back-link";
 import { isProjectTab, type ProjectTab } from "@/lib/project-tabs";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
@@ -28,10 +29,9 @@ import { signDocumentUrls } from "@/lib/documents/signing";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import { storeFor } from "@/lib/stores/catalogue";
 import { storeLinkOf } from "@/lib/stores/project-link";
-import { SUMMARY_KIND_LABELS } from "@/lib/summary-reports/sections";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
-import { formatDate, formatReportNumber } from "@/lib/utils";
+import { formatDate } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Project" };
 
@@ -96,7 +96,7 @@ export default async function ProjectPage({
     withClockSkewRetry(() =>
       supabase
         .from("summary_reports")
-        .select("id, kind, number, title, period_start, period_end, status")
+        .select("id, kind, number, revision, title, period_start, period_end, status")
         .eq("project_id", project.id)
         .order("created_at", { ascending: false }),
     ),
@@ -282,49 +282,12 @@ export default async function ProjectPage({
           <ul className="flex flex-col gap-3">
             {summaryReports.map((report) => (
               <li key={report.id}>
-                <Card className="transition-colors hover:border-line-strong">
-                  <Link
-                    href={`/summary-reports/${report.id}`}
-                    className="flex items-center justify-between gap-4 p-5"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-semibold text-ink">
-                        {report.title ||
-                          `${SUMMARY_KIND_LABELS[report.kind]} ${formatReportNumber(report.number)}`}
-                      </p>
-                      <p className="text-sm text-ink-muted">
-                        {report.period_start && report.period_end
-                          ? `${formatDate(report.period_start)} to ${formatDate(report.period_end)}`
-                          : "Whole project"}
-                      </p>
-                    </div>
-                    <Badge tone={report.status === "final" ? "success" : "neutral"}>
-                      {report.status === "final" ? "Final" : "Draft"}
-                    </Badge>
-                  </Link>
-                </Card>
+                <SummaryRow report={{ ...report, projectName: null }} />
               </li>
             ))}
             {reports.map((report) => (
               <li key={report.id}>
-                <Card className="transition-colors hover:border-line-strong">
-                  <Link
-                    href={`/reports/${report.id}`}
-                    className="flex items-center justify-between gap-4 p-5"
-                  >
-                    <div className="min-w-0">
-                      <p className="font-semibold text-ink">
-                        Report {formatReportNumber(report.report_number)}
-                      </p>
-                      <p className="text-sm text-ink-muted">
-                        {formatDate(report.report_date)}
-                      </p>
-                    </div>
-                    <Badge tone={report.status === "final" ? "success" : "neutral"}>
-                      {report.status === "final" ? "Final" : "Draft"}
-                    </Badge>
-                  </Link>
-                </Card>
+                <ReportRow report={{ ...report, projectName: null }} />
               </li>
             ))}
           </ul>
