@@ -3,6 +3,7 @@ import "server-only";
 import OpenAI from "openai";
 import { z } from "zod";
 
+import { SUMMARY_SYSTEM_PROMPT } from "@/lib/ai/summary-prompt";
 import { summarySectionsFor } from "@/lib/summary-reports/sections";
 import type { SummaryReportKind, SummarySectionType } from "@/types/database";
 
@@ -21,14 +22,6 @@ export type SummaryGenerationResult =
   | { ok: true; sections: Partial<Record<SummarySectionType, string>> }
   | { ok: false; error: string };
 
-const SYSTEM_PROMPT = [
-  "You are an experienced UK construction site manager consolidating issued site records into a client-facing report.",
-  "The supplied evidence is authoritative. Rewrite and consolidate it, but never add a fact, quantity, cause, status, certification, approval, inspection, quality judgement or programme claim that is not explicitly present.",
-  "Prefer an issued progress report's reviewed wording over the daily records listed beneath it. Those daily records are provenance and must not be counted again.",
-  "Silence is not evidence of absence. Return an empty string for a section the evidence does not support. Do not write 'none', 'no issues', 'on programme', 'completed satisfactorily', 'compliant', 'approved' or similar unless the evidence says it.",
-  "Use British English, professional continuous prose and concise paragraphs. Do not use markdown or headings.",
-  "A completion report records what the evidence says was completed; it is not itself a certificate of completion, compliance, handover or acceptance.",
-].join("\n\n");
 
 export async function generateSummarySections(
   input: SummaryGenerationInput,
@@ -76,7 +69,7 @@ export async function generateSummarySections(
     const completion = await client.chat.completions.create({
       model: process.env.OPENAI_MODEL?.trim() || "gpt-5.5",
       messages: [
-        { role: "system", content: SYSTEM_PROMPT },
+        { role: "system", content: SUMMARY_SYSTEM_PROMPT },
         { role: "user", content: prompt },
       ],
       response_format: {

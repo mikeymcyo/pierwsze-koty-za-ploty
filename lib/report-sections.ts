@@ -26,13 +26,13 @@ export const REPORT_SECTIONS: {
     type: "executive_summary",
     label: "Summary",
     brief:
-      "Two or three sentences a client can read on their phone, covering the work the notes actually describe. Do not judge progress against programme and do not mention delay unless the notes record one.",
+      "A management overview for a client who will read nothing else: two or three sentences on what the day amounted to overall and where the work now stands. Do not list the individual activities - Works completed carries those, and a summary that lists them is a duplicate. Do not judge progress against programme and do not mention delay unless the notes record one.",
   },
   {
     type: "works_completed",
     label: "Works completed",
     brief:
-      "What the notes record as finished, with the trade and the location only where the notes give them.",
+      "The detailed record of what the notes say was actually done: the specific activities, with location, trade, materials, components and technical detail wherever the notes give them. Particulars, not an overview - if a sentence would sit equally well in the Summary, it belongs here and the Summary should say something broader. State completion only where the notes state it.",
   },
   {
     type: "works_in_progress",

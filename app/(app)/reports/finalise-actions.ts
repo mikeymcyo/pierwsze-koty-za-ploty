@@ -7,7 +7,6 @@ import {
   ISSUE_PRIORITY_LABELS,
   ISSUE_STATUS_LABELS,
 } from "@/lib/issues/metadata";
-import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
 import { renderReportPdf } from "@/lib/pdf/render";
 import { PDF_BUCKET } from "@/lib/pdf/signing";
 import {
@@ -133,7 +132,7 @@ export async function finaliseReport(
       plant: plant ?? [],
       sections: printable,
       issues: issuesForReport(issues ?? [], ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS),
-      photos: photosWithData(photoRows, downloaded, PHOTO_CATEGORY_LABELS),
+      photos: photosWithData(photoRows, downloaded),
     });
   } catch (cause) {
     console.error("[siteboss] PDF render failed:", cause);

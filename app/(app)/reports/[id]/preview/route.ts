@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 
 import { requireSessionContext } from "@/lib/auth/session";
 import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS } from "@/lib/issues/metadata";
-import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
 import { renderReportPdf } from "@/lib/pdf/render";
 import {
   issuesForReport,
@@ -107,7 +106,7 @@ export async function GET(
     plant: plant ?? [],
     sections: orderedSections(sections ?? [], REPORT_SECTION_ORDER, REPORT_SECTION_LABELS),
     issues: issuesForReport(issues ?? [], ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS),
-    photos: photosWithData(photoRows, downloaded, PHOTO_CATEGORY_LABELS),
+    photos: photosWithData(photoRows, downloaded),
   });
 
   return new NextResponse(new Uint8Array(pdf), {

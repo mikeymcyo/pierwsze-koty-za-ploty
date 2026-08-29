@@ -3,7 +3,8 @@ import { ImageOff, Trash2 } from "lucide-react";
 import { deletePhoto } from "@/app/(app)/reports/photo-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
+import { PhotoDetails } from "@/components/reports/photo-details";
+import { photoPrintLabel, photoPrintLabelText } from "@/lib/photo-captions";
 import type { Photo } from "@/types/database";
 
 export type PhotoWithUrl = Pick<
@@ -21,9 +22,16 @@ export type PhotoWithUrl = Pick<
 export function PhotoGrid({
   photos,
   deletable = true,
+  editable = deletable,
 }: {
   photos: PhotoWithUrl[];
   deletable?: boolean;
+  /**
+   * Captions and statuses are editable wherever photographs can be deleted -
+   * that is, anywhere the owning report is still a draft. An issued report's
+   * captions are frozen along with its PDF.
+   */
+  editable?: boolean;
 }) {
   return (
     <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -36,7 +44,7 @@ export function PhotoGrid({
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={photo.url}
-                alt={photo.caption ?? "Site photo"}
+                alt={photoPrintLabelText(photo) ?? "Site photo"}
                 className="size-full object-cover"
                 loading="lazy"
               />
@@ -56,7 +64,7 @@ export function PhotoGrid({
                   type="submit"
                   variant="danger"
                   size="icon"
-                  aria-label={`Delete photo${photo.caption ? `: ${photo.caption}` : ""}`}
+                  aria-label={`Delete photo${photoPrintLabelText(photo) ? `: ${photoPrintLabelText(photo)}` : ""}`}
                   className="size-9 rounded-lg"
                 >
                   <Trash2 aria-hidden />
@@ -65,12 +73,18 @@ export function PhotoGrid({
             ) : null}
           </div>
 
-          <div className="flex flex-col gap-1">
-            <Badge tone="neutral">{PHOTO_CATEGORY_LABELS[photo.category]}</Badge>
-            {photo.caption ? (
-              <p className="truncate text-xs text-ink-muted">{photo.caption}</p>
-            ) : null}
-          </div>
+          {editable ? (
+            <PhotoDetails photoId={photo.id} caption={photo.caption} category={photo.category} />
+          ) : (
+            <div className="flex flex-col gap-1">
+              {photoPrintLabel(photo).status ? (
+                <Badge tone="neutral">{photoPrintLabel(photo).status}</Badge>
+              ) : null}
+              {photoPrintLabel(photo).caption ? (
+                <p className="text-xs text-ink-muted">{photoPrintLabel(photo).caption}</p>
+              ) : null}
+            </div>
+          )}
         </li>
       ))}
     </ul>

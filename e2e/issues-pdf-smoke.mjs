@@ -29,6 +29,7 @@ import {
   photosWithData,
   reportNumberLabel,
 } from "../lib/pdf/report-data.ts";
+import { photoPrintLabel } from "../lib/photo-captions.ts";
 import { canFinalise, pdfFileName } from "../lib/reports/finalisation.ts";
 import { REPORT_SECTION_LABELS, REPORT_SECTION_ORDER } from "../lib/report-sections.ts";
 
@@ -95,7 +96,6 @@ const printable = photosWithData(
     ["c/p/1.jpg", bytes],
     ["c/p/3.jpg", bytes],
   ]),
-  { progress: "Progress", safety: "Safety", after: "After" },
 );
 
 check("only photos whose bytes were read are printed", printable.length === 2);
@@ -104,7 +104,14 @@ check(
   !printable.some((p) => p.id === "p2"),
 );
 check("captions stay with their own photo", printable[0].caption === "Chemical anchors");
-check("and so do categories", printable[1].categoryLabel === "After", printable[1].categoryLabel);
+// photosWithData now passes the raw category through; how it reads is
+// decided by lib/photo-captions.ts and asserted in photo-captions-smoke.
+check("and so do categories", printable[1].category === "after", printable[1].category);
+check(
+  "which the document turns into words",
+  photoPrintLabel(printable[1]).status === "After",
+  String(photoPrintLabel(printable[1]).status),
+);
 check("order is preserved", printable.map((p) => p.id).join() === "p1,p3");
 
 console.log("\n4. Whether a report may be issued");

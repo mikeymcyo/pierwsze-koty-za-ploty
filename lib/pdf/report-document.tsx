@@ -8,6 +8,7 @@ import {
 } from "@react-pdf/renderer";
 
 import type { IssuePriority, ReportSectionType } from "@/types/database";
+import { photoPrintLabel } from "@/lib/photo-captions";
 
 /**
  * The client-ready progress report.
@@ -28,7 +29,7 @@ import type { IssuePriority, ReportSectionType } from "@/types/database";
 export type PdfPhoto = {
   id: string;
   caption: string | null;
-  categoryLabel: string;
+  category: string;
   /** Already-downloaded bytes. A photo that could not be read is left out. */
   data: Buffer;
 };
@@ -137,8 +138,12 @@ const styles = StyleSheet.create({
   issueMeta: { fontSize: 8, color: MUTED, textTransform: "uppercase", letterSpacing: 0.5 },
   photoGrid: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
   photoCell: { width: "50%", paddingRight: 10, paddingBottom: 12 },
-  photoImage: { width: "100%", height: 150, objectFit: "cover", marginBottom: 4 },
-  photoCategory: { fontSize: 8, color: MUTED, textTransform: "uppercase", letterSpacing: 0.5 },
+  // contain, not cover: a cropped photograph can cut out the very thing it
+  // was taken to evidence. The whole frame is printed, aspect ratio intact.
+  photoImage: { width: "100%", height: 150, objectFit: "contain", marginBottom: 4 },
+  // No longer shouted in capitals: it sits beside a caption now rather than
+  // standing in for one.
+  photoCategory: { fontSize: 8, color: MUTED, letterSpacing: 0.5 },
   photoCaption: { fontSize: 9 },
   empty: { color: MUTED, fontStyle: "italic" },
   footer: {
@@ -289,9 +294,13 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
                       the caption below it is what a reader gets. */}
                   {/* eslint-disable-next-line jsx-a11y/alt-text */}
                   <Image style={styles.photoImage} src={photo.data} />
-                  <Text style={styles.photoCategory}>{photo.categoryLabel}</Text>
-                  {photo.caption ? (
-                    <Text style={styles.photoCaption}>{photo.caption}</Text>
+                  {/* The caption leads; the status appears only when it says
+                      something the caption does not. */}
+                  {photoPrintLabel(photo).status ? (
+                    <Text style={styles.photoCategory}>{photoPrintLabel(photo).status}</Text>
+                  ) : null}
+                  {photoPrintLabel(photo).caption ? (
+                    <Text style={styles.photoCaption}>{photoPrintLabel(photo).caption}</Text>
                   ) : null}
                 </View>
               ))}

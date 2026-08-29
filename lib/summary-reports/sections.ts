@@ -10,17 +10,17 @@ export const PROGRESS_SECTIONS: SummarySectionDefinition[] = [
   {
     type: "period_summary",
     label: "Period summary",
-    brief: "A concise overview of the work evidenced during this reporting period.",
+    brief: "A management overview of the period for a client who will read nothing else: what the period amounted to and where the work now stands. Not the activity list - Key activities carries that, and repeating it here wastes the only section some readers will read.",
   },
   {
     type: "key_activities",
     label: "Key activities",
-    brief: "The principal activities recorded across the source reports, without duplication.",
+    brief: "The principal activities recorded across the source reports, with location, trade and materials where the evidence gives them. The detailed record, consolidated and stated once.",
   },
   {
     type: "works_completed",
     label: "Works completed",
-    brief: "Work the source reports explicitly record as completed during the period.",
+    brief: "Only work the source reports explicitly record as completed during the period. Not a restatement of Key activities - an activity that was carried out is not by itself an activity that was finished.",
   },
   {
     type: "works_in_progress",
@@ -35,12 +35,13 @@ export const PROGRESS_SECTIONS: SummarySectionDefinition[] = [
   {
     type: "issues_and_resolutions",
     label: "Issues and resolutions",
-    brief: "Issues evidenced during the period, their recorded status and any recorded resolution.",
+    brief:
+      "Problems and constraints actually recorded during the period, their recorded status and any recorded resolution, including any recorded health and safety matter. Leave empty rather than stating there were none.",
   },
   {
     type: "next_period",
     label: "Next period",
-    brief: "Only work explicitly recorded as planned beyond the reporting period.",
+    brief: "Only work explicitly recorded as planned beyond the reporting period, together with anything the evidence records as genuinely outstanding or awaiting another party. Leave empty rather than stating that nothing is outstanding.",
   },
 ];
 
@@ -48,32 +49,33 @@ export const COMPLETION_SECTIONS: SummarySectionDefinition[] = [
   {
     type: "project_overview",
     label: "Project overview",
-    brief: "A factual overview of the project and the work evidenced by the source records.",
+    brief: "Why this project or work package existed and what it amounted to overall - the context and outcome a reader needs before any detail. Not a list of workstreams (Scope of works) and not a sequence of events (Stages of works).",
   },
   {
     type: "scope_of_works",
     label: "Scope of works",
-    brief: "The scope actually evidenced in the source records; do not infer contractual scope.",
+    brief: "Which workstreams and items were within the package: what was included. Not how or when any of it was carried out, and never inferred contractual scope.",
   },
   {
     type: "stages_of_works",
     label: "Stages of works",
-    brief: "The evidenced sequence of major work stages, ordered chronologically.",
+    brief: "How the work actually progressed, in order, stage by stage, as the evidence records it. The sequence and its milestones - not the scope list written out a second time.",
   },
   {
     type: "key_technical_activities",
     label: "Key technical activities",
-    brief: "Material technical activities explicitly recorded in the evidence.",
+    brief: "Methods, materials, systems and fixings of substance, only where the evidence explicitly names them.",
   },
   {
     type: "completed_works",
     label: "Completed works",
-    brief: "Work the evidence explicitly records as complete; do not certify quality or compliance.",
+    brief: "What the evidence explicitly records as complete. Do not restate the scope as though all of it were delivered, and do not certify quality or compliance.",
   },
   {
     type: "issues_and_resolutions",
     label: "Issues and resolutions",
-    brief: "Issues raised during the project, their recorded outcome and any recorded resolution.",
+    brief:
+      "Problems and constraints actually recorded during the project, their recorded outcome and any recorded resolution, including any recorded health and safety matter. Leave empty rather than stating there were none.",
   },
   {
     type: "photographic_record",
@@ -83,7 +85,7 @@ export const COMPLETION_SECTIONS: SummarySectionDefinition[] = [
   {
     type: "sign_off",
     label: "Sign-off",
-    brief: "Only sign-off, handover or acceptance facts explicitly present in the source records.",
+    brief: "Only sign-off, handover or acceptance facts explicitly present in the source records, together with anything recorded as genuinely outstanding or follow-on. Leave empty rather than implying acceptance.",
   },
 ];
 

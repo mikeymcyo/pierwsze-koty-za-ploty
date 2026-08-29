@@ -4,8 +4,9 @@
  * Pure, with no runtime imports and no path aliases, so what ends up in an
  * issued client document can be tested without a database or a renderer. The
  * layout lives in report-document.tsx; every decision about *what* appears -
- * which sections, in which order, which issues, which photos, and what each is
- * labelled - is made here.
+ * which sections, in which order, which issues and which photos - is made
+ * here. How a photograph's caption and status read is decided by
+ * lib/photo-captions.ts, which the documents apply.
  */
 
 /** Mirrors the enums in types/database.ts without importing them at runtime. */
@@ -88,13 +89,23 @@ export function issuesForReport(
  * broken box. The caption and category travel with the image so they cannot be
  * printed against the wrong one.
  */
+/**
+ * The printable photographs, carrying the caption and status the document will
+ * turn into words (see lib/photo-captions.ts).
+ *
+ * A photograph whose bytes could not be downloaded is dropped rather than
+ * printed as a broken box.
+ */
 export function photosWithData(
   rows: readonly PhotoRow[],
   downloaded: Map<string, Buffer>,
-  categoryLabels: Record<string, string>,
-): { id: string; caption: string | null; categoryLabel: string; data: Buffer }[] {
-  const printable: { id: string; caption: string | null; categoryLabel: string; data: Buffer }[] =
-    [];
+): { id: string; caption: string | null; category: string; data: Buffer }[] {
+  const printable: {
+    id: string;
+    caption: string | null;
+    category: string;
+    data: Buffer;
+  }[] = [];
 
   for (const photo of rows) {
     const data = downloaded.get(photo.storage_path);
@@ -102,7 +113,7 @@ export function photosWithData(
     printable.push({
       id: photo.id,
       caption: photo.caption,
-      categoryLabel: categoryLabels[photo.category] ?? photo.category,
+      category: photo.category,
       data,
     });
   }

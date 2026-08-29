@@ -1,7 +1,6 @@
 import "server-only";
 
 import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS } from "@/lib/issues/metadata";
-import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
 import type { SummaryPdfData } from "@/lib/pdf/summary-document";
 import { SUMMARY_SECTION_LABELS, summarySectionOrder } from "@/lib/summary-reports/sections";
 import { createClient } from "@/lib/supabase/server";
@@ -198,7 +197,7 @@ export async function loadSummaryPdfData(
           {
             id: photo.id,
             caption: link.caption_override?.trim() || photo.caption,
-            categoryLabel: PHOTO_CATEGORY_LABELS[photo.category],
+            category: photo.category,
             data,
           },
         ];

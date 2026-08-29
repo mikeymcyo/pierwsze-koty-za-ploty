@@ -4,8 +4,6 @@
  * cannot be called on the server.
  */
 
-import type { PhotoCategory } from "@/types/database";
-
 export const PHOTO_BUCKET = "site-photos";
 
 /** Signed thumbnail URLs are re-minted on every render; this only has to outlive one page view. */
@@ -19,17 +17,9 @@ export function photoPathPrefix(companyId: string, projectId: string): string {
   return `${companyId}/${projectId}/`;
 }
 
-export const PHOTO_CATEGORIES: { value: PhotoCategory; label: string }[] = [
-  { value: "progress", label: "Progress" },
-  { value: "work_completed", label: "Work completed" },
-  { value: "before", label: "Before" },
-  { value: "after", label: "After" },
-  { value: "defect", label: "Defect" },
-  { value: "safety", label: "Safety" },
-  { value: "delivery", label: "Delivery" },
-  { value: "general", label: "General" },
-];
-
-export const PHOTO_CATEGORY_LABELS: Record<PhotoCategory, string> = Object.fromEntries(
-  PHOTO_CATEGORIES.map((c) => [c.value, c.label]),
-) as Record<PhotoCategory, string>;
+/**
+ * The status menu and its labels live in lib/photo-captions.ts, next to the
+ * rule about what actually gets printed. Re-exported here because this is
+ * where callers have always looked for them.
+ */
+export { PHOTO_STATUSES as PHOTO_CATEGORIES, PHOTO_STATUS_LABELS as PHOTO_CATEGORY_LABELS } from "@/lib/photo-captions";

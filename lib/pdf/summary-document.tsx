@@ -1,6 +1,7 @@
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 import type { IssuePriority, SummaryReportKind, SummarySectionType } from "@/types/database";
+import { photoPrintLabel } from "@/lib/photo-captions";
 
 export type SummaryPdfData = {
   kind: SummaryReportKind;
@@ -29,7 +30,7 @@ export type SummaryPdfData = {
   photos: {
     id: string;
     caption: string | null;
-    categoryLabel: string;
+    category: string;
     data: Buffer;
   }[];
   sourceLabels: string[];
@@ -89,7 +90,8 @@ const styles = StyleSheet.create({
   resolution: { marginTop: 3 },
   photoGrid: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
   photo: { width: "50%", paddingRight: 10, paddingBottom: 12 },
-  photoImage: { width: "100%", height: 150, objectFit: "cover", marginBottom: 4 },
+  // contain, not cover - see report-document.tsx.
+  photoImage: { width: "100%", height: 150, objectFit: "contain", marginBottom: 4 },
   source: { fontSize: 8, color: MUTED, marginBottom: 2 },
   footer: {
     position: "absolute",
@@ -180,8 +182,12 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
                 <View key={photo.id} style={styles.photo} wrap={false}>
                   {/* eslint-disable-next-line jsx-a11y/alt-text */}
                   <Image style={styles.photoImage} src={photo.data} />
-                  <Text style={styles.meta}>{photo.categoryLabel}</Text>
-                  {photo.caption ? <Text>{photo.caption}</Text> : null}
+                  {photoPrintLabel(photo).status ? (
+                    <Text style={styles.meta}>{photoPrintLabel(photo).status}</Text>
+                  ) : null}
+                  {photoPrintLabel(photo).caption ? (
+                    <Text>{photoPrintLabel(photo).caption}</Text>
+                  ) : null}
                 </View>
               ))}
             </View>

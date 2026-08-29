@@ -133,3 +133,76 @@ export async function deletePhoto(formData: FormData) {
   revalidatePath(`/projects/${photo.project_id}`);
   if (photo.report_id) revalidatePath(`/reports/${photo.report_id}`);
 }
+
+const detailsSchema = z.object({
+  caption: z
+    .string()
+    .trim()
+    .max(300, "Keep the caption short enough to read under the photograph")
+    .transform((value) => (value.length > 0 ? value : null)),
+  category: z.enum([
+    "work_completed",
+    "before",
+    "after",
+    "defect",
+    "safety",
+    "progress",
+    "delivery",
+    "general",
+  ]),
+});
+
+export type PhotoDetailsState = { error?: string; saved?: boolean };
+
+/**
+ * The caption and status for one photograph.
+ *
+ * This is what stops a report printing the same word under twelve pictures:
+ * the status is chosen per photograph rather than in bulk at upload, and the
+ * caption is written by the person who was standing there. Both are editable
+ * afterwards, because nobody types a good caption with wet gloves on.
+ *
+ * The retired enum values stay in the schema above deliberately. A photograph
+ * saved years ago as `work_completed` must still validate if somebody only
+ * edits its caption.
+ */
+export async function savePhotoDetails(
+  photoId: string,
+  _previous: PhotoDetailsState,
+  formData: FormData,
+): Promise<PhotoDetailsState> {
+  if (!z.uuid().safeParse(photoId).success) return { error: "That photograph could not be found." };
+
+  const parsed = detailsSchema.safeParse({
+    caption: String(formData.get("caption") ?? ""),
+    category: String(formData.get("category") ?? ""),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "That could not be saved." };
+  }
+
+  await requireSessionContext();
+  const supabase = await createClient();
+
+  const { data: photo } = await supabase
+    .from("photos")
+    .select("id, project_id, report_id, reports(status)")
+    .eq("id", photoId)
+    .maybeSingle();
+  if (!photo) return { error: "That photograph could not be found." };
+
+  // Same rule as deleting one: an issued report's stored PDF already says what
+  // it says, and its captions must not drift away from it.
+  const owner = Array.isArray(photo.reports) ? photo.reports[0] : photo.reports;
+  if (owner?.status === "final") return { error: REPORT_IS_FINAL };
+
+  const { error } = await supabase
+    .from("photos")
+    .update({ caption: parsed.data.caption, category: parsed.data.category })
+    .eq("id", photoId);
+  if (error) return { error: `Could not save the photograph: ${error.message}` };
+
+  revalidatePath(`/projects/${photo.project_id}`);
+  if (photo.report_id) revalidatePath(`/reports/${photo.report_id}`);
+  return { saved: true };
+}
