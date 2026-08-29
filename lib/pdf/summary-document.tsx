@@ -1,6 +1,12 @@
 import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 import type { IssuePriority, SummaryReportKind, SummarySectionType } from "@/types/database";
+import {
+  DOCUMENT_COLUMN_LABELS,
+  documentCell,
+  visibleDocumentColumns,
+  type ResolvedDocument,
+} from "@/lib/documents/metadata";
 import { photoPrintLabel } from "@/lib/photo-captions";
 
 export type SummaryPdfData = {
@@ -34,6 +40,7 @@ export type SummaryPdfData = {
     data: Buffer;
   }[];
   sourceLabels: string[];
+  supportingDocuments: ResolvedDocument[];
 };
 
 const INK = "#1a1a1a";
@@ -84,6 +91,12 @@ const styles = StyleSheet.create({
     borderBottomColor: LINE,
   },
   paragraph: { marginBottom: 4 },
+  documentRow: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: LINE,
+    paddingVertical: 4,
+  },
   issue: { borderLeftWidth: 3, borderLeftColor: LINE, paddingLeft: 8, marginBottom: 9 },
   issueTitle: { fontFamily: "Helvetica-Bold" },
   meta: { fontSize: 8, color: MUTED, textTransform: "uppercase", letterSpacing: 0.5 },
@@ -194,6 +207,13 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
           </View>
         ) : null}
 
+        {data.supportingDocuments.length > 0 ? (
+          <View>
+            <Text style={styles.heading}>Supporting documents</Text>
+            <SummaryDocumentTable rows={data.supportingDocuments} />
+          </View>
+        ) : null}
+
         <View>
           <Text style={styles.heading}>Source record</Text>
           {data.sourceLabels.map((source) => (
@@ -207,5 +227,31 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
         </View>
       </Page>
     </Document>
+  );
+}
+
+/** See report-document.tsx: an optional column appears only when it is used. */
+function SummaryDocumentTable({ rows }: { rows: ResolvedDocument[] }) {
+  const columns = visibleDocumentColumns(rows);
+  const width = `${100 / columns.length}%`;
+  return (
+    <>
+      <View style={styles.documentRow}>
+        {columns.map((column) => (
+          <Text key={column} style={[styles.meta, { width }]}>
+            {DOCUMENT_COLUMN_LABELS[column]}
+          </Text>
+        ))}
+      </View>
+      {rows.map((row, index) => (
+        <View style={styles.documentRow} key={`${row.title}-${index}`} wrap={false}>
+          {columns.map((column) => (
+            <Text key={column} style={{ width }}>
+              {documentCell(row, column)}
+            </Text>
+          ))}
+        </View>
+      ))}
+    </>
   );
 }

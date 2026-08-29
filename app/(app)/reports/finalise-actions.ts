@@ -17,6 +17,11 @@ import {
 } from "@/lib/pdf/report-data";
 import { REPORT_SECTION_LABELS, REPORT_SECTION_ORDER } from "@/lib/report-sections";
 import { canFinalise, pdfFileName } from "@/lib/reports/finalisation";
+import { resolveDocument } from "@/lib/documents/metadata";
+import {
+  loadReferencedDocuments,
+  snapshotDocumentReferences,
+} from "@/lib/documents/snapshot";
 import { canReopen } from "@/lib/reports/lifecycle";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
@@ -112,6 +117,27 @@ export async function finaliseReport(
     if (file) downloaded.set(photo.storage_path, Buffer.from(await file.arrayBuffer()));
   }
 
+  // Frozen immediately before the render, so the table printed in the PDF and
+  // the record behind it are taken from the same read.
+  const snapshot = await snapshotDocumentReferences(supabase, {
+    table: "report_documents",
+    column: "report_id",
+    id: reportId,
+  });
+  if (snapshot.error) return { error: snapshot.error };
+
+  const referenced = await loadReferencedDocuments(supabase, {
+    table: "report_documents",
+    column: "report_id",
+    id: reportId,
+  });
+  const supportingDocuments = referenced.flatMap((entry) => {
+    const resolved = resolveDocument(entry.snapshot, entry.live);
+    return resolved
+      ? [{ ...resolved, documentDate: formatDate(resolved.documentDate) ?? resolved.documentDate }]
+      : [];
+  });
+
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const finalisedAt = new Date();
 
@@ -133,6 +159,7 @@ export async function finaliseReport(
       sections: printable,
       issues: issuesForReport(issues ?? [], ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS),
       photos: photosWithData(photoRows, downloaded),
+      supportingDocuments,
     });
   } catch (cause) {
     console.error("[siteboss] PDF render failed:", cause);

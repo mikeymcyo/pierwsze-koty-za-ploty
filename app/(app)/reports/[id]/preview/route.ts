@@ -10,6 +10,8 @@ import {
   reportNumberLabel,
 } from "@/lib/pdf/report-data";
 import { REPORT_SECTION_LABELS, REPORT_SECTION_ORDER } from "@/lib/report-sections";
+import { resolveDocument } from "@/lib/documents/metadata";
+import { loadReferencedDocuments } from "@/lib/documents/snapshot";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 
@@ -89,6 +91,18 @@ export async function GET(
     if (file) downloaded.set(photo.storage_path, Buffer.from(await file.arrayBuffer()));
   }
 
+  const referenced = await loadReferencedDocuments(supabase, {
+    table: "report_documents",
+    column: "report_id",
+    id,
+  });
+  const supportingDocuments = referenced.flatMap((entry) => {
+    const resolved = resolveDocument(entry.snapshot, entry.live);
+    return resolved
+      ? [{ ...resolved, documentDate: formatDate(resolved.documentDate) ?? resolved.documentDate }]
+      : [];
+  });
+
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
 
   const pdf = await renderReportPdf({
@@ -107,6 +121,7 @@ export async function GET(
     sections: orderedSections(sections ?? [], REPORT_SECTION_ORDER, REPORT_SECTION_LABELS),
     issues: issuesForReport(issues ?? [], ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS),
     photos: photosWithData(photoRows, downloaded),
+    supportingDocuments,
   });
 
   return new NextResponse(new Uint8Array(pdf), {

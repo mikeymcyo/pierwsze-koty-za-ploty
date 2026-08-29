@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { describePhotograph } from "@/lib/ai/photo-description";
 import { requireSessionContext } from "@/lib/auth/session";
+import { PHOTO_STATUS_LABELS } from "@/lib/photo-captions";
 import { createClient } from "@/lib/supabase/server";
 import { PHOTO_BUCKET, photoPathPrefix } from "@/lib/photos";
 import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
@@ -205,4 +207,66 @@ export async function savePhotoDetails(
   revalidatePath(`/projects/${photo.project_id}`);
   if (photo.report_id) revalidatePath(`/reports/${photo.report_id}`);
   return { saved: true };
+}
+
+export type PhotoDescriptionState = { description?: string; error?: string };
+
+/**
+ * Proposes an AI description for one photograph, and writes nothing.
+ *
+ * This is the whole safety contract in one place. The sentence is returned to
+ * the browser and shown as a suggestion; the caption in the database changes
+ * only if the user then presses Save, exactly as it would had they typed it.
+ * A caption somebody wrote by hand can therefore never be replaced by a model,
+ * and abandoning the suggestion costs nothing.
+ *
+ * The photograph's own caption is handed to the model as context so a
+ * regeneration builds on what the user meant, and the day's notes go with it
+ * as background - labelled as background, because a note about the first floor
+ * is not evidence that this photograph shows the first floor.
+ */
+export async function describePhotoAction(
+  photoId: string,
+  _previous: PhotoDescriptionState,
+  _formData: FormData,
+): Promise<PhotoDescriptionState> {
+  if (!z.uuid().safeParse(photoId).success) return { error: "That photograph could not be found." };
+
+  await requireSessionContext();
+  const supabase = await createClient();
+
+  // RLS scopes this to the caller's own company, so another tenant's
+  // photograph is simply not found rather than refused.
+  const { data: photo } = await supabase
+    .from("photos")
+    .select(
+      "id, caption, category, storage_path, projects(name, client, site_address), reports(report_date, raw_notes)",
+    )
+    .eq("id", photoId)
+    .maybeSingle();
+  if (!photo) return { error: "That photograph could not be found." };
+
+  const { data: file } = await supabase.storage.from(PHOTO_BUCKET).download(photo.storage_path);
+  if (!file) return { error: "That photograph could not be read from storage." };
+
+  const project = Array.isArray(photo.projects) ? photo.projects[0] : photo.projects;
+  const report = Array.isArray(photo.reports) ? photo.reports[0] : photo.reports;
+
+  const result = await describePhotograph(
+    {
+      data: Buffer.from(await file.arrayBuffer()),
+      mimeType: file.type || "image/jpeg",
+    },
+    {
+      projectName: project?.name ?? "Project",
+      client: project?.client ?? null,
+      siteAddress: project?.site_address ?? null,
+      reportDate: report?.report_date ?? null,
+      statusLabel: PHOTO_STATUS_LABELS[photo.category] ?? null,
+      existingCaption: photo.caption,
+      reportContext: report?.raw_notes?.trim() || null,
+    },
+  );
+
+  return result.ok ? { description: result.description } : { error: result.error };
 }

@@ -9,6 +9,7 @@ export const PROJECT_TABS = [
   { key: "reports", label: "Reports" },
   { key: "photos", label: "Photos" },
   { key: "issues", label: "Open Issues" },
+  { key: "documents", label: "Documents" },
 ] as const;
 
 export type ProjectTab = (typeof PROJECT_TABS)[number]["key"];

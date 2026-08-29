@@ -8,6 +8,12 @@ import {
 } from "@react-pdf/renderer";
 
 import type { IssuePriority, ReportSectionType } from "@/types/database";
+import {
+  DOCUMENT_COLUMN_LABELS,
+  documentCell,
+  visibleDocumentColumns,
+  type ResolvedDocument,
+} from "@/lib/documents/metadata";
 import { photoPrintLabel } from "@/lib/photo-captions";
 
 /**
@@ -60,6 +66,7 @@ export type ReportPdfData = {
   sections: { type: ReportSectionType; label: string; content: string }[];
   issues: PdfIssue[];
   photos: PdfPhoto[];
+  supportingDocuments: ResolvedDocument[];
 };
 
 const INK = "#1a1a1a";
@@ -281,6 +288,13 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
           </View>
         ) : null}
 
+        {data.supportingDocuments.length > 0 ? (
+          <View wrap={false}>
+            <Text style={styles.sectionHeading}>Supporting documents</Text>
+            <DocumentTable rows={data.supportingDocuments} />
+          </View>
+        ) : null}
+
         {data.photos.length > 0 ? (
           <View break>
             <Text style={styles.sectionHeading}>Photographs</Text>
@@ -318,5 +332,37 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
         </View>
       </Page>
     </Document>
+  );
+}
+
+/**
+ * The documents this report was issued against.
+ *
+ * Reference, revision and date are optional on every document, so a column
+ * appears only when at least one row has something to put in it - five blank
+ * cells tell the reader nothing and make the table look like a fault.
+ */
+function DocumentTable({ rows }: { rows: ResolvedDocument[] }) {
+  const columns = visibleDocumentColumns(rows);
+  const width = `${100 / columns.length}%`;
+  return (
+    <>
+      <View style={styles.tableRow}>
+        {columns.map((column) => (
+          <Text key={column} style={[styles.tableHead, { width }]}>
+            {DOCUMENT_COLUMN_LABELS[column]}
+          </Text>
+        ))}
+      </View>
+      {rows.map((row, index) => (
+        <View style={styles.tableRow} key={`${row.title}-${index}`} wrap={false}>
+          {columns.map((column) => (
+            <Text key={column} style={{ width }}>
+              {documentCell(row, column)}
+            </Text>
+          ))}
+        </View>
+      ))}
+    </>
   );
 }

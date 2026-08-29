@@ -3,9 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
+import { saveSummaryReportDocuments } from "@/app/(app)/documents/actions";
 import { SummaryCuration, type CuratedIssueChoice, type CuratedPhotoChoice } from "@/components/summary-reports/summary-curation";
 import { SummaryDetails } from "@/components/summary-reports/summary-details";
 import { SummaryDraft } from "@/components/summary-reports/summary-draft";
+import { DocumentPicker, type PickableDocument } from "@/components/documents/document-picker";
+import { DocumentUpload } from "@/components/documents/document-upload";
 import { SummaryFinalise } from "@/components/summary-reports/summary-finalise";
 import { DeleteSummaryReport } from "@/components/summary-reports/summary-lifecycle";
 import { Alert } from "@/components/ui/alert";
@@ -14,6 +17,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadError } from "@/components/ui/load-error";
 import { hasAiConfig } from "@/lib/ai/report-generation";
+import { documentTypeLabel } from "@/lib/documents/metadata";
+import { signDocumentUrls } from "@/lib/documents/signing";
 import { isReopened } from "@/lib/reports/lifecycle";
 import { requireSessionContext } from "@/lib/auth/session";
 import { signPhotoUrls } from "@/lib/photos-signing";
@@ -26,7 +31,7 @@ export const metadata: Metadata = { title: "Consolidated report" };
 
 export default async function SummaryReportPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await requireSessionContext();
+  const session = await requireSessionContext();
   const supabase = await createClient();
   const { data: report, error } = await withClockSkewRetry(() =>
     supabase
@@ -124,6 +129,34 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const isFinal = report.status === "final";
   const reopened = isReopened({ status: report.status, pdfPath: report.pdf_path });
+
+  // Kept out of loadError: with the documents migration not yet applied this
+  // section is simply absent rather than an error over a working report.
+  const [{ data: projectDocuments }, { data: documentLinks }] = await Promise.all([
+    supabase
+      .from("documents")
+      .select("id, title, doc_type, reference, revision, storage_path")
+      .eq("project_id", report.project_id)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("summary_report_documents")
+      .select("document_id")
+      .eq("summary_report_id", id),
+  ]);
+  const linkedIds = new Set((documentLinks ?? []).map((row) => row.document_id));
+  const documentUrls = await signDocumentUrls(
+    (projectDocuments ?? []).map((row) => row.storage_path),
+  );
+  const pickableDocuments: PickableDocument[] = (projectDocuments ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    docType: row.doc_type,
+    reference: row.reference,
+    revision: row.revision,
+    url: documentUrls.get(row.storage_path) ?? null,
+    selected: linkedIds.has(row.id),
+  }));
+  const referencedDocuments = pickableDocuments.filter((row) => row.selected);
   const label = SUMMARY_KIND_LABELS[report.kind];
 
   return (
@@ -170,6 +203,49 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
 
       {!loadError && !isFinal ? (
         <SummaryCuration reportId={id} photos={photos} issues={issues} />
+      ) : null}
+
+      {!loadError ? (
+        <section className="flex flex-col gap-4">
+          <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+            Supporting documents
+          </h2>
+          {isFinal ? (
+            referencedDocuments.length === 0 ? (
+              <p className="text-sm text-ink-muted">No documents were referenced.</p>
+            ) : (
+              <ul className="flex flex-col gap-2">
+                {referencedDocuments.map((document) => (
+                  <li key={document.id} className="rounded-xl border border-line p-3">
+                    <span className="font-medium text-ink">{document.title}</span>
+                    <span className="mt-1 block text-xs text-ink-muted">
+                      {[
+                        documentTypeLabel(document.docType),
+                        document.reference ? `Ref ${document.reference}` : null,
+                        document.revision ? `Rev ${document.revision}` : null,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : (
+            <>
+              <DocumentUpload
+                companyId={session.companyId}
+                projectId={report.project_id}
+                summaryReportId={id}
+                label="Upload and attach a PDF"
+              />
+              <DocumentPicker
+                action={saveSummaryReportDocuments.bind(null, id)}
+                documents={pickableDocuments}
+              />
+            </>
+          )}
+        </section>
       ) : null}
 
       {!loadError && !isFinal ? (

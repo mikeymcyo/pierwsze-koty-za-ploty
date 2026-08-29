@@ -36,6 +36,17 @@ export type PhotoCategory =
   | "progress"
   | "delivery"
   | "general";
+export type DocumentType =
+  | "drawing"
+  | "specification"
+  | "rams"
+  | "method_statement"
+  | "permit"
+  | "inspection_sheet"
+  | "certificate"
+  | "delivery_note"
+  | "client_instruction"
+  | "other";
 export type PhotoPairRole = "before" | "after";
 export type IssuePriority = "low" | "medium" | "high" | "critical";
 export type IssueStatus = "open" | "in_progress" | "closed";
@@ -324,6 +335,150 @@ export type Database = {
           source_summary_report_id?: string | null;
           via_summary_report_id?: string | null;
           sort_order?: number;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      documents: {
+        Row: {
+          id: string;
+          company_id: string;
+          project_id: string;
+          storage_path: string;
+          title: string;
+          original_filename: string;
+          doc_type: DocumentType;
+          description: string | null;
+          reference: string | null;
+          revision: string | null;
+          document_date: string | null;
+          expiry_date: string | null;
+          file_size: number | null;
+          mime_type: string | null;
+          uploaded_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          project_id: string;
+          storage_path: string;
+          title: string;
+          original_filename: string;
+          doc_type?: DocumentType;
+          description?: string | null;
+          reference?: string | null;
+          revision?: string | null;
+          document_date?: string | null;
+          expiry_date?: string | null;
+          file_size?: number | null;
+          mime_type?: string | null;
+          uploaded_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          project_id?: string;
+          storage_path?: string;
+          title?: string;
+          original_filename?: string;
+          doc_type?: DocumentType;
+          description?: string | null;
+          reference?: string | null;
+          revision?: string | null;
+          document_date?: string | null;
+          expiry_date?: string | null;
+          file_size?: number | null;
+          mime_type?: string | null;
+          uploaded_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      report_documents: {
+        Row: {
+          id: string;
+          company_id: string;
+          report_id: string;
+          document_id: string;
+          sort_order: number;
+          title_at_issue: string | null;
+          type_at_issue: DocumentType | null;
+          reference_at_issue: string | null;
+          revision_at_issue: string | null;
+          document_date_at_issue: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          report_id: string;
+          document_id: string;
+          sort_order?: number;
+          title_at_issue?: string | null;
+          type_at_issue?: DocumentType | null;
+          reference_at_issue?: string | null;
+          revision_at_issue?: string | null;
+          document_date_at_issue?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          report_id?: string;
+          document_id?: string;
+          sort_order?: number;
+          title_at_issue?: string | null;
+          type_at_issue?: DocumentType | null;
+          reference_at_issue?: string | null;
+          revision_at_issue?: string | null;
+          document_date_at_issue?: string | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
+      summary_report_documents: {
+        Row: {
+          id: string;
+          company_id: string;
+          summary_report_id: string;
+          document_id: string;
+          sort_order: number;
+          title_at_issue: string | null;
+          type_at_issue: DocumentType | null;
+          reference_at_issue: string | null;
+          revision_at_issue: string | null;
+          document_date_at_issue: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          summary_report_id: string;
+          document_id: string;
+          sort_order?: number;
+          title_at_issue?: string | null;
+          type_at_issue?: DocumentType | null;
+          reference_at_issue?: string | null;
+          revision_at_issue?: string | null;
+          document_date_at_issue?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          summary_report_id?: string;
+          document_id?: string;
+          sort_order?: number;
+          title_at_issue?: string | null;
+          type_at_issue?: DocumentType | null;
+          reference_at_issue?: string | null;
+          revision_at_issue?: string | null;
+          document_date_at_issue?: string | null;
           created_at?: string;
         };
         Relationships: [];
@@ -719,6 +874,7 @@ export type Database = {
     };
     Enums: {
       company_role: CompanyRole;
+      document_type: DocumentType;
       issue_priority: IssuePriority;
       issue_status: IssueStatus;
       photo_category: PhotoCategory;
@@ -751,6 +907,9 @@ export type ReportSection = Tables<"report_sections">;
 export type WorkforceEntry = Tables<"workforce_entries">;
 export type PlantEntry = Tables<"plant_entries">;
 export type Photo = Tables<"photos">;
+export type Document = Tables<"documents">;
+export type ReportDocument = Tables<"report_documents">;
+export type SummaryReportDocument = Tables<"summary_report_documents">;
 export type Issue = Tables<"issues">;
 export type IssueEvent = Tables<"issue_events">;
 export type SummaryReport = Tables<"summary_reports">;

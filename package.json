@@ -26,6 +26,8 @@
     "test:lifecycle": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/lifecycle-smoke.mjs",
     "test:photo-captions": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/photo-captions-smoke.mjs",
     "test:section-roles": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/section-roles-smoke.mjs",
+    "test:documents": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/documents-smoke.mjs",
+    "test:photo-ai": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/photo-ai-smoke.mjs",
     "test:pdf": "node e2e/pdf-smoke.mjs"
   },
   "dependencies": {

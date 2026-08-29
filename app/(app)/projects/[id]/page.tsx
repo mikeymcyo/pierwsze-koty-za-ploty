@@ -7,6 +7,8 @@ import { AlertTriangle, Camera, FileText, Pencil, Plus } from "lucide-react";
 import { startReport } from "@/app/(app)/reports/actions";
 import { IssueList } from "@/components/issues/issue-list";
 import { RaiseIssue, type PhotoChoice } from "@/components/issues/raise-issue";
+import { DocumentCard, type DocumentCardData } from "@/components/documents/document-card";
+import { DocumentUpload } from "@/components/documents/document-upload";
 import { ProjectTabs } from "@/components/projects/project-tabs";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
@@ -17,8 +19,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
+import { hasAiConfig } from "@/lib/ai/report-generation";
 import { requireSessionContext } from "@/lib/auth/session";
 import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
+import { signDocumentUrls } from "@/lib/documents/signing";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import { SUMMARY_KIND_LABELS } from "@/lib/summary-reports/sections";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
@@ -75,7 +79,8 @@ export default async function ProjectPage({
   // yours" identically, without revealing which.
   if (!project) notFound();
 
-  const [reportsResult, summaryReportsResult, photosResult, issuesResult] = await Promise.all([
+  const [reportsResult, summaryReportsResult, photosResult, issuesResult, documentsResult] =
+    await Promise.all([
     withClockSkewRetry(() =>
       supabase
         .from("reports")
@@ -110,6 +115,15 @@ export default async function ProjectPage({
         ascending: false,
       });
     }),
+    withClockSkewRetry(() =>
+      supabase
+        .from("documents")
+        .select(
+          "id, title, original_filename, doc_type, description, reference, revision, document_date, expiry_date, file_size, storage_path",
+        )
+        .eq("project_id", project.id)
+        .order("created_at", { ascending: false }),
+    ),
   ]);
 
   const loadError =
@@ -124,6 +138,26 @@ export default async function ProjectPage({
   const photos: PhotoWithUrl[] = photoRows.map((photo) => ({
     ...photo,
     url: photoUrls.get(photo.storage_path) ?? null,
+  }));
+
+  // Deliberately kept out of loadError above. If the documents migration has
+  // not been applied to this database the tab is simply empty, which is the
+  // truth, rather than an error card over a project whose reports and
+  // photographs are all working.
+  const documentRows = documentsResult.data ?? [];
+  const documentUrls = await signDocumentUrls(documentRows.map((row) => row.storage_path));
+  const documents: DocumentCardData[] = documentRows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    originalFilename: row.original_filename,
+    docType: row.doc_type,
+    description: row.description,
+    reference: row.reference,
+    revision: row.revision,
+    documentDate: formatDate(row.document_date),
+    expiryDate: row.expiry_date,
+    fileSize: row.file_size,
+    url: documentUrls.get(row.storage_path) ?? null,
   }));
 
   const photoChoices: PhotoChoice[] = photoRows.map((photo) => ({
@@ -286,6 +320,26 @@ export default async function ProjectPage({
         )
       ) : null}
 
+      {!loadError && activeTab === "documents" ? (
+        <section className="flex flex-col gap-5">
+          <DocumentUpload companyId={session.companyId} projectId={project.id} />
+
+          {documents.length === 0 ? (
+            <EmptyState
+              icon={FileText}
+              title="No documents yet"
+              description="Drawings, RAMS, specifications, permits and certificates live here, and reports reference them from the project."
+            />
+          ) : (
+            <ul className="flex flex-col gap-3">
+              {documents.map((document) => (
+                <DocumentCard key={document.id} document={document} />
+              ))}
+            </ul>
+          )}
+        </section>
+      ) : null}
+
       {!loadError && activeTab === "photos" ? (
         <section className="flex flex-col gap-5">
           {/*
@@ -303,7 +357,7 @@ export default async function ProjectPage({
               description="Add them here for the project as a whole, or take them against a report - both collect on this tab."
             />
           ) : (
-            <PhotoGrid photos={photos} />
+            <PhotoGrid photos={photos} aiConfigured={hasAiConfig()} />
           )}
         </section>
       ) : null}

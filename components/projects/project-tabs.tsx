@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 
 /**
  * Tabs are links carrying ?tab=, not local state, so a tab survives a refresh
- * and can be shared. Horizontally scrollable so all four fit on a phone.
+ * and can be shared. Horizontally scrollable so they all fit on a phone.
  */
 export function ProjectTabs({
   active,

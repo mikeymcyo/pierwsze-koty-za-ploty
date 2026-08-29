@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
 import { renderSummaryReportPdf } from "@/lib/pdf/summary-render";
 import { PDF_BUCKET } from "@/lib/pdf/signing";
+import { snapshotDocumentReferences } from "@/lib/documents/snapshot";
 import { canReopen, nextRevision } from "@/lib/reports/lifecycle";
 import { canFinaliseSummary, summaryPdfFileName } from "@/lib/summary-reports/finalisation";
 import { loadSummaryPdfData } from "@/lib/summary-reports/pdf-data";
@@ -54,6 +55,16 @@ export async function finaliseSummaryReport(
       if (error) return { error: `Could not capture the issue record: ${error.message}` };
     }
   }
+
+  // Frozen before the data is read, so the table in the PDF and the record
+  // behind it agree - a superseded drawing must not change what an issued
+  // report says it was issued against.
+  const documentSnapshot = await snapshotDocumentReferences(supabase, {
+    table: "summary_report_documents",
+    column: "summary_report_id",
+    id: reportId,
+  });
+  if (documentSnapshot.error) return { error: documentSnapshot.error };
 
   const finalisedAt = new Date();
   const loaded = await loadSummaryPdfData(supabase, reportId, {

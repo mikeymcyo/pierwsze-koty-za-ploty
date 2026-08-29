@@ -23,9 +23,12 @@ export function PhotoGrid({
   photos,
   deletable = true,
   editable = deletable,
+  aiConfigured = false,
 }: {
   photos: PhotoWithUrl[];
   deletable?: boolean;
+  /** Whether the AI description button is offered - hidden with no key configured. */
+  aiConfigured?: boolean;
   /**
    * Captions and statuses are editable wherever photographs can be deleted -
    * that is, anywhere the owning report is still a draft. An issued report's
@@ -74,7 +77,12 @@ export function PhotoGrid({
           </div>
 
           {editable ? (
-            <PhotoDetails photoId={photo.id} caption={photo.caption} category={photo.category} />
+            <PhotoDetails
+              photoId={photo.id}
+              caption={photo.caption}
+              category={photo.category}
+              aiConfigured={aiConfigured}
+            />
           ) : (
             <div className="flex flex-col gap-1">
               {photoPrintLabel(photo).status ? (

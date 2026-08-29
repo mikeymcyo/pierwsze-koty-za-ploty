@@ -1,5 +1,7 @@
 import "server-only";
 
+import { resolveDocument } from "@/lib/documents/metadata";
+import { loadReferencedDocuments } from "@/lib/documents/snapshot";
 import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS } from "@/lib/issues/metadata";
 import type { SummaryPdfData } from "@/lib/pdf/summary-document";
 import { SUMMARY_SECTION_LABELS, summarySectionOrder } from "@/lib/summary-reports/sections";
@@ -137,6 +139,18 @@ export async function loadSummaryPdfData(
     return [];
   });
 
+  const referenced = await loadReferencedDocuments(supabase, {
+    table: "summary_report_documents",
+    column: "summary_report_id",
+    id: reportId,
+  });
+  const supportingDocuments = referenced.flatMap((entry) => {
+    const resolved = resolveDocument(entry.snapshot, entry.live);
+    return resolved
+      ? [{ ...resolved, documentDate: formatDate(resolved.documentDate) ?? resolved.documentDate }]
+      : [];
+  });
+
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const order = summarySectionOrder(report.kind);
   const sections = (sectionsResult.data ?? [])
@@ -203,6 +217,7 @@ export async function loadSummaryPdfData(
         ];
       }),
       sourceLabels,
+      supportingDocuments,
     },
   };
 }
