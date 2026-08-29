@@ -4,12 +4,14 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { saveReportDocuments } from "@/app/(app)/documents/actions";
+import { applyDailyReview, reviewDailyReport } from "@/app/(app)/reports/review-actions";
 import { saveReport, type ReportFormState } from "@/app/(app)/reports/actions";
 import { IssueList } from "@/components/issues/issue-list";
 import { RaiseIssue, type PhotoChoice } from "@/components/issues/raise-issue";
 import { DocumentPicker, type PickableDocument } from "@/components/documents/document-picker";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { FinaliseReport } from "@/components/reports/finalise-report";
+import { MasterReviewPanel } from "@/components/reports/master-review";
 import { DeleteReport } from "@/components/reports/report-lifecycle";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
@@ -328,6 +330,14 @@ export default async function ReportCapturePage({
           reportId={report.id}
           sections={sectionsResult.data ?? []}
           rawNotes={report.raw_notes}
+          configured={hasAiConfig()}
+        />
+      )}
+
+      {loadError || isFinal ? null : (
+        <MasterReviewPanel
+          reviewAction={reviewDailyReport.bind(null, report.id)}
+          applyAction={applyDailyReview.bind(null, report.id)}
           configured={hasAiConfig()}
         />
       )}

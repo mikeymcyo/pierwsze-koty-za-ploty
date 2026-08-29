@@ -4,10 +4,12 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
 import { saveSummaryReportDocuments } from "@/app/(app)/documents/actions";
+import { applySummaryReview, reviewSummaryReportAction } from "@/app/(app)/reports/review-actions";
 import { SummaryCuration, type CuratedIssueChoice, type CuratedPhotoChoice } from "@/components/summary-reports/summary-curation";
 import { SummaryDetails } from "@/components/summary-reports/summary-details";
 import { SummaryDraft } from "@/components/summary-reports/summary-draft";
 import { DocumentPicker, type PickableDocument } from "@/components/documents/document-picker";
+import { MasterReviewPanel } from "@/components/reports/master-review";
 import { DocumentUpload } from "@/components/documents/document-upload";
 import { SummaryFinalise } from "@/components/summary-reports/summary-finalise";
 import { DeleteSummaryReport } from "@/components/summary-reports/summary-lifecycle";
@@ -261,6 +263,14 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
             </div>
           ))}
         </section>
+      ) : null}
+
+      {!loadError && !isFinal ? (
+        <MasterReviewPanel
+          reviewAction={reviewSummaryReportAction.bind(null, id)}
+          applyAction={applySummaryReview.bind(null, id)}
+          configured={hasAiConfig()}
+        />
       ) : null}
 
       {!loadError ? (
