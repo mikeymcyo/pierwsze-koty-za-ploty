@@ -870,12 +870,6 @@ the user having finished. See section 4.
 - **Reopen is not safe against two people at once.** The `.eq("status",
   "final")` guard rejects a double reopen, but two people editing one reopened
   report overwrite each other - as they would any draft.
-- **The iOS Files picker can still grey out some provider/iCloud files** even
-  with no `accept` attribute at all. Both filters were tried on real hardware
-  and removed (see `lib/documents/file-validation.ts`). The backend document
-  system and its validation are working and were smoke-tested against hosted
-  Supabase. Parked deliberately: investigate later as an iOS/Safari/provider
-  compatibility issue, not as a SiteBoss data problem.
 - **`saveReport` replaces workforce and plant non-atomically** (delete then
   insert). Validation runs first so a rejected submission cannot lose rows, but
   a mid-write failure could. Acceptable for the MVP; an RPC would fix it.

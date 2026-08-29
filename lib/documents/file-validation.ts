@@ -5,38 +5,34 @@
  * tested without a browser and read the same way from the uploader and its
  * tests.
  *
- * ## Why the picker filters nothing at all
+ * ## Why there is no `accept` attribute
  *
- * The file input carries no `accept` attribute, deliberately, and one must not
- * be added back.
+ * Not because one broke anything. An earlier iPad test appeared to show the
+ * Files browser greying out genuine PDFs, and the attribute was narrowed and
+ * then removed chasing it. The owner later found the fault was his own: he had
+ * been using a different file control altogether, and the Supporting Documents
+ * uploader had been working the whole time. There was never an iOS bug here,
+ * and nobody should go looking for one.
  *
- * `accept="application/pdf"` greyed out genuine PDFs on an iPad, in Recents,
- * iCloud Drive, Downloads and Inbox alike. Safari maps a MIME type to a
- * Uniform Type Identifier and then lets the Files browser enable only items
- * whose provider declares conformance to it; a PDF synced into iCloud Drive,
- * saved from Safari into Downloads, or surfaced by Dropbox or Google Drive is
- * frequently advertised as `public.data` or with no type at all. Narrowing the
- * attribute to `.pdf` alone was tried next and behaved identically, because the
- * extension maps to that same UTI - so the file the user came to attach stayed
- * untappable and the feature was unusable on the device it exists for.
+ * The attribute stayed off because by then it was earning nothing. A picker's
+ * `accept` was only ever a filter on what is easy to tap - the Files browser
+ * lets a determined tap through regardless, and nothing downstream ever
+ * trusted it. Adding one back is a small UX nicety on desktop, not a
+ * correctness change either way.
  *
- * An attribute that hides the file somebody is trying to attach is worse than
- * no attribute. Without it the picker lists everything, the user taps the PDF
- * they can see, and this module decides.
+ * ## What actually enforces PDF-only
  *
- * ## Why that does not weaken anything
+ * The check below, which is stricter than any attribute could be: the name
+ * must end `.pdf`, the file must be non-empty and within the bucket's limit,
+ * and its first bytes must actually read `%PDF-`. A photograph renamed `.pdf`
+ * is refused even when the device claims `application/pdf`. The bucket is
+ * PDF-only besides, and the upload's content type is normalised to
+ * `application/pdf` only once this has passed - iOS routinely hands over a
+ * genuine PDF as an empty string or `application/octet-stream`, and uploading
+ * that verbatim would have the bucket reject a perfectly good file.
  *
- * A picker's `accept` was never a guarantee - it is a filter on what is easy
- * to tap, and the Files browser lets a determined tap through regardless.
- * Nothing downstream ever trusted it. The real check is below and is stricter
- * than the attribute ever was: the name must end `.pdf`, the file must be
- * non-empty and within the bucket's limit, and its first bytes must actually
- * read `%PDF-`. A renamed photograph is refused here rather than uploaded and
- * served to a client as a drawing, and the bucket stays PDF-only besides.
- *
- * The cost is that a non-PDF is now refused after the tap rather than being
- * greyed out before it, so the message it is refused with has to be worth
- * reading. That is what checkDocumentFile returns.
+ * Because a non-PDF is refused after the tap rather than greyed out before it,
+ * the refusal has to be worth reading. That is what checkDocumentFile returns.
  */
 
 /** Matches the project-documents bucket's own limit. */

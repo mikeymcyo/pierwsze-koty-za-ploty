@@ -1,11 +1,11 @@
 /**
- * Which files the document uploader accepts, and what the iOS picker asks for.
+ * Which files the document uploader accepts.
  *
- * The bug this guards is real and was found on an iPad: with
- * `accept="application/pdf"` the Files browser greyed out genuine PDFs in
- * Recents, iCloud Drive, Downloads and Inbox alike, because Safari maps a
- * concrete MIME type to a UTI and providers frequently declare none. Needs
- * neither Supabase nor a browser.
+ * The uploader has no `accept` attribute - see lib/documents/file-validation.ts
+ * for why, and note that the iOS picker problem it was once blamed on turned
+ * out not to exist. What matters, and what this guards, is that everything
+ * enforcing PDF-only happens after the tap: extension, size, and the `%PDF-`
+ * signature. Needs neither Supabase nor a browser.
  */
 import { readFileSync } from "node:fs";
 
@@ -41,9 +41,9 @@ const fileInput = uploaderSource.slice(
   uploaderSource.indexOf("/>", uploaderSource.indexOf("<input")),
 );
 
-console.log("\n1. The file input filters nothing - every filter greyed out real PDFs on iOS");
+console.log("\n1. The file input filters nothing - the validation below does it all");
 check(
-  "the input carries no accept attribute at all",
+  "the input carries no accept attribute",
   !/\baccept\s*=/.test(fileInput),
   fileInput.replace(/\s+/g, " ").slice(0, 160),
 );

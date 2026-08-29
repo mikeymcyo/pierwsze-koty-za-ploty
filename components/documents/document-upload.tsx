@@ -30,9 +30,10 @@ import type { DocumentType } from "@/types/database";
  *
  * On iOS the input opens Files, which covers iCloud Drive, On My iPhone and
  * every provider the user has connected - which is where a drawing emailed
- * that morning actually lives. It filters nothing there, because every filter
- * tried made genuine PDFs untappable; lib/documents/file-validation.ts has the
- * detail, and is what enforces PDF-only once a file has been chosen.
+ * that morning actually lives. Confirmed working on a real iPad.
+ *
+ * It carries no `accept` attribute; lib/documents/file-validation.ts explains
+ * why, and is what enforces PDF-only once a file has been chosen.
  */
 export function DocumentUpload({
   companyId,
@@ -166,10 +167,8 @@ export function DocumentUpload({
       <input
         ref={input}
         type="file"
-        // No accept attribute, deliberately. iOS greyed out genuine PDFs with
-        // one, whether it named a MIME type or the extension - see
-        // lib/documents/file-validation.ts. checkDocumentFile enforces
-        // PDF-only after selection instead.
+        // No accept attribute: it earns nothing here, and checkDocumentFile
+        // enforces PDF-only after selection. See file-validation.ts.
         multiple
         className="sr-only"
         onChange={(event) => {
