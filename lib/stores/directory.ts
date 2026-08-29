@@ -94,11 +94,19 @@ export function displayName(name: string): string {
 // A UK postcode at the end of a free-text address. The client's list has no
 // postcode column - it is the tail of the address string - so it is read out
 // rather than invented.
-const POSTCODE = /\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b/i;
+//
+// Two typing faults in that list are tolerated rather than losing the postcode
+// over them: a letter O where the inward code's digit belongs ("HG5 OSP"), and
+// a stray space inside the inward code ("CH5 4 DD"). Both are read and written
+// back correctly. Nothing is guessed - a genuinely truncated postcode like
+// "WN8 6" still comes back null, and the address is used whole instead.
+const POSTCODE = /\b([A-Z]{1,2}\d[A-Z\d]?)\s*([\dO]\s*[A-Z]{2})\b/i;
 
 export function postcodeOf(address: string | null | undefined): string | null {
   const match = address ? POSTCODE.exec(address) : null;
-  return match ? `${match[1].toUpperCase()} ${match[2].toUpperCase()}` : null;
+  if (!match) return null;
+  const inward = match[2].replace(/\s+/g, "").toUpperCase().replace(/^O/, "0");
+  return `${match[1].toUpperCase()} ${inward}`;
 }
 
 /** A postcode with its space and case removed, so "cr26es" finds "CR2 6ES". */

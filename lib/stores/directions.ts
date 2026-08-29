@@ -10,27 +10,108 @@
  * not, and either way the destination is already filled in - which is the
  * whole job on a site where somebody is holding a phone in one hand.
  *
- * The destination is the address text rather than coordinates because the
- * client's list has no coordinates. Google resolves a UK retail address
- * reliably; ", UK" is appended so an ambiguous town does not send anybody to
- * the wrong country.
+ * What changed, and why
+ * ---------------------
+ *
+ * The whole address used to be handed over as one string:
+ *
+ *   London, Croydon, 375-401 Brighton Road, CR2 6ES
+ *
+ * That is how the client's spreadsheet lists a store - widest first - and it is
+ * not a postal address. Google reads it as a search: it has to work out that
+ * "London" is not the destination, that "Croydon" is not either, and that the
+ * building is the third part. On a phone with one bar that resolution is the
+ * wait people were seeing before the map appeared.
+ *
+ * A UK postcode identifies a handful of adjacent addresses, so a street line
+ * and a postcode together are a complete, unambiguous destination that needs no
+ * disambiguation at all:
+ *
+ *   375-401 Brighton Road, CR2 6ES, United Kingdom
+ *
+ * The leading town and locality are dropped deliberately. They add nothing the
+ * postcode does not already say, and they are the part that made it look like a
+ * search.
+ *
+ * There are no coordinates to use instead. The client's list has four columns -
+ * store number, name, RDC and address - with no latitude or longitude anywhere,
+ * and deriving them would mean a geocoding service, an API key and a bill.
+ * Nothing here needs one.
  */
 
-/** Where to send somebody for this store, or null when there is no address. */
-export function directionsUrl(
-  store: { address: string | null; postcode?: string | null },
-): string | null {
-  const destination = (store.address ?? "").trim();
+/** Enough of a postcode to tell one from a street name. */
+const POSTCODE_SHAPE = /^[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}$/i;
+
+const COUNTRY = "United Kingdom";
+
+function normalise(value: string): string {
+  return value.replace(/\s+/g, "").toUpperCase();
+}
+
+/**
+ * The destination to hand to a map, as precise as the client's data allows.
+ *
+ * Street line plus postcode where there is one, which is a complete UK
+ * address; the whole thing otherwise, which is all there is to give. Returns
+ * null only when there is nothing at all to go on.
+ */
+export function directionsDestination(store: {
+  address: string | null;
+  postcode?: string | null;
+}): string | null {
+  const address = (store.address ?? "").trim();
+  const postcode = (store.postcode ?? "").trim();
+
+  if (!address) return postcode ? `${postcode}, ${COUNTRY}` : null;
+
+  // Already spelled out for a map by whoever wrote it - leave it alone.
+  if (/\b(?:UK|United Kingdom)$/i.test(address)) return address;
+
+  const parts = address
+    .split(",")
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  // Where the postcode was not passed in, the client's list always ends with
+  // it, so the last part is checked for one rather than the whole string
+  // scanned.
+  const last = parts[parts.length - 1] ?? "";
+  const code = postcode || (POSTCODE_SHAPE.test(last) ? last : "");
+  if (!code) return `${address}, ${COUNTRY}`;
+
+  // Everything that is not the postcode, narrowest first: the last remaining
+  // part is the street line.
+  const street = parts.filter((part) => normalise(part) !== normalise(code)).pop();
+
+  return street ? `${street}, ${code}, ${COUNTRY}` : `${code}, ${COUNTRY}`;
+}
+
+/**
+ * Where to send somebody for this store, or null when there is nothing to go
+ * on.
+ *
+ * `travelmode=driving` is set so the app opens on a route rather than on the
+ * mode picker. `dir_action=navigate` is deliberately not: somebody tapping
+ * Directions from a store record is often checking where it is, and starting
+ * turn-by-turn at them uninvited is not the same request.
+ */
+export function directionsUrl(store: {
+  address: string | null;
+  postcode?: string | null;
+}): string | null {
+  const destination = directionsDestination(store);
   if (!destination) return null;
-  const query = /\bUK$|United Kingdom$/i.test(destination)
-    ? destination
-    : `${destination}, UK`;
-  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(query)}`;
+  return `https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=${encodeURIComponent(
+    destination,
+  )}`;
 }
 
 /** The same place without a route, for looking at where it is. */
-export function mapUrl(store: { address: string | null }): string | null {
-  const destination = (store.address ?? "").trim();
+export function mapUrl(store: {
+  address: string | null;
+  postcode?: string | null;
+}): string | null {
+  const destination = directionsDestination(store);
   if (!destination) return null;
-  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${destination}, UK`)}`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(destination)}`;
 }

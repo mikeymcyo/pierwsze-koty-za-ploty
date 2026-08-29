@@ -26,7 +26,7 @@ import {
   scoreStore,
   searchStores,
 } from "../lib/stores/directory.ts";
-import { directionsUrl, mapUrl } from "../lib/stores/directions.ts";
+import { directionsDestination, directionsUrl, mapUrl } from "../lib/stores/directions.ts";
 import {
   newProjectHref,
   parseStoreLink,
@@ -84,6 +84,11 @@ check("a missing space is corrected", postcodeOf("Yate, Kennedy Way, BS374BA") =
 check("an address without one answers null", postcodeOf("Somewhere, No Postcode Here") === null);
 check("and so does nothing at all", postcodeOf(null) === null);
 check("a postcode compares without its space", normalisePostcode("cr2 6es") === "CR26ES");
+// Two faults in the client's own list, read rather than lost. Nothing is
+// guessed: a genuinely truncated postcode still comes back null.
+check("a letter O where the digit belongs is read", postcodeOf("Knaresborough, York Road, HG5 OSP") === "HG5 0SP");
+check("and a stray space inside the inward code", postcodeOf("Connahs Quay, High Street, CH5 4 DD") === "CH5 4DD");
+check("but a truncated postcode is not invented", postcodeOf("Skelmersdale, Tawd Valley Way, WN8 6") === null);
 
 console.log("\n4. Searching finds what was asked for");
 const croydon = findStore(stores, "1470");
@@ -145,18 +150,76 @@ check(
 console.log("\n6. Directions work from a phone with no API key");
 const url = directionsUrl(croydon);
 check("there is a link", typeof url === "string");
-check("it is Google Maps' own directions endpoint", url.startsWith("https://www.google.com/maps/dir/?api=1&destination="));
-check("carrying the store's address", decodeURIComponent(url).includes("375-401 Brighton Road"));
-check("with the country, so an ambiguous town is not another continent", decodeURIComponent(url).endsWith(", UK"));
+check(
+  "it is Google Maps' own directions endpoint",
+  url.startsWith("https://www.google.com/maps/dir/?api=1&"),
+);
 check("no API key is involved", !/key=|apikey/i.test(url));
+check("it opens on a route rather than the mode picker", url.includes("travelmode=driving"));
+check(
+  "but does not start navigating at somebody uninvited",
+  !url.includes("dir_action=navigate"),
+);
 check("a store with no address has no link", directionsUrl({ address: null }) === null);
 check("looking at the place rather than routing to it also works", mapUrl(croydon)?.includes("/maps/search/") === true);
+
+// The destination is a postal address, not a search. The client's list reads
+// widest first - "London, Croydon, 375-401 Brighton Road, CR2 6ES" - which
+// Google has to work through before it can show a route; a street line and a
+// postcode identify the building outright.
+console.log("\n7. The destination is precise enough not to be searched for");
 check(
-  "an address that already says UK is not told twice",
-  decodeURIComponent(directionsUrl({ address: "1 Some Road, UK" })).endsWith("1 Some Road, UK"),
+  "it is the street and the postcode",
+  directionsDestination(croydon) === "375-401 Brighton Road, CR2 6ES, United Kingdom",
+  directionsDestination(croydon),
+);
+check("and that is what the link carries", decodeURIComponent(url).includes("375-401 Brighton Road, CR2 6ES, United Kingdom"));
+check(
+  "the town and locality are dropped, because the postcode already says them",
+  !directionsDestination(croydon).includes("London") &&
+    !directionsDestination(croydon).includes("Croydon"),
+);
+check(
+  "the country is named, so an ambiguous town is not another continent",
+  directionsDestination(croydon).endsWith("United Kingdom"),
+);
+check(
+  "a longer address still resolves to its street line",
+  directionsDestination({
+    address: "Chilwell, Nottingham, Broxtowe, West Point Shopping Ctre, Ranson Rd, NG9 6DX",
+    postcode: "NG9 6DX",
+  }) === "Ranson Rd, NG9 6DX, United Kingdom",
+);
+check(
+  "an address with no postcode is used whole rather than guessed at",
+  directionsDestination({ address: "Skelmersdale, Tawd Valley Way", postcode: null }) ===
+    "Skelmersdale, Tawd Valley Way, United Kingdom",
+);
+check(
+  "a postcode with no address is still a destination",
+  directionsDestination({ address: null, postcode: "CR2 6ES" }) === "CR2 6ES, United Kingdom",
+);
+check(
+  "nothing at all is no destination",
+  directionsDestination({ address: null, postcode: null }) === null,
+);
+check(
+  "an address that already names the country is left alone",
+  directionsDestination({ address: "1 Some Road, UK" }) === "1 Some Road, UK",
+);
+// Whatever the client's list holds, the link has to work for every store.
+const destinations = stores.map((store) => directionsDestination(store));
+check("every store has a destination", destinations.every(Boolean));
+check(
+  "and nearly all of them are a street and a postcode",
+  destinations.filter((d) => /, [A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2}, United Kingdom$/.test(d))
+    .length /
+    stores.length >
+    0.98,
+  `${destinations.filter((d) => /, [A-Z]{1,2}\d[A-Z\d]? \d[A-Z]{2}, United Kingdom$/.test(d)).length} of ${stores.length}`,
 );
 
-console.log("\n7. A store fills in the place, never the job");
+console.log("\n8. A store fills in the place, never the job");
 const defaults = storeProjectDefaults(croydon);
 check("the client comes from the directory", defaults.client === "Lidl GB");
 check("so does the site address", defaults.site_address === croydon.address);
@@ -172,7 +235,7 @@ check(
   newProjectHref(croydon),
 );
 
-console.log("\n8. The link a project stores");
+console.log("\n9. The link a project stores");
 check("a project with no store has no link", storeLinkOf({}) === null);
 check(
   "a project with one does",
@@ -199,7 +262,7 @@ check(
     JSON.stringify({ location_directory: "lidl-gb", location_code: "1470" }),
 );
 
-console.log("\n9. What a report says about the place");
+console.log("\n10. What a report says about the place");
 const linked = reportSite({ client: null, site_address: null }, croydon);
 check("an unwritten client comes from the store", linked.client === "Lidl GB");
 check("an unwritten address too", linked.siteAddress === croydon.address);
@@ -216,7 +279,7 @@ check("a project with no store prints no store line", storeLine(unlinked.store) 
 check("and keeps its own client and address", unlinked.client === "Riverside Ltd");
 check("whitespace on the project does not count as written", reportSite({ client: "   " }, croydon).client === "Lidl GB");
 
-console.log("\n10. Nothing here reaches a company's own data");
+console.log("\n11. Nothing here reaches a company's own data");
 for (const file of ["../lib/stores/directory.ts", "../lib/stores/directions.ts", "../lib/stores/project-link.ts"]) {
   const source = readFileSync(new URL(file, import.meta.url), "utf8");
   check(
