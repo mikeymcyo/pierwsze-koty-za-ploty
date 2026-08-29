@@ -330,6 +330,95 @@ check("one reads in the singular", /^1 section updated/.test(describeApplied(1))
 check("several read in the plural", /^3 sections updated/.test(describeApplied(3)));
 check("and it says the report stays editable", /still fully editable/.test(describeApplied(2)));
 
+
+console.log("\n14. It plans the whole document before rewriting anything");
+check("the planning step is named", /PLAN BEFORE YOU WRITE/.test(MASTER_REVIEW_SYSTEM_PROMPT));
+check(
+  "section-at-a-time rewriting is called out as the fault it is",
+  /Do not work through the sections one at a time rewriting each in isolation/i.test(
+    MASTER_REVIEW_SYSTEM_PROMPT,
+  ),
+);
+for (const [step, pattern] of [
+  ["list the supported facts", /List the facts the report and its evidence actually support/i],
+  ["give each a primary home", /Decide which single section is the primary home/i],
+  ["find duplicates", /Note where a fact appears in more than one section/i],
+  ["find contradictions", /Note where two statements cannot both be true/i],
+  ["find gaps", /Note what appears to be missing/i],
+  ["only then write", /Only then decide what each section should say/i],
+]) {
+  check(`the plan says to ${step}`, pattern.test(MASTER_REVIEW_SYSTEM_PROMPT));
+}
+check("one fact, one home", /One fact, one home/.test(MASTER_REVIEW_SYSTEM_PROMPT));
+check(
+  "and no padding to match a neighbouring section",
+  /no section needs padding to look as/i.test(MASTER_REVIEW_SYSTEM_PROMPT),
+);
+
+console.log("\n15. Every section is given its own job");
+for (const [role, pattern] of [
+  ["Daily Summary is an overview, not a list", /Never a list of every activity/i],
+  ["Works completed is not a paraphrase", /Never a paraphrase of the Summary/i],
+  ["deliveries and plant stay put", /Deliveries and plant: the logistical and equipment facts/i],
+  ["planned works are never invented", /Never invent future works/i],
+  ["scope is not chronology", /Scope of works: which workstreams and items were included\. Not chronology/i],
+  ["stages are not the scope again", /Not the scope again/i],
+  ["overview is context and outcome", /why the project or work package existed/i],
+  ["outstanding means evidenced", /only items actually evidenced as/i],
+]) {
+  check(role, pattern.test(MASTER_REVIEW_SYSTEM_PROMPT));
+}
+check(
+  "health and safety may not claim a quiet day",
+  /no incidents occurred/i.test(MASTER_REVIEW_SYSTEM_PROMPT) &&
+    /all works were carried out safely/i.test(MASTER_REVIEW_SYSTEM_PROMPT),
+);
+check(
+  "sign-off may not claim completion or acceptance unsupported",
+  /must not claim completion, acceptance, handover or compliance/i.test(MASTER_REVIEW_SYSTEM_PROMPT),
+);
+check(
+  "the commonest fault is shown worked through",
+  /WORKED EXAMPLE OF THE COMMONEST FAULT/.test(MASTER_REVIEW_SYSTEM_PROMPT) &&
+    /Loose Lidl sign fixings were attended to/.test(MASTER_REVIEW_SYSTEM_PROMPT),
+);
+check(
+  "and the example makes clear no fact was added",
+  /No fact was added, and nothing is now said twice/i.test(MASTER_REVIEW_SYSTEM_PROMPT),
+);
+
+console.log("\n16. Malformed model output fails safely");
+const junk = reconcileReview(
+  [{ sectionType: "executive_summary", label: "Summary", content: "Original text.", aiGenerated: true }],
+  [
+    { sectionType: "executive_summary", proposedText: undefined, reason: undefined },
+    { sectionType: "", proposedText: "orphan", reason: null },
+  ],
+  [{ type: undefined, severity: undefined, message: "still useful", relatedSection: undefined }],
+  undefined,
+);
+check("a missing proposedText leaves the section untouched", junk.sections[0].changed === false);
+check("and keeps the original text", junk.sections[0].originalText === "Original text.");
+check("an entry with no section type cannot create one", junk.sections.length === 1);
+check("a warning with no type still lands as other", junk.warnings[0].type === "other");
+check("a missing assessment becomes an empty string, not undefined", junk.assessment === "");
+check("nothing malformed becomes a write", sectionsToApply(junk, ["executive_summary", ""]).length === 0);
+
+console.log("\n17. The context is read per report and left to RLS for isolation");
+const contextSource = readFileSync(new URL("../lib/reports/review-context.ts", import.meta.url), "utf8");
+check(
+  "every read is scoped to the one report",
+  (contextSource.match(/\.eq\("(report_id|summary_report_id|id)"/g) ?? []).length >= 6,
+);
+check(
+  "no service-role or admin client is used to bypass policies",
+  !/service_role|SERVICE_ROLE|createAdminClient/.test(contextSource),
+);
+check(
+  "the project reference reaches the reviewer",
+  /project_reference/.test(contextSource),
+);
+
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL MASTER REVIEW CHECKS PASSED");
 else {

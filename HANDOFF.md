@@ -870,6 +870,16 @@ the user having finished. See section 4.
 - **Reopen is not safe against two people at once.** The `.eq("status",
   "final")` guard rejects a double reopen, but two people editing one reopened
   report overwrite each other - as they would any draft.
+- **PDF photo layout is tight on a phone.** Photographs print three to a row,
+  which is legible on a laptop and small on an iPhone. Worth investigating two
+  columns, larger images, portrait/landscape handled on their own terms, and
+  room for a caption - without losing image quality. Non-blocking; the owner
+  confirmed the issued package is otherwise correct.
+- **Supporting documents are all-or-nothing per report.** Every selected PDF is
+  appended in full, which is right for drawings and small documents but would
+  quietly add a hundred pages for a full RAMS or specification. Worth a
+  per-document choice between *reference only* (listed in the register) and
+  *append to final PDF*. Non-blocking.
 - **`saveReport` replaces workforce and plant non-atomically** (delete then
   insert). Validation runs first so a rejected submission cannot lose rows, but
   a mid-write failure could. Acceptable for the MVP; an RPC would fix it.

@@ -106,7 +106,7 @@ export async function buildDailyReviewContext(
   const { data: report } = await supabase
     .from("reports")
     .select(
-      "id, project_id, report_number, report_date, weather, author_name, raw_notes, projects(name, client, site_address)",
+      "id, project_id, report_number, report_date, weather, author_name, raw_notes, projects(name, client, site_address, project_reference)",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -161,6 +161,7 @@ export async function buildDailyReviewContext(
         {
           heading: "RECORDED CONDITIONS",
           lines: [
+            project?.project_reference ? `Project reference: ${project.project_reference}` : null,
             report.weather ? `Weather: ${report.weather}` : null,
             report.author_name ? `Reported by: ${report.author_name}` : null,
           ].filter((line): line is string => Boolean(line)),
@@ -204,7 +205,7 @@ export async function buildSummaryReviewContext(
   const { data: report } = await supabase
     .from("summary_reports")
     .select(
-      "id, project_id, kind, number, title, period_start, period_end, projects(name, client, site_address)",
+      "id, project_id, kind, number, title, period_start, period_end, projects(name, client, site_address, project_reference)",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -312,6 +313,7 @@ export async function buildSummaryReviewContext(
               ? `${viaDaily} further Daily Report(s) recorded as provenance beneath those Progress Reports, and already counted in them`
               : null,
             report.title ? `Title given by the site manager: ${report.title}` : null,
+            project?.project_reference ? `Project reference: ${project.project_reference}` : null,
           ].filter((line): line is string => Boolean(line)),
         },
         {

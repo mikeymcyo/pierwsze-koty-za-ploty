@@ -71,11 +71,11 @@ function normaliseText(value: string | null | undefined): string {
  *
  * A section type it invented is discarded: a review may improve what is
  * written, never conjure a section the document does not have. A section it
- * omitted is carried through unchanged rather than treated as emptied, because
- * a reply that ran short must not silently delete a paragraph. And its own
- * `changed` flag is ignored in favour of comparing the text, since a model
- * that reformats a line and calls it unchanged would otherwise slip an edit
- * past the user.
+ * omitted - or returned without usable text - is carried through unchanged
+ * rather than treated as emptied, because a reply that ran short must not
+ * silently propose deleting a paragraph. And its own `changed` flag is ignored
+ * in favour of comparing the text, since a model that reformats a line and
+ * calls it unchanged would otherwise slip an edit past the user.
  *
  * Order follows the report, not the reply.
  */
@@ -91,7 +91,14 @@ export function reconcileReview(
   const sections = current.map((section) => {
     const original = normaliseText(section.content);
     const entry = byType.get(section.sectionType);
-    const proposedText = entry ? normaliseText(entry.proposedText) : original;
+    // Only an actual string counts as a proposal. An empty string is a
+    // deliberate request to clear the section and is honoured; a missing or
+    // non-string value is a malformed reply, and treating that as "empty this
+    // section" would let a bad response propose destroying a paragraph.
+    const proposedText =
+      entry && typeof entry.proposedText === "string"
+        ? normaliseText(entry.proposedText)
+        : original;
     const changed = proposedText !== original;
     return {
       sectionType: section.sectionType,
