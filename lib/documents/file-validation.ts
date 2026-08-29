@@ -1,43 +1,43 @@
 /**
- * Whether a chosen file is really a PDF, and what the picker should ask for.
+ * Whether a chosen file is really a PDF.
  *
  * Pure, with no runtime imports and no path aliases, so the rules can be
  * tested without a browser and read the same way from the uploader and its
  * tests.
  *
- * ## Why the picker no longer names a MIME type
+ * ## Why the picker filters nothing at all
  *
- * `accept="application/pdf"` greys out genuine PDFs on an iPad. Safari maps a
- * concrete MIME type to a Uniform Type Identifier and then lets the Files
- * browser enable only items whose provider declares conformance to it. A PDF
- * synced into iCloud Drive, saved from Safari into Downloads, or surfaced by
- * Dropbox or Google Drive is frequently advertised as `public.data` or with no
- * type at all, so the picker disables it before this application ever sees the
- * file. Adding `.pdf` alongside does not rescue it: the extension maps to the
- * same UTI, and the intersection is unchanged.
+ * The file input carries no `accept` attribute, deliberately, and one must not
+ * be added back.
  *
- * Asking for the extension alone is the compatible form - Safari falls back to
- * matching the filename for providers that declare no usable type, and desktop
- * browsers filter on the extension exactly as before. This is the same lesson
- * the photo uploader learned in lib/photo-sources.ts, where a file arriving
- * from Files with an empty MIME type had to be judged on its name.
+ * `accept="application/pdf"` greyed out genuine PDFs on an iPad, in Recents,
+ * iCloud Drive, Downloads and Inbox alike. Safari maps a MIME type to a
+ * Uniform Type Identifier and then lets the Files browser enable only items
+ * whose provider declares conformance to it; a PDF synced into iCloud Drive,
+ * saved from Safari into Downloads, or surfaced by Dropbox or Google Drive is
+ * frequently advertised as `public.data` or with no type at all. Narrowing the
+ * attribute to `.pdf` alone was tried next and behaved identically, because the
+ * extension maps to that same UTI - so the file the user came to attach stayed
+ * untappable and the feature was unusable on the device it exists for.
  *
- * If a future iOS still disables genuine PDFs, the next step is to drop
- * `accept` entirely and let checkDocumentFile below do all the work - it
- * already can. That is a one-word change here, not a rewrite.
+ * An attribute that hides the file somebody is trying to attach is worse than
+ * no attribute. Without it the picker lists everything, the user taps the PDF
+ * they can see, and this module decides.
  *
  * ## Why that does not weaken anything
  *
  * A picker's `accept` was never a guarantee - it is a filter on what is easy
- * to tap, and the Files browser lets a determined tap through regardless. The
- * real check is below and is now stricter than it was: the name must end
- * `.pdf`, the file must be within the bucket's limit, and its first bytes must
- * actually read `%PDF-`. A renamed photograph is refused here rather than
- * uploaded and served to a client as a drawing.
+ * to tap, and the Files browser lets a determined tap through regardless.
+ * Nothing downstream ever trusted it. The real check is below and is stricter
+ * than the attribute ever was: the name must end `.pdf`, the file must be
+ * non-empty and within the bucket's limit, and its first bytes must actually
+ * read `%PDF-`. A renamed photograph is refused here rather than uploaded and
+ * served to a client as a drawing, and the bucket stays PDF-only besides.
+ *
+ * The cost is that a non-PDF is now refused after the tap rather than being
+ * greyed out before it, so the message it is refused with has to be worth
+ * reading. That is what checkDocumentFile returns.
  */
-
-/** What the file input asks for. Deliberately an extension, not a MIME type. */
-export const DOCUMENT_ACCEPT = ".pdf";
 
 /** Matches the project-documents bucket's own limit. */
 export const DOCUMENT_MAX_BYTES = 25 * 1024 * 1024;

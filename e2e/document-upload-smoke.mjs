@@ -10,7 +10,6 @@
 import { readFileSync } from "node:fs";
 
 import {
-  DOCUMENT_ACCEPT,
   DOCUMENT_MAX_BYTES,
   PDF_CONTENT_TYPE,
   PDF_SIGNATURE_BYTES,
@@ -32,19 +31,33 @@ const PDF_HEAD = [0x25, 0x50, 0x44, 0x46, 0x2d];
 const PNG_HEAD = [0x89, 0x50, 0x4e, 0x47, 0x0d];
 const ONE_MB = 1024 * 1024;
 
-console.log("\n1. The picker asks for an extension, never a MIME type");
-check("accept is exactly .pdf", DOCUMENT_ACCEPT === ".pdf", DOCUMENT_ACCEPT);
+const uploaderSource = readFileSync(
+  new URL("../components/documents/document-upload.tsx", import.meta.url),
+  "utf8",
+);
+/** Just the <input type="file"> element, so a word in a comment cannot pass. */
+const fileInput = uploaderSource.slice(
+  uploaderSource.indexOf("<input"),
+  uploaderSource.indexOf("/>", uploaderSource.indexOf("<input")),
+);
+
+console.log("\n1. The file input filters nothing - every filter greyed out real PDFs on iOS");
 check(
-  "it names no MIME type at all - that is what greyed files out on the iPad",
-  !DOCUMENT_ACCEPT.includes("/"),
-  DOCUMENT_ACCEPT,
+  "the input carries no accept attribute at all",
+  !/\baccept\s*=/.test(fileInput),
+  fileInput.replace(/\s+/g, " ").slice(0, 160),
 );
 check(
-  "and the input in the uploader uses it rather than a literal",
-  /accept=\{DOCUMENT_ACCEPT\}/.test(
-    readFileSync(new URL("../components/documents/document-upload.tsx", import.meta.url), "utf8"),
+  "and none is smuggled in anywhere else in the uploader",
+  !/\baccept\s*=\s*[{"']/.test(uploaderSource),
+);
+check(
+  "no accept value is exported for one to be wired back up from",
+  !/DOCUMENT_ACCEPT/.test(
+    readFileSync(new URL("../lib/documents/file-validation.ts", import.meta.url), "utf8"),
   ),
 );
+check("it is still the multiple-file input it was", /\bmultiple\b/.test(fileInput));
 
 console.log("\n2. A genuine PDF is accepted however the device describes it");
 for (const [what, type] of [
@@ -131,10 +144,7 @@ check(
 
 console.log("\n6. The stored object is always a PDF content type");
 check("normalised to application/pdf", PDF_CONTENT_TYPE === "application/pdf");
-const uploader = readFileSync(
-  new URL("../components/documents/document-upload.tsx", import.meta.url),
-  "utf8",
-);
+const uploader = uploaderSource;
 check(
   "the upload asserts it rather than passing the device's guess through",
   /contentType: PDF_CONTENT_TYPE/.test(uploader),
