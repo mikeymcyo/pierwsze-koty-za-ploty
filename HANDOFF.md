@@ -297,9 +297,23 @@ absent from every client chunk in the production build.
 - `/stores` - search by number, town, postcode or street, filter by RDC and by
   night shift. A number wins outright over an address that merely contains it,
   and leading zeros never matter: 34, 0034 and "#34" are the same store.
-- `/stores/[code]` - the store's facts, **Directions** (the same keyless Google
-  Maps link, which opens the Maps app on an iPad and the website otherwise),
-  and Create project here.
+- `/stores/[code]` - the store's facts, **Directions** (a keyless Google Maps
+  link, which opens the Maps app on an iPad and the website otherwise), and
+  Create project here.
+  - The destination is the **street line plus the postcode**, not the client's
+    whole address string. Their list reads widest first ("London, Croydon,
+    375-401 Brighton Road, CR2 6ES"), which Google has to work through as a
+    search before it can show a route; a street and a UK postcode identify the
+    building outright. **1,300 of 1,302 stores** resolve that way, the rest fall
+    back to the whole address. `travelmode=driving` skips the mode picker;
+    `dir_action=navigate` is deliberately not set.
+  - **There are no coordinates to use instead** - the client's list has four
+    columns and none of them is a latitude - and deriving them would mean a
+    geocoding API and a bill.
+  - `postcodeOf` tolerates two typing faults in the client's list: a letter O
+    where the inward code's digit belongs, and a stray space inside the inward
+    code. Both are read and written back correctly. A genuinely truncated
+    postcode still comes back null.
 - **Create project from a store** prefills client, site address and postcode
   from the directory. It deliberately does **not** fill the project reference:
   the store number is the client's permanent name for the building and the
