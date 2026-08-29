@@ -4,6 +4,7 @@ import { requireSessionContext } from "@/lib/auth/session";
 import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS } from "@/lib/issues/metadata";
 import { loadDocumentAttachments } from "@/lib/pdf/document-attachments";
 import { mergeReportWithDocuments } from "@/lib/pdf/merge";
+import { coverPhotoIdOf, pdfStyleOf } from "@/lib/pdf/presentation";
 import { renderReportPdf } from "@/lib/pdf/render";
 import { reportSite } from "@/lib/reports/site-identity";
 import { storeFor } from "@/lib/stores/catalogue";
@@ -120,10 +121,12 @@ export async function GET(
     link ? storeFor(link.directory, link.code) : null,
   );
 
+  const search = new URL(request.url).searchParams;
+
   // Decided before the render, not after: the register printed inside the
   // report has to say whether the drawings actually follow it.
   const include = shouldIncludeDocuments(
-    new URL(request.url).searchParams.get("documents"),
+    search.get("documents"),
     supportingDocuments.length > 0,
   );
 
@@ -146,6 +149,12 @@ export async function GET(
     supportingDocuments,
     documentsAppended: include,
     store: site.store,
+    // The presentation the finalise screen is currently offering, so the
+    // preview is the document that would be issued rather than a different
+    // one. Nothing is stored: an unrecognised value falls back to the house
+    // style rather than refusing to render.
+    style: pdfStyleOf(search.get("style")),
+    coverPhotoId: coverPhotoIdOf(search.get("cover")),
   });
 
   // The preview is the package the client would receive, appendices and all -

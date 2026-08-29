@@ -181,7 +181,10 @@ for (const [name, source] of [["daily", dailyPreview], ["consolidated", summaryP
   check(`${name}: the preview merges the documents too`, /mergeReportWithDocuments\(pdf/.test(source));
   check(
     `${name}: it honours the same flag as finalising`,
-    /shouldIncludeDocuments\(/.test(source) && /searchParams\.get\("documents"\)/.test(source),
+    // The parameter is read from the request's own search params, however the
+    // route names them - it now keeps them in `search` because the style and
+    // cover are read from there too.
+    /shouldIncludeDocuments\(/.test(source) && /\.get\("documents"\)/.test(source),
   );
   check(
     `${name}: a document it cannot merge refuses the preview rather than hiding it`,

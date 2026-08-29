@@ -9,9 +9,12 @@ import {
   finaliseSummaryReport,
   type SummaryFinaliseState,
 } from "@/app/(app)/summary-reports/finalise-actions";
+import { PdfPresentation, type CoverChoice } from "@/components/pdf/pdf-presentation";
+import { SharePdf } from "@/components/pdf/share-pdf";
 import { ReopenSummaryReport } from "@/components/summary-reports/summary-lifecycle";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { DEFAULT_PDF_STYLE, type PdfStyle } from "@/lib/pdf/presentation";
 import { describePackageChoice, documentsFlag } from "@/lib/reports/document-package";
 
 function IssueButton({ reissue }: { reissue: boolean }) {
@@ -30,6 +33,8 @@ export function SummaryFinalise({
   hasPdf,
   finalisedAt,
   documentCount = 0,
+  photos = [],
+  shareName,
 }: {
   reportId: string;
   status: "draft" | "final";
@@ -37,12 +42,24 @@ export function SummaryFinalise({
   finalisedAt: string | null;
   /** Linked supporting documents, which the issued PDF can carry in full. */
   documentCount?: number;
+  /**
+   * The photographs this report will print - the curated set, not the whole
+   * project - because the cover has to be one of them.
+   */
+  photos?: CoverChoice[];
+  /** What the shared file is called on the device that receives it. */
+  shareName?: string;
 }) {
   const finalise = finaliseSummaryReport.bind(null, reportId);
   const [state, action] = useActionState<SummaryFinaliseState, FormData>(finalise, {});
   const reopened = status === "draft" && hasPdf;
   // Default on: somebody who linked a drawing meant it to go with the report.
   const [includeDocuments, setIncludeDocuments] = useState(true);
+  // The house style and no cover: the report as SiteBoss has always issued it.
+  // A different choice is deliberate, never the default.
+  const [style, setStyle] = useState<PdfStyle>(DEFAULT_PDF_STYLE);
+  const [cover, setCover] = useState<string | null>(null);
+  const presentation = `&style=${style}${cover ? `&cover=${cover}` : ""}`;
 
   if (status === "final") {
     return (
@@ -54,12 +71,21 @@ export function SummaryFinalise({
           </p>
         </div>
 
-        <Button asChild size="lg" className="self-start">
-          <Link href={`/summary-reports/${reportId}/pdf`}>
-            <FileText aria-hidden />
-            Open the PDF
-          </Link>
-        </Button>
+        <div className="flex flex-wrap gap-3">
+          <Button asChild size="lg">
+            <Link href={`/summary-reports/${reportId}/pdf`}>
+              <FileText aria-hidden />
+              Open the PDF
+            </Link>
+          </Button>
+          {/* The issued file itself, handed to the device's own share sheet.
+              Nothing is re-rendered to send it. */}
+          <SharePdf
+            href={`/summary-reports/${reportId}/file`}
+            fileName={shareName ?? "Report.pdf"}
+            title={shareName ?? "Report"}
+          />
+        </div>
 
         <ReopenSummaryReport reportId={reportId} finalisedAt={finalisedAt} />
       </section>
@@ -88,6 +114,14 @@ export function SummaryFinalise({
 
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
 
+      <PdfPresentation
+        style={style}
+        onStyle={setStyle}
+        cover={cover}
+        onCover={setCover}
+        photos={photos}
+      />
+
       {documentCount > 0 ? (
         <label className="flex items-start gap-3 rounded-xl border border-line p-3">
           <input
@@ -110,12 +144,18 @@ export function SummaryFinalise({
       <div className="flex flex-wrap gap-3">
         <form action={action}>
           <input type="hidden" name="includeDocuments" value={documentsFlag(includeDocuments)} />
+          {/* The presentation goes with the render, so what was previewed is
+              what gets issued. */}
+          <input type="hidden" name="pdfStyle" value={style} />
+          <input type="hidden" name="coverPhoto" value={cover ?? ""} />
           <IssueButton reissue={reopened} />
         </form>
 
         <Button asChild variant="secondary" size="lg">
           <Link
-            href={`/summary-reports/${reportId}/pdf?draft=1&documents=${documentsFlag(includeDocuments)}`}
+            href={`/summary-reports/${reportId}/pdf?draft=1&documents=${documentsFlag(
+              includeDocuments,
+            )}${presentation}`}
           >
             <FileText aria-hidden />
             {reopened ? "Preview your changes" : "Preview final PDF"}
@@ -123,9 +163,18 @@ export function SummaryFinalise({
         </Button>
 
         {reopened ? (
-          <Button asChild variant="ghost" size="lg">
-            <Link href={`/summary-reports/${reportId}/pdf`}>View the issued PDF</Link>
-          </Button>
+          <>
+            <Button asChild variant="ghost" size="lg">
+              <Link href={`/summary-reports/${reportId}/pdf`}>View the issued PDF</Link>
+            </Button>
+            {/* Still the document the client holds, so it can still be sent. */}
+            <SharePdf
+              href={`/summary-reports/${reportId}/file`}
+              fileName={shareName ?? "Report.pdf"}
+              title={shareName ?? "Report"}
+              variant="ghost"
+            />
+          </>
         ) : null}
       </div>
     </section>

@@ -9,6 +9,7 @@ import {
 } from "@/lib/issues/metadata";
 import { loadDocumentAttachments } from "@/lib/pdf/document-attachments";
 import { mergeReportWithDocuments } from "@/lib/pdf/merge";
+import { coverPhotoIdOf, pdfStyleOf } from "@/lib/pdf/presentation";
 import { renderReportPdf } from "@/lib/pdf/render";
 import { reportSite } from "@/lib/reports/site-identity";
 import { storeFor } from "@/lib/stores/catalogue";
@@ -184,6 +185,11 @@ export async function finaliseReport(
       supportingDocuments,
       documentsAppended: includeDocuments,
       store: site.store,
+      // The presentation chosen on the finalise screen. It is not stored
+      // anywhere: it is baked into the file being issued, which is the record.
+      // Re-issuing a reopened report is where a different choice takes effect.
+      style: pdfStyleOf(String(formData.get("pdfStyle") ?? "")),
+      coverPhotoId: coverPhotoIdOf(String(formData.get("coverPhoto") ?? "")),
     });
   } catch (cause) {
     console.error("[siteboss] PDF render failed:", cause);

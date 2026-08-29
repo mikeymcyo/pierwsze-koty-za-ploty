@@ -21,7 +21,7 @@ import {
   visibleDocumentColumns,
   type ResolvedDocument,
 } from "@/lib/documents/metadata";
-import { imageSize, photoBoxHeight, photoBoxSize } from "@/lib/pdf/image-size";
+import { fitBox, imageSize, photoBoxHeight, photoBoxSize } from "@/lib/pdf/image-size";
 import { photoEvidence, type PhotoEvidenceItem } from "@/lib/pdf/photo-evidence";
 import type { PdfStyles } from "@/lib/pdf/theme";
 
@@ -31,6 +31,12 @@ import type { PdfStyles } from "@/lib/pdf/theme";
  * back to us, and the grid it feeds is a fixed two columns.
  */
 export const PHOTO_COLUMN_WIDTH = 238;
+
+/** A4 less the two 40pt page margins: the width of everything on the page. */
+export const CONTENT_WIDTH = 515;
+
+/** The bounds a plate is printed between, which the Photo style widens. */
+export type PlateBounds = { min: number; max: number };
 
 /**
  * Muted on purpose. A report where every issue shouts stops distinguishing
@@ -47,7 +53,7 @@ export function priorityColour(priority: IssuePriority, fallback: string): strin
   return PRIORITY_COLOURS[priority] ?? fallback;
 }
 
-/** The charcoal rule with its short amber stub. The only place the accent spans. */
+/** The rule with its short accent stub. The only place the accent spans. */
 export function Rule({ s }: { s: PdfStyles }) {
   return (
     <View style={s.rule}>
@@ -58,10 +64,10 @@ export function Rule({ s }: { s: PdfStyles }) {
 }
 
 /**
- * The running header. Product left, the company whose report this is right.
+ * The running header: the company whose report this is, then the product.
  *
  * Repeated on every page (`fixed`) so a page separated from the rest still
- * says who issued it, and kept short so the content stays the subject.
+ * says who issued it, and small enough that the content stays the subject.
  */
 export function RunningHeader({
   s,
@@ -75,10 +81,91 @@ export function RunningHeader({
   return (
     <View style={s.header} fixed>
       <View style={s.headerRow}>
-        <Text style={s.headerBrand}>{productName}</Text>
+        {/* The contractor's name reads first and the product's second, both
+            small. A client's document should carry the client's contractor at
+            its head, not ours - see headerBrand in lib/pdf/theme.ts. */}
         <Text style={s.headerCompany}>{companyName}</Text>
+        <Text style={s.headerBrand}>{productName}</Text>
       </View>
       <Rule s={s} />
+    </View>
+  );
+}
+
+/**
+ * The cover photograph, where one was chosen.
+ *
+ * One of the report's own plates, printed at the head of the first page at its
+ * own shape and its own bytes - see fitBox. How much room it gets is the
+ * style's decision: a band in SiteBoss and Corporate, a third of the page in
+ * Photo.
+ *
+ * No cover is an ordinary answer and the default one, so this renders nothing
+ * rather than a placeholder.
+ */
+export function CoverPhoto({
+  s,
+  data,
+  maxHeight,
+  caption,
+}: {
+  s: PdfStyles;
+  data: Buffer;
+  maxHeight: number;
+  caption?: string | null;
+}) {
+  const box = fitBox(imageSize(data), CONTENT_WIDTH, maxHeight);
+  return (
+    <View style={s.cover} wrap={false}>
+      {/* eslint-disable-next-line jsx-a11y/alt-text */}
+      <Image style={{ width: box.width, height: box.height }} src={data} />
+      {caption ? <Text style={s.coverCaption}>{caption}</Text> : null}
+    </View>
+  );
+}
+
+/**
+ * Where a printed copy is signed.
+ *
+ * Prepared by, a rule to sign on, and a rule to date. Nothing is filled in
+ * that is not already recorded: the author's name comes from the report, and
+ * the signature and date are left blank because inventing either would be
+ * putting words in somebody's hand.
+ *
+ * It says prepared, and says so twice - in the heading note as well as the
+ * label - because that is all it is. There is no "approved", no "accepted"
+ * and no "certified" here: this document is a contractor's record of what
+ * happened on a job, and a box implying a client had agreed to it would be a
+ * false record of an agreement that never took place.
+ */
+export function SignOff({ s, preparedBy }: { s: PdfStyles; preparedBy: string | null }) {
+  return (
+    <View style={s.signOff} wrap={false}>
+      {/* No heading of its own: the three labels below say what this is, and a
+          SIGN-OFF banner above them cost a Progress Report with one plate its
+          second page for no information at all. */}
+      <View style={s.signOffRow}>
+        <View style={s.signOffCell}>
+          <Text style={s.signOffLabel}>Prepared by</Text>
+          {preparedBy ? (
+            <Text style={s.signOffValue}>{preparedBy}</Text>
+          ) : (
+            <View style={s.signOffLine} />
+          )}
+        </View>
+        <View style={s.signOffCell}>
+          <Text style={s.signOffLabel}>Signature</Text>
+          <View style={s.signOffLine} />
+        </View>
+        <View style={s.signOffCell}>
+          <Text style={s.signOffLabel}>Date</Text>
+          <View style={s.signOffLine} />
+        </View>
+      </View>
+      <Text style={s.signOffNote}>
+        Signed for identification by the person who prepared this report. Not an approval, an
+        acceptance of the works, or a certificate of completion.
+      </Text>
     </View>
   );
 }
@@ -386,8 +473,8 @@ export function IssueRecord({
  * with its first plate overleaf, or throw the heading forward and leave a hole
  * where two thirds of a plate would have fitted.
  */
-export function plateReserve(data: Buffer): number {
-  return photoBoxHeight(imageSize(data), PHOTO_COLUMN_WIDTH) + 34;
+export function plateReserve(data: Buffer, bounds?: PlateBounds): number {
+  return photoBoxHeight(imageSize(data), PHOTO_COLUMN_WIDTH, bounds) + 34;
 }
 
 /**
@@ -407,14 +494,17 @@ export function PhotoPlate({
   index,
   label,
   data,
+  bounds,
 }: {
   s: PdfStyles;
   index: number;
   label: { caption: string | null; status: string | null };
   data: Buffer;
+  /** The Photo style prints its plates larger; the others use the defaults. */
+  bounds?: PlateBounds;
 }) {
   const item: PhotoEvidenceItem = photoEvidence(label, index);
-  const box = photoBoxSize(imageSize(data), PHOTO_COLUMN_WIDTH);
+  const box = photoBoxSize(imageSize(data), PHOTO_COLUMN_WIDTH, bounds);
   return (
     <View style={s.photoCell} wrap={false}>
       <View style={s.photoRefRow}>
@@ -448,7 +538,15 @@ export type GridPhoto = {
  * empty. A row at a time paginates like any other stack of blocks, and each
  * row is kept whole so a plate is never cut in half.
  */
-export function PhotoGrid({ s, photos }: { s: PdfStyles; photos: GridPhoto[] }) {
+export function PhotoGrid({
+  s,
+  photos,
+  bounds,
+}: {
+  s: PdfStyles;
+  photos: GridPhoto[];
+  bounds?: PlateBounds;
+}) {
   const rows: GridPhoto[][] = [];
   for (let index = 0; index < photos.length; index += 2) {
     rows.push(photos.slice(index, index + 2));
@@ -464,6 +562,7 @@ export function PhotoGrid({ s, photos }: { s: PdfStyles; photos: GridPhoto[] }) 
               index={rowIndex * 2 + column}
               label={photo.label}
               data={photo.data}
+              bounds={bounds}
             />
           ))}
         </View>

@@ -26,6 +26,8 @@ import { requireSessionContext } from "@/lib/auth/session";
 import { documentTypeLabel } from "@/lib/documents/metadata";
 import { signDocumentUrls } from "@/lib/documents/signing";
 import { isReopened } from "@/lib/reports/lifecycle";
+import { issuedPdfFileName } from "@/lib/pdf/presentation";
+import { photoPrintLabelText } from "@/lib/photo-captions";
 import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
@@ -366,6 +368,19 @@ export default async function ReportCapturePage({
           hasPdf={Boolean(report.pdf_path)}
           documentCount={referencedDocuments.length}
           finalisedAt={report.finalised_at ? formatDate(report.finalised_at) : null}
+          // The report's own photographs, any of which can be its cover. They
+          // are already signed for the gallery above, so the picker costs
+          // nothing extra.
+          photos={photos.map((photo) => ({
+            id: photo.id,
+            url: photo.url,
+            label: photoPrintLabelText(photo),
+          }))}
+          shareName={issuedPdfFileName(
+            "Daily Report",
+            formatReportNumber(report.report_number),
+            report.report_date,
+          )}
         />
       )}
 

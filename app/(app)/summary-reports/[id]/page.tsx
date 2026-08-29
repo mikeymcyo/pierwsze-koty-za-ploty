@@ -24,6 +24,8 @@ import { documentTypeLabel } from "@/lib/documents/metadata";
 import { signDocumentUrls } from "@/lib/documents/signing";
 import { isReopened } from "@/lib/reports/lifecycle";
 import { requireSessionContext } from "@/lib/auth/session";
+import { issuedPdfFileName } from "@/lib/pdf/presentation";
+import { photoPrintLabelText } from "@/lib/photo-captions";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import {
   SUMMARY_KIND_LABELS,
@@ -347,6 +349,20 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
           hasPdf={Boolean(report.pdf_path)}
           documentCount={referencedDocuments.length}
           finalisedAt={formatDate(report.finalised_at)}
+          // Only the curated photographs: the cover has to be one of the
+          // plates this report actually prints.
+          photos={photos
+            .filter((photo) => photo.selected)
+            .map((photo) => ({
+              id: photo.id,
+              url: photo.url,
+              label: photoPrintLabelText(photo),
+            }))}
+          shareName={issuedPdfFileName(
+            SUMMARY_KIND_LABELS[report.kind],
+            formatReportNumber(report.number),
+            report.finalised_at,
+          )}
         />
       ) : null}
 

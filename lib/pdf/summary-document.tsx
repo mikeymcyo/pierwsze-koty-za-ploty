@@ -4,9 +4,10 @@ import { Document, Page, Text } from "@react-pdf/renderer";
 
 import type { IssuePriority, SummaryReportKind, SummarySectionType } from "@/types/database";
 import type { ResolvedDocument } from "@/lib/documents/metadata";
-import { photoPrintLabel } from "@/lib/photo-captions";
+import { photoPrintLabel, photoPrintLabelText } from "@/lib/photo-captions";
 import {
   ControlPanel,
+  CoverPhoto,
   DocumentRegister,
   DocumentTitle,
   IssueRecord,
@@ -14,13 +15,15 @@ import {
   RunningFooter,
   RunningHeader,
   SectionHeading,
+  SignOff,
   issueReserve,
   plateReserve,
   priorityColour,
 } from "@/lib/pdf/components";
 import { photoReference } from "@/lib/pdf/photo-evidence";
+import { pickCoverPhoto, type PdfStyle } from "@/lib/pdf/presentation";
 import { storeLine } from "@/lib/reports/site-identity";
-import { createPdfStyles, defaultPdfTheme } from "@/lib/pdf/theme";
+import { createPdfStyles, pdfTheme } from "@/lib/pdf/theme";
 import {
   SUMMARY_DOCUMENT_TITLES,
   isSurvey,
@@ -82,11 +85,18 @@ export type SummaryPdfData = {
    * Null on a project entered by hand, which prints exactly as it always did.
    */
   store: { name: string; code: string } | null;
+  /**
+   * Which of the three export styles to print in. Absent means the house
+   * style, so every existing caller and fixture prints exactly as before.
+   */
+  style?: PdfStyle;
+  /**
+   * The photograph to open on, chosen from `photos` above - which on a
+   * consolidated report is the curated set. Null, and no cover, is the
+   * default and an entirely valid document.
+   */
+  coverPhotoId?: string | null;
 };
-
-const theme = defaultPdfTheme;
-const s = createPdfStyles(theme);
-const c = theme.colors;
 
 /** "P01-P12", so the section says up front what it contains. */
 function plateRange(count: number): string | undefined {
@@ -95,6 +105,13 @@ function plateRange(count: number): string | undefined {
 }
 
 export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
+  // Built per render rather than at module load, because the style is now the
+  // user's choice at the moment they issue the report.
+  const theme = pdfTheme(data.style, "standard");
+  const s = createPdfStyles(theme);
+  const c = theme.colors;
+  const cover = pickCoverPhoto(data.photos, data.coverPhotoId);
+
   const completion = data.kind === "completion";
   const survey = isSurvey(data.kind);
   const documentType = SUMMARY_DOCUMENT_TITLES[data.kind];
@@ -112,6 +129,18 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
     >
       <Page size="A4" style={s.page}>
         <RunningHeader s={s} productName={theme.productName} companyName={data.companyName} />
+
+        {/* The cover, where one was chosen: one of the plates below, printed
+            large at the head of the first page. It is still shown in the
+            evidence grid with its P-reference, because that is the record. */}
+        {cover ? (
+          <CoverPhoto
+            s={s}
+            data={cover.data}
+            maxHeight={theme.cover.maxHeight}
+            caption={photoPrintLabelText(cover)}
+          />
+        ) : null}
 
         <DocumentTitle
           s={s}
@@ -191,13 +220,14 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
           <>
             <SectionHeading
               s={s}
-              reserve={plateReserve(data.photos[0].data)}
+              reserve={plateReserve(data.photos[0].data, theme.plate)}
               note={plateRange(data.photos.length)}
             >
               Photographic evidence
             </SectionHeading>
             <PhotoGrid
               s={s}
+              bounds={theme.plate}
               photos={data.photos.map((photo) => ({
                 id: photo.id,
                 label: photoPrintLabel(photo),
@@ -220,6 +250,8 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
             ))}
           </>
         ) : null}
+
+        <SignOff s={s} preparedBy={data.issuedBy} />
 
         <RunningFooter
           s={s}

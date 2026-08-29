@@ -6,9 +6,12 @@ import { useFormStatus } from "react-dom";
 import { FileCheck2, FileText } from "lucide-react";
 
 import { finaliseReport, type FinaliseState } from "@/app/(app)/reports/finalise-actions";
+import { PdfPresentation, type CoverChoice } from "@/components/pdf/pdf-presentation";
+import { SharePdf } from "@/components/pdf/share-pdf";
 import { ReopenReport } from "@/components/reports/report-lifecycle";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { DEFAULT_PDF_STYLE, type PdfStyle } from "@/lib/pdf/presentation";
 import { describePackageChoice, documentsFlag } from "@/lib/reports/document-package";
 
 function FinaliseButton({ reissue }: { reissue: boolean }) {
@@ -36,6 +39,8 @@ export function FinaliseReport({
   hasPdf,
   finalisedAt,
   documentCount = 0,
+  photos = [],
+  shareName,
 }: {
   reportId: string;
   status: "draft" | "final";
@@ -43,12 +48,21 @@ export function FinaliseReport({
   finalisedAt: string | null;
   /** Linked supporting documents, which the issued PDF can carry in full. */
   documentCount?: number;
+  /** This report's own photographs, any of which can be its cover. */
+  photos?: CoverChoice[];
+  /** What the shared file is called on the device that receives it. */
+  shareName?: string;
 }) {
   const finalise = finaliseReport.bind(null, reportId);
   const [state, formAction] = useActionState<FinaliseState, FormData>(finalise, {});
   const reopened = status === "draft" && hasPdf;
   // Default on: somebody who linked a drawing meant it to go with the report.
   const [includeDocuments, setIncludeDocuments] = useState(true);
+  // The house style and no cover: the report as SiteBoss has always issued it.
+  // A different choice is deliberate, never the default.
+  const [style, setStyle] = useState<PdfStyle>(DEFAULT_PDF_STYLE);
+  const [cover, setCover] = useState<string | null>(null);
+  const presentation = `&style=${style}${cover ? `&cover=${cover}` : ""}`;
 
   if (status === "final") {
     return (
@@ -69,6 +83,13 @@ export function FinaliseReport({
               Open the PDF
             </Link>
           </Button>
+          {/* The issued file itself, handed to the device's own share sheet.
+              Nothing is re-rendered to send it. */}
+          <SharePdf
+            href={`/reports/${reportId}/file`}
+            fileName={shareName ?? "Daily Report.pdf"}
+            title={shareName ?? "Daily Report"}
+          />
         </div>
 
         <ReopenReport reportId={reportId} finalisedAt={finalisedAt} />
@@ -98,6 +119,14 @@ export function FinaliseReport({
 
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
 
+      <PdfPresentation
+        style={style}
+        onStyle={setStyle}
+        cover={cover}
+        onCover={setCover}
+        photos={photos}
+      />
+
       {documentCount > 0 ? (
         <label className="flex items-start gap-3 rounded-xl border border-line p-3">
           <input
@@ -120,12 +149,18 @@ export function FinaliseReport({
       <div className="flex flex-wrap gap-3">
         <form action={formAction}>
           <input type="hidden" name="includeDocuments" value={documentsFlag(includeDocuments)} />
+          {/* The presentation goes with the render, so what was previewed is
+              what gets issued. */}
+          <input type="hidden" name="pdfStyle" value={style} />
+          <input type="hidden" name="coverPhoto" value={cover ?? ""} />
           <FinaliseButton reissue={reopened} />
         </form>
 
         <Button asChild variant="secondary" size="lg">
           <Link
-            href={`/reports/${reportId}/pdf?draft=1&documents=${documentsFlag(includeDocuments)}`}
+            href={`/reports/${reportId}/pdf?draft=1&documents=${documentsFlag(
+              includeDocuments,
+            )}${presentation}`}
           >
             <FileText aria-hidden />
             {reopened ? "Preview your changes" : "Preview final PDF"}
@@ -133,9 +168,18 @@ export function FinaliseReport({
         </Button>
 
         {reopened ? (
-          <Button asChild variant="ghost" size="lg">
-            <Link href={`/reports/${reportId}/pdf`}>View the issued PDF</Link>
-          </Button>
+          <>
+            <Button asChild variant="ghost" size="lg">
+              <Link href={`/reports/${reportId}/pdf`}>View the issued PDF</Link>
+            </Button>
+            {/* Still the document the client holds, so it can still be sent. */}
+            <SharePdf
+              href={`/reports/${reportId}/file`}
+              fileName={shareName ?? "Daily Report.pdf"}
+              title={shareName ?? "Daily Report"}
+              variant="ghost"
+            />
+          </>
         ) : null}
       </div>
 

@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
 import { loadDocumentAttachments } from "@/lib/pdf/document-attachments";
 import { mergeReportWithDocuments } from "@/lib/pdf/merge";
+import { coverPhotoIdOf, pdfStyleOf } from "@/lib/pdf/presentation";
 import { renderSummaryReportPdf } from "@/lib/pdf/summary-render";
 import { loadSummaryPdfData } from "@/lib/summary-reports/pdf-data";
 import { shouldIncludeDocuments } from "@/lib/reports/document-package";
@@ -28,15 +29,25 @@ export async function GET(
     );
   }
 
+  const search = new URL(request.url).searchParams;
+
   // Decided before the render, not after: the register printed inside the
   // report has to say whether the drawings actually follow it.
   const include = shouldIncludeDocuments(
-    new URL(request.url).searchParams.get("documents"),
+    search.get("documents"),
     loaded.data.supportingDocuments.length > 0,
   );
 
   try {
-    let pdf = await renderSummaryReportPdf({ ...loaded.data, documentsAppended: include });
+    let pdf = await renderSummaryReportPdf({
+      ...loaded.data,
+      documentsAppended: include,
+      // The presentation the finalise screen is currently offering, so the
+      // preview is the document that would be issued rather than a different
+      // one. Nothing is stored.
+      style: pdfStyleOf(search.get("style")),
+      coverPhotoId: coverPhotoIdOf(search.get("cover")),
+    });
 
     // The preview is the package the client would receive, appendices and all.
     if (include) {

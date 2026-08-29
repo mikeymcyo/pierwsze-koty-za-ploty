@@ -142,6 +142,28 @@ export function photoBoxSize(
   return { width: Math.min(columnWidth, Math.round(height * aspect)), height };
 }
 
+/**
+ * The largest a photograph can be printed inside a box without being cropped,
+ * stretched or letterboxed.
+ *
+ * Used by the cover image, where the space is a wide band rather than a
+ * column: the photograph is scaled to fit inside both bounds and keeps its own
+ * ratio exactly, so a portrait shot chosen as a cover comes out tall and
+ * narrow rather than squashed into a strip. Nothing is cropped, for the same
+ * reason nothing is cropped on a plate - a crop can remove the very thing the
+ * photograph was taken for.
+ */
+export function fitBox(
+  size: ImageSize | null,
+  maxWidth: number,
+  maxHeight: number,
+): { width: number; height: number } {
+  const ratio = size && size.height > 0 ? size.width / size.height : DEFAULT_ASPECT;
+  const aspect = ratio > 0 ? ratio : DEFAULT_ASPECT;
+  const width = Math.min(maxWidth, maxHeight * aspect);
+  return { width: Math.round(width), height: Math.round(width / aspect) };
+}
+
 /** True where the photograph is taller than it is wide. */
 export function isPortrait(size: ImageSize | null): boolean {
   return size !== null && size.height > size.width;

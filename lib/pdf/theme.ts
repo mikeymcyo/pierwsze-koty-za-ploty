@@ -21,8 +21,12 @@
 
 import { StyleSheet } from "@react-pdf/renderer";
 
+import { DEFAULT_PDF_STYLE, type PdfStyle } from "@/lib/pdf/presentation";
+
 export type PdfTheme = {
-  /** The product's own identity, printed top-left on every page. */
+  /** Which of the three export styles this is. */
+  key: PdfStyle;
+  /** The product's own identity, printed small at the head of every page. */
   productName: string;
   colors: {
     ink: string;
@@ -46,11 +50,23 @@ export type PdfTheme = {
    * is the only lever between them - the components are identical.
    */
   density: "compact" | "standard";
+  /** How much of the first page a cover photograph may take, in points. */
+  cover: { maxHeight: number };
+  /** The height a photographic plate is printed between, in points. */
+  plate: { min: number; max: number };
 };
 
-export const defaultPdfTheme: PdfTheme = {
-  productName: "SiteBoss Pro",
-  colors: {
+/**
+ * The three palettes.
+ *
+ * SiteBoss is the application's own, lifted from `app/globals.css`. Corporate
+ * drops the accent entirely - the amber becomes a grey, the rules soften, the
+ * control panel loses its tint - for a client whose own paperwork is plain.
+ * Photo prints in the house colours and spends its difference on the
+ * photographs instead, which is what `cover` and `plate` below are for.
+ */
+const PALETTES: Record<PdfStyle, PdfTheme["colors"]> = {
+  siteboss: {
     ink: "#18181b",
     charcoal: "#3f3f46",
     muted: "#52525b",
@@ -62,11 +78,74 @@ export const defaultPdfTheme: PdfTheme = {
     accentInk: "#b45309",
     inverse: "#ffffff",
   },
-  density: "standard",
+  corporate: {
+    ink: "#18181b",
+    charcoal: "#3f3f46",
+    muted: "#52525b",
+    faint: "#8a8a93",
+    line: "#e4e4e7",
+    rule: "#a1a1aa",
+    panel: "#ffffff",
+    // Not amber. The accent still exists as a mark - the rule stub, the
+    // section tick - so the document keeps its structure; it is simply the
+    // same grey family as everything else on the page.
+    accent: "#52525b",
+    accentInk: "#3f3f46",
+    inverse: "#ffffff",
+  },
+  photo: {
+    ink: "#18181b",
+    charcoal: "#3f3f46",
+    muted: "#52525b",
+    faint: "#71717a",
+    line: "#e4e4e7",
+    rule: "#18181b",
+    panel: "#fafafa",
+    accent: "#f59e0b",
+    accentInk: "#b45309",
+    inverse: "#ffffff",
+  },
 };
 
+/** A third of the page in Photo style, a band in the other two. */
+const COVER_HEIGHT: Record<PdfStyle, number> = {
+  siteboss: 170,
+  corporate: 150,
+  photo: 310,
+};
+
+const PLATE_BOUNDS: Record<PdfStyle, { min: number; max: number }> = {
+  siteboss: { min: 110, max: 190 },
+  corporate: { min: 110, max: 190 },
+  photo: { min: 130, max: 240 },
+};
+
+/**
+ * The theme for one document: which style, and how much air it is allowed.
+ *
+ * Density is the document's own business rather than the user's - a Daily
+ * Report is read the day after it is written and stays tight, a Completion
+ * Report is a formal record - so it is a separate argument from the style,
+ * which is the user's choice.
+ */
+export function pdfTheme(
+  style: PdfStyle = DEFAULT_PDF_STYLE,
+  density: PdfTheme["density"] = "standard",
+): PdfTheme {
+  return {
+    key: style,
+    productName: "SiteBoss Pro",
+    colors: PALETTES[style] ?? PALETTES[DEFAULT_PDF_STYLE],
+    density,
+    cover: { maxHeight: COVER_HEIGHT[style] ?? COVER_HEIGHT[DEFAULT_PDF_STYLE] },
+    plate: PLATE_BOUNDS[style] ?? PLATE_BOUNDS[DEFAULT_PDF_STYLE],
+  };
+}
+
+export const defaultPdfTheme: PdfTheme = pdfTheme(DEFAULT_PDF_STYLE, "standard");
+
 /** The same system, tightened. Used by the Daily Report. */
-export const compactPdfTheme: PdfTheme = { ...defaultPdfTheme, density: "compact" };
+export const compactPdfTheme: PdfTheme = pdfTheme(DEFAULT_PDF_STYLE, "compact");
 
 const PAGE_MARGIN = 40;
 
@@ -105,19 +184,36 @@ export function createPdfStyles(theme: PdfTheme) {
       alignItems: "flex-end",
       paddingBottom: 5,
     },
+    // Deliberately quiet, and much quieter than it was. This is a strip that
+    // repeats on every page of a document a client reads for its content: at
+    // 11pt bold it was the loudest thing on the page after the title, and on a
+    // three-page report it said the product's name three times in letters
+    // bigger than the client's own. It exists so a page separated from the
+    // rest can be placed, which 7pt grey does perfectly well.
     headerBrand: {
-      fontSize: 11,
-      fontFamily: "Helvetica-Bold",
-      letterSpacing: 1.1,
+      fontSize: 7,
+      fontFamily: "Helvetica",
+      letterSpacing: 0.9,
       textTransform: "uppercase",
-      color: c.ink,
+      color: c.faint,
     },
-    headerCompany: { fontSize: 8.5, color: c.muted, letterSpacing: 0.2 },
-    // A short amber stub against a full charcoal rule: the accent is a mark on
-    // the page, never a band across it.
-    rule: { flexDirection: "row", height: 2 },
-    ruleAccent: { width: 44, backgroundColor: c.accent },
+    // The contractor, not the product: of the two names on this strip, this is
+    // the one the reader has a relationship with.
+    headerCompany: { fontSize: 7.5, color: c.muted, letterSpacing: 0.2 },
+    // A short accent stub against a full rule: the accent is a mark on the
+    // page, never a band across it. Thinner than it was, for the same reason
+    // the name above it is smaller.
+    rule: { flexDirection: "row", height: 1.25 },
+    ruleAccent: { width: 28, backgroundColor: c.accent },
     ruleRest: { flex: 1, backgroundColor: c.rule },
+
+    // ---- cover photograph -------------------------------------------------
+    // Optional, and printed at the photograph's own shape - see fitBox in
+    // lib/pdf/image-size.ts. Nothing is cropped to fill a band: a cover is
+    // still a photograph of the job, and a crop can cut out the thing it was
+    // taken for.
+    cover: { marginBottom: roomy ? 12 : 10 },
+    coverCaption: { fontSize: 7.5, color: c.faint, marginTop: 3, lineHeight: 1.35 },
 
     // ---- document identity ------------------------------------------------
     titleBlock: { marginBottom: roomy ? 11 : 9 },
@@ -294,6 +390,34 @@ export function createPdfStyles(theme: PdfTheme) {
 
     // ---- source record ----------------------------------------------------
     sourceLine: { fontSize: 8.5, color: c.muted, marginBottom: 1.5, lineHeight: 1.35 },
+
+    // ---- sign-off ---------------------------------------------------------
+    // A place for a wet signature on a printed copy, and nothing more. The
+    // labels say who prepared the report; they deliberately do not say
+    // approved, accepted or certified, because this document is a contractor's
+    // record of what happened and not a client's agreement to it.
+    // Kept deliberately short. It is a footer to the document rather than a
+    // section of it, and a taller block pushed one-page reports onto a second
+    // page for the sake of three ruled lines.
+    signOff: {
+      marginTop: roomy ? 14 : 11,
+      borderTopWidth: 0.75,
+      borderTopColor: c.rule,
+      paddingTop: 7,
+    },
+    signOffRow: { flexDirection: "row" },
+    signOffCell: { width: "33.33%", paddingRight: 16 },
+    signOffLabel: {
+      fontSize: 7,
+      color: c.faint,
+      letterSpacing: 0.9,
+      textTransform: "uppercase",
+      marginBottom: 2,
+    },
+    signOffValue: { fontSize: 9, color: c.ink, lineHeight: 1.3 },
+    /** The line somebody writes on. */
+    signOffLine: { marginTop: 11, borderBottomWidth: 0.75, borderBottomColor: c.charcoal },
+    signOffNote: { fontSize: 6.5, color: c.faint, marginTop: 6, lineHeight: 1.35 },
 
     // ---- running footer ---------------------------------------------------
     footer: {

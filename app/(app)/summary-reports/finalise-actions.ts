@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
 import { loadDocumentAttachments } from "@/lib/pdf/document-attachments";
 import { mergeReportWithDocuments } from "@/lib/pdf/merge";
+import { coverPhotoIdOf, pdfStyleOf } from "@/lib/pdf/presentation";
 import { renderSummaryReportPdf } from "@/lib/pdf/summary-render";
 import { PDF_BUCKET } from "@/lib/pdf/signing";
 import { snapshotDocumentReferences } from "@/lib/documents/snapshot";
@@ -93,7 +94,15 @@ export async function finaliseSummaryReport(
 
   let pdf: Buffer;
   try {
-    pdf = await renderSummaryReportPdf({ ...loaded.data, documentsAppended: includeDocuments });
+    pdf = await renderSummaryReportPdf({
+      ...loaded.data,
+      documentsAppended: includeDocuments,
+      // The presentation chosen on the finalise screen. It is not stored
+      // anywhere: it is baked into the file being issued, which is the record.
+      // Re-issuing a reopened report is where a different choice takes effect.
+      style: pdfStyleOf(String(formData.get("pdfStyle") ?? "")),
+      coverPhotoId: coverPhotoIdOf(String(formData.get("coverPhoto") ?? "")),
+    });
   } catch (cause) {
     console.error("[siteboss] summary PDF render failed:", cause);
     return { error: "The report could not be turned into a PDF. Nothing has been finalised." };

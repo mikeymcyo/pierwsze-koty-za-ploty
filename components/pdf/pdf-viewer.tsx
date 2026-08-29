@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 
+import { SharePdf } from "@/components/pdf/share-pdf";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 
@@ -22,12 +23,21 @@ export function PdfViewer({
   backHref,
   backLabel,
   note,
+  shareHref,
+  shareName,
 }: {
   src: string | null;
   title: string;
   backHref: string;
   backLabel: string;
   note?: string;
+  /**
+   * Where the stored, issued PDF can be fetched from, when there is one. Only
+   * an issued document is offered for sharing: a draft preview is not the
+   * record and must not leave the app as though it were.
+   */
+  shareHref?: string;
+  shareName?: string;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -38,14 +48,19 @@ export function PdfViewer({
             {backLabel}
           </Link>
         </Button>
-        {src ? (
-          <Button asChild variant="ghost">
-            <a href={src} target="_blank" rel="noopener noreferrer">
-              <ExternalLink aria-hidden />
-              Open full screen
-            </a>
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          {shareHref ? (
+            <SharePdf href={shareHref} fileName={shareName ?? "Report.pdf"} title={title} />
+          ) : null}
+          {src ? (
+            <Button asChild variant="ghost">
+              <a href={src} target="_blank" rel="noopener noreferrer">
+                <ExternalLink aria-hidden />
+                Open full screen
+              </a>
+            </Button>
+          ) : null}
+        </div>
       </header>
 
       <div>

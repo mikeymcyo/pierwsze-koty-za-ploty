@@ -32,6 +32,50 @@ The current implementation completes the core workflow:
   snapshots its issue status and resolution.
 - Reports, Project detail and Dashboard list all three document types.
 
+### PDF export: sharing, three styles, a cover photo and a sign-off
+
+One batch across Daily, Survey, Progress and Completion PDFs. **No migration -
+nothing about it is stored.**
+
+- **Share PDF.** `/reports/[id]/file` and `/summary-reports/[id]/file` stream
+  the **stored** issued PDF from our own origin (`lib/pdf/download.ts`); a
+  draft gets a 404. `components/pdf/share-pdf.tsx` fetches that, wraps it in a
+  `File` and hands it to `navigator.share` - the iOS share sheet, so WhatsApp,
+  Mail and Teams all work - and saves the file where the browser cannot share
+  one. Nothing is re-rendered to share it: the issued PDF is the record.
+  The fetch starts on **pointer-down**, because Safari will not share after a
+  long await; that detail is load-bearing on an iPad.
+- **Quieter branding.** The repeating "SITEBOSS PRO" went from 11pt bold black
+  to 7pt grey, the contractor's name now reads first, and the rule under it is
+  a 1.25pt hairline with a 28pt accent stub. The title block is unchanged, so
+  the document's own hierarchy now wins by a wide margin.
+- **Three styles**, in `lib/pdf/presentation.ts` (pure, alias-free, so the
+  picker imports it without pulling the renderer into the browser bundle):
+  `siteboss` (house charcoal/amber), `corporate` (grey, no accent colour,
+  softer rules, white panel) and `photo` (house colours, a cover up to 310pt
+  and larger plates). `pdfTheme(style, density)` in `lib/pdf/theme.ts` builds
+  them; density stays the document's business, not the user's. **Not a theme
+  designer, and deliberately not extensible from the UI.**
+- **Cover photo.** Chosen on the finalise screen from the photographs the
+  report already prints, so nothing is uploaded or copied. Printed at its own
+  ratio via `fitBox` - never cropped, never stretched - and still appears in
+  the evidence grid with its P-reference. "No cover" is the default.
+- **Sign-off.** Prepared by / Signature / Date near the end of all four
+  documents, with the author only where one is recorded, and a line saying it
+  is **not** an approval, acceptance or certificate of completion. It has no
+  heading of its own: a SIGN-OFF banner cost a Progress Report with one plate
+  its second page for no information at all.
+- **How the choice travels, and why there is no migration.** Style and cover
+  are picked on the finalise screen, sent as `?style=&cover=` on the preview
+  link and as `pdfStyle`/`coverPhoto` hidden fields on the finalise form, and
+  baked into the issued file. The issued PDF is the record, so the record
+  holds the choice; reopening and re-issuing is where a different one takes
+  effect. Nothing new is stored on a report.
+- Existing issued PDFs are untouched: no route re-renders one, and the share
+  route only downloads.
+- `npm run test:export` covers all of it (the styles, the cover geometry, the
+  sign-off wording, the share routes, and real A4 renders of every style).
+
 ### Project activity - the job's history, on the project's own page
 
 `/projects/[id]?tab=activity`. Surveys, Daily, Progress and Completion Reports,
