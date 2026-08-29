@@ -22,12 +22,14 @@ begin
   select count(*) into n from pg_enum e
     join pg_type t on t.oid = e.enumtypid
    where t.typname = 'summary_report_kind';
-  if n <> 2 then raise exception 'FAIL enum: summary_report_kind has % values, expected 2', n; end if;
+  -- progress, completion, survey.
+  if n <> 3 then raise exception 'FAIL enum: summary_report_kind has % values, expected 3', n; end if;
 
   select count(*) into n from pg_enum e
     join pg_type t on t.oid = e.enumtypid
    where t.typname = 'summary_section_type';
-  if n <> 14 then raise exception 'FAIL enum: summary_section_type has % values, expected 14', n; end if;
+  -- 14 for progress and completion, plus 7 for the site survey.
+  if n <> 21 then raise exception 'FAIL enum: summary_section_type has % values, expected 21', n; end if;
 
   select count(*) into n from information_schema.columns
    where table_schema = 'public' and table_name = 'issues' and column_name = 'resolution';
