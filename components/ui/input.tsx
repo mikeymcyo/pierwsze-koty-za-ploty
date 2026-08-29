@@ -7,7 +7,7 @@ export function Input({ className, type = "text", ...props }: React.ComponentPro
     <input
       type={type}
       className={cn(
-        "min-h-12 w-full rounded-xl border border-line-strong bg-surface-sunken px-4 text-ink",
+        "min-h-(--ui-control-min) w-full rounded-xl border border-line-strong bg-surface-sunken px-4 text-ink",
         "placeholder:text-ink-subtle",
         // Gold on focus: on charcoal a white ring is hard to separate from the
         // text inside it, and this is used with gloves on.

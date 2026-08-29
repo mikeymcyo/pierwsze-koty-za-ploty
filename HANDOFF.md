@@ -122,6 +122,33 @@ straight after applying - no records were created and no data was altered.
 **PostgreSQL cannot remove an enum value.** Rolling this back means leaving the
 values in place and unused, which is inert.
 
+### Settings
+
+`/profile` is the Settings screen now (route unchanged; the tab is labelled
+Settings with a cog). Appearance, Text size, Touch size, Account, App - nothing
+else.
+
+- **Device preferences, not account preferences.** `lib/preferences.ts` is a
+  pure module; the values live in `localStorage`, so the site iPad in bright sun
+  and somebody's own phone can differ, and **no migration was needed**.
+- **Applied before first paint** by an inline script in `<head>` that stamps
+  `data-theme` / `data-text` / `data-touch` on `<html>`. Anything invalid in
+  storage falls back to the defaults rather than leaving the page unstyled.
+- **Defaults are the application exactly as it was**: dark, medium text,
+  standard touch.
+- **Scaling is token-driven.** Text size sets the root font size, so every rem
+  in the design system follows and no page opts out. Touch size sets
+  `--ui-control-min`, which Button, Input, Select and the settings control all
+  draw their minimum height from. Fields keep a 16px floor so iOS never zooms.
+- **Light is a palette swap**, not a second stylesheet: same charcoal/white/gold
+  identity, gold still the primary action, `--color-brand-ink` darkening gold
+  where it has to be read as text on white. The SB mark keeps its white S on the
+  charcoal plate and takes the page's ink when it stands on the page, so light
+  mode gets the dark-S mark the brand sheet draws. `system` follows
+  `prefers-color-scheme`.
+- **PDFs are untouched.** `lib/pdf/theme.ts` shares nothing with the screen's
+  tokens, and `e2e/settings-smoke.mjs` asserts no preference can reach it.
+
 ### Branding and the dark visual system
 
 The application is dark now, to the approved brand sheet: charcoal `#0D0F12`

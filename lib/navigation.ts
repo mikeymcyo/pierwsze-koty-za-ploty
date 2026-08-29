@@ -1,4 +1,4 @@
-import { FileText, FolderKanban, LayoutDashboard, Plus, Store, User } from "lucide-react";
+import { FileText, FolderKanban, LayoutDashboard, Plus, Settings, Store } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -20,7 +20,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/reports/new", label: "Create", icon: Plus, primary: true },
   { href: "/stores", label: "Stores", icon: Store },
   { href: "/reports", label: "Reports", icon: FileText },
-  { href: "/profile", label: "Profile", icon: User, deskOnly: true },
+  { href: "/profile", label: "Settings", icon: Settings, deskOnly: true },
 ];
 
 /** What the phone's bottom bar shows: five targets, Create in the middle. */

@@ -50,7 +50,7 @@ export function BottomNav() {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex min-h-14 flex-col items-center justify-center gap-1 px-1 py-2 transition-colors",
-                  active ? "text-brand" : "text-ink-subtle",
+                  active ? "text-brand-ink" : "text-ink-subtle",
                 )}
               >
                 <Icon className="size-6" aria-hidden strokeWidth={active ? 2.5 : 2} />

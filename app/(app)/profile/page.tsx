@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
-import { LogOut } from "lucide-react";
+import { LogOut, Settings as SettingsIcon } from "lucide-react";
 
 import { signOut } from "@/app/(auth)/actions";
+import { AppearanceSettings } from "@/components/settings/appearance-settings";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { PageHeader } from "@/components/ui/page-header";
+import { APP_VERSION } from "@/lib/app-version";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
 import { shortBuildRef } from "@/lib/build-info";
 
-export const metadata: Metadata = { title: "Profile" };
+export const metadata: Metadata = { title: "Settings" };
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
@@ -18,7 +21,13 @@ function DetailRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default async function ProfilePage() {
+function SectionTitle({ children }: { children: string }) {
+  return (
+    <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">{children}</h2>
+  );
+}
+
+export default async function SettingsPage() {
   const session = await requireSessionContext();
 
   // Read as a literal rather than passing process.env through, so the value is
@@ -26,34 +35,54 @@ export default async function ProfilePage() {
   const buildRef = shortBuildRef({ VERCEL_GIT_COMMIT_SHA: process.env.VERCEL_GIT_COMMIT_SHA });
 
   return (
-    <div className="flex flex-col gap-6">
-      <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">Profile</h1>
+    <div className="flex flex-col gap-8">
+      <PageHeader
+        title="Settings"
+        description="How this device shows SiteBoss, and who you are signed in as."
+        icon={SettingsIcon}
+      />
 
-      <Card>
-        <CardContent>
-          <dl className="flex flex-col">
-            <DetailRow label="Name" value={displayName(session)} />
-            <DetailRow label="Email" value={session.email ?? "—"} />
-            <DetailRow label="Company" value={session.companyName} />
-            <DetailRow
-              label="Role"
-              value={session.role === "owner" ? "Owner" : "Member"}
-            />
-          </dl>
-        </CardContent>
-      </Card>
+      <section className="flex flex-col gap-3">
+        <SectionTitle>This device</SectionTitle>
+        <AppearanceSettings />
+      </section>
 
-      <form action={signOut}>
-        <Button type="submit" variant="secondary" size="lg" className="w-full">
-          <LogOut aria-hidden />
-          Sign out
-        </Button>
-      </form>
+      <section className="flex flex-col gap-3">
+        <SectionTitle>Account</SectionTitle>
+        <Card>
+          <CardContent>
+            <dl className="flex flex-col">
+              <DetailRow label="Name" value={displayName(session)} />
+              <DetailRow label="Email" value={session.email ?? "—"} />
+              <DetailRow label="Company" value={session.companyName} />
+              <DetailRow
+                label="Role"
+                value={session.role === "owner" ? "Owner" : "Member"}
+              />
+            </dl>
+          </CardContent>
+        </Card>
 
-      {/* Absent off Vercel, where there is no commit to name. */}
-      {buildRef ? (
-        <p className="text-center text-xs text-ink-subtle">Build {buildRef}</p>
-      ) : null}
+        <form action={signOut}>
+          <Button type="submit" variant="secondary" size="lg" className="w-full">
+            <LogOut aria-hidden />
+            Sign out
+          </Button>
+        </form>
+      </section>
+
+      <section className="flex flex-col gap-3">
+        <SectionTitle>App</SectionTitle>
+        <Card>
+          <CardContent>
+            <dl className="flex flex-col">
+              <DetailRow label="Version" value={APP_VERSION} />
+              {/* Absent off Vercel, where there is no commit to name. */}
+              <DetailRow label="Build" value={buildRef ?? "local"} />
+            </dl>
+          </CardContent>
+        </Card>
+      </section>
     </div>
   );
 }

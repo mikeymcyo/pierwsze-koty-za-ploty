@@ -31,9 +31,11 @@ export function Monogram({
       {plate ? <rect width="128" height="128" rx="28" fill="#0d0f12" /> : null}
 
       {/* S - an angular block letter, cut on the diagonal top-right and
-          bottom-left the way the mark is drawn. */}
+          bottom-left the way the mark is drawn. On the charcoal plate it is
+          white; standing on the page it follows the ink, so the mark is dark-S
+          on white in light mode exactly as the brand sheet draws it. */}
       <path
-        fill="#ffffff"
+        fill={plate ? "#ffffff" : "var(--color-ink, #ffffff)"}
         d="M62 26H36c-9.4 0-17 7.6-17 17v6c0 8.3 5.9 15.4 14.1 16.8L52 68.7c2.3.4 4 2.4 4 4.8 0 2.7-2.2 4.9-4.9 4.9H21v14h30.1c10.4 0 18.9-8.5 18.9-18.9 0-9.1-6.5-16.9-15.4-18.5L36 52.1c-2.3-.4-4-2.4-4-4.8V45c0-2.8 2.2-5 5-5h25v-14z"
       />
 

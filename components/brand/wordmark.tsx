@@ -31,7 +31,7 @@ export function Wordmark({ className, markOnly = false, size = "sm" }: WordmarkP
               large ? "text-3xl" : "text-lg",
             )}
           >
-            SITE<span className="text-brand">BOSS</span>
+            SITE<span className="text-brand-ink">BOSS</span>
           </span>
           <span
             className={cn(

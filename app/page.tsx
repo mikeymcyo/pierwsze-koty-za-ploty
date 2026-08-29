@@ -76,7 +76,7 @@ export default function LandingPage() {
                 key={step.title}
                 className="flex flex-col gap-2 rounded-2xl border border-line bg-surface p-5"
               >
-                <span className="grid size-10 place-items-center rounded-xl bg-brand-soft text-brand ring-1 ring-brand/20">
+                <span className="grid size-10 place-items-center rounded-xl bg-brand-soft text-brand-ink ring-1 ring-brand/20">
                   <step.icon className="size-5" aria-hidden />
                 </span>
                 <h2 className="font-semibold text-ink">{step.title}</h2>

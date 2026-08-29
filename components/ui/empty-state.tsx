@@ -22,7 +22,7 @@ export function EmptyState({
         className,
       )}
     >
-      <span className="grid size-12 place-items-center rounded-xl bg-brand-soft text-brand ring-1 ring-brand/20">
+      <span className="grid size-12 place-items-center rounded-xl bg-brand-soft text-brand-ink ring-1 ring-brand/20">
         <Icon className="size-6" aria-hidden />
       </span>
       <h3 className="text-base font-semibold text-ink">{title}</h3>

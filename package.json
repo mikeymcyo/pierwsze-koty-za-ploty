@@ -26,6 +26,7 @@
     "test:stores": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/store-locator-smoke.mjs",
     "test:navigation": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/navigation-smoke.mjs",
     "test:brand": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/brand-smoke.mjs",
+    "test:settings": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/settings-smoke.mjs",
     "test:survey": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/site-survey-smoke.mjs",
     "test:issues-pdf": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/issues-pdf-smoke.mjs",
     "test:summary-reports": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/summary-reports-smoke.mjs",

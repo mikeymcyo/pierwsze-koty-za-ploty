@@ -17,11 +17,13 @@ const buttonVariants = cva(
         brand: "bg-brand text-ink-inverse hover:bg-primary-hover",
       },
       size: {
-        // Sizes are generous by default: this app is used with gloves on.
+        // Sizes are generous by default and grow again on Large touch: the
+        // minimum comes from --ui-control-min, set once in globals.css, so a
+        // setting reaches every button without a page knowing about it.
         sm: "min-h-9 px-3 text-sm [&_svg]:size-4",
-        md: "min-h-12 px-5 text-base [&_svg]:size-5",
-        lg: "min-h-14 px-6 text-lg [&_svg]:size-5",
-        icon: "size-12 [&_svg]:size-5",
+        md: "min-h-(--ui-control-min) px-5 text-base [&_svg]:size-5",
+        lg: "min-h-[calc(var(--ui-control-min)+0.5rem)] px-6 text-lg [&_svg]:size-5",
+        icon: "size-(--ui-control-min) [&_svg]:size-5",
       },
     },
     defaultVariants: { variant: "primary", size: "md" },

@@ -64,14 +64,15 @@ check(
 const sensitive = source.match(/\b[A-Z0-9_]*(?:KEY|TOKEN|SECRET|PASSWORD|CREDENTIAL)[A-Z0-9_]*\b/g);
 check("no credential-shaped variable is named", sensitive === null, String(sensitive));
 
-// The page must render it only when there is one - a hardcoded fallback would
-// make a local build claim to be a deployment.
-const profile = readFileSync(new URL("../app/(app)/profile/page.tsx", import.meta.url), "utf8");
-check("the profile page uses the helper", profile.includes("shortBuildRef("));
+// A local build must not claim to be a deployment: it says "local" rather
+// than a plausible-looking SHA.
+const settings = readFileSync(new URL("../app/(app)/profile/page.tsx", import.meta.url), "utf8");
+check("the settings page uses the helper", settings.includes("shortBuildRef("));
 check(
-  "and renders nothing without a ref",
-  /buildRef \? \(/.test(profile) && profile.includes(": null}"),
+  "and says local rather than inventing a SHA off Vercel",
+  /buildRef \?\? "local"/.test(settings),
 );
+check("beside the version it was built from", /APP_VERSION/.test(settings));
 
 console.log("\n=== Result ===");
 if (failures.length === 0) {

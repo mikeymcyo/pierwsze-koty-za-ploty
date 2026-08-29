@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { User } from "lucide-react";
+import { Settings } from "lucide-react";
 
 import { Wordmark } from "@/components/brand/wordmark";
 
@@ -19,10 +19,10 @@ export function TopBar({ companyName }: { companyName: string }) {
               lib/navigation.ts. */}
           <Link
             href="/profile"
-            aria-label="Profile"
+            aria-label="Settings"
             className="grid size-10 shrink-0 place-items-center rounded-xl text-ink-muted hover:bg-surface-muted hover:text-ink"
           >
-            <User className="size-5" aria-hidden />
+            <Settings className="size-5" aria-hidden />
           </Link>
         </div>
       </div>

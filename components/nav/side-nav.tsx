@@ -37,7 +37,7 @@ export function SideNav() {
                     active
                       ? "bg-surface-muted text-ink before:bg-brand"
                       : "text-ink-muted before:bg-transparent hover:bg-surface-muted/60 hover:text-ink",
-                    item.primary && !active && "text-brand",
+                    item.primary && !active && "text-brand-ink",
                   )}
                 >
                   <Icon className="size-5" aria-hidden strokeWidth={2.25} />

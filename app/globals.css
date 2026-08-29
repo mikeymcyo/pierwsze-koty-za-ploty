@@ -37,6 +37,9 @@
   --color-brand: #ffc107;
   --color-brand-strong: #ffd454;
   --color-brand-soft: #2a2411;
+  /* Gold as words rather than as a fill. On charcoal that is the gold itself;
+     on white it has to darken or it cannot be read. */
+  --color-brand-ink: #ffc107;
 
   /* The single primary action on a screen. */
   --color-primary: #ffc107;
@@ -58,12 +61,129 @@
   --color-info-soft: #131e2e;
 }
 
+/*
+ * How this device shows the application - see lib/preferences.ts. The
+ * attributes are stamped on <html> before first paint, so nothing flashes.
+ *
+ * Defaults are the application exactly as it was: dark, normal type, normal
+ * targets. Absent attributes fall through to these.
+ */
+:root {
+  /* Type. Applied to the root font size, so every rem in the design system
+     follows - there is no page that opts out. */
+  --ui-text-scale: 1;
+  /* The smallest a control may be. Every button, field and row draws from it. */
+  --ui-control-min: 3rem;
+  --ui-control-pad: 1.25rem;
+}
+
+:root[data-text="small"] {
+  --ui-text-scale: 0.9375;
+}
+
+:root[data-text="large"] {
+  --ui-text-scale: 1.125;
+}
+
+/* Gloves, or big hands, or a phone held one-handed up a ladder. */
+:root[data-touch="large"] {
+  --ui-control-min: 3.75rem;
+  --ui-control-pad: 1.5rem;
+}
+
+/*
+ * Light.
+ *
+ * The same brand, not a different one: charcoal type on white, the same gold,
+ * and the mark unchanged. Gold darkens where it has to carry as text.
+ */
+:root[data-theme="light"],
+:root[data-theme="system"] {
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f4f5f7;
+  --color-surface-muted: #eceef1;
+  --color-surface-raised: #fafbfc;
+
+  --color-line: #e2e5ea;
+  --color-line-strong: #c9ced6;
+
+  --color-ink: #14171c;
+  --color-ink-muted: #4d545f;
+  --color-ink-subtle: #79808c;
+  /* Still what goes on top of gold, so it darkens rather than inverting. */
+  --color-ink-inverse: #14171c;
+
+  --color-brand-strong: #b45309;
+  --color-brand-soft: #fff6dd;
+  --color-brand-ink: #a86a00;
+
+  /* Gold is the primary action in both themes - it is the brand's button. */
+  --color-primary: #ffc107;
+  --color-primary-hover: #f0b400;
+
+  --color-success: #0f7a52;
+  --color-success-soft: #e3f6ee;
+  --color-warning: #a2620b;
+  --color-warning-soft: #fdf2dc;
+  --color-danger: #c0392f;
+  --color-danger-soft: #fdeceb;
+  --color-danger-strong: #c0392f;
+  --color-info: #1d4ed8;
+  --color-info-soft: #e6edfd;
+}
+
+/* "System" is light only where the device actually asks for light. */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+    --color-surface: #1a1d23;
+    --color-surface-sunken: #0d0f12;
+    --color-surface-muted: #2a2e36;
+    --color-surface-raised: #22262e;
+
+    --color-line: #262a32;
+    --color-line-strong: #3a404b;
+
+    --color-ink: #ffffff;
+    --color-ink-muted: #a7adb8;
+    --color-ink-subtle: #737b88;
+    --color-ink-inverse: #0d0f12;
+
+    --color-brand-strong: #ffd454;
+    --color-brand-soft: #2a2411;
+    --color-brand-ink: #ffc107;
+
+    --color-primary: #ffc107;
+    --color-primary-hover: #ffcf3d;
+
+    --color-success: #3ddc97;
+    --color-success-soft: #10281f;
+    --color-warning: #f5a524;
+    --color-warning-soft: #2a2110;
+    --color-danger: #ff6b6b;
+    --color-danger-soft: #2c1618;
+    --color-danger-strong: #c0392f;
+    --color-info: #6aa9ff;
+    --color-info-soft: #131e2e;
+  }
+}
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
     /* Tells the browser to draw its own furniture - scrollbars, form
-       controls, the pull-to-refresh overscroll - in dark. */
+       controls, the pull-to-refresh overscroll - to match. */
     color-scheme: dark;
+    /* Text size, applied once at the root so every rem in the system follows.
+       A page cannot opt out, and nothing needs a second set of classes. */
+    font-size: calc(16px * var(--ui-text-scale));
+  }
+
+  html[data-theme="light"] {
+    color-scheme: light;
+  }
+
+  html[data-theme="system"] {
+    color-scheme: light dark;
   }
 
   body {
@@ -73,11 +193,12 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  /* iOS Safari zooms the viewport when focusing an input under 16px. */
+  /* iOS Safari zooms the viewport when focusing an input under 16px, so this
+     is a floor rather than a size - Small still gets 16px in a field. */
   input,
   textarea,
   select {
-    font-size: 16px;
+    font-size: max(16px, 1rem);
   }
 
   /* Gold, because on charcoal a white ring is hard to separate from the text

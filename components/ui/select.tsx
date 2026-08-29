@@ -12,7 +12,7 @@ export function Select({ className, children, ...props }: React.ComponentProps<"
     <div className="relative">
       <select
         className={cn(
-          "min-h-12 w-full appearance-none rounded-xl border border-line-strong bg-surface-sunken px-4 pr-11 text-ink",
+          "min-h-(--ui-control-min) w-full appearance-none rounded-xl border border-line-strong bg-surface-sunken px-4 pr-11 text-ink",
           "transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25",
           "disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-70",
           className,

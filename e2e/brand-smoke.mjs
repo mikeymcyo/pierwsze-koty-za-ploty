@@ -84,19 +84,27 @@ check(
 );
 check(
   "and nothing puts white type on gold",
-  !sources.some((file) => /bg-(?:brand|primary)[^"]*text-ink\b(?!-inverse)/.test(read(file))),
+  !sources.some((file) =>
+    /bg-(?:brand|primary)(?![-a-z])[^"]*text-ink(?![-a-z])/.test(read(file)),
+  ),
 );
 
 console.log("\n4. The mark reads as SB");
 const monogram = read("components/brand/monogram.tsx");
 check("it is drawn, not set in a font", !/<text/.test(monogram) && /<path/.test(monogram));
-check("the S is white", /fill="#ffffff"/.test(monogram));
+// White on the charcoal plate; the page's own ink when it stands on the page,
+// so the light theme gets the dark-S mark the brand sheet draws.
+check("the S is white on the plate", /plate \? "#ffffff"/.test(monogram));
+check("and follows the ink without it", /var\(--color-ink, #ffffff\)/.test(monogram));
 check("the B is gold, so the two letters cannot merge", /fill="#ffc107"/.test(monogram));
 check("and it carries the three bars", (monogram.match(/M\d+ 100h18/g) ?? []).length === 3);
 check("it names itself for a screen reader", /aria-label=\{title\}/.test(monogram));
 const wordmark = read("components/brand/wordmark.tsx");
 check("the wordmark uses the mark rather than a second drawing", /<Monogram/.test(wordmark));
-check("SITE is white and BOSS is gold", /SITE<span className="text-brand">BOSS<\/span>/.test(wordmark));
+check(
+  "SITE takes the ink and BOSS the gold",
+  /SITE<span className="text-brand-ink">BOSS<\/span>/.test(wordmark),
+);
 check("and the strapline is the company's", /REPORT IT\. PROVE IT\. MOVE FORWARD\./.test(wordmark));
 
 console.log("\n5. It installs to a home screen as SiteBoss");
@@ -139,8 +147,10 @@ check(
   /danger: "bg-danger-strong text-white/.test(read("components/ui/button.tsx")),
 );
 check(
-  "controls are at least a 44pt target",
-  /min-h-12/.test(read("components/ui/input.tsx")) && /min-h-12/.test(read("components/ui/select.tsx")),
+  "controls take their minimum from the touch token",
+  /min-h-\(--ui-control-min\)/.test(read("components/ui/input.tsx")) &&
+    /min-h-\(--ui-control-min\)/.test(read("components/ui/select.tsx")) &&
+    /--ui-control-min: 3rem/.test(read("app/globals.css")),
 );
 
 console.log("\n=== Result ===");

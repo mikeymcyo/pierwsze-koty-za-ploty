@@ -29,7 +29,7 @@ export function PageHeader({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           {Icon ? (
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand ring-1 ring-brand/20">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-ink ring-1 ring-brand/20">
               <Icon className="size-5" aria-hidden />
             </span>
           ) : null}
