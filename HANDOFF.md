@@ -88,6 +88,76 @@ application code, which is what changed.
 - The issued PDF gains a Supporting Documents table whose optional columns
   appear only when something fills them.
 
+### PDF template v2 - the shared document system
+
+Daily, Progress and Completion Reports are now one document family built from
+`lib/pdf/theme.ts` (every size and colour) and `lib/pdf/components.tsx` (the
+running header and footer, the title block, the document-control panel, section
+headings, tables, status badges, issue records, photographic plates and the
+document register). The two layout files hold structure and nothing else.
+
+- **Running header and footer on every page.** Product left, company right,
+  a charcoal rule with a short amber stub. The footer carries company, project,
+  document and Page X of Y.
+- **Document identity.** Type and number on one line, project beneath, client
+  and address under that, then a control panel of dates and references. An
+  entry with nothing in it is dropped rather than printed as a blank label.
+- **Photographic evidence is numbered.** P01, P02, P03 ..., derived from the
+  order the photographs already appear in and stored nowhere - no migration.
+  Each plate prints its reference and status above the image and the caption
+  below it. Captions come from what is already stored; no model is called
+  during rendering and none can be.
+- **A plate is drawn at the photograph's own shape.** `lib/pdf/image-size.ts`
+  reads the dimensions out of the PNG, JPEG or WebP header - a few dozen bytes
+  inspected, nothing decoded or re-encoded - so a portrait shot gets a portrait
+  box instead of a narrow strip in a landscape one. Nothing is cropped and the
+  bytes written into the PDF are the bytes that were uploaded.
+- **Issue records** carry priority and status as badges and label only the
+  fields that hold something.
+- **The register** says plainly whether the documents follow as appendices.
+  `documentsAppended` is decided before the render rather than after it, so the
+  sentence inside the PDF agrees with what is actually attached.
+- The Completion Report opens harder and the Daily Report is tighter - one
+  `density` lever, the same components.
+
+**Three real bugs were found and fixed while doing this**, all of them
+pre-existing:
+
+1. **No issued PDF has ever carried its running footer.** react-pdf drops an
+   absolutely positioned `fixed` element as soon as a line height reaches it,
+   and `lineHeight` on the Page style is inherited. Line heights now live on the
+   text styles.
+2. **Prose was printing at two and a half times the leading it asked for.**
+   react-pdf resolves `lineHeight` against the element's own `fontSize` and
+   falls back to its default of 18 rather than to the inherited size. Every
+   style that sets a line height now sets its own size; the smoke test enforces
+   it.
+3. **`minPresenceAhead` was doing nothing.** react-pdf only honours it on a
+   direct child of the Page, and every section was wrapped in its own `View`.
+   The sections are fragments now, so headings genuinely reserve room - the
+   Issues heading reserves the height of the record that follows it, the
+   Photographs heading the height of its first plate, and a table's column
+   header travels with its first row.
+
+Photographic plates are laid out in explicit two-up rows rather than a wrapping
+grid: react-pdf lays a wrapping container out as one block and split it badly,
+leaving two plates on a page with two thirds of it empty.
+
+**Page counts, measured by rendering both templates over the same fixtures.**
+Every case is equal to the previous template or better: a daily report with one
+photograph 2 -> **1**; three issues 2 -> **1**; three issues, four photographs
+and a register 2 -> **2**; twelve photographs 3 -> **3**; a progress report with
+an issue and a plate 2 -> **1**; a completion report with two issues, six plates
+and a register 3 -> **3**.
+
+`npm run test:pdf-template` renders real A4 pages, counts them with pdf-lib,
+and reads the component tree for what the document actually says - the rendered
+PDF cannot be searched for words because react-pdf subsets its fonts.
+`e2e/support/tsx-loader.mjs` is what lets a plain Node test import a `.tsx`
+layout, using the SWC that Next already ships. No new dependency and no
+migration.
+
+
 ### Supporting documents inside the issued PDF, `d596235`
 
 Owner-tested on the iPad and passing. Each document carries its own **Open

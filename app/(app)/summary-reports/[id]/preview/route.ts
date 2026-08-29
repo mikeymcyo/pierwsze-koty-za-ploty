@@ -28,16 +28,18 @@ export async function GET(
     );
   }
 
+  // Decided before the render, not after: the register printed inside the
+  // report has to say whether the drawings actually follow it.
+  const include = shouldIncludeDocuments(
+    new URL(request.url).searchParams.get("documents"),
+    loaded.data.supportingDocuments.length > 0,
+  );
+
   try {
-    let pdf = await renderSummaryReportPdf(loaded.data);
+    let pdf = await renderSummaryReportPdf({ ...loaded.data, documentsAppended: include });
 
     // The preview is the package the client would receive, appendices and all.
-    if (
-      shouldIncludeDocuments(
-        new URL(request.url).searchParams.get("documents"),
-        loaded.data.supportingDocuments.length > 0,
-      )
-    ) {
+    if (include) {
       const attachments = await loadDocumentAttachments(supabase, {
         table: "summary_report_documents",
         column: "summary_report_id",

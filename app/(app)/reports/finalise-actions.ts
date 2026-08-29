@@ -144,6 +144,13 @@ export async function finaliseReport(
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const finalisedAt = new Date();
 
+  // Decided before the render, not after: the register printed inside the
+  // report has to say whether the drawings actually follow it.
+  const includeDocuments = shouldIncludeDocuments(
+    String(formData.get("includeDocuments") ?? ""),
+    supportingDocuments.length > 0,
+  );
+
   let pdf: Buffer;
   try {
     pdf = await renderReportPdf({
@@ -163,6 +170,7 @@ export async function finaliseReport(
       issues: issuesForReport(issues ?? [], ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS),
       photos: photosWithData(photoRows, downloaded),
       supportingDocuments,
+      documentsAppended: includeDocuments,
     });
   } catch (cause) {
     console.error("[siteboss] PDF render failed:", cause);
@@ -172,7 +180,7 @@ export async function finaliseReport(
   // The supporting documents are appended to the rendered report, so the
   // issued file is one self-contained package. A signed URL printed into a PDF
   // would stop working within the hour; these are pages.
-  if (shouldIncludeDocuments(String(formData.get("includeDocuments") ?? ""), supportingDocuments.length > 0)) {
+  if (includeDocuments) {
     const loaded = await loadDocumentAttachments(supabase, {
       table: "report_documents",
       column: "report_id",

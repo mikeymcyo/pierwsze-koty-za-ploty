@@ -108,6 +108,13 @@ export async function GET(
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
 
+  // Decided before the render, not after: the register printed inside the
+  // report has to say whether the drawings actually follow it.
+  const include = shouldIncludeDocuments(
+    new URL(request.url).searchParams.get("documents"),
+    supportingDocuments.length > 0,
+  );
+
   let pdf = await renderReportPdf({
     companyName: session.companyName,
     projectName: project?.name ?? "Project",
@@ -125,15 +132,12 @@ export async function GET(
     issues: issuesForReport(issues ?? [], ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS),
     photos: photosWithData(photoRows, downloaded),
     supportingDocuments,
+    documentsAppended: include,
   });
 
   // The preview is the package the client would receive, appendices and all -
   // a preview that only listed the drawings would not be a preview of what is
   // about to be issued.
-  const include = shouldIncludeDocuments(
-    new URL(request.url).searchParams.get("documents"),
-    supportingDocuments.length > 0,
-  );
   if (include) {
     const loaded = await loadDocumentAttachments(supabase, {
       table: "report_documents",

@@ -18,7 +18,13 @@ export async function loadSummaryPdfData(
   | {
       ok: true;
       report: { id: string; project_id: string; status: "draft" | "final"; pdf_path: string | null };
-      data: SummaryPdfData;
+      /**
+       * Everything but whether the documents are appended: that is the
+       * caller's decision - a preview honours a query parameter and a
+       * finalise honours the form - and the register printed inside the
+       * report has to agree with what actually follows it.
+       */
+      data: Omit<SummaryPdfData, "documentsAppended">;
       sourceCount: number;
       sectionCount: number;
     }

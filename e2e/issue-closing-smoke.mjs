@@ -148,27 +148,29 @@ check(
 );
 
 console.log("\n7. Issues no longer own a page each");
+// The layout itself moved into lib/pdf/components.tsx with the shared template
+// - see e2e/pdf-template-smoke.mjs, which renders real pages and counts them.
+// What is guarded here is only the rule this bug produced: nothing forces a
+// page break, and only a single card is ever pinned together.
 const daily = readFileSync(new URL("../lib/pdf/report-document.tsx", import.meta.url), "utf8");
 const summary = readFileSync(new URL("../lib/pdf/summary-document.tsx", import.meta.url), "utf8");
-for (const [name, source] of [["daily", daily], ["consolidated", summary]]) {
+const parts = readFileSync(new URL("../lib/pdf/components.tsx", import.meta.url), "utf8");
+for (const [name, source] of [["daily", daily], ["consolidated", summary], ["shared parts", parts]]) {
   check(`${name}: nothing forces a page break any more`, !/<View break>/.test(source));
-  check(
-    `${name}: an issue card is still kept together`,
-    /key=\{issue\.id\} style=\{styles\.issue\} wrap=\{false\}/.test(source),
-  );
-  check(
-    `${name}: a photograph keeps its caption`,
-    /style=\{styles\.photo(Cell)?\} wrap=\{false\}/.test(source),
-  );
-  check(
-    `${name}: headings reserve room so they are not stranded at the foot of a page`,
-    (source.match(/minPresenceAhead=\{\d+\}/g) ?? []).length >= 3,
-  );
   check(
     `${name}: whole sections no longer jump a page to stay intact`,
     !/<View key=\{section\.type\} wrap=\{false\}>/.test(source),
   );
 }
+check(
+  "an issue card is still kept together",
+  /style=\{\[s\.issue[^\]]*\]\} wrap=\{false\}/.test(parts),
+);
+check("a photograph keeps its caption", /style=\{s\.photoCell\} wrap=\{false\}/.test(parts));
+check(
+  "headings reserve room so they are not stranded at the foot of a page",
+  /minPresenceAhead=\{reserve\}/.test(parts),
+);
 check(
   "the daily report explains why the break went",
   /Forcing one here ended whatever preceded it/.test(daily),

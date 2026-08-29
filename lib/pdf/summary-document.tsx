@@ -1,13 +1,41 @@
-import { Document, Image, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
+import { Fragment } from "react";
+
+import { Document, Page, Text } from "@react-pdf/renderer";
 
 import type { IssuePriority, SummaryReportKind, SummarySectionType } from "@/types/database";
-import {
-  DOCUMENT_COLUMN_LABELS,
-  documentCell,
-  visibleDocumentColumns,
-  type ResolvedDocument,
-} from "@/lib/documents/metadata";
+import type { ResolvedDocument } from "@/lib/documents/metadata";
 import { photoPrintLabel } from "@/lib/photo-captions";
+import {
+  ControlPanel,
+  DocumentRegister,
+  DocumentTitle,
+  IssueRecord,
+  PhotoGrid,
+  RunningFooter,
+  RunningHeader,
+  SectionHeading,
+  issueReserve,
+  plateReserve,
+  priorityColour,
+} from "@/lib/pdf/components";
+import { photoReference } from "@/lib/pdf/photo-evidence";
+import { createPdfStyles, defaultPdfTheme } from "@/lib/pdf/theme";
+
+/**
+ * The consolidated report: Progress, and Completion.
+ *
+ * Built from the same parts as the Daily Report - see lib/pdf/components.tsx
+ * and lib/pdf/theme.ts - so the three arrive at a client as one contractor's
+ * paperwork rather than as three different templates. What differs is density
+ * and weight, which is the real difference between the documents: a Progress
+ * Report is a periodic management submission, and a Completion Report is the
+ * record of the job, so it opens harder.
+ *
+ * Every figure printed here was frozen when the report was issued. The issue
+ * record carries the status and resolution as they stood at that moment, and
+ * the document register carries each drawing as it was then, so nothing
+ * changing on the project afterwards can alter what this document says.
+ */
 
 export type SummaryPdfData = {
   kind: SummaryReportKind;
@@ -41,227 +69,147 @@ export type SummaryPdfData = {
   }[];
   sourceLabels: string[];
   supportingDocuments: ResolvedDocument[];
+  /** Whether the listed documents follow as appendices, so the register says so. */
+  documentsAppended: boolean;
 };
 
-const INK = "#1a1a1a";
-const MUTED = "#5c5c5c";
-const LINE = "#d4d4d4";
+const theme = defaultPdfTheme;
+const s = createPdfStyles(theme);
+const c = theme.colors;
 
-const styles = StyleSheet.create({
-  page: {
-    paddingTop: 40,
-    paddingBottom: 56,
-    paddingHorizontal: 40,
-    fontSize: 10,
-    color: INK,
-    fontFamily: "Helvetica",
-    lineHeight: 1.5,
-  },
-  brandBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
-    borderBottomWidth: 2,
-    borderBottomColor: INK,
-    paddingBottom: 8,
-    marginBottom: 16,
-  },
-  brand: { fontSize: 16, fontFamily: "Helvetica-Bold", letterSpacing: 0.5 },
-  company: { fontSize: 9, color: MUTED },
-  title: { fontSize: 20, fontFamily: "Helvetica-Bold", marginBottom: 2 },
-  subtitle: { fontSize: 11, color: MUTED, marginBottom: 14 },
-  details: { flexDirection: "row", flexWrap: "wrap", borderTopWidth: 1, borderTopColor: LINE },
-  detail: {
-    width: "50%",
-    borderBottomWidth: 1,
-    borderBottomColor: LINE,
-    paddingVertical: 5,
-    paddingRight: 10,
-  },
-  detailLabel: { fontSize: 8, color: MUTED, textTransform: "uppercase", letterSpacing: 0.6 },
-  heading: {
-    fontSize: 11,
-    fontFamily: "Helvetica-Bold",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginTop: 16,
-    marginBottom: 6,
-    paddingBottom: 3,
-    borderBottomWidth: 1,
-    borderBottomColor: LINE,
-  },
-  paragraph: { marginBottom: 4 },
-  documentRow: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: LINE,
-    paddingVertical: 4,
-  },
-  issue: { borderLeftWidth: 3, borderLeftColor: LINE, paddingLeft: 8, marginBottom: 9 },
-  issueTitle: { fontFamily: "Helvetica-Bold" },
-  meta: { fontSize: 8, color: MUTED, textTransform: "uppercase", letterSpacing: 0.5 },
-  resolution: { marginTop: 3 },
-  photoGrid: { flexDirection: "row", flexWrap: "wrap", marginTop: 4 },
-  photo: { width: "50%", paddingRight: 10, paddingBottom: 12 },
-  // contain, not cover - see report-document.tsx.
-  photoImage: { width: "100%", height: 150, objectFit: "contain", marginBottom: 4 },
-  source: { fontSize: 8, color: MUTED, marginBottom: 2 },
-  footer: {
-    position: "absolute",
-    bottom: 24,
-    left: 40,
-    right: 40,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    borderTopWidth: 1,
-    borderTopColor: LINE,
-    paddingTop: 6,
-    fontSize: 8,
-    color: MUTED,
-  },
-});
-
-function Detail({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={styles.detail}>
-      <Text style={styles.detailLabel}>{label}</Text>
-      <Text>{value}</Text>
-    </View>
-  );
+/** "P01-P12", so the section says up front what it contains. */
+function plateRange(count: number): string | undefined {
+  if (count < 2) return undefined;
+  return `${photoReference(0)}-${photoReference(count - 1)}`;
 }
 
 export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
-  const kindLabel = data.kind === "progress" ? "Progress Report" : "Completion Report";
-  const numbered = `${kindLabel} ${data.number}${data.revision ? ` · Revision ${data.revision}` : ""}`;
+  const completion = data.kind === "completion";
+  const documentType = completion ? "Completion Report" : "Progress Report";
+  const documentLabel = `${documentType} No. ${data.number}${
+    data.revision ? ` Rev ${data.revision}` : ""
+  }`;
 
   return (
     <Document
-      title={`${numbered} - ${data.projectName}`}
+      title={`${documentLabel} - ${data.projectName}`}
       author={data.issuedBy}
       subject={data.projectName}
-      creator="SiteBoss Pro"
-      producer="SiteBoss Pro"
+      creator={theme.productName}
+      producer={theme.productName}
     >
-      <Page size="A4" style={styles.page}>
-        <View style={styles.brandBar} fixed>
-          <Text style={styles.brand}>SiteBoss Pro</Text>
-          <Text style={styles.company}>{data.companyName}</Text>
-        </View>
+      <Page size="A4" style={s.page}>
+        <RunningHeader s={s} productName={theme.productName} companyName={data.companyName} />
 
-        <Text style={styles.title}>{data.title || numbered}</Text>
-        <Text style={styles.subtitle}>
-          {[data.projectName, data.client].filter(Boolean).join(" · ")}
-        </Text>
+        <DocumentTitle
+          s={s}
+          documentType={documentType}
+          number={data.number}
+          projectName={data.projectName}
+          context={[data.client, data.siteAddress]}
+          // The Completion Report opens harder because it is the document the
+          // job is remembered by. A stronger title block, not a cover sheet -
+          // a page carrying six words would be the wrong kind of impressive.
+          large={completion}
+        />
 
-        <View style={styles.details}>
-          <Detail label="Document" value={numbered} />
-          <Detail label="Reporting period" value={data.periodLabel} />
-          {data.siteAddress ? <Detail label="Site" value={data.siteAddress} /> : null}
-          {data.projectReference ? <Detail label="Project reference" value={data.projectReference} /> : null}
-          <Detail label="Issued" value={data.issuedAt} />
-          <Detail label="Issued by" value={data.issuedBy} />
-        </View>
+        <ControlPanel
+          s={s}
+          items={[
+            // Only a title somebody wrote. The document already names itself
+            // in letters twice this size directly above, and repeating it
+            // here would spend a line of the control panel saying nothing.
+            { label: "Title", value: data.title },
+            { label: completion ? "Project record" : "Reporting period", value: data.periodLabel },
+            { label: "Project reference", value: data.projectReference },
+            { label: "Revision", value: data.revision ? String(data.revision) : null },
+            { label: "Issued", value: data.issuedAt },
+            { label: "Issued by", value: data.issuedBy },
+          ]}
+        />
 
+        {/* Fragments, not Views. react-pdf only honours minPresenceAhead on
+            a direct child of the Page, so a section wrapped in its own View
+            has headings that cannot reserve room and get stranded at the foot
+            of a page with their content overleaf. */}
         {data.sections.map((section) => (
-          <View key={section.type}>
-            <Text style={styles.heading}>{section.label}</Text>
-            <Text style={styles.paragraph}>{section.content}</Text>
-          </View>
+          <Fragment key={section.type}>
+            <SectionHeading s={s}>{section.label}</SectionHeading>
+            <Text style={s.paragraph}>{section.content}</Text>
+          </Fragment>
         ))}
 
         {data.issues.length > 0 ? (
-          <View>
-            <Text style={styles.heading} minPresenceAhead={48}>
-              Issue record
-            </Text>
+          <>
+            {/* The heading reserves room for the record that follows it. A
+                heading left alone at the foot of a page, with its first issue
+                overleaf, is exactly the fault this batch set out to remove. */}
+            <SectionHeading s={s} reserve={issueReserve(data.issues[0])}>
+              Issues
+            </SectionHeading>
             {data.issues.map((issue) => (
-              <View key={issue.id} style={styles.issue} wrap={false}>
-                <Text style={styles.issueTitle}>{issue.title}</Text>
-                <Text style={styles.meta}>
-                  {[issue.priorityLabel, issue.statusLabel, issue.responsible].filter(Boolean).join(" · ")}
-                </Text>
-                {issue.description ? <Text>{issue.description}</Text> : null}
-                {issue.resolution ? (
-                  <Text style={styles.resolution}>Resolution: {issue.resolution}</Text>
-                ) : null}
-              </View>
+              <IssueRecord
+                key={issue.id}
+                s={s}
+                issue={issue}
+                colour={priorityColour(issue.priority, c.charcoal)}
+                inverse={c.inverse}
+              />
             ))}
-          </View>
+          </>
+        ) : null}
+
+        {data.supportingDocuments.length > 0 ? (
+          <>
+            <SectionHeading s={s} reserve={62}>
+              Supporting documents
+            </SectionHeading>
+            <DocumentRegister
+              s={s}
+              rows={data.supportingDocuments}
+              appended={data.documentsAppended}
+            />
+          </>
         ) : null}
 
         {data.photos.length > 0 ? (
           // No page break - see report-document.tsx. It stranded short issue
           // records at the top of an otherwise empty page.
-          <View>
-            <Text style={styles.heading} minPresenceAhead={90}>
-              Photographic record
-            </Text>
-            <View style={styles.photoGrid}>
-              {data.photos.map((photo) => (
-                <View key={photo.id} style={styles.photo} wrap={false}>
-                  {/* eslint-disable-next-line jsx-a11y/alt-text */}
-                  <Image style={styles.photoImage} src={photo.data} />
-                  {photoPrintLabel(photo).status ? (
-                    <Text style={styles.meta}>{photoPrintLabel(photo).status}</Text>
-                  ) : null}
-                  {photoPrintLabel(photo).caption ? (
-                    <Text>{photoPrintLabel(photo).caption}</Text>
-                  ) : null}
-                </View>
-              ))}
-            </View>
-          </View>
+          <>
+            <SectionHeading
+              s={s}
+              reserve={plateReserve(data.photos[0].data)}
+              note={plateRange(data.photos.length)}
+            >
+              Photographic evidence
+            </SectionHeading>
+            <PhotoGrid
+              s={s}
+              photos={data.photos.map((photo) => ({
+                id: photo.id,
+                label: photoPrintLabel(photo),
+                data: photo.data,
+              }))}
+            />
+          </>
         ) : null}
 
-        {data.supportingDocuments.length > 0 ? (
-          <View>
-            <Text style={styles.heading} minPresenceAhead={48}>
-              Supporting documents
-            </Text>
-            <SummaryDocumentTable rows={data.supportingDocuments} />
-          </View>
-        ) : null}
-
-        <View>
-          <Text style={styles.heading} minPresenceAhead={48}>
-            Source record
-          </Text>
+        <>
+          <SectionHeading s={s}>Source record</SectionHeading>
           {data.sourceLabels.map((source) => (
-            <Text key={source} style={styles.source}>• {source}</Text>
+            <Text key={source} style={s.sourceLine}>
+              {source}
+            </Text>
           ))}
-        </View>
+        </>
 
-        <View style={styles.footer} fixed>
-          <Text>{data.projectName} · {numbered}</Text>
-          <Text render={({ pageNumber, totalPages }) => `Page ${pageNumber} of ${totalPages}`} />
-        </View>
+        <RunningFooter
+          s={s}
+          companyName={data.companyName}
+          projectName={data.projectName}
+          documentLabel={documentLabel}
+        />
       </Page>
     </Document>
-  );
-}
-
-/** See report-document.tsx: an optional column appears only when it is used. */
-function SummaryDocumentTable({ rows }: { rows: ResolvedDocument[] }) {
-  const columns = visibleDocumentColumns(rows);
-  const width = `${100 / columns.length}%`;
-  return (
-    <>
-      <View style={styles.documentRow}>
-        {columns.map((column) => (
-          <Text key={column} style={[styles.meta, { width }]}>
-            {DOCUMENT_COLUMN_LABELS[column]}
-          </Text>
-        ))}
-      </View>
-      {rows.map((row, index) => (
-        <View style={styles.documentRow} key={`${row.title}-${index}`} wrap={false}>
-          {columns.map((column) => (
-            <Text key={column} style={{ width }}>
-              {documentCell(row, column)}
-            </Text>
-          ))}
-        </View>
-      ))}
-    </>
   );
 }

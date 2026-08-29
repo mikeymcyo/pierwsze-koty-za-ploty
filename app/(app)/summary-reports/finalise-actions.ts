@@ -83,9 +83,16 @@ export async function finaliseSummaryReport(
   });
   if (!check.ok) return { error: check.message };
 
+  // Decided before the render, not after: the register printed inside the
+  // report has to say whether the drawings actually follow it.
+  const includeDocuments = shouldIncludeDocuments(
+    String(formData.get("includeDocuments") ?? ""),
+    loaded.data.supportingDocuments.length > 0,
+  );
+
   let pdf: Buffer;
   try {
-    pdf = await renderSummaryReportPdf(loaded.data);
+    pdf = await renderSummaryReportPdf({ ...loaded.data, documentsAppended: includeDocuments });
   } catch (cause) {
     console.error("[siteboss] summary PDF render failed:", cause);
     return { error: "The report could not be turned into a PDF. Nothing has been finalised." };
@@ -93,12 +100,7 @@ export async function finaliseSummaryReport(
 
   // Appended to the rendered report, so the issued file is one self-contained
   // package rather than a document pointing at links that expire.
-  if (
-    shouldIncludeDocuments(
-      String(formData.get("includeDocuments") ?? ""),
-      loaded.data.supportingDocuments.length > 0,
-    )
-  ) {
+  if (includeDocuments) {
     const attachments = await loadDocumentAttachments(supabase, {
       table: "summary_report_documents",
       column: "summary_report_id",
