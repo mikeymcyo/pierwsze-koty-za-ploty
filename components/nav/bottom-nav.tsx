@@ -16,7 +16,7 @@ export function BottomNav() {
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface pb-safe md:hidden"
+      className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 backdrop-blur pb-safe md:hidden"
     >
       <ul className="mx-auto flex max-w-lg items-stretch">
         {MOBILE_NAV_ITEMS.map((item) => {
@@ -32,13 +32,12 @@ export function BottomNav() {
                 >
                   <span
                     className={cn(
-                      "grid size-14 place-items-center rounded-2xl shadow-lg transition-colors",
-                      active ? "bg-primary text-ink-inverse" : "bg-brand text-ink",
+                      "grid size-14 place-items-center rounded-2xl bg-brand text-ink-inverse shadow-lg shadow-brand/25 transition-transform active:scale-95",
                     )}
                   >
                     <Icon className="size-7" aria-hidden strokeWidth={2.5} />
                   </span>
-                  <span className="text-[11px] font-semibold text-ink">{item.label}</span>
+                  <span className="text-[11px] font-semibold text-ink-muted">{item.label}</span>
                 </Link>
               </li>
             );
@@ -51,7 +50,7 @@ export function BottomNav() {
                 aria-current={active ? "page" : undefined}
                 className={cn(
                   "flex min-h-14 flex-col items-center justify-center gap-1 px-1 py-2 transition-colors",
-                  active ? "text-ink" : "text-ink-subtle",
+                  active ? "text-brand" : "text-ink-subtle",
                 )}
               >
                 <Icon className="size-6" aria-hidden strokeWidth={active ? 2.5 : 2} />

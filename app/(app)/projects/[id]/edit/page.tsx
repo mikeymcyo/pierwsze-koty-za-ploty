@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import { Pencil } from "lucide-react";
 
 import { updateProject } from "@/app/(app)/projects/actions";
 import { DeleteProject } from "@/components/projects/project-delete";
 import { ProjectForm } from "@/components/projects/project-form";
 import { LoadError } from "@/components/ui/load-error";
+import { PageHeader } from "@/components/ui/page-header";
 import { requireSessionContext } from "@/lib/auth/session";
 import { storeFor } from "@/lib/stores/catalogue";
 import { storeLinkOf } from "@/lib/stores/project-link";
@@ -67,12 +69,7 @@ export default async function EditProjectPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
-          Edit project
-        </h1>
-        <p className="truncate text-ink-muted">{project.name}</p>
-      </header>
+      <PageHeader title="Edit project" description={project.name} icon={Pencil} />
 
       <ProjectForm
         action={action}

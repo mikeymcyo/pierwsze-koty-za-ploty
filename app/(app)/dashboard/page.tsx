@@ -140,7 +140,7 @@ export default async function DashboardPage() {
                 <li key={draft.id}>
                   <Card className="transition-colors hover:border-line-strong">
                     <Link href={`/reports/${draft.id}`} className="flex items-center gap-4 p-5">
-                      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-soft">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-soft ring-1 ring-brand/25">
                         <FilePen className="size-5 text-warning" aria-hidden />
                       </span>
                       <div className="min-w-0 flex-1">

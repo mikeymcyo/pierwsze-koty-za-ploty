@@ -191,6 +191,6 @@ export function SwipeButton({
 function swipeActionClass(tone: "neutral" | "danger"): string {
   return [
     "flex w-20 flex-col items-center justify-center gap-1 text-xs font-semibold [&_svg]:size-5",
-    tone === "danger" ? "bg-danger text-ink-inverse" : "bg-surface-muted text-ink",
+    tone === "danger" ? "bg-danger-strong text-white" : "bg-surface-muted text-ink",
   ].join(" ");
 }

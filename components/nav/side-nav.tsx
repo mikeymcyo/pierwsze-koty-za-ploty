@@ -18,6 +18,7 @@ export function SideNav() {
           <Wordmark />
         </Link>
       </div>
+      <div className="mx-6 mb-4 h-px brand-rule" />
 
       <nav aria-label="Primary" className="flex-1 px-3">
         <ul className="flex flex-col gap-1">
@@ -31,11 +32,12 @@ export function SideNav() {
                   href={item.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors",
+                    "relative flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors",
+                    "before:absolute before:top-1/2 before:left-0 before:h-6 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:transition-colors",
                     active
-                      ? "bg-primary text-ink-inverse"
-                      : "text-ink-muted hover:bg-surface-muted hover:text-ink",
-                    item.primary && !active && "text-ink",
+                      ? "bg-surface-muted text-ink before:bg-brand"
+                      : "text-ink-muted before:bg-transparent hover:bg-surface-muted/60 hover:text-ink",
+                    item.primary && !active && "text-brand",
                   )}
                 >
                   <Icon className="size-5" aria-hidden strokeWidth={2.25} />

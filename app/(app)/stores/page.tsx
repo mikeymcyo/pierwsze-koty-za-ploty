@@ -4,6 +4,7 @@ import { Store as StoreIcon } from "lucide-react";
 import { StoreCard } from "@/components/stores/store-card";
 import { StoreSearch } from "@/components/stores/store-search";
 import { EmptyState } from "@/components/ui/empty-state";
+import { PageHeader } from "@/components/ui/page-header";
 import { requireSessionContext } from "@/lib/auth/session";
 import { defaultDirectory } from "@/lib/stores/catalogue";
 import { distributionCentres, searchStores } from "@/lib/stores/directory";
@@ -42,12 +43,11 @@ export default async function StoresPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">Store locator</h1>
-        <p className="text-ink-muted">
-          {directory.label} · {stores.length} stores · {directory.source}
-        </p>
-      </header>
+      <PageHeader
+        title="Store locator"
+        description={`${directory.label} · ${stores.length} stores · ${directory.source}`}
+        icon={StoreIcon}
+      />
 
       <StoreSearch rdcs={distributionCentres(stores)} nightShiftCount={nightShiftCount} />
 

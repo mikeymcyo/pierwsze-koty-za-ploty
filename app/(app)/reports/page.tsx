@@ -5,6 +5,7 @@ import { FileText, Plus } from "lucide-react";
 import { ReportRow } from "@/components/reports/report-row";
 import { SummaryRow } from "@/components/summary-reports/summary-row";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
@@ -30,18 +31,19 @@ export default async function ReportsPage() {
 
   return (
     <div className="flex flex-col gap-7">
-      <header className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">Reports</h1>
-          <p className="mt-1 text-sm text-ink-muted">Daily records, client progress updates and project completion documents. Swipe a report left, or use its menu, for its actions.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <PageHeader
+        title="Reports"
+        description="Daily records, client updates, completion documents and site surveys. Swipe a report left, or use its menu, for its actions."
+        icon={FileText}
+        actions={
+          <>
           <Button asChild variant="secondary" size="sm"><Link href="/reports/new"><Plus aria-hidden />Daily</Link></Button>
           <Button asChild variant="secondary" size="sm"><Link href="/summary-reports/new?kind=progress"><Plus aria-hidden />Progress</Link></Button>
           <Button asChild variant="secondary" size="sm"><Link href="/summary-reports/new?kind=completion"><Plus aria-hidden />Completion</Link></Button>
           <Button asChild variant="secondary" size="sm"><Link href="/surveys/new"><Plus aria-hidden />Survey</Link></Button>
-        </div>
-      </header>
+          </>
+        }
+      />
 
       {error ? (
         <LoadError what="your reports" code={error.code} />

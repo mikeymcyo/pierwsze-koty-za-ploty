@@ -3,6 +3,7 @@ import { ClipboardList } from "lucide-react";
 
 import { SurveyCreateForm, type SurveyProjectChoice } from "@/components/surveys/survey-create-form";
 import { BackLink } from "@/components/ui/back-link";
+import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
@@ -51,15 +52,11 @@ export default async function NewSurveyPage({
         {store ? "Store" : "All reports"}
       </BackLink>
 
-      <header>
-        <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
-          New site survey
-        </h1>
-        <p className="mt-1 text-sm text-ink-muted">
-          A visit made before works, to investigate, measure and photograph so the job can be
-          priced.
-        </p>
-      </header>
+      <PageHeader
+        title="New site survey"
+        description="A visit made before works, to investigate, measure and photograph so the job can be priced."
+        icon={ClipboardList}
+      />
 
       {error ? (
         <LoadError what="your projects" code={error.code} />

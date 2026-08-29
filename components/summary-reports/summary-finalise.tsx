@@ -94,7 +94,7 @@ export function SummaryFinalise({
             type="checkbox"
             checked={includeDocuments}
             onChange={(event) => setIncludeDocuments(event.target.checked)}
-            className="mt-0.5 size-5 shrink-0 accent-black"
+            className="mt-0.5 size-5 shrink-0 accent-brand"
           />
           <span className="min-w-0">
             <span className="block font-medium text-ink">

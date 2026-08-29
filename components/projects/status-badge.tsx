@@ -23,7 +23,11 @@ export function isEnquiry(status: ProjectStatus): boolean {
 }
 
 export function ProjectStatusBadge({ status }: { status: ProjectStatus }) {
-  return <Badge tone={STATUS_TONES[status]}>{STATUS_LABELS[status]}</Badge>;
+  return (
+    <Badge tone={STATUS_TONES[status]} dot>
+      {STATUS_LABELS[status]}
+    </Badge>
+  );
 }
 
 export { STATUS_LABELS as PROJECT_STATUS_LABELS };

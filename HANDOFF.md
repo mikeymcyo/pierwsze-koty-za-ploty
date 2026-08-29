@@ -122,6 +122,39 @@ straight after applying - no records were created and no data was altered.
 **PostgreSQL cannot remove an enum value.** Rolling this back means leaving the
 values in place and unused, which is inert.
 
+### Branding and the dark visual system
+
+The application is dark now, to the approved brand sheet: charcoal `#0D0F12`
+page, `#1A1D23` cards, `#2A2E36` muted, white type, SiteBoss gold `#FFC107`.
+**Every colour comes from a token in `app/globals.css`** - no screen picks its
+own, and `e2e/brand-smoke.mjs` fails the build if one starts to (no hex
+utilities, no Tailwind palette colours, no white type on gold).
+
+- **Gold is an accent.** It fills the one primary action on a screen, the mark,
+  and nothing else; the test caps how many gold fills may exist. Active nav is a
+  gold rail and gold icon, not a gold block. Focus rings are gold, because a
+  white ring on charcoal is hard to separate from the text inside it.
+- **The SB mark** (`components/brand/monogram.tsx`) is drawn as SVG paths, not
+  set in a font - a logo that waits for a webfont is sometimes the wrong shape.
+  The S is white and the B is gold, which is what stops it reading as S3, and
+  the three gold bars sit beneath. `Wordmark` composes it with SITE/BOSS and
+  PRO, and the strapline.
+- **Home screen**: `app/manifest.ts`, `app/icon.svg`, `app/icon.png`,
+  `app/apple-icon.png`, and 192/512/512-maskable in `public/`, all generated
+  from the same mark. Standalone display, charcoal theme colour and splash, so
+  it opens as an app rather than flashing white into a tab.
+- **`components/ui/page-header.tsx`** is the one page header - title,
+  description, icon tile and actions over the gold brand rule - used by the list
+  and creation screens so their spacing and type cannot drift apart.
+- Shared primitives were tuned rather than restyled per page: sunken inputs with
+  a gold focus ring, bordered status chips with a leading dot, a red (not gold)
+  destructive button, an empty state with a gold-tinted icon, and a button that
+  keeps its colour while it is working instead of dimming as though it had
+  failed.
+- **Nothing about behaviour changed**: no schema, no report logic, no deletion
+  safety, no RLS, no survey workflow, no navigation architecture. The PDF
+  templates are deliberately untouched - they stay black on white for print.
+
 ### Site Survey / Inspection Report
 
 A visit made before anybody has worked on a site, to investigate, measure and

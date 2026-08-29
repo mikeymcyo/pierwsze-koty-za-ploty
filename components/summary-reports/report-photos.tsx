@@ -154,7 +154,7 @@ export function ReportPhotos({
                       type="checkbox"
                       name="photoId"
                       value={photo.id}
-                      className="size-4 accent-black"
+                      className="size-4 accent-brand"
                     />
                     {PHOTO_CATEGORY_LABELS[photo.category]}
                   </span>

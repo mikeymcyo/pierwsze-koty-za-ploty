@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { HardHat, Plus } from "lucide-react";
+import { FolderKanban, HardHat, Plus } from "lucide-react";
 
 import { ProjectRow } from "@/components/projects/project-row";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
@@ -46,17 +47,21 @@ export default async function ProjectsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex items-center justify-between gap-4">
-        <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">Projects</h1>
-        {!error && projects.length > 0 ? (
-          <Button asChild>
-            <Link href="/projects/new">
-              <Plus aria-hidden />
-              New
-            </Link>
-          </Button>
-        ) : null}
-      </header>
+      <PageHeader
+        title="Projects"
+        description="Every job and enquiry your company is running."
+        icon={FolderKanban}
+        actions={
+          !error && projects.length > 0 ? (
+            <Button asChild>
+              <Link href="/projects/new">
+                <Plus aria-hidden />
+                New
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
 
       {/* An empty list and a failed query look identical from here, so the
           "no projects yet" story is only told when the query actually worked. */}

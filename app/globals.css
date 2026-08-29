@@ -3,51 +3,67 @@
 /*
  * SiteBoss Pro design tokens.
  *
- * Deliberately light-only and high contrast: this app is used outdoors on
- * phones in direct sunlight, where a dark theme is harder to read.
+ * Dark by design. The brand is charcoal and white with a restrained gold, and
+ * on a phone held at arm's length under a site hi-vis the dark ground is what
+ * makes the gold and the white type carry. Everything in the application draws
+ * from these tokens - no screen picks its own colours - so the identity is
+ * changed here and nowhere else.
+ *
+ * Gold is an accent: an active state, a mark, a single primary action per
+ * screen. It is never a large field of colour behind content.
  */
 @theme {
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  /* Surfaces */
-  --color-surface: #ffffff;
-  --color-surface-sunken: #fafafa;
-  --color-surface-muted: #f4f4f5;
+  /* Surfaces. Sunken is the page, surface is a card, raised is a card on a card. */
+  --color-surface: #1a1d23;
+  --color-surface-sunken: #0d0f12;
+  --color-surface-muted: #2a2e36;
+  --color-surface-raised: #22262e;
 
-  /* Lines */
-  --color-line: #e4e4e7;
-  --color-line-strong: #d4d4d8;
+  /* Lines. Barely there by default; strong enough to read as a control when needed. */
+  --color-line: #262a32;
+  --color-line-strong: #3a404b;
 
   /* Text */
-  --color-ink: #18181b;
-  --color-ink-muted: #52525b;
-  --color-ink-subtle: #a1a1aa;
-  --color-ink-inverse: #ffffff;
+  --color-ink: #ffffff;
+  --color-ink-muted: #a7adb8;
+  --color-ink-subtle: #737b88;
+  /* What goes on top of gold or white - never white on gold. */
+  --color-ink-inverse: #0d0f12;
 
-  /* Brand — high-vis amber, used for the wordmark and active states only */
-  --color-brand: #f59e0b;
-  --color-brand-strong: #b45309;
-  --color-brand-soft: #fef3c7;
+  /* Brand */
+  --color-brand: #ffc107;
+  --color-brand-strong: #ffd454;
+  --color-brand-soft: #2a2411;
 
-  /* Primary action — near-black for maximum contrast in sunlight */
-  --color-primary: #18181b;
-  --color-primary-hover: #3f3f46;
+  /* The single primary action on a screen. */
+  --color-primary: #ffc107;
+  --color-primary-hover: #ffcf3d;
 
-  /* Status */
-  --color-success: #047857;
-  --color-success-soft: #d1fae5;
-  --color-warning: #b45309;
-  --color-warning-soft: #fef3c7;
-  --color-danger: #b91c1c;
-  --color-danger-soft: #fee2e2;
-  --color-info: #1d4ed8;
-  --color-info-soft: #dbeafe;
+  /*
+   * Status. Each is a light tint that reads as text on charcoal, with a dark
+   * companion for the chip behind it. Danger has a filled variant as well,
+   * because a destructive button has to look like one.
+   */
+  --color-success: #3ddc97;
+  --color-success-soft: #10281f;
+  --color-warning: #f5a524;
+  --color-warning-soft: #2a2110;
+  --color-danger: #ff6b6b;
+  --color-danger-soft: #2c1618;
+  --color-danger-strong: #c0392f;
+  --color-info: #6aa9ff;
+  --color-info-soft: #131e2e;
 }
 
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+    /* Tells the browser to draw its own furniture - scrollbars, form
+       controls, the pull-to-refresh overscroll - in dark. */
+    color-scheme: dark;
   }
 
   body {
@@ -64,8 +80,10 @@
     font-size: 16px;
   }
 
+  /* Gold, because on charcoal a white ring is hard to separate from the text
+     it surrounds and this has to be obvious with gloves on. */
   :focus-visible {
-    outline: 2px solid var(--color-ink);
+    outline: 2px solid var(--color-brand);
     outline-offset: 2px;
   }
 }
@@ -76,4 +94,15 @@
 
 @utility mb-safe {
   margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* The gold hairline under the brand bar, and the top edge of a header. */
+@utility brand-rule {
+  background-image: linear-gradient(
+    to right,
+    var(--color-brand) 0,
+    var(--color-brand) 44px,
+    var(--color-line) 44px,
+    var(--color-line) 100%
+  );
 }

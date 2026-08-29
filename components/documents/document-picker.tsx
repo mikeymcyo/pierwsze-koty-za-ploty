@@ -74,7 +74,7 @@ export function DocumentPicker({
                   name="documentId"
                   value={document.id}
                   defaultChecked={document.selected}
-                  className="mt-1 size-5 shrink-0 accent-black"
+                  className="mt-1 size-5 shrink-0 accent-brand"
                 />
                 <span className="min-w-0 flex-1">
                   <span className="block font-medium text-ink">{document.title}</span>

@@ -7,10 +7,12 @@ export function Input({ className, type = "text", ...props }: React.ComponentPro
     <input
       type={type}
       className={cn(
-        "min-h-12 w-full rounded-xl border border-line-strong bg-surface px-4 text-ink",
+        "min-h-12 w-full rounded-xl border border-line-strong bg-surface-sunken px-4 text-ink",
         "placeholder:text-ink-subtle",
-        "focus:border-ink focus:outline-none focus:ring-2 focus:ring-ink/10",
-        "disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-70",
+        // Gold on focus: on charcoal a white ring is hard to separate from the
+        // text inside it, and this is used with gloves on.
+        "transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25",
+        "disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-60",
         "aria-[invalid=true]:border-danger",
         className,
       )}

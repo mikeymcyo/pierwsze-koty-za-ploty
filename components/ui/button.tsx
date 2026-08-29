@@ -6,15 +6,15 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-colors disabled:pointer-events-none disabled:opacity-50 [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-[color,background-color,border-color,filter,transform] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45 disabled:shadow-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        primary: "bg-primary text-ink-inverse hover:bg-primary-hover",
-        secondary: "bg-surface text-ink border border-line-strong hover:bg-surface-muted",
+        primary: "bg-primary text-ink-inverse shadow-sm shadow-brand/20 hover:bg-primary-hover",
+        secondary: "border border-line-strong bg-surface text-ink hover:border-brand/40 hover:bg-surface-muted",
         ghost: "text-ink-muted hover:bg-surface-muted hover:text-ink",
-        danger: "bg-danger text-ink-inverse hover:opacity-90",
-        brand: "bg-brand text-ink hover:brightness-95",
+        danger: "bg-danger-strong text-white hover:brightness-110",
+        brand: "bg-brand text-ink-inverse hover:bg-primary-hover",
       },
       size: {
         // Sizes are generous by default: this app is used with gloves on.
@@ -54,7 +54,14 @@ export function Button({
 
   return (
     <button
-      className={cn(buttonVariants({ variant, size }), className)}
+      // A button that is working is still the button it was. Only a genuinely
+      // unavailable one dims - a save that turned muddy brown mid-tap reads as
+      // a failure rather than as progress.
+      className={cn(
+        buttonVariants({ variant, size }),
+        loading && !disabled && "disabled:opacity-100",
+        className,
+      )}
       disabled={disabled || loading}
       {...props}
     >

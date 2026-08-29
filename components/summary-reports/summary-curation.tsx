@@ -90,7 +90,7 @@ export function SummaryCuration({
                   )}
                 </div>
                 <span className="flex items-start gap-2 text-sm text-ink">
-                  <input type="checkbox" name="photoId" value={photo.id} defaultChecked={photo.selected} className="mt-1 size-5 accent-black" />
+                  <input type="checkbox" name="photoId" value={photo.id} defaultChecked={photo.selected} className="mt-1 size-5 accent-brand" />
                   <span className="min-w-0">
                     <span className="block font-medium">{PHOTO_CATEGORY_LABELS[photo.category]}</span>
                     {photo.caption ? <span className="block truncate text-xs text-ink-muted">{photo.caption}</span> : null}
@@ -118,7 +118,7 @@ export function SummaryCuration({
         ) : (
           issues.map((issue) => (
             <label key={issue.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-4">
-              <input type="checkbox" name="issueId" value={issue.id} defaultChecked={issue.selected} className="mt-1 size-5 shrink-0 accent-black" />
+              <input type="checkbox" name="issueId" value={issue.id} defaultChecked={issue.selected} className="mt-1 size-5 shrink-0 accent-brand" />
               <span className="min-w-0 flex-1">
                 <span className="block font-semibold text-ink">{issue.title}</span>
                 <span className="mt-1 flex flex-wrap gap-2">
