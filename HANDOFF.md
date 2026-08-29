@@ -7,7 +7,7 @@ it says so explicitly - treat that distinction as load-bearing.
 **Written:** 2026-08-26 · **Last updated:** 2026-08-29
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-**Recovery head:** `00a3bfb` - report lifecycle, deletion and PDF navigation
+**Recovery head:** `fe6bf7f` - AI photo descriptions and supporting documents
 
 ## Current state - read this before the historical sections below
 
@@ -68,6 +68,26 @@ CHECK passes any draft row; the update and delete policies on both tables are
 buckets have delete policies. Immutability had only ever been enforced in
 application code, which is what changed.
 
+### The documents and AI-photo batch, `fe6bf7f`
+
+- **AI photo descriptions.** A button, never a background job. The action
+  returns a sentence and writes nothing; the suggestion sits in its own panel
+  and reaches the caption box only when the user presses Use it, and nothing is
+  stored until Save. A hand-written caption therefore cannot be replaced by a
+  model. The prompt forbids every claim an image cannot carry - completion,
+  compliance, approval, certification, testing, dimensions, unidentifiable
+  materials, unsupplied locations, defect cause, responsibility, workmanship.
+- **Supporting documents.** Documents belong to a project; reports reference
+  them, so the same RAMS is uploaded once and referenced by many reports, and
+  unticking it from one leaves everything else alone. PDFs only, straight from
+  the browser to the private `project-documents` bucket.
+- **Issued-report provenance.** Metadata is snapshotted onto each reference at
+  the moment a report is issued, so a superseded drawing cannot change what an
+  issued report says it was issued against. Deleting a document referenced by
+  an issued report is refused and names the reports in the way.
+- The issued PDF gains a Supporting Documents table whose optional columns
+  appear only when something fills them.
+
 ### Migration `20260828000005_summary_reports.sql` is APPLIED
 
 Verified 2026-08-29 against the hosted database (project `anwzyzfgfcuxrrpuaxwk`),
@@ -79,14 +99,50 @@ declared index are in place; a column-by-column diff of the migration against
 `information_schema` was **identical, 56 of 56, zero differences**; and
 `anon` holds no privileges on any of the new tables.
 
-Do **not** reapply it. Note that `supabase_migrations.schema_migrations` is
-empty - it was applied through the SQL editor, not the CLI - so schema
-inspection is the only source of truth here, and `supabase db push` would try
-to replay all five migrations and fail on this non-idempotent one.
+Do **not** reapply it.
 
-Dependency-free regression suites pass, including `test:lifecycle` and
-`test:summary-reports`. Lint, typecheck and a production build pass in a
-dependency-complete environment.
+### Migration `20260829000006_documents.sql` is APPLIED
+
+Applied to the hosted project on 2026-08-29 with the owner's explicit
+approval, through `apply_migration` - **not** `db push`. Verified afterwards
+against the live schema: the `document_type` enum has its ten values;
+`documents`, `report_documents` and `summary_report_documents` all exist with
+RLS on and four company-scoped policies each, every predicate
+`is_company_member(company_id)`; `authenticated` and `service_role` are
+granted and **`anon` is not**; the `project-documents` bucket is private, PDF
+only, capped at 25 MB, with four storage policies; and a column-by-column diff
+of the migration against `information_schema` was **identical, 39 of 39, zero
+differences**. Nothing unrelated moved - all sixteen pre-existing tables kept
+their exact policy counts.
+
+A write smoke test was run on the hosted database inside a throwaway project
+and then deleted, leaving all three tables empty and no storage objects. It
+proved the whole chain: upload a document, link it to a report, unlink it and
+confirm the project's copy survives, relink, finalise with a snapshot, then
+supersede the live drawing to Rev D and confirm **the issued reference still
+reads Rev C**. Cross-company isolation was checked with a genuinely different
+company's user in a rolled-back transaction: it can see no document, no link
+and no project of another company, cannot claim one under a foreign company id,
+and cannot reference an arbitrary document - the composite foreign key refuses.
+
+**Not yet exercised: the storage upload path itself.** The smoke test wrote
+rows whose `storage_path` points at a file that was never uploaded, because
+the tooling here cannot put a file in a bucket. Uploading a real PDF from the
+iPad is the one part still to confirm by hand.
+
+### The migration ledger is now partly populated - `db push` is still dangerous
+
+`supabase_migrations.schema_migrations` holds exactly one row,
+`20260829133924 documents`, because that is the only migration ever applied
+through the CLI path. The first five are absent. `supabase db push` would
+therefore try to replay all five of those and fail on the non-idempotent
+`000005`. Schema inspection remains the only source of truth. Do not run it.
+
+Dependency-free regression suites pass, including `test:lifecycle`,
+`test:documents`, `test:photo-ai`, `test:photo-captions` and
+`test:section-roles`. The SQL suites - including `03_documents_test.sql` -
+pass against a real PostgreSQL 16. Lint, typecheck and a production build pass
+in a dependency-complete environment.
 
 > `PROJECT_STATE.md` in this repo is an earlier handoff. Where the two disagree,
 > **this file wins** - it is newer. Consider deleting PROJECT_STATE.md once you
