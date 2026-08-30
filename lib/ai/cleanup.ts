@@ -6,6 +6,7 @@ import { glossaryBlock, statusDisciplineBlock } from "@/lib/ai/glossary";
 import {
   cleanupRequest,
   formatCleanedSections,
+  overLongSections,
   parseCleanupResponse,
   type CleanupDocumentKind,
   type CleanupInput,
@@ -78,6 +79,17 @@ export async function cleanupSections(
     if (Object.keys(parsed.sections).length === 0) {
       return { ok: false, error: "The cleanup pass produced no section text." };
     }
+
+    // Noted, never acted on. A section that overran the length its brief asked
+    // for is kept in full: trimming it would delete facts from a contractual
+    // record, and the fix for a prompt the model keeps overrunning is the
+    // prompt. This line is how anybody finds out that it is overrunning.
+    for (const over of overLongSections(parsed.sections)) {
+      console.warn(
+        `[siteboss] cleanup ${input.kind}/${over.type} returned ${over.sentences} sentences where the brief asks for ${over.asked}; kept in full.`,
+      );
+    }
+
     return parsed;
   } catch (cause) {
     // Logged, never surfaced: the caller carries on with the raw material, so

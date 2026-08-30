@@ -36,21 +36,22 @@ import {
   statusDisciplineBlock,
 } from "../lib/ai/glossary.ts";
 import {
-  CAPPED_SECTIONS,
   CLEANUP_MEDIA_LABEL,
   CLEANUP_SECTIONS,
   CLEANUP_SOURCE_LABEL,
   PERIOD_SUMMARY_MAX_SENTENCES,
   buildCleanupPrompt,
-  capSentences,
   cleanSectionText,
   cleanupRequest,
   cleanupSectionsFor,
   cleanupSystemPrompt,
+  LENGTH_GUIDED_SECTIONS,
   formatCleanedSections,
+  overLongSections,
   parseCleanupResponse,
   splitSentences,
 } from "../lib/ai/cleanup-prompt.ts";
+import * as cleanupModule from "../lib/ai/cleanup-prompt.ts";
 import { CLEANED_SECTIONS_LABEL, RAW_NOTES_LABEL, SYSTEM_PROMPT, buildPrompt } from "../lib/ai/prompt.ts";
 import { REPORT_SECTIONS } from "../lib/report-sections.ts";
 import {
@@ -407,25 +408,80 @@ for (const kind of KINDS) {
   check(`${kind}: no markdown and no headings`, flat.includes("no headings, no markdown"));
 }
 
-console.log("\n9. The period summary is capped at three sentences by code, not by hope");
+console.log("\n9. The period summary asks for three sentences and never loses a fact to them");
 
-check("the cap is three", PERIOD_SUMMARY_MAX_SENTENCES === 3);
-check("and it is applied to period_summary", CAPPED_SECTIONS.period_summary === 3);
+const periodBrief = CLEANUP_SECTIONS.progress.find(
+  (section) => section.type === "period_summary",
+).brief;
+
+check("three is what is asked for", PERIOD_SUMMARY_MAX_SENTENCES === 3);
+check("and it is asked of period_summary", LENGTH_GUIDED_SECTIONS.period_summary === 3);
+check("the brief says AT MOST THREE", /AT MOST THREE/.test(periodBrief), periodBrief);
 check(
-  "the brief says so too",
-  /AT MOST THREE/.test(
-    CLEANUP_SECTIONS.progress.find((section) => section.type === "period_summary").brief,
+  "and says the limit is never a licence to leave a fact out",
+  /never a licence to leave a fact out/i.test(periodBrief),
+  periodBrief,
+);
+check("and says to keep the fact if it will not fit", /keep the fact/i.test(periodBrief), periodBrief);
+
+// The rule that replaced the cap. Fact preservation outranks brevity, and the
+// model is told so in the words that decide what it does when the two collide.
+for (const kind of KINDS) {
+  const flat = flatFor(kind);
+  check(`${kind}: a length limit is never permission to leave something out`, flat.includes("never permission to leave"));
+  check(`${kind}: it is told to tighten the wording first`, flat.includes("tighten the wording until the material facts fit"));
+  check(`${kind}: and to keep the fact and write the extra sentence`, flat.includes("keep the fact and"));
+  check(`${kind}: fact preservation outranks brevity`, flat.includes("fact preservation outranks brevity"));
+  check(
+    `${kind}: and it is told nothing downstream will trim it`,
+    flat.includes("nothing downstream trims you"),
+  );
+}
+
+// The whole point of the change: no code path shortens a section. A fourth
+// sentence can be the only place a fact appears, and deleting it from a
+// contractual record is worse than a summary one sentence too long.
+const FOUR = "One thing happened. Two happened. Three happened. A fourth fact, recorded nowhere else.";
+const fourParsed = parseCleanupResponse(
+  "progress",
+  JSON.stringify(
+    Object.fromEntries(
+      cleanupSectionsFor("progress").map((section) => [
+        section.type,
+        section.type === "period_summary" ? FOUR : "",
+      ]),
+    ),
   ),
 );
+check("a four-sentence period summary parses", fourParsed.ok === true);
 check(
-  "four sentences become three",
-  capSentences("One thing happened. Two happened. Three happened. Four happened.", 3) ===
-    "One thing happened. Two happened. Three happened.",
+  "and comes back whole, with the fourth fact still in it",
+  fourParsed.ok && fourParsed.sections.period_summary === FOUR,
+  fourParsed.ok ? fourParsed.sections.period_summary : "",
 );
-check("three sentences are left alone", capSentences("A. B. C.", 3) === "A. B. C.");
+check(
+  "the overrun is reported rather than fixed",
+  fourParsed.ok &&
+    overLongSections(fourParsed.sections).some(
+      (over) => over.type === "period_summary" && over.sentences === 4 && over.asked === 3,
+    ),
+);
+check(
+  "a summary within the limit is not reported at all",
+  overLongSections({ period_summary: "One. Two. Three." }).length === 0,
+);
+check(
+  "and nothing else is length-checked",
+  overLongSections({ works_completed: "One. Two. Three. Four. Five." }).length === 0,
+);
+check(
+  "no exported helper truncates text any more",
+  Object.keys(cleanupModule).every((name) => !/^cap/i.test(name)),
+  Object.keys(cleanupModule).filter((name) => /^cap/i.test(name)).join(", "),
+);
 
-// A wrong split truncates a report mid-fact, which is far worse than a missed
-// one. These are the shapes site notes actually take.
+// The splitter only ever counts. These are the shapes site notes actually
+// take, and a miscount must err towards saying nothing is wrong.
 check(
   "a quantity ending in a full stop does not end a sentence",
   splitSentences("Fitted 4no. brackets to level 2. Works continue.").length === 2,
@@ -518,13 +574,20 @@ try {
     );
 
     if (kind === "progress") {
+      // The stub deliberately answers with five sentences. Every one of them
+      // must survive the round-trip.
       const summary = parsed.sections.period_summary;
       check(
-        "progress: the five-sentence period summary was cut to three",
-        splitSentences(summary).length === 3,
+        "progress: the five-sentence period summary came back whole",
+        splitSentences(summary).length === 5,
         summary,
       );
-      check("progress: and it is the first three", summary.startsWith(CLEANUP_MARKER));
+      check("progress: the first sentence is there", summary.startsWith(CLEANUP_MARKER));
+      check("progress: and so is the fifth", summary.includes("Sentence five."), summary);
+      check(
+        "progress: the overrun is logged, not cut",
+        overLongSections(parsed.sections).some((over) => over.type === "period_summary"),
+      );
     }
 
     const formatted = formatCleanedSections(kind, parsed.sections);

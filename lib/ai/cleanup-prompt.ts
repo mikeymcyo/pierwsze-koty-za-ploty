@@ -122,7 +122,7 @@ export const CLEANUP_SECTIONS: Record<CleanupDocumentKind, readonly CleanupSecti
       type: "period_summary",
       label: "Period summary",
       brief:
-        "AT MOST THREE concise sentences overviewing the work evidenced in this period. Never a fourth sentence.",
+        "AT MOST THREE concise sentences overviewing the work evidenced in this period. Three sentences is a limit on length and never a licence to leave a fact out: tighten the wording until the material facts fit, and if one still will not fit, keep the fact.",
     },
     {
       type: "key_activities",
@@ -251,11 +251,25 @@ export function cleanupSectionsFor(kind: CleanupDocumentKind): readonly CleanupS
   return CLEANUP_SECTIONS[kind];
 }
 
-/** The owner's rule for the progress-report period summary. */
+/**
+ * The owner's rule for the progress-report period summary: three sentences.
+ *
+ * It is asked for in the system prompt and in the section brief, and it is NOT
+ * enforced by cutting anything afterwards. There used to be a cap here that
+ * dropped the fourth sentence and everything after it, on the reasoning that
+ * the summary only restates what the detail sections carry. That reasoning is
+ * wrong often enough to be dangerous: the fourth sentence can be the only place
+ * a fact appears, and silently deleting a fact from a contractual record is a
+ * worse fault than a summary one sentence too long.
+ *
+ * Fact preservation outranks brevity. Where the model returns more than three
+ * sentences the full text is kept, and lib/ai/cleanup.ts notes it in the log so
+ * a prompt that keeps overrunning can be found and fixed at the prompt.
+ */
 export const PERIOD_SUMMARY_MAX_SENTENCES = 3;
 
-/** The section that cap applies to, by type. */
-export const CAPPED_SECTIONS: Readonly<Record<string, number>> = {
+/** The sections the three-sentence rule is asked of, by type. */
+export const LENGTH_GUIDED_SECTIONS: Readonly<Record<string, number>> = {
   period_summary: PERIOD_SUMMARY_MAX_SENTENCES,
 };
 
@@ -401,6 +415,18 @@ export const CLEANUP_SYSTEM_PROMPT_TAIL = [
   "issues, no incidents, no defects, nothing outstanding, that nothing was",
   "reported, or that the works are on programme. A nil return is a claim like",
   "any other, and a silent source does not support it.",
+  "",
+  "LENGTH LIMITS NEVER COST A FACT",
+  "",
+  "Where a section asks for a maximum number of sentences - the period summary",
+  "asks for three - that is a limit on length, never permission to leave",
+  "something out. Tighten the wording until the material facts fit: combine",
+  "clauses, cut filler, drop connective phrasing that carries no fact.",
+  "",
+  "If after tightening a material fact still will not fit, KEEP THE FACT and",
+  "write the extra sentence. Nothing downstream trims you, and a summary one",
+  "sentence too long is a far smaller fault than a record with a fact missing",
+  "from it. Fact preservation outranks brevity everywhere in this document.",
   "",
   "PHOTOGRAPHS AND DRAWINGS",
   "",
@@ -558,9 +584,9 @@ const ABBREVIATION_END =
 /**
  * Splits prose into sentences conservatively.
  *
- * Conservative means: when in doubt, do not split. A missed boundary leaves a
- * summary one sentence longer than the cap; a wrong boundary truncates a report
- * mid-fact, which is far worse.
+ * Used to notice that a summary ran long, never to cut one: nothing in this
+ * module removes a sentence. Conservative means that when in doubt it does not
+ * split, so a miscount errs towards saying nothing is wrong.
  */
 export function splitSentences(text: string): string[] {
   const trimmed = text.trim();
@@ -591,18 +617,23 @@ export function splitSentences(text: string): string[] {
 }
 
 /**
- * The deterministic backstop behind "Period summary: at most three sentences".
+ * The sections that came back longer than their brief asked for.
  *
- * The instruction is in the system prompt and in the section brief; this is
- * what makes the rule hold when the model ignores both. It only ever removes
- * whole sentences from the end of an overview section, and the period summary
- * restates what the detail sections carry in full, so nothing is lost from the
- * report by it.
+ * Reports, and changes nothing. It exists so an overrun is visible in the log
+ * rather than fixed by deleting somebody's facts - the fix for a summary that
+ * runs long is a better prompt, not a shorter record.
  */
-export function capSentences(text: string, max: number): string {
-  const sentences = splitSentences(text);
-  if (sentences.length <= max) return text.trim();
-  return sentences.slice(0, max).join(" ");
+export function overLongSections(sections: CleanupSections): {
+  type: string;
+  sentences: number;
+  asked: number;
+}[] {
+  return Object.entries(sections).flatMap(([type, text]) => {
+    const asked = LENGTH_GUIDED_SECTIONS[type];
+    if (asked === undefined) return [];
+    const sentences = splitSentences(text).length;
+    return sentences > asked ? [{ type, sentences, asked }] : [];
+  });
 }
 
 /**
@@ -674,9 +705,10 @@ export function parseCleanupResponse(
       return { ok: false, error: `The cleanup pass returned a non-string ${definition.type}.` };
     }
 
-    let value = cleanSectionText(raw, definition.label);
-    const cap = CAPPED_SECTIONS[definition.type];
-    if (cap !== undefined) value = capSentences(value, cap);
+    // Packaging is stripped; text never is. A section that came back longer
+    // than its brief asked for is returned in full - see
+    // PERIOD_SUMMARY_MAX_SENTENCES.
+    const value = cleanSectionText(raw, definition.label);
     if (value) sections[definition.type] = value;
   }
 

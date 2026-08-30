@@ -76,9 +76,14 @@ Points that are load-bearing:
   glossaries were explicitly not built. If they ever are, `STATUS_ESCALATIONS`
   and `NOT_UNLESS_SOURCED` must stay out of what can be configured - a company
   that can rename "observed" to "confirmed" defeats the layer.
-- **Period summary is capped at three sentences in code** (`capSentences`), not
-  only asked for in the prompt. The splitter is deliberately conservative: it
-  misses a boundary rather than cutting "4no." or "approx." in half.
+- **Period summary asks for three sentences and nothing enforces that by
+  cutting.** An earlier version capped it in code and dropped the fourth
+  sentence; that is gone. The fourth sentence can be the only place a fact
+  appears, and deleting a fact from a contractual record is a worse fault than a
+  summary one sentence too long. **Fact preservation outranks brevity**, and the
+  model is told so in those words. An overrun is logged by
+  `overLongSections` and left in full - if it keeps happening, fix the prompt,
+  never the output.
 - **Photograph vs drawing comes only from metadata** (`lib/ai/cleanup-context.ts`).
   A row in `photos` is a photograph; a document is a drawing only where its
   recorded `doc_type` is `drawing`, and any other document is named by its own
@@ -94,10 +99,10 @@ a `COMPLETION REPORT`, because the document line was a two-way ternary. It now
 reads `SUMMARY_KIND_LABELS`, so a survey is announced as a Site Survey - the one
 thing a survey must never be told it is.
 
-Tests: `npm run test:cleanup` - 354 checks, no key, no database, no dev server:
-the prompt contract for all four kinds, the three-sentence cap, the packaging
-stripper, and a real HTTP round-trip to the stub through the same request
-builder and parser the app calls. `npm run test:ai` additionally proves both
+Tests: `npm run test:cleanup` - no key, no database, no dev server: the prompt
+contract for all four kinds, proof that a four- or five-sentence period summary
+comes back whole, the packaging stripper, and a real HTTP round-trip to the stub
+through the same request builder and parser the app calls. `npm run test:ai` additionally proves both
 passes run in order against a live app; it needs Supabase and a dev server and
 has **not** been run in this sandbox.
 
