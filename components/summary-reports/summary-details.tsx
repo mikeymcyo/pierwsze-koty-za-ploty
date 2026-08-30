@@ -26,7 +26,7 @@ export function SummaryDetails({
   const errors = state.fieldErrors ?? {};
   return (
     <form action={action} className="flex flex-col gap-5 rounded-2xl border border-line bg-surface p-5">
-      <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">Report details</h2>
+      <h3 className="text-sm font-bold tracking-wide text-ink-muted uppercase">Report details</h3>
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
       {state.saved ? <Alert tone="success">Details saved.</Alert> : null}
       <Field label="Document title" htmlFor="title" optional error={errors.title}>

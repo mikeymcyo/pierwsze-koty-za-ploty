@@ -23,6 +23,7 @@ import {
 } from "@/lib/documents/metadata";
 import { fitBox, imageSize, photoBoxHeight, photoBoxSize } from "@/lib/pdf/image-size";
 import { photoEvidence, type PhotoEvidenceItem } from "@/lib/pdf/photo-evidence";
+import { runInLabel, type ReportGroup } from "@/lib/report-structure";
 import type { PdfStyles } from "@/lib/pdf/theme";
 
 /**
@@ -290,6 +291,45 @@ export function SectionHeading({
       <Text style={s.sectionTitle}>{children}</Text>
       {note ? <Text style={s.sectionNote}>{note}</Text> : null}
     </View>
+  );
+}
+
+export type GroupedSection = { type: string; label: string; content: string };
+
+/**
+ * The written sections inside one of a report's three groups.
+ *
+ * Each stored section is a paragraph opening with its own name in bold - "Works
+ * completed." - rather than a heading block of its own. That is what lets a
+ * document show three headings without losing the distinction between work
+ * recorded as completed and work recorded as planned, which is the distinction
+ * a dispute turns on. See lib/report-structure.ts.
+ *
+ * The label is a nested Text so it sits inside the same paragraph flow: a
+ * separate element would break the line and give back the heading this is
+ * replacing.
+ */
+export function GroupedProse({
+  s,
+  group,
+  entries,
+}: {
+  s: PdfStyles;
+  group: ReportGroup;
+  entries: readonly GroupedSection[];
+}) {
+  return (
+    <>
+      {entries.map((entry) => {
+        const label = runInLabel(group, entry.label, entries.length);
+        return (
+          <Text key={entry.type} style={s.paragraph}>
+            {label ? <Text style={s.runIn}>{`${label} `}</Text> : null}
+            {entry.content}
+          </Text>
+        );
+      })}
+    </>
   );
 }
 

@@ -22,6 +22,7 @@
     "test:dictation": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/dictation-smoke.mjs",
     "test:regeneration": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/regeneration-smoke.mjs",
     "test:cleanup": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/cleanup-smoke.mjs",
+    "test:report-structure": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/report-structure-smoke.mjs",
     "test:issue-closing": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/issue-closing-smoke.mjs",
     "test:pdf-template": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/pdf-template-smoke.mjs",
     "test:stores": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/store-locator-smoke.mjs",

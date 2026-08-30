@@ -51,3 +51,21 @@ export function nodesOf(element, out = []) {
   out.push(element);
   return nodesOf(props?.children, out);
 }
+
+/**
+ * The section headings a document prints, in order.
+ *
+ * Found by the one prop only SectionHeading sets - it reserves room below
+ * itself so a heading is never stranded at the foot of a page - rather than by
+ * matching style objects, which are rebuilt per theme and per render.
+ *
+ * Counting headings is how "three visible sections" is actually checked: a
+ * document can mention "Works completed" in a run-in label and still be right,
+ * but it must not give it a heading of its own.
+ */
+export function sectionHeadings(element) {
+  return nodesOf(element)
+    .filter((node) => node?.props?.minPresenceAhead !== undefined)
+    .map((node) => textOf(node)[0])
+    .filter(Boolean);
+}

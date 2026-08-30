@@ -10,6 +10,7 @@ import {
   CoverPhoto,
   DocumentRegister,
   DocumentTitle,
+  GroupedProse,
   IssueRecord,
   PhotoGrid,
   RunningFooter,
@@ -24,6 +25,7 @@ import { photoReference } from "@/lib/pdf/photo-evidence";
 import { pickCoverPhoto, type PdfStyle } from "@/lib/pdf/presentation";
 import { storeLine } from "@/lib/reports/site-identity";
 import { createPdfStyles, pdfTheme } from "@/lib/pdf/theme";
+import { APPENDIX_LABEL, appendixNote, groupSections } from "@/lib/report-structure";
 import {
   SUMMARY_DOCUMENT_TITLES,
   isSurvey,
@@ -111,6 +113,8 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
   const s = createPdfStyles(theme);
   const c = theme.colors;
   const cover = pickCoverPhoto(data.photos, data.coverPhotoId);
+  const groups = groupSections(data.kind, data.sections);
+  const hasAppendix = data.supportingDocuments.length > 0 || data.sourceLabels.length > 0;
 
   const completion = data.kind === "completion";
   const survey = isSurvey(data.kind);
@@ -170,84 +174,108 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
           ]}
         />
 
+        {/* Three sections, and no more - the same structure the Daily Report
+            and the survey use, so a client recognises all four as one
+            contractor's paperwork. Every stored section is still printed, as a
+            paragraph under the group it belongs to and opening with its own
+            name. See lib/report-structure.ts. */}
         {/* Fragments, not Views. react-pdf only honours minPresenceAhead on
             a direct child of the Page, so a section wrapped in its own View
             has headings that cannot reserve room and get stranded at the foot
             of a page with their content overleaf. */}
-        {data.sections.map((section) => (
-          <Fragment key={section.type}>
-            <SectionHeading s={s}>{section.label}</SectionHeading>
-            <Text style={s.paragraph}>{section.content}</Text>
-          </Fragment>
-        ))}
+        {groups.map(({ group, entries }) => {
+          const photos = group.key === "evidence" ? data.photos : [];
+          const issues = group.key === "outstanding" ? data.issues : [];
+          if (entries.length === 0 && photos.length === 0 && issues.length === 0) return null;
 
-        {data.issues.length > 0 ? (
-          <>
-            {/* The heading reserves room for the record that follows it. A
-                heading left alone at the foot of a page, with its first issue
-                overleaf, is exactly the fault this batch set out to remove. */}
-            <SectionHeading s={s} reserve={issueReserve(data.issues[0])}>
-              Issues
-            </SectionHeading>
-            {data.issues.map((issue) => (
-              <IssueRecord
-                key={issue.id}
+          const reserve =
+            entries.length > 0
+              ? 48
+              : photos.length > 0
+                ? plateReserve(photos[0].data, theme.plate)
+                : issues.length > 0
+                  ? issueReserve(issues[0])
+                  : 48;
+
+          return (
+            <Fragment key={group.key}>
+              <SectionHeading
                 s={s}
-                issue={issue}
-                colour={priorityColour(issue.priority, c.charcoal)}
-                inverse={c.inverse}
-              />
-            ))}
-          </>
-        ) : null}
+                reserve={reserve}
+                note={photos.length > 0 ? plateRange(photos.length) : undefined}
+              >
+                {group.label}
+              </SectionHeading>
 
-        {data.supportingDocuments.length > 0 ? (
-          <>
-            <SectionHeading s={s} reserve={62}>
-              Supporting documents
-            </SectionHeading>
-            <DocumentRegister
-              s={s}
-              rows={data.supportingDocuments}
-              appended={data.documentsAppended}
-            />
-          </>
-        ) : null}
+              <GroupedProse s={s} group={group} entries={entries} />
 
-        {data.photos.length > 0 ? (
-          // No page break - see report-document.tsx. It stranded short issue
-          // records at the top of an otherwise empty page.
+              {issues.map((issue) => (
+                <IssueRecord
+                  key={issue.id}
+                  s={s}
+                  issue={issue}
+                  colour={priorityColour(issue.priority, c.charcoal)}
+                  inverse={c.inverse}
+                />
+              ))}
+
+              {photos.length > 0 ? (
+                // No page break - see report-document.tsx. It stranded short
+                // issue records at the top of an otherwise empty page.
+                <PhotoGrid
+                  s={s}
+                  bounds={theme.plate}
+                  photos={photos.map((photo) => ({
+                    id: photo.id,
+                    label: photoPrintLabel(photo),
+                    data: photo.data,
+                  }))}
+                />
+              ) : null}
+            </Fragment>
+          );
+        })}
+
+        {/* The record behind the document: what it was issued against, and
+            what it consolidates. Out of the reader's way, and still complete -
+            a client can trace every statement back from here. */}
+        {hasAppendix ? (
           <>
             <SectionHeading
               s={s}
-              reserve={plateReserve(data.photos[0].data, theme.plate)}
-              note={plateRange(data.photos.length)}
+              reserve={70}
+              note={appendixNote({
+                documents: data.supportingDocuments.length > 0,
+                sources: data.sourceLabels.length > 0,
+              })}
             >
-              Photographic evidence
+              {APPENDIX_LABEL}
             </SectionHeading>
-            <PhotoGrid
-              s={s}
-              bounds={theme.plate}
-              photos={data.photos.map((photo) => ({
-                id: photo.id,
-                label: photoPrintLabel(photo),
-                data: photo.data,
-              }))}
-            />
-          </>
-        ) : null}
 
-        {/* A survey has no source record: it is written from a visit, not
-            consolidated from issued reports. Printing an empty heading would
-            imply evidence that does not exist. */}
-        {data.sourceLabels.length > 0 ? (
-          <>
-            <SectionHeading s={s}>Source record</SectionHeading>
-            {data.sourceLabels.map((source) => (
-              <Text key={source} style={s.sourceLine}>
-                {source}
-              </Text>
-            ))}
+            {data.supportingDocuments.length > 0 ? (
+              <>
+                <Text style={s.recordLabel}>Supporting documents</Text>
+                <DocumentRegister
+                  s={s}
+                  rows={data.supportingDocuments}
+                  appended={data.documentsAppended}
+                />
+              </>
+            ) : null}
+
+            {/* A survey has no source record: it is written from a visit, not
+                consolidated from issued reports. Printing an empty label would
+                imply evidence that does not exist. */}
+            {data.sourceLabels.length > 0 ? (
+              <>
+                <Text style={s.recordLabel}>Source record</Text>
+                {data.sourceLabels.map((source) => (
+                  <Text key={source} style={s.sourceLine}>
+                    {source}
+                  </Text>
+                ))}
+              </>
+            ) : null}
           </>
         ) : null}
 

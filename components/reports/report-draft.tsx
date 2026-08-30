@@ -82,20 +82,27 @@ function SectionEditor({
 }
 
 /**
- * The generated report, shown beside the words it was written from.
+ * The button that writes the report, and the words it was written from.
+ *
+ * One press drafts every section of the report, so this is one control rather
+ * than one per section - but the sections it produces are now shown under the
+ * three headings the report actually has, which is why the editors below live
+ * in `ReportSectionEditors` and are placed by the page rather than all stacked
+ * here. See lib/report-structure.ts.
  *
  * The raw notes panel is not decoration: the user has to be able to check what
  * the model wrote against what they actually said, on the same screen, before
  * anything goes to a client. It is never overwritten by generation.
  */
-export function ReportDraft({
+export function ReportWriter({
   reportId,
-  sections,
+  hasDraft,
   rawNotes,
   configured,
 }: {
   reportId: string;
-  sections: DraftSection[];
+  /** Whether anything has been drafted yet, so the button says the right thing. */
+  hasDraft: boolean;
   rawNotes: string | null;
   configured: boolean;
 }) {
@@ -104,18 +111,7 @@ export function ReportDraft({
   const hasNotes = Boolean(rawNotes?.trim());
 
   return (
-    <section className="flex flex-col gap-4 border-t border-line pt-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
-          The written report
-        </h2>
-        <p className="text-sm text-ink-muted">
-          Drafted from your notes, the workforce and plant you recorded, and your
-          photo tags. Check every line before it goes out - you are responsible
-          for what it says.
-        </p>
-      </div>
-
+    <div className="flex flex-col gap-4">
       {!configured ? (
         // No dead buttons: if the key is missing, say so rather than offering a
         // control that would fail.
@@ -130,7 +126,7 @@ export function ReportDraft({
         </Alert>
       ) : (
         <form action={formAction}>
-          <GenerateButton hasDraft={sections.length > 0} />
+          <GenerateButton hasDraft={hasDraft} />
         </form>
       )}
 
@@ -142,18 +138,6 @@ export function ReportDraft({
         </Alert>
       ) : null}
 
-      {sections.length > 0 ? (
-        <div className="flex flex-col gap-6">
-          {sections.map((section) => (
-            <SectionEditor
-              key={`${section.id}:${section.content ?? ""}`}
-              reportId={reportId}
-              section={section}
-            />
-          ))}
-        </div>
-      ) : null}
-
       {hasNotes ? (
         <details className="rounded-xl border border-line bg-surface-muted p-4">
           <summary className="cursor-pointer text-sm font-semibold text-ink">
@@ -162,6 +146,35 @@ export function ReportDraft({
           <p className="mt-3 whitespace-pre-wrap text-sm text-ink-muted">{rawNotes}</p>
         </details>
       ) : null}
-    </section>
+    </div>
+  );
+}
+
+/**
+ * The editable sections belonging to one of the report's three groups.
+ *
+ * Each is still its own row in report_sections and its own form: the grouping
+ * is presentation, and an edit still saves one section and flips only that one
+ * to "Edited by you".
+ */
+export function ReportSectionEditors({
+  reportId,
+  sections,
+}: {
+  reportId: string;
+  sections: DraftSection[];
+}) {
+  if (sections.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-6">
+      {sections.map((section) => (
+        <SectionEditor
+          key={`${section.id}:${section.content ?? ""}`}
+          reportId={reportId}
+          section={section}
+        />
+      ))}
+    </div>
   );
 }

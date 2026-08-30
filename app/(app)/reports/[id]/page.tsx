@@ -16,7 +16,8 @@ import { DeleteReport } from "@/components/reports/report-lifecycle";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
 import { ReportCaptureForm } from "@/components/reports/report-capture-form";
-import { ReportDraft } from "@/components/reports/report-draft";
+import { ReadOnlySection, ReportSectionCard } from "@/components/reports/report-section-card";
+import { ReportSectionEditors, ReportWriter } from "@/components/reports/report-draft";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -32,7 +33,45 @@ import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
+import { REPORT_SECTION_LABELS } from "@/lib/report-sections";
+import { groupSections, reportStructure, runInLabel, type ReportGroup } from "@/lib/report-structure";
 import { formatDate, formatReportNumber } from "@/lib/utils";
+import type { ReportSectionType } from "@/types/database";
+
+/**
+ * A group's written sections on an issued report.
+ *
+ * An issued daily report used to show no prose at all on screen - only the PDF
+ * carried it - so somebody checking what went out had to open the document.
+ * Now the screen shows the same three sections the PDF prints, with the same
+ * run-in labels. See lib/report-structure.ts.
+ */
+function SectionProse({
+  entry,
+}: {
+  entry:
+    | { group: ReportGroup; entries: { id: string; section_type: string; content: string | null }[] }
+    | undefined;
+}) {
+  const written = (entry?.entries ?? []).filter((section) => section.content?.trim());
+  if (!entry || written.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {written.map((section) => (
+        <ReadOnlySection
+          key={section.id}
+          label={runInLabel(
+            entry.group,
+            REPORT_SECTION_LABELS[section.section_type as ReportSectionType],
+            written.length,
+          )}
+          content={(section.content ?? "").trim()}
+        />
+      ))}
+    </div>
+  );
+}
 
 export const metadata: Metadata = { title: "Report" };
 
@@ -169,6 +208,16 @@ export default async function ReportCapturePage({
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const projectHref = project ? `/projects/${project.id}` : "/reports";
 
+  // The three sections this report shows, on screen and in the PDF alike. The
+  // eight stored sections are unchanged underneath - see lib/report-structure.ts.
+  const [summaryGroup, evidenceGroup, outstandingGroup] = reportStructure("daily");
+  const grouped = groupSections(
+    "daily",
+    (sectionsResult.data ?? []).map((section) => ({ ...section, type: section.section_type })),
+  );
+  const groupFor = (key: string) => grouped.find((entry) => entry.group.key === key);
+  const sectionsIn = (key: string) => groupFor(key)?.entries ?? [];
+
   const save = saveReport.bind(null, id) as (
     state: ReportFormState,
     formData: FormData,
@@ -211,30 +260,110 @@ export default async function ReportCapturePage({
 
       {loadError ? (
         <LoadError what="this report's workforce and plant" code={loadError.code} />
-      ) : isFinal ? null : (
-        <ReportCaptureForm
-          action={save}
-          report={report}
-          workforce={workforceResult.data ?? []}
-          plant={plantResult.data ?? []}
-          cancelHref={projectHref}
-          saved={saved === "1"}
-        />
+      ) : null}
+
+      {/* One. What the day amounted to: the notes, the button that writes it
+          up, and the sections that come back. The date, weather, workforce and
+          plant live behind "Advanced details" inside the form - they are a
+          record that carries over from yesterday, not what somebody came here
+          to do. */}
+      {loadError ? null : (
+        <ReportSectionCard group={summaryGroup}>
+          {isFinal ? null : (
+            <ReportCaptureForm
+              action={save}
+              report={report}
+              workforce={workforceResult.data ?? []}
+              plant={plantResult.data ?? []}
+              cancelHref={projectHref}
+              saved={saved === "1"}
+            />
+          )}
+
+          {isFinal ? null : (
+            <ReportWriter
+              reportId={report.id}
+              hasDraft={(sectionsResult.data ?? []).length > 0}
+              rawNotes={report.raw_notes}
+              configured={hasAiConfig()}
+            />
+          )}
+
+          {isFinal ? (
+            <SectionProse entry={groupFor("summary")} />
+          ) : (
+            <ReportSectionEditors reportId={report.id} sections={sectionsIn("summary")} />
+          )}
+        </ReportSectionCard>
       )}
 
+      {/* Two. What it looked like, and what it is read alongside. The document
+          register is real work but it is weekly work, so it waits behind the
+          disclosure while the camera does not. */}
       {loadError ? null : (
-        <section className="flex flex-col gap-4 border-t border-line pt-6">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
-              Photos
-            </h2>
-            <p className="text-sm text-ink-muted">
-              {isFinal
-                ? "The photographs as they were issued with this report."
-                : "Shoot straight from the site. They are resized on your phone before upload, so this works on a bad signal."}
-            </p>
-          </div>
-
+        <ReportSectionCard
+          group={evidenceGroup}
+          advancedLabel="Supporting documents"
+          advancedHint={
+            isFinal
+              ? "The drawings, RAMS and other documents this report was issued against."
+              : "Drawings, RAMS, permits and anything else this report should be read alongside. They are listed in the PDF."
+          }
+          advanced={
+            isFinal ? (
+              referencedDocuments.length === 0 ? (
+                <p className="text-sm text-ink-muted">No documents were referenced.</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {referencedDocuments.map((document) => (
+                    <li
+                      key={document.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line p-3"
+                    >
+                      <span className="min-w-0">
+                        <span className="font-medium text-ink">{document.title}</span>
+                        <span className="mt-1 block text-xs text-ink-muted">
+                          {[
+                            documentTypeLabel(document.docType),
+                            document.reference ? `Ref ${document.reference}` : null,
+                            document.revision ? `Rev ${document.revision}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      </span>
+                      {document.url ? (
+                        <Button asChild variant="secondary">
+                          <a href={document.url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink aria-hidden />
+                            Open document
+                          </a>
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-ink-subtle">
+                          No longer stored on the project.
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : (
+              <>
+                <DocumentUpload
+                  companyId={session.companyId}
+                  projectId={report.project_id}
+                  reportId={report.id}
+                  label="Upload and attach a PDF"
+                />
+                <DocumentPicker
+                  action={saveReportDocuments.bind(null, report.id)}
+                  documents={pickableDocuments}
+                />
+              </>
+            )
+          }
+        >
           {isFinal ? null : (
             <PhotoUpload
               companyId={session.companyId}
@@ -243,93 +372,23 @@ export default async function ReportCapturePage({
             />
           )}
 
-          {photos.length > 0 ? <PhotoGrid photos={photos} deletable={!isFinal} aiConfigured={hasAiConfig()} /> : null}
-        </section>
+          {photos.length > 0 ? (
+            <PhotoGrid photos={photos} deletable={!isFinal} aiConfigured={hasAiConfig()} />
+          ) : null}
+        </ReportSectionCard>
       )}
 
+      {/* Three. What is wrong and what happens next. Issues outlive the report
+          they were raised in, so a finalised report still lists them - but it
+          takes no new ones. */}
       {loadError ? null : (
-        <section className="flex flex-col gap-4 border-t border-line pt-6">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
-              Supporting documents
-            </h2>
-            <p className="text-sm text-ink-muted">
-              {isFinal
-                ? "The drawings, RAMS and other documents this report was issued against."
-                : "Drawings, RAMS, permits and anything else this report should be read alongside. They are listed in the PDF."}
-            </p>
-          </div>
-
+        <ReportSectionCard group={outstandingGroup}>
           {isFinal ? (
-            referencedDocuments.length === 0 ? (
-              <p className="text-sm text-ink-muted">No documents were referenced.</p>
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {referencedDocuments.map((document) => (
-                  <li
-                    key={document.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line p-3"
-                  >
-                    <span className="min-w-0">
-                      <span className="font-medium text-ink">{document.title}</span>
-                      <span className="mt-1 block text-xs text-ink-muted">
-                        {[
-                          documentTypeLabel(document.docType),
-                          document.reference ? `Ref ${document.reference}` : null,
-                          document.revision ? `Rev ${document.revision}` : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                    </span>
-                    {document.url ? (
-                      <Button asChild variant="secondary">
-                        <a href={document.url} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink aria-hidden />
-                          Open document
-                        </a>
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-ink-subtle">
-                        No longer stored on the project.
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )
+            <SectionProse entry={groupFor("outstanding")} />
           ) : (
-            <>
-              <DocumentUpload
-                companyId={session.companyId}
-                projectId={report.project_id}
-                reportId={report.id}
-                label="Upload and attach a PDF"
-              />
-              <DocumentPicker
-                action={saveReportDocuments.bind(null, report.id)}
-                documents={pickableDocuments}
-              />
-            </>
+            <ReportSectionEditors reportId={report.id} sections={sectionsIn("outstanding")} />
           )}
-        </section>
-      )}
 
-      {loadError ? null : (
-        <section className="flex flex-col gap-4 border-t border-line pt-6">
-          <div className="flex flex-col gap-1">
-            <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
-              Issues
-            </h2>
-            <p className="text-sm text-ink-muted">
-              {isFinal
-                ? "Raised on this report. They stay open on the project until they are dealt with."
-                : "Raise it while you are stood in front of it. It stays on the project after this report is filed."}
-            </p>
-          </div>
-
-          {/* Issues outlive the report they were raised in, so a finalised
-              report still lists them - but it takes no new ones. */}
           {isFinal ? null : (
             <RaiseIssue
               projectId={project?.id ?? report.project_id}
@@ -341,16 +400,7 @@ export default async function ReportCapturePage({
           {issuesResult.data && issuesResult.data.length > 0 ? (
             <IssueList issues={issuesResult.data} />
           ) : null}
-        </section>
-      )}
-
-      {loadError || isFinal ? null : (
-        <ReportDraft
-          reportId={report.id}
-          sections={sectionsResult.data ?? []}
-          rawNotes={report.raw_notes}
-          configured={hasAiConfig()}
-        />
+        </ReportSectionCard>
       )}
 
       {loadError || isFinal ? null : (

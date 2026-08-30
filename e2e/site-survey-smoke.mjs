@@ -314,7 +314,10 @@ check(
   // collected them.
   "the survey page shows the workspace and hides the picker",
   /const direct = survey \|\| standalone/.test(read("../app/(app)/summary-reports/[id]/page.tsx")) &&
-    /showPhotos=\{!direct\}/.test(read("../app/(app)/summary-reports/[id]/page.tsx")) &&
+    // The curation form a survey gets carries issues alone. Asserted by what
+    // it is passed rather than by one expression, because the form now sits in
+    // whichever of the report's three sections its contents belong to.
+    /<SummaryCuration[^>]*showPhotos=\{false\}/.test(read("../app/(app)/summary-reports/[id]/page.tsx")) &&
     /<ReportPhotos/.test(read("../app/(app)/summary-reports/[id]/page.tsx")),
 );
 

@@ -11,6 +11,7 @@ import {
   DataTable,
   DocumentRegister,
   DocumentTitle,
+  GroupedProse,
   IssueRecord,
   PhotoGrid,
   RunningFooter,
@@ -25,6 +26,7 @@ import { photoReference } from "@/lib/pdf/photo-evidence";
 import { pickCoverPhoto, type PdfStyle } from "@/lib/pdf/presentation";
 import { storeLine } from "@/lib/reports/site-identity";
 import { createPdfStyles, pdfTheme } from "@/lib/pdf/theme";
+import { APPENDIX_LABEL, appendixNote, groupSections } from "@/lib/report-structure";
 
 /**
  * The client-ready daily report.
@@ -119,6 +121,13 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
   const documentType = "Site Progress Report";
   const documentLabel = `${documentType} No. ${data.reportNumber}`;
   const cover = pickCoverPhoto(data.photos, data.coverPhotoId);
+  const groups = groupSections("daily", data.sections);
+
+  // Workforce and plant always print, even as "None recorded" - on a daily
+  // report their absence is itself a fact about the day. The appendix appears
+  // whenever there is anything at all to put in it.
+  const hasAppendix =
+    data.workforce.length > 0 || data.plant.length > 0 || data.supportingDocuments.length > 0;
 
   return (
     <Document
@@ -166,114 +175,140 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
           ]}
         />
 
-        {/* The written report. Sections arrive in REPORT_SECTION_ORDER and any
-            the notes did not support were never generated, so nothing here is
-            padded to fill a heading. */}
+        {/* Three sections, and no more. What a client wants from a daily
+            report is what happened, what it looked like, and what is still
+            open - not thirteen headings. The stored sections are all still
+            here: each is a paragraph under the group it belongs to, opening
+            with its own name so the difference between completed and planned
+            work stays on the page. See lib/report-structure.ts. */}
         {/* Fragments, not Views. react-pdf only honours minPresenceAhead on
             a direct child of the Page, so a section wrapped in its own View
             has headings that cannot reserve room and get stranded at the foot
             of a page with their content overleaf. */}
-        {data.sections.map((section) => (
-          <Fragment key={section.type}>
-            <SectionHeading s={s}>{section.label}</SectionHeading>
-            <Text style={s.paragraph}>{section.content}</Text>
-          </Fragment>
-        ))}
+        {groups.map(({ group, entries }) => {
+          const photos = group.key === "evidence" ? data.photos : [];
+          const issues = group.key === "outstanding" ? data.issues : [];
+          // A heading with nothing under it reads as an omission rather than
+          // as an honest silence, so a group with no prose, no plates and no
+          // issues is not printed at all.
+          if (entries.length === 0 && photos.length === 0 && issues.length === 0) return null;
 
-        <>
-          <SectionHeading s={s}>Workforce on site</SectionHeading>
-          {data.workforce.length === 0 ? (
-            <Text style={s.empty}>None recorded.</Text>
-          ) : (
-            <DataTable
-              s={s}
-              columns={[
-                { key: "company", label: "Company", width: "50%" },
-                { key: "trade", label: "Trade", width: "32%" },
-                { key: "operatives", label: "Operatives", width: "18%", numeric: true },
-              ]}
-              rows={data.workforce.map((row, index) => ({
-                key: `${row.company_name}-${index}`,
-                cells: [row.company_name, row.trade ?? "-", row.operatives],
-              }))}
-            />
-          )}
-        </>
+          // The heading reserves room for whatever follows it. A heading left
+          // alone at the foot of a page, with its first plate or issue
+          // overleaf, is exactly the fault the layout works to avoid.
+          const reserve =
+            entries.length > 0
+              ? 48
+              : photos.length > 0
+                ? plateReserve(photos[0].data, theme.plate)
+                : issues.length > 0
+                  ? issueReserve(issues[0])
+                  : 48;
 
-        <>
-          <SectionHeading s={s}>Plant and equipment</SectionHeading>
-          {data.plant.length === 0 ? (
-            <Text style={s.empty}>None recorded.</Text>
-          ) : (
-            <DataTable
-              s={s}
-              columns={[
-                { key: "description", label: "Description", width: "82%" },
-                { key: "quantity", label: "Quantity", width: "18%", numeric: true },
-              ]}
-              rows={data.plant.map((row, index) => ({
-                key: `${row.description}-${index}`,
-                cells: [row.description, row.quantity],
-              }))}
-            />
-          )}
-        </>
-
-        {data.issues.length > 0 ? (
-          <>
-            {/* The heading reserves room for the record that follows it. A
-                heading left alone at the foot of a page, with its first issue
-                overleaf, is exactly the fault this batch set out to remove. */}
-            <SectionHeading s={s} reserve={issueReserve(data.issues[0])}>
-              Issues
-            </SectionHeading>
-            {data.issues.map((issue) => (
-              <IssueRecord
-                key={issue.id}
+          return (
+            <Fragment key={group.key}>
+              <SectionHeading
                 s={s}
-                issue={issue}
-                colour={priorityColour(issue.priority, c.charcoal)}
-                inverse={c.inverse}
-              />
-            ))}
-          </>
-        ) : null}
+                reserve={reserve}
+                note={photos.length > 0 ? plateRange(photos.length) : undefined}
+              >
+                {group.label}
+              </SectionHeading>
 
-        {data.supportingDocuments.length > 0 ? (
-          <>
-            <SectionHeading s={s} reserve={62}>
-              Supporting documents
-            </SectionHeading>
-            <DocumentRegister
-              s={s}
-              rows={data.supportingDocuments}
-              appended={data.documentsAppended}
-            />
-          </>
-        ) : null}
+              <GroupedProse s={s} group={group} entries={entries} />
 
-        {data.photos.length > 0 ? (
-          // No page break. Forcing one here ended whatever preceded it - often
-          // a single short issue - halfway up a page and left the rest blank.
-          // The grid flows, and each plate still holds its image and caption
-          // together.
+              {issues.map((issue) => (
+                <IssueRecord
+                  key={issue.id}
+                  s={s}
+                  issue={issue}
+                  colour={priorityColour(issue.priority, c.charcoal)}
+                  inverse={c.inverse}
+                />
+              ))}
+
+              {photos.length > 0 ? (
+                // No page break. Forcing one here ended whatever preceded it -
+                // often a single short issue - halfway up a page and left the
+                // rest blank. The grid flows, and each plate still holds its
+                // image and caption together.
+                <PhotoGrid
+                  s={s}
+                  bounds={theme.plate}
+                  photos={photos.map((photo) => ({
+                    id: photo.id,
+                    label: photoPrintLabel(photo),
+                    data: photo.data,
+                  }))}
+                />
+              ) : null}
+            </Fragment>
+          );
+        })}
+
+        {/* The recorded data, out of the way but not out of the document.
+            Who was on site, what plant was there and which documents this was
+            issued against are all still printed in full - they are simply not
+            competing with the report for a reader's attention. */}
+        {hasAppendix ? (
           <>
             <SectionHeading
               s={s}
-              reserve={plateReserve(data.photos[0].data, theme.plate)}
-              note={plateRange(data.photos.length)}
+              reserve={70}
+              note={appendixNote({
+                workforce: data.workforce.length > 0,
+                plant: data.plant.length > 0,
+                documents: data.supportingDocuments.length > 0,
+              })}
             >
-              Photographic evidence
+              {APPENDIX_LABEL}
             </SectionHeading>
-            <PhotoGrid
-              s={s}
-              bounds={theme.plate}
-              photos={data.photos.map((photo) => ({
-                id: photo.id,
-                label: photoPrintLabel(photo),
-                data: photo.data,
-              }))}
-            />
+
+            <Text style={s.recordLabel}>Workforce on site</Text>
+            {data.workforce.length === 0 ? (
+              <Text style={s.empty}>None recorded.</Text>
+            ) : (
+              <DataTable
+                s={s}
+                columns={[
+                  { key: "company", label: "Company", width: "50%" },
+                  { key: "trade", label: "Trade", width: "32%" },
+                  { key: "operatives", label: "Operatives", width: "18%", numeric: true },
+                ]}
+                rows={data.workforce.map((row, index) => ({
+                  key: `${row.company_name}-${index}`,
+                  cells: [row.company_name, row.trade ?? "-", row.operatives],
+                }))}
+              />
+            )}
+
+            <Text style={s.recordLabel}>Plant and equipment</Text>
+            {data.plant.length === 0 ? (
+              <Text style={s.empty}>None recorded.</Text>
+            ) : (
+              <DataTable
+                s={s}
+                columns={[
+                  { key: "description", label: "Description", width: "82%" },
+                  { key: "quantity", label: "Quantity", width: "18%", numeric: true },
+                ]}
+                rows={data.plant.map((row, index) => ({
+                  key: `${row.description}-${index}`,
+                  cells: [row.description, row.quantity],
+                }))}
+              />
+            )}
+
+            {data.supportingDocuments.length > 0 ? (
+              <>
+                <Text style={s.recordLabel}>Supporting documents</Text>
+                <DocumentRegister
+                  s={s}
+                  rows={data.supportingDocuments}
+                  appended={data.documentsAppended}
+                />
+              </>
+            ) : null}
           </>
         ) : null}
 

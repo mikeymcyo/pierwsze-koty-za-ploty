@@ -55,9 +55,11 @@ export function SummaryCuration({
   const save = saveSummaryCuration.bind(null, reportId);
   const [state, action] = useActionState<SummaryFormState, FormData>(save, {});
   return (
-    <form action={action} className="flex flex-col gap-6 border-t border-line pt-6">
+    <form action={action} className="flex flex-col gap-6">
       <div>
-        <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">What the client sees</h2>
+        {/* An h3: the report's three section headings are the h2s on this
+            screen now, and this control sits under one of them. */}
+        <h3 className="text-sm font-bold tracking-wide text-ink-muted uppercase">What the client sees</h3>
         <p className="mt-1 text-sm text-ink-muted">
           {showPhotos
             ? "Choose the photographs and issues included in this document."

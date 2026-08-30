@@ -296,6 +296,26 @@ export function createPdfStyles(theme: PdfTheme) {
     // prose that only inherited its size came out at two and a half times the
     // leading it asked for.
     paragraph: { fontSize: 9.5, marginBottom: 3, lineHeight: 1.4 },
+    /**
+     * The run-in label at the head of a paragraph: "Works completed."
+     *
+     * A visible structure of three sections means the stored sections no
+     * longer get a heading each. This is what keeps their status on the page -
+     * the difference between work recorded as completed and work recorded as
+     * planned is what a dispute turns on, so it is set in bold ink rather than
+     * left to the wording of the sentence that follows it.
+     */
+    runIn: { fontSize: 9.5, fontFamily: "Helvetica-Bold", color: c.ink, lineHeight: 1.4 },
+    /** Names one table inside the appendix, without spending a section heading on it. */
+    recordLabel: {
+      fontSize: 8.5,
+      fontFamily: "Helvetica-Bold",
+      letterSpacing: 0.6,
+      textTransform: "uppercase",
+      color: c.muted,
+      marginTop: 7,
+      marginBottom: 3,
+    },
     /** Prose inside a card or a cell, where the paragraph spacing is wrong. */
     text: { fontSize: 9.5, lineHeight: 1.4 },
     empty: { fontSize: 9.5, color: c.faint, fontStyle: "italic", lineHeight: 1.4 },

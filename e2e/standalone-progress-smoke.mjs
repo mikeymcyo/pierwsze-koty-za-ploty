@@ -214,7 +214,12 @@ check(
   /<ReportPhotos/.test(page) && !/PhotoUploadStandalone|StandalonePhoto/.test(page),
 );
 check("existing project photographs can still be picked", /available=\{availablePhotos\}/.test(page));
-check("issues are still curated", /<SummaryCuration/.test(page) && /showPhotos=\{!direct\}/.test(page));
+// A standalone report works its photographs in place, so its curation form is
+// the issues-only one. It sits with the issues rather than with the plates.
+check(
+  "issues are still curated",
+  /<SummaryCuration/.test(page) && /<SummaryCuration[^>]*showPhotos=\{false\}/.test(page),
+);
 check("supporting documents are untouched", /<DocumentPicker/.test(page) && /<DocumentUpload/.test(page));
 check("and it says on the screen that it has no Daily Reports", /describeProvenance\(report\.kind, 0\)/.test(page));
 

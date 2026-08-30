@@ -8,7 +8,8 @@ import { applySummaryReview, reviewSummaryReportAction } from "@/app/(app)/repor
 import { SummaryCuration, type CuratedIssueChoice, type CuratedPhotoChoice } from "@/components/summary-reports/summary-curation";
 import { ReportPhotos, type ReportPhoto } from "@/components/summary-reports/report-photos";
 import { SummaryDetails } from "@/components/summary-reports/summary-details";
-import { SummaryDraft } from "@/components/summary-reports/summary-draft";
+import { SummarySectionEditors, SummaryWriter } from "@/components/summary-reports/summary-draft";
+import { ReadOnlySection, ReportSectionCard } from "@/components/reports/report-section-card";
 import { DocumentPicker, type PickableDocument } from "@/components/documents/document-picker";
 import { MasterReviewPanel } from "@/components/reports/master-review";
 import { DocumentUpload } from "@/components/documents/document-upload";
@@ -27,6 +28,7 @@ import { requireSessionContext } from "@/lib/auth/session";
 import { issuedPdfFileName } from "@/lib/pdf/presentation";
 import { photoPrintLabelText } from "@/lib/photo-captions";
 import { signPhotoUrls } from "@/lib/photos-signing";
+import { groupSections, reportStructure, runInLabel, type ReportGroup } from "@/lib/report-structure";
 import { describeProvenance, isStandalone } from "@/lib/summary-reports/provenance";
 import {
   SUMMARY_KIND_LABELS,
@@ -37,6 +39,39 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { formatDate, formatReportNumber } from "@/lib/utils";
+import type { SummarySectionType } from "@/types/database";
+
+/**
+ * A group's written sections on an issued document.
+ *
+ * Run-in labels rather than a heading each: the same device the PDF uses, so
+ * the screen and the document a client received read alike. See
+ * lib/report-structure.ts.
+ */
+function SectionProse({
+  entry,
+}: {
+  entry: { group: ReportGroup; entries: { id: string; section_type: string; content: string | null }[] } | undefined;
+}) {
+  const written = (entry?.entries ?? []).filter((section) => section.content?.trim());
+  if (!entry || written.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {written.map((section) => (
+        <ReadOnlySection
+          key={section.id}
+          label={runInLabel(
+            entry.group,
+            SUMMARY_SECTION_LABELS[section.section_type as SummarySectionType],
+            written.length,
+          )}
+          content={(section.content ?? "").trim()}
+        />
+      ))}
+    </div>
+  );
+}
 
 export const metadata: Metadata = { title: "Consolidated report" };
 
@@ -192,6 +227,17 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
   const referencedDocuments = pickableDocuments.filter((row) => row.selected);
   const label = SUMMARY_KIND_LABELS[report.kind];
 
+  // Three sections on screen, the same three the PDF prints, with every stored
+  // section still written and still labelled - see lib/report-structure.ts.
+  const [summaryGroup, evidenceGroup, outstandingGroup] = reportStructure(report.kind);
+  const sectionRows = (sectionsResult.data ?? []).map((section) => ({
+    ...section,
+    type: section.section_type,
+  }));
+  const grouped = groupSections(report.kind, sectionRows);
+  const groupFor = (key: string) => grouped.find((entry) => entry.group.key === key);
+  const sectionsIn = (key: string) => groupFor(key)?.entries ?? [];
+
   return (
     <div className="flex flex-col gap-6">
       <Button asChild variant="ghost" size="sm" className="-ml-3 self-start">
@@ -218,136 +264,175 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
       {isFinal ? <Alert tone="info">This document has been issued and is no longer editable.</Alert> : null}
       {loadError ? <LoadError what="this report's contents" code={loadError.code} /> : null}
 
-      {!loadError && !isFinal ? (
-        <SummaryDetails reportId={id} title={report.title} />
-      ) : null}
-
-      {/* A survey has none: it is written from a visit rather than
-          consolidated from issued reports. */}
-      {/* Written directly rather than consolidated. Said plainly on the screen,
-          because the difference is the whole point: this document has no Daily
-          Reports behind it and never claims any. */}
-      {!loadError && !survey && standalone ? (
-        <p className="rounded-xl border border-line bg-surface-muted px-3 py-2 text-sm text-ink-muted">
-          {describeProvenance(report.kind, 0)}
-        </p>
-      ) : null}
-
-      {!loadError && sourceItems.length > 0 ? (
-        <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">Source evidence</h2>
-          <Card><CardContent>
-            <ul className="flex flex-col gap-2 text-sm text-ink-muted">
-              {sourceItems.map((source, index) => (
-                <li key={`${source.href}-${index}`}>
-                  <Link href={source.href} className="font-medium text-ink underline underline-offset-4">
-                    {source.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </CardContent></Card>
-        </section>
-      ) : null}
-
-      {/* Taken, captioned and removed without leaving the report - for a survey,
-          and for a Progress Report written directly, where the photographs
-          arrive with the report rather than before it. A report that
-          consolidates issued Daily Reports keeps curating from what the project
-          already holds, because it is written after the fact. */}
-      {!loadError && !isFinal && direct ? (
-        <ReportPhotos
-          reportId={id}
-          companyId={session.companyId}
-          projectId={report.project_id}
-          photos={attachedPhotos}
-          available={availablePhotos}
-          aiConfigured={hasAiConfig()}
-        />
-      ) : null}
-
-      {!loadError && !isFinal ? (
-        <SummaryCuration
-          reportId={id}
-          photos={photos}
-          issues={issues}
-          showPhotos={!direct}
-        />
-      ) : null}
-
+      {/* One. What the document says overall. The title, the provenance and the
+          list of reports behind it are the record of how this was built, so
+          they sit behind "Advanced details" rather than in front of the words
+          a client will read. */}
       {!loadError ? (
-        <section className="flex flex-col gap-4">
-          <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
-            Supporting documents
-          </h2>
-          {isFinal ? (
-            referencedDocuments.length === 0 ? (
-              <p className="text-sm text-ink-muted">No documents were referenced.</p>
-            ) : (
-              <ul className="flex flex-col gap-2">
-                {referencedDocuments.map((document) => (
-                  <li
-                    key={document.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line p-3"
-                  >
-                    <span className="min-w-0">
-                      <span className="font-medium text-ink">{document.title}</span>
-                      <span className="mt-1 block text-xs text-ink-muted">
-                        {[
-                          documentTypeLabel(document.docType),
-                          document.reference ? `Ref ${document.reference}` : null,
-                          document.revision ? `Rev ${document.revision}` : null,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                    </span>
-                    {document.url ? (
-                      <Button asChild variant="secondary">
-                        <a href={document.url} target="_blank" rel="noopener noreferrer">
-                          <ExternalLink aria-hidden />
-                          Open document
-                        </a>
-                      </Button>
-                    ) : (
-                      <span className="text-xs text-ink-subtle">
-                        No longer stored on the project.
-                      </span>
-                    )}
-                  </li>
-                ))}
-              </ul>
+        <ReportSectionCard
+          group={summaryGroup}
+          advanced={
+            isFinal && sourceItems.length === 0 ? undefined : (
+              <>
+                {!isFinal ? <SummaryDetails reportId={id} title={report.title} /> : null}
+
+                {/* Written directly rather than consolidated. Said plainly,
+                    because the difference is the whole point: this document has
+                    no Daily Reports behind it and never claims any. A survey is
+                    written from a visit, so it says nothing here at all. */}
+                {!survey && standalone ? (
+                  <p className="rounded-xl border border-line bg-surface-muted px-3 py-2 text-sm text-ink-muted">
+                    {describeProvenance(report.kind, 0)}
+                  </p>
+                ) : null}
+
+                {sourceItems.length > 0 ? (
+                  <section className="flex flex-col gap-3">
+                    <h3 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+                      Source evidence
+                    </h3>
+                    <Card><CardContent>
+                      <ul className="flex flex-col gap-2 text-sm text-ink-muted">
+                        {sourceItems.map((source, index) => (
+                          <li key={`${source.href}-${index}`}>
+                            <Link href={source.href} className="font-medium text-ink underline underline-offset-4">
+                              {source.label}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    </CardContent></Card>
+                  </section>
+                ) : null}
+              </>
             )
+          }
+        >
+          {!isFinal ? (
+            <SummaryWriter
+              reportId={id}
+              sections={sectionsResult.data ?? []}
+              configured={hasAiConfig()}
+            />
+          ) : null}
+
+          {isFinal ? (
+            <SectionProse entry={groupFor("summary")} />
           ) : (
-            <>
-              <DocumentUpload
-                companyId={session.companyId}
-                projectId={report.project_id}
-                summaryReportId={id}
-                label="Upload and attach a PDF"
-              />
-              <DocumentPicker
-                action={saveSummaryReportDocuments.bind(null, id)}
-                documents={pickableDocuments}
-              />
-            </>
+            <SummarySectionEditors reportId={id} sections={sectionsIn("summary")} />
           )}
-        </section>
+        </ReportSectionCard>
       ) : null}
 
-      {!loadError && !isFinal ? (
-        <SummaryDraft reportId={id} sections={sectionsResult.data ?? []} configured={hasAiConfig()} />
+      {/* Two. The photographs, and what the document is read alongside. */}
+      {!loadError ? (
+        <ReportSectionCard
+          group={evidenceGroup}
+          advancedLabel="Supporting documents"
+          advancedHint={
+            isFinal
+              ? "The drawings, RAMS and other documents this document was issued against."
+              : "Drawings, RAMS, permits and anything else this should be read alongside. They are listed in the PDF."
+          }
+          advanced={
+            isFinal ? (
+              referencedDocuments.length === 0 ? (
+                <p className="text-sm text-ink-muted">No documents were referenced.</p>
+              ) : (
+                <ul className="flex flex-col gap-2">
+                  {referencedDocuments.map((document) => (
+                    <li
+                      key={document.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line p-3"
+                    >
+                      <span className="min-w-0">
+                        <span className="font-medium text-ink">{document.title}</span>
+                        <span className="mt-1 block text-xs text-ink-muted">
+                          {[
+                            documentTypeLabel(document.docType),
+                            document.reference ? `Ref ${document.reference}` : null,
+                            document.revision ? `Rev ${document.revision}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      </span>
+                      {document.url ? (
+                        <Button asChild variant="secondary">
+                          <a href={document.url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink aria-hidden />
+                            Open document
+                          </a>
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-ink-subtle">
+                          No longer stored on the project.
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )
+            ) : (
+              <>
+                <DocumentUpload
+                  companyId={session.companyId}
+                  projectId={report.project_id}
+                  summaryReportId={id}
+                  label="Upload and attach a PDF"
+                />
+                <DocumentPicker
+                  action={saveSummaryReportDocuments.bind(null, id)}
+                  documents={pickableDocuments}
+                />
+              </>
+            )
+          }
+        >
+          {isFinal ? (
+            <SectionProse entry={groupFor("evidence")} />
+          ) : (
+            <SummarySectionEditors reportId={id} sections={sectionsIn("evidence")} />
+          )}
+
+          {/* Taken, captioned and removed without leaving the report - for a
+              survey, and for a Progress Report written directly, where the
+              photographs arrive with the report rather than before it. A report
+              that consolidates issued Daily Reports keeps curating from what the
+              project already holds, because it is written after the fact. */}
+          {!isFinal && direct ? (
+            <ReportPhotos
+              reportId={id}
+              companyId={session.companyId}
+              projectId={report.project_id}
+              photos={attachedPhotos}
+              available={availablePhotos}
+              aiConfigured={hasAiConfig()}
+            />
+          ) : null}
+
+          {/* The curation form is one form saving one selection. Where it
+              carries photographs it belongs here; on a survey it is issues
+              alone, and it belongs with them in the section below. */}
+          {!isFinal && !direct ? (
+            <SummaryCuration reportId={id} photos={photos} issues={issues} showPhotos={true} />
+          ) : null}
+        </ReportSectionCard>
       ) : null}
 
-      {!loadError && isFinal ? (
-        <section className="flex flex-col gap-5">
-          {(sectionsResult.data ?? []).filter((section) => section.content?.trim()).map((section) => (
-            <div key={section.id}>
-              <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">{SUMMARY_SECTION_LABELS[section.section_type]}</h2>
-              <p className="mt-2 whitespace-pre-wrap text-ink">{section.content}</p>
-            </div>
-          ))}
-        </section>
+      {/* Three. What is still open, and what happens about it. */}
+      {!loadError ? (
+        <ReportSectionCard group={outstandingGroup}>
+          {isFinal ? (
+            <SectionProse entry={groupFor("outstanding")} />
+          ) : (
+            <SummarySectionEditors reportId={id} sections={sectionsIn("outstanding")} />
+          )}
+
+          {!isFinal && direct ? (
+            <SummaryCuration reportId={id} photos={photos} issues={issues} showPhotos={false} />
+          ) : null}
+        </ReportSectionCard>
       ) : null}
 
       {!loadError && !isFinal ? (

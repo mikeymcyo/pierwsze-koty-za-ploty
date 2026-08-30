@@ -27,7 +27,7 @@ import { renderToBuffer } from "@react-pdf/renderer";
 import { PDFDocument } from "pdf-lib";
 
 import { LANDSCAPE, PORTRAIT, SQUARE, png } from "./support/fixture-image.mjs";
-import { nodesOf, textJoined } from "./support/pdf-tree.mjs";
+import { nodesOf, sectionHeadings, textJoined } from "./support/pdf-tree.mjs";
 
 import { imageSize, isPortrait, photoBoxHeight, photoBoxSize } from "../lib/pdf/image-size.ts";
 import {
@@ -76,9 +76,13 @@ function daily(overrides = {}) {
     finalisedAt: "29 August 2026",
     workforce: [{ company_name: "Groundworks Ltd", trade: "Groundworks", operatives: 6 }],
     plant: [{ description: "13t tracked excavator", quantity: 1 }],
+    // Real stored section types, not invented ones: the layout groups sections
+    // by type now, so a fixture using a type the app never stores would land
+    // in the fallback group and prove nothing about the real document.
     sections: [
-      { type: "work_completed", label: "Works completed", content: "Ducting laid to the east elevation." },
-      { type: "delays", label: "Delays", content: "None." },
+      { type: "executive_summary", label: "Summary", content: "A steady day on the east elevation." },
+      { type: "works_completed", label: "Works completed", content: "Ducting laid to the east elevation." },
+      { type: "issues_constraints", label: "Issues and constraints", content: "Access restricted after 3pm." },
     ],
     issues: [],
     photos: [],
@@ -103,10 +107,18 @@ function summary(kind, overrides = {}) {
     periodLabel: "1 to 28 August 2026",
     issuedAt: "29 August 2026",
     issuedBy: "M. Korzeniak",
-    sections: [
-      { type: "summary", label: "Summary", content: "The works remain on programme." },
-      { type: "progress", label: "Progress", content: "Ducting complete to the east elevation." },
-    ],
+    sections:
+      kind === "completion"
+        ? [
+            { type: "project_overview", label: "Project overview", content: "The works remain on programme." },
+            { type: "completed_works", label: "Completed works", content: "Ducting complete to the east elevation." },
+            { type: "sign_off", label: "Sign-off", content: "No acceptance is recorded." },
+          ]
+        : [
+            { type: "period_summary", label: "Period summary", content: "The works remain on programme." },
+            { type: "key_activities", label: "Key activities", content: "Ducting complete to the east elevation." },
+            { type: "next_period", label: "Next period", content: "Second fix is programmed to begin." },
+          ],
     issues: [],
     photos: [],
     sourceLabels: ["Daily Report 008 · 28 August 2026"],
@@ -236,7 +248,20 @@ for (const [what, needle] of [
 ]) {
   check(`it prints ${what}`, dailyText.includes(needle), needle);
 }
-check("headings read as evidence, not as a database table", dailyText.includes("Photographic evidence"));
+// Three headings, and no more. A client wants what happened, what it looked
+// like and what is still open - the thirteen headings this used to print were
+// a database table with a cover sheet on it. Every stored section is still in
+// there, opening its own paragraph with its own name.
+for (const heading of ["Daily Summary", "Photos & Evidence", "Issues / Next Steps"]) {
+  check(`the daily report shows "${heading}"`, dailyText.includes(heading), heading);
+}
+for (const gone of ["Photographic evidence", "Works in progress", "Deliveries and plant"]) {
+  check(`"${gone}" is no longer a heading of its own`, !sectionHeadings(dailyTree).includes(gone), gone);
+}
+check(
+  "a stored section keeps its name as a run-in label",
+  dailyText.includes("Works completed."),
+);
 check("the section says which plates it holds", dailyText.includes("P01-P03"));
 check("a status that says something is printed", dailyText.includes("Before"));
 check("a status that says nothing is not", !dailyText.includes("Other"));
@@ -244,6 +269,19 @@ check("nothing is invented for a photograph with no caption", !dailyText.include
 check(
   "the register explains where the documents are",
   dailyText.includes("follow this report as appendices"),
+);
+
+// Nothing was dropped to reach three sections. The recorded data moved to an
+// appendix, which is where a reader looks for it rather than where it
+// interrupts the report.
+check("the appendix is printed", dailyText.includes("Appendix - record data"));
+check("and says what is in it on its own line", dailyText.includes("Workforce · Plant · Documents"));
+check("and it carries the workforce", dailyText.includes("Workforce on site"));
+check("and the plant", dailyText.includes("Plant and equipment"));
+check("and the document register", dailyText.includes("Supporting documents"));
+check(
+  "the appendix comes after the three sections, not among them",
+  dailyText.indexOf("Appendix - record data") > dailyText.indexOf("Issues / Next Steps"),
 );
 check("the issue carries its priority and status as badges", dailyText.includes("HIGH") && dailyText.includes("CLOSED"));
 check("the responsible party is labelled", dailyText.includes("Responsible") && dailyText.includes("M&E subcontractor"));
@@ -316,7 +354,15 @@ for (const kind of ["progress", "completion"]) {
   const text = textJoined(tree);
   check(`${kind}: names itself`, text.includes(kind === "completion" ? "Completion Report" : "Progress Report"));
   check(`${kind}: carries the same header`, text.includes("SiteBoss Pro") && text.includes("Empire Interiors Ltd"));
-  check(`${kind}: uses the shared section names`, text.includes("Photographic evidence") && text.includes("Issues"));
+  check(
+    `${kind}: uses the shared three-section structure`,
+    text.includes("Photos & Evidence") &&
+      text.includes(kind === "completion" ? "Outstanding / Sign-off" : "Outstanding / Next Actions"),
+  );
+  check(
+    `${kind}: opens with its own overview heading`,
+    text.includes(kind === "completion" ? "Completion Summary" : "Progress Overview"),
+  );
   check(`${kind}: numbers its plates`, text.includes("P01"));
   check(`${kind}: prints the closing record`, text.includes("Containment diverted and the duct re-routed."));
   check(`${kind}: labels the resolution`, text.includes("Resolution"));

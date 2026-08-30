@@ -68,7 +68,15 @@ function SectionEditor({ reportId, section }: { reportId: string; section: Secti
   );
 }
 
-export function SummaryDraft({
+/**
+ * The button that writes the whole document, and what it reports afterwards.
+ *
+ * One press drafts every section, so this is one control - but the sections it
+ * produces are shown under the document's three headings, which is why the
+ * editors live in `SummarySectionEditors` and are placed by the page. See
+ * lib/report-structure.ts.
+ */
+export function SummaryWriter({
   reportId,
   sections,
   configured,
@@ -81,13 +89,10 @@ export function SummaryDraft({
   const [state, action] = useActionState<SummaryAiState, FormData>(generate, {});
   const hasContent = sections.some((section) => section.content?.trim());
   return (
-    <section className="flex flex-col gap-5 border-t border-line pt-6">
-      <div>
-        <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">Written report</h2>
-        <p className="mt-1 text-sm text-ink-muted">
-          Consolidate the issued evidence, then check every section. Anything you edit is protected from regeneration.
-        </p>
-      </div>
+    <div className="flex flex-col gap-4">
+      <p className="text-sm text-ink-muted">
+        Consolidate the issued evidence, then check every section. Anything you edit is protected from regeneration.
+      </p>
       {configured ? (
         <form action={action}><GenerateButton hasContent={hasContent} /></form>
       ) : (
@@ -104,11 +109,24 @@ export function SummaryDraft({
             : ""}
         </Alert>
       ) : null}
-      <div className="flex flex-col gap-7">
-        {sections.map((section) => (
-          <SectionEditor key={`${section.id}:${section.content ?? ""}`} reportId={reportId} section={section} />
-        ))}
-      </div>
-    </section>
+    </div>
+  );
+}
+
+/** The editable sections belonging to one of the document's three groups. */
+export function SummarySectionEditors({
+  reportId,
+  sections,
+}: {
+  reportId: string;
+  sections: Section[];
+}) {
+  if (sections.length === 0) return null;
+  return (
+    <div className="flex flex-col gap-7">
+      {sections.map((section) => (
+        <SectionEditor key={`${section.id}:${section.content ?? ""}`} reportId={reportId} section={section} />
+      ))}
+    </div>
   );
 }

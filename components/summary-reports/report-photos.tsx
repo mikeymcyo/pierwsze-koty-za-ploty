@@ -61,11 +61,13 @@ export function ReportPhotos({
   const [addState, addAction] = useActionState<SummaryPhotoState, FormData>(add, {});
 
   return (
-    <section className="flex flex-col gap-4 border-t border-line pt-6">
+    <section className="flex flex-col gap-4">
       <div>
-        <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+        {/* An h3: this sits inside the document's "Photos & Evidence" section
+            rather than beside it. */}
+        <h3 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
           Photographic evidence
-        </h2>
+        </h3>
         <p className="mt-1 text-sm text-ink-muted">
           {photos.length === 0
             ? "Take or choose photographs here. They are added to this report straight away."

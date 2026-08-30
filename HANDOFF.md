@@ -32,6 +32,71 @@ The current implementation completes the core workflow:
   snapshots its issue status and resolution.
 - Reports, Project detail and Dashboard list all three document types.
 
+### Three visible sections, everywhere
+
+A Daily Report showed nineteen headings on screen and printed thirteen in the
+PDF. That is an admin system, not something a site manager reads on a phone in
+the rain. Every document now shows **three**, on screen and in the PDF alike:
+
+| | 1 | 2 | 3 |
+| --- | --- | --- | --- |
+| Daily | Daily Summary | Photos & Evidence | Issues / Next Steps |
+| Progress | Progress Overview | Photos & Evidence | Outstanding / Next Actions |
+| Survey | Findings | Photos & Evidence | Recommendations |
+| Completion | Completion Summary | Photos & Evidence | Outstanding / Sign-off |
+
+**`lib/report-structure.ts` is the whole idea.** It maps each stored section
+type to one of three groups per document kind, and both screens and both PDF
+documents read it. Presentation only:
+
+- **No section type was removed, merged or renamed. No migration.** A daily
+  still stores eight sections, a progress report seven, a completion report
+  eight, a survey seven - `e2e/report-structure-smoke.mjs` fails if any of
+  those shrink. The fine-grained sections are what keep the writing honest: the
+  cleanup and drafting prompts allocate one fact to one section, the
+  section-role rules stop Summary and Works completed saying the same thing
+  twice, and the Master AI Review reasons about them one at a time. Collapsing
+  them in the database would have undone all of it.
+- **Every stored section still has its name on the page**, as a bold run-in
+  label opening its own paragraph - "Works completed. Ducting was laid…" -
+  rather than a heading block. The difference between work recorded as
+  completed and work recorded as planned is what a dispute turns on, so it
+  survives the tidying. A group holding one section does not repeat its own
+  heading.
+- **Not one stored section may be unmapped.** The test asserts it for all four
+  documents: an unmapped type would be written, saved, and then silently
+  missing from the PDF that goes to a client. `groupSections` also appends an
+  unknown type to the last group rather than dropping it, as a second line of
+  defence.
+
+**Where the recorded data went.** Nothing was deleted:
+
+- **PDF**: one *"Appendix - record data"* after the three sections, carrying
+  workforce, plant, the document register and the source record. What it holds
+  is listed on the heading's own line - a paragraph under the heading cost a
+  one-page progress report a second page, which is the opposite of the point.
+- **Screens**: behind an `Advanced details` disclosure inside the section it
+  belongs to. The date, weather, workforce and plant sit inside the capture
+  form, *after* the dictation box - the notes are what somebody came to do.
+  Supporting documents sit behind their own disclosure in Photos & Evidence.
+
+**Page budgets held.** `test:pdf-template` measures them: bare daily 1, daily
+with a photo 1, three issues 1, full daily 2, twelve photographs 3, progress 1,
+completion 2 - all equal to or better than before.
+
+Also improved in passing: an **issued Daily Report now shows its written
+sections on screen**. It never did - only the PDF carried them, so checking
+what went out meant opening the document.
+
+Components: `components/reports/report-section-card.tsx` (`ReportSectionCard`,
+`ReadOnlySection`), and `lib/pdf/components.tsx` gained `GroupedProse`.
+`ReportDraft` split into `ReportWriter` + `ReportSectionEditors`, and
+`SummaryDraft` into `SummaryWriter` + `SummarySectionEditors`, so the write
+button stays one control while its sections are placed under the headings they
+belong to.
+
+Tests: `npm run test:report-structure`. All 26 dependency-free suites pass.
+
 ### The Cleanup AI pass, before anything else
 
 There are now **three AI layers**, in this order, and they are deliberately
