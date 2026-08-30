@@ -6,7 +6,7 @@ import { requireSessionContext } from "@/lib/auth/session";
 import { issuedPdfFileName } from "@/lib/pdf/presentation";
 import { coverPhotoIdOf, pdfStyleOf } from "@/lib/pdf/presentation";
 import { reportNumberLabel } from "@/lib/pdf/report-data";
-import { signPdfUrl } from "@/lib/pdf/signing";
+import { viewerSource } from "@/lib/pdf/viewer-source";
 import { isReopened } from "@/lib/reports/lifecycle";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
@@ -25,9 +25,9 @@ export default async function ReportPdfPage({
   const wantsDraft = search.draft === "1";
   // Carried through so the preview is the exact package - and the exact
   // presentation - that would be issued.
-  const documentsFlag = search.documents === "0" ? "&documents=0" : "";
+  const documentsFlag = search.documents === "0" ? "documents=0&" : "";
   const cover = coverPhotoIdOf(search.cover);
-  const presentation = `&style=${pdfStyleOf(search.style)}${cover ? `&cover=${cover}` : ""}`;
+  const previewQuery = `${documentsFlag}style=${pdfStyleOf(search.style)}${cover ? `&cover=${cover}` : ""}`;
   await requireSessionContext();
   const supabase = await createClient();
 
@@ -42,11 +42,14 @@ export default async function ReportPdfPage({
   // A reopened report can show either: the PDF already issued - still the
   // document the client holds - or a preview of the corrections in progress.
   // Both are legitimate questions to ask, so the caller says which it wants.
-  const showingIssued =
-    issued || (isReopened({ status: report.status, pdfPath: report.pdf_path }) && !wantsDraft);
-  const src = showingIssued
-    ? await signPdfUrl(report.pdf_path)
-    : `/reports/${id}/preview?draft=1${documentsFlag}${presentation}`;
+  // The rule, and why both are same-origin, is in lib/pdf/viewer-source.ts.
+  const { showingIssued, src } = viewerSource(`/reports/${id}`, {
+    status: report.status,
+    reopened: isReopened({ status: report.status, pdfPath: report.pdf_path }),
+    pdfPath: report.pdf_path,
+    wantsDraft,
+    previewQuery,
+  });
 
   const note = issued
     ? `Issued${report.finalised_at ? ` on ${formatDate(report.finalised_at)}` : ""}. This is the stored PDF, not a new render.`

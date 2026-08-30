@@ -33,6 +33,7 @@ export function SharePdf({
   fileName,
   title,
   variant = "secondary",
+  size = "lg",
 }: {
   /** Same-origin route that streams the stored PDF. */
   href: string;
@@ -40,6 +41,8 @@ export function SharePdf({
   /** What the share sheet calls it. */
   title: string;
   variant?: "primary" | "secondary" | "ghost";
+  /** Small where it sits in the reader's header beside Close. */
+  size?: "sm" | "md" | "lg";
 }) {
   const pending = useRef<Promise<File> | null>(null);
   const [busy, setBusy] = useState(false);
@@ -104,7 +107,7 @@ export function SharePdf({
       <Button
         type="button"
         variant={variant}
-        size="lg"
+        size={size}
         loading={busy}
         onPointerDown={() => {
           void warm().catch(() => {});

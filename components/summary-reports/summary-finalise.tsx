@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { FileCheck2, FileText } from "lucide-react";
+import { BookOpen, FileCheck2, FileText } from "lucide-react";
 
 import {
   finaliseSummaryReport,
@@ -74,8 +74,8 @@ export function SummaryFinalise({
         <div className="flex flex-wrap gap-3">
           <Button asChild size="lg">
             <Link href={`/summary-reports/${reportId}/pdf`}>
-              <FileText aria-hidden />
-              Open the PDF
+              <BookOpen aria-hidden />
+              View report
             </Link>
           </Button>
           {/* The issued file itself, handed to the device's own share sheet.

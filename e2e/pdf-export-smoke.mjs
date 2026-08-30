@@ -337,8 +337,18 @@ check(
   !/pdf_style|cover_photo/.test(read("../types/database.ts")),
 );
 check(
+  // Which bytes the viewer is pointed at moved into lib/pdf/viewer-source.ts
+  // when the reader became a full-screen one; e2e/report-viewer-smoke.mjs
+  // covers that rule case by case. What matters here is unchanged: this page
+  // reaches an issued PDF through the stored file and never through a render.
   "and the issued PDF is still whatever was stored",
-  /signPdfUrl|storedPdf/.test(dailyPdfPage) && !/renderReportPdf/.test(dailyPdfPage),
+  /viewerSource/.test(dailyPdfPage) && !/renderReportPdf/.test(dailyPdfPage),
+);
+check(
+  "the source rule sends an issued report to the stored file",
+  /showingIssued: true, src: state\.pdfPath \? `\$\{base\}\/file`/.test(
+    read("../lib/pdf/viewer-source.ts"),
+  ),
 );
 
 console.log("\n9. Real renders");
