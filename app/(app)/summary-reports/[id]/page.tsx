@@ -437,6 +437,10 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
               photos={attachedPhotos}
               available={availablePhotos}
               aiConfigured={hasAiConfig()}
+              // A survey records what is there before anybody has worked on
+              // it, so its photographs start on Before. Everything else starts
+              // unmarked: a status is something a person opts into.
+              defaultCategory={survey ? "before" : undefined}
             />
           ) : null}
 

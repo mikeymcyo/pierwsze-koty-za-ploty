@@ -27,7 +27,7 @@ import { LoadError } from "@/components/ui/load-error";
 import { hasAiConfig } from "@/lib/ai/report-generation";
 import { requireSessionContext } from "@/lib/auth/session";
 import { ISSUE_PRIORITY_LABELS } from "@/lib/issues/metadata";
-import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
+import { photoPickerLabel } from "@/lib/photo-captions";
 import {
   dailyActivity,
   issueActivity,
@@ -209,9 +209,7 @@ export default async function ProjectPage({
 
   const photoChoices: PhotoChoice[] = photoRows.map((photo) => ({
     id: photo.id,
-    label: photo.caption
-      ? `${photo.caption} (${PHOTO_CATEGORY_LABELS[photo.category]})`
-      : `${PHOTO_CATEGORY_LABELS[photo.category]} - ${formatDate(photo.created_at)}`,
+    label: photoPickerLabel(photo, formatDate(photo.created_at) ?? "Photograph"),
   }));
 
   return (

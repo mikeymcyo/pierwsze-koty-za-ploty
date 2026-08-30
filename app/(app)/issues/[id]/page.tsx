@@ -6,7 +6,7 @@ import { IssueForm } from "@/components/issues/issue-form";
 import type { PhotoChoice } from "@/components/issues/raise-issue";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
-import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
+import { photoPickerLabel } from "@/lib/photo-captions";
 import { createClient } from "@/lib/supabase/server";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { formatDate } from "@/lib/utils";
@@ -51,9 +51,7 @@ export default async function IssuePage({ params }: { params: Promise<{ id: stri
 
   const photos: PhotoChoice[] = (photoRows ?? []).map((photo) => ({
     id: photo.id,
-    label: photo.caption
-      ? `${photo.caption} (${PHOTO_CATEGORY_LABELS[photo.category]})`
-      : `${PHOTO_CATEGORY_LABELS[photo.category]} - ${formatDate(photo.created_at)}`,
+    label: photoPickerLabel(photo, formatDate(photo.created_at) ?? "Photograph"),
   }));
 
   const backHref = `/projects/${issue.project_id}?tab=issues`;

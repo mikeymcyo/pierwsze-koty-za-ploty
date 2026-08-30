@@ -5,7 +5,7 @@ import { z } from "zod";
 
 import { describePhotograph } from "@/lib/ai/photo-description";
 import { requireSessionContext } from "@/lib/auth/session";
-import { PHOTO_STATUS_LABELS } from "@/lib/photo-captions";
+import { photoStatusLabel } from "@/lib/photo-captions";
 import { createClient } from "@/lib/supabase/server";
 import { PHOTO_BUCKET, photoPathPrefix } from "@/lib/photos";
 import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
@@ -281,7 +281,9 @@ export async function describePhotoAction(
       client: project?.client ?? null,
       siteAddress: project?.site_address ?? null,
       reportDate: report?.report_date ?? null,
-      statusLabel: PHOTO_STATUS_LABELS[photo.category] ?? null,
+      // Null where nobody marked the photograph. Telling the model a status
+      // nobody chose would be the caption inventing a classification.
+      statusLabel: photoStatusLabel(photo.category),
       existingCaption: photo.caption,
       reportContext: report?.raw_notes?.trim() || null,
       writtenSections: writtenSections || null,

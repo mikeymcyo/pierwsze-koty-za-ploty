@@ -14,7 +14,7 @@ import {
   type SummaryPhotoState,
 } from "@/app/(app)/summary-reports/photo-actions";
 import { photoReference } from "@/lib/pdf/photo-evidence";
-import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
+import { UNSET_PHOTO_STATUS, photoPickerLabel, photoStatusLabel } from "@/lib/photo-captions";
 import type { PhotoCategory } from "@/types/database";
 
 export type ReportPhoto = {
@@ -46,6 +46,7 @@ export function ReportPhotos({
   photos,
   available,
   aiConfigured,
+  defaultCategory = UNSET_PHOTO_STATUS,
 }: {
   reportId: string;
   companyId: string;
@@ -55,6 +56,12 @@ export function ReportPhotos({
   /** On the project but not in this report yet. */
   available: ReportPhoto[];
   aiConfigured: boolean;
+  /**
+   * What the status menu starts on. Nothing, unless the caller has a reason: a
+   * survey records what is there before anybody has worked, so it starts on
+   * Before. A Progress Report written directly has no such reason.
+   */
+  defaultCategory?: PhotoCategory;
 }) {
   const [picking, setPicking] = useState(false);
   const add = linkSummaryPhotos.bind(null, reportId);
@@ -82,7 +89,7 @@ export function ReportPhotos({
         projectId={projectId}
         reportId={null}
         summaryReportId={reportId}
-        defaultCategory="before"
+        defaultCategory={defaultCategory}
       />
 
       {photos.length > 0 ? (
@@ -94,9 +101,11 @@ export function ReportPhotos({
                   <span className="rounded-md bg-surface-muted px-2 py-1 font-mono text-xs font-semibold tabular-nums text-ink">
                     {photoReference(index)}
                   </span>
-                  <span className="text-xs font-medium text-ink-muted">
-                    {PHOTO_CATEGORY_LABELS[photo.category]}
-                  </span>
+                  {photoStatusLabel(photo.category) ? (
+                    <span className="text-xs font-medium text-ink-muted">
+                      {photoStatusLabel(photo.category)}
+                    </span>
+                  ) : null}
                 </span>
                 <RemovePhoto reportId={reportId} photoId={photo.id} />
               </div>
@@ -158,7 +167,7 @@ export function ReportPhotos({
                       value={photo.id}
                       className="size-4 accent-brand"
                     />
-                    {PHOTO_CATEGORY_LABELS[photo.category]}
+                    {photoPickerLabel(photo, "Photograph")}
                   </span>
                 </label>
               ))}

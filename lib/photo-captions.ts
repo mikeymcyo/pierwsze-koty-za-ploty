@@ -11,26 +11,43 @@
  * the client nothing. A status is only worth printing when it says something
  * the picture does not, and a caption the site manager actually wrote always
  * says more than a category ever will.
+ *
+ * The same fault came back through the other door. Printing was fixed but
+ * capture was not: every upload was tagged "During" unless somebody changed
+ * the menu, so twenty-five ordinary site photographs arrived carrying
+ * twenty-five DURING labels that nobody had chosen. **A status is now
+ * something a person opts into.** New photographs are taken with no status at
+ * all, and a status appears - on screen and in the PDF - only where one was
+ * deliberately picked.
+ *
+ * "No status" needs no new enum value: `general` has always been the value
+ * that prints nothing, so it is now named for what it does. Nothing already
+ * stored changes meaning, and no migration is involved.
  */
 
 import type { PhotoCategory } from "@/types/database";
 
 /**
- * The statuses offered when capturing. Six, because a list you scroll is a
- * list nobody sets - these are the distinctions that change what a photograph
- * proves in a dispute.
+ * What a photograph can be marked as, with "No status" first because it is the
+ * answer for most photographs and the one a new upload starts on.
+ *
+ * The other five are the distinctions that change what a photograph proves in
+ * a dispute. A list you scroll is a list nobody sets, so there are no more.
  *
  * Every value here already exists in the `photo_category` enum, so this is a
  * relabelling and a shortening of the menu, not a schema change. "During" is
- * the enum's `progress`; "Other" is its `general`.
+ * the enum's `progress`; "No status" is its `general`, which has always been
+ * the value that prints nothing.
  */
+export const UNSET_PHOTO_STATUS: PhotoCategory = "general";
+
 export const PHOTO_STATUSES: { value: PhotoCategory; label: string }[] = [
+  { value: UNSET_PHOTO_STATUS, label: "No status" },
   { value: "before", label: "Before" },
   { value: "progress", label: "During" },
   { value: "after", label: "After" },
   { value: "defect", label: "Defect" },
   { value: "delivery", label: "Delivery" },
-  { value: "general", label: "Other" },
 ];
 
 /**
@@ -48,12 +65,39 @@ export const PHOTO_STATUS_LABELS: Record<PhotoCategory, string> = Object.fromEnt
 ) as Record<PhotoCategory, string>;
 
 /**
- * A status that adds nothing to a photograph of a building site. Printing
- * "Other" under a picture is worse than printing nothing: it occupies the line
+ * Whether a stored value is a status somebody chose.
+ *
+ * `general` is not: it is what a photograph carries when nobody marked it.
+ * Printing a word there is worse than printing nothing - it occupies the line
  * where a caption would have gone and implies a classification was made.
  */
 function saysSomething(category: string): boolean {
-  return category !== "general";
+  return category !== UNSET_PHOTO_STATUS;
+}
+
+/**
+ * The status to show, hand to a model, or put in a picker - and null where
+ * nobody chose one.
+ *
+ * Everything that displays a status goes through this or through
+ * photoPrintLabel, so an unmarked photograph is unmarked everywhere: the grid,
+ * the pickers, the AI's context and the PDF alike.
+ */
+export function photoStatusLabel(category: string): string | null {
+  return saysSomething(category)
+    ? (PHOTO_STATUS_LABELS[category as PhotoCategory] ?? null)
+    : null;
+}
+
+/**
+ * A one-line name for a photograph in a picker or a list, with something to
+ * fall back on when it has neither caption nor status.
+ */
+export function photoPickerLabel(
+  photo: { caption: string | null; category: string },
+  fallback: string,
+): string {
+  return photoPrintLabelText(photo) ?? fallback;
 }
 
 export type PrintedPhotoLabel = {
@@ -77,10 +121,7 @@ export function photoPrintLabel(photo: {
   category: string;
 }): PrintedPhotoLabel {
   const caption = photo.caption?.trim() || null;
-  const status = saysSomething(photo.category)
-    ? (PHOTO_STATUS_LABELS[photo.category as PhotoCategory] ?? null)
-    : null;
-  return { caption, status };
+  return { caption, status: photoStatusLabel(photo.category) };
 }
 
 /**

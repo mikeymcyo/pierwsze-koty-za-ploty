@@ -9,7 +9,7 @@ import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS } from "@/lib/issues/metadata";
-import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
+import { photoStatusLabel } from "@/lib/photo-captions";
 import type { IssuePriority, IssueStatus, PhotoCategory } from "@/types/database";
 
 export type CuratedPhotoChoice = {
@@ -94,7 +94,7 @@ export function SummaryCuration({
                 <span className="flex items-start gap-2 text-sm text-ink">
                   <input type="checkbox" name="photoId" value={photo.id} defaultChecked={photo.selected} className="mt-1 size-5 accent-brand" />
                   <span className="min-w-0">
-                    <span className="block font-medium">{PHOTO_CATEGORY_LABELS[photo.category]}</span>
+                    <span className="block font-medium">{photoStatusLabel(photo.category) ?? "Photograph"}</span>
                     {photo.caption ? <span className="block truncate text-xs text-ink-muted">{photo.caption}</span> : null}
                   </span>
                 </span>

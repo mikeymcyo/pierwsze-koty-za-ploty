@@ -278,8 +278,17 @@ check(
   /linkSummaryPhotos/.test(workspace),
 );
 check(
+  // Decided by the page rather than baked into the workspace: the same
+  // component serves a Progress Report written directly, and that has no
+  // reason to mark its photographs at all.
   "a survey documents what is there now, so it starts on Before",
-  /defaultCategory="before"/.test(workspace),
+  /defaultCategory=\{survey \? "before" : undefined\}/.test(
+    read("../app/(app)/summary-reports/[id]/page.tsx"),
+  ),
+);
+check(
+  "and everything else starts with no status",
+  /defaultCategory = UNSET_PHOTO_STATUS/.test(workspace),
 );
 
 // The trap this design creates, and the guard against it: the curation form

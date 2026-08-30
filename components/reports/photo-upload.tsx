@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
+import { UNSET_PHOTO_STATUS } from "@/lib/photo-captions";
 import { PHOTO_BUCKET, PHOTO_CATEGORIES, photoPathPrefix } from "@/lib/photos";
 import {
   PHOTO_SOURCES,
@@ -95,13 +96,18 @@ export function PhotoUpload({
   projectId,
   reportId,
   summaryReportId = null,
-  defaultCategory = "progress",
+  defaultCategory = UNSET_PHOTO_STATUS,
 }: {
   companyId: string;
   projectId: string;
   reportId: string | null;
   summaryReportId?: string | null;
-  /** A survey documents what is there now, so it starts on Before. */
+  /**
+   * What the menu starts on. No status, unless the caller has a reason - a
+   * survey documents what is there now, so it starts on Before. Twenty-five
+   * ordinary site photographs should not arrive carrying twenty-five labels
+   * nobody chose.
+   */
   defaultCategory?: PhotoCategory;
 }) {
   // One ref per source: the attributes that decide what iOS opens are fixed on
@@ -205,7 +211,7 @@ export function PhotoUpload({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex min-w-40 max-w-xs flex-col gap-2">
-        <Label htmlFor="photo-category">Tag these as</Label>
+        <Label htmlFor="photo-category">Status (optional)</Label>
         <Select
           id="photo-category"
           value={category}

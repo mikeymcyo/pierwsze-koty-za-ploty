@@ -35,7 +35,7 @@ import { signDocumentUrls } from "@/lib/documents/signing";
 import { isReopened } from "@/lib/reports/lifecycle";
 import { issuedPdfFileName } from "@/lib/pdf/presentation";
 import { photoPrintLabelText } from "@/lib/photo-captions";
-import { PHOTO_CATEGORY_LABELS } from "@/lib/photos";
+import { photoPickerLabel } from "@/lib/photo-captions";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
@@ -206,9 +206,7 @@ export default async function ReportCapturePage({
 
   const photoChoices: PhotoChoice[] = photoRows.map((photo) => ({
     id: photo.id,
-    label: photo.caption
-      ? `${photo.caption} (${PHOTO_CATEGORY_LABELS[photo.category]})`
-      : PHOTO_CATEGORY_LABELS[photo.category],
+    label: photoPickerLabel(photo, "Photograph"),
   }));
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;

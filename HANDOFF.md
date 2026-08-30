@@ -32,6 +32,39 @@ The current implementation completes the core workflow:
   snapshots its issue status and resolution.
 - Reports, Project detail and Dashboard list all three document types.
 
+### A photograph's status is opted into, not assigned
+
+Printing was fixed once - `photoPrintLabel` has always dropped a status that
+says nothing - but capture was not. Every upload was tagged `progress` unless
+somebody changed the menu, so twenty-five ordinary site photographs arrived
+carrying twenty-five DURING labels nobody had chosen.
+
+**New photographs now start with no status at all.** A status appears, on
+screen and in the PDF, only where a person picked one.
+
+- The menu reads **No status** (first, and the default), Before, During, After,
+  Defect, Delivery. The label above it says "Status (optional)".
+- **No migration.** "No status" is the enum's existing `general`, which has
+  always been the value that prints nothing - it is simply named for what it
+  does. Nothing stored changes meaning, every old `progress` photograph still
+  says During, and `work_completed` / `safety` still print their own words.
+- Two helpers in `lib/photo-captions.ts` are now the only way a status reaches
+  a screen: `photoStatusLabel` (null where none was chosen) and
+  `photoPickerLabel` (caption, status, or a fallback name). Every screen that
+  used to index `PHOTO_CATEGORY_LABELS` directly - the grid, the photo
+  workspace, the curation picker, the daily, project and issue screens - goes
+  through them, and the test asserts none of them indexes a label map again.
+- **The AI is told null** where nothing was chosen, so captioning neither
+  depends on a status nor invents a classification.
+- Issued PDFs are stored files and are not re-rendered, so nothing historical
+  changes.
+
+One deliberate exception: **a survey still starts on Before**, because it
+records what is there before anybody has worked. That decision now lives on the
+summary page rather than inside `ReportPhotos`, which also serves a Progress
+Report written directly - and that has no reason to mark its photographs at
+all.
+
 ### The hurricane rule: describe, photograph, draft, review, done
 
 Authoring is now shaped by how a document is actually made, not by how many
