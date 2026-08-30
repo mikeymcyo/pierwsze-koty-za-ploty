@@ -8,12 +8,14 @@ import { createClient } from "@/lib/supabase/server";
 import { cleanedSectionsFor } from "@/lib/ai/cleanup";
 import { documentMedia, photoMedia } from "@/lib/ai/cleanup-context";
 import { generateSections, type GenerationInput } from "@/lib/ai/report-generation";
-import { sortOrderOf } from "@/lib/report-sections";
+import { REPORT_SECTION_LABELS, sortOrderOf } from "@/lib/report-sections";
+import { reportStructure } from "@/lib/report-structure";
+import { changedSections, parseGroupText } from "@/lib/reports/group-text";
 import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
 import { partitionDraft } from "@/lib/reports/regeneration";
 import type { ReportSectionType } from "@/types/database";
 
-export type AiState = { error?: string; generated?: number; kept?: number };
+export type AiState = { error?: string; generated?: number; kept?: number; saved?: boolean };
 
 /**
  * Drafts the report sections from the notes already saved on the report.
@@ -33,7 +35,7 @@ export type AiState = { error?: string; generated?: number; kept?: number };
  * entirely stale.
  *
  * Nothing here touches a section a person has written. `ai_generated` is false
- * on anything edited through updateSection, and those sections are neither
+ * on anything edited through updateSectionGroup, and those sections are neither
  * overwritten nor cleared: a site manager who rewrote a paragraph in his own
  * words, in a document that goes to a client with his name on it, must not
  * lose it to a button press. How many were kept comes back in the result so
@@ -226,48 +228,82 @@ export async function generateReport(
   return { generated: rows.length, kept: kept.length };
 }
 
-const editSchema = z.object({
-  sectionId: z.uuid(),
-  content: z.string().trim(),
+const groupSchema = z.object({
+  groupKey: z.string().min(1),
+  text: z.string(),
 });
 
 /**
- * Saves a user's edit to a generated section.
+ * Saves one visible section of the report - which is several stored sections.
  *
- * ai_generated flips to false: once a person has rewritten a paragraph it is
- * theirs, and the UI should stop labelling it as machine-written.
+ * The screen shows one box per visible section; the database still holds the
+ * eight it always held. lib/reports/group-text.ts does the composing and the
+ * parsing, and the only rule that matters here is the one that has always
+ * mattered: a section is marked as written by a person when its own text
+ * moved, and not otherwise. Editing one paragraph must not quietly claim the
+ * other three and exempt them from the next regeneration.
  */
-export async function updateSection(
+export async function updateSectionGroup(
   reportId: string,
   _prev: AiState,
   formData: FormData,
 ): Promise<AiState> {
-  const parsed = editSchema.safeParse({
-    sectionId: formData.get("sectionId") ?? "",
-    content: formData.get("content") ?? "",
+  const parsedInput = groupSchema.safeParse({
+    groupKey: formData.get("groupKey") ?? "",
+    text: formData.get("text") ?? "",
   });
-  if (!parsed.success) return { error: "That edit could not be saved." };
+  if (!parsedInput.success) return { error: "That edit could not be saved." };
 
-  await requireSessionContext();
+  const session = await requireSessionContext();
   const supabase = await createClient();
 
-  // A section belongs to a report, and an issued report does not change.
-  const { data: owner } = await supabase
-    .from("report_sections")
-    .select("reports(status)")
-    .eq("id", parsed.data.sectionId)
+  const { data: report } = await supabase
+    .from("reports")
+    .select("status")
+    .eq("id", reportId)
     .maybeSingle();
+  if (!report) return { error: "That report could not be found." };
+  // An issued report is a document that has already gone out.
+  if (report.status === "final") return { error: REPORT_IS_FINAL };
 
-  const ownerReport = Array.isArray(owner?.reports) ? owner?.reports[0] : owner?.reports;
-  if (ownerReport?.status === "final") return { error: REPORT_IS_FINAL };
+  const group = reportStructure("daily").find(
+    (candidate) => candidate.key === parsedInput.data.groupKey,
+  );
+  if (!group) return { error: "That part of the report could not be found." };
 
-  const { error } = await supabase
+  const { data: rows, error: readError } = await supabase
     .from("report_sections")
-    .update({ content: parsed.data.content, ai_generated: false })
-    .eq("id", parsed.data.sectionId);
+    .select("section_type, content")
+    .eq("report_id", reportId);
+  if (readError) return { error: `Could not read the report: ${readError.message}` };
 
+  const byType = new Map((rows ?? []).map((row) => [row.section_type, row.content]));
+  const sections = group.sections.map((type) => ({
+    type,
+    label: REPORT_SECTION_LABELS[type as ReportSectionType] ?? type,
+    content: byType.get(type as ReportSectionType) ?? "",
+  }));
+
+  const parsed = parseGroupText(parsedInput.data.text, sections);
+  const changed = changedSections(sections, parsed);
+  // Nothing moved. Saying so is friendlier than a write that changes no row.
+  if (changed.length === 0) return { saved: true };
+
+  const { error } = await supabase.from("report_sections").upsert(
+    changed.map((section) => ({
+      company_id: session.companyId,
+      report_id: reportId,
+      section_type: section.type as ReportSectionType,
+      // Null rather than "": an emptied section must read as absent
+      // everywhere, so no heading is printed over a blank line.
+      content: section.content.trim() || null,
+      ai_generated: false,
+      sort_order: sortOrderOf(section.type as ReportSectionType),
+    })),
+    { onConflict: "report_id,section_type" },
+  );
   if (error) return { error: `Could not save your edit: ${error.message}` };
 
   revalidatePath(`/reports/${reportId}`);
-  return {};
+  return { saved: true };
 }

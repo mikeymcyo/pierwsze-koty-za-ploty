@@ -129,13 +129,30 @@ check(
 );
 
 const ui = readFileSync(new URL("../components/reports/photo-details.tsx", import.meta.url), "utf8");
+// A suggestion still reaches the caption box only on Use it - what changed is
+// that accepting it now also keeps it. There is no Save button under a
+// photograph any more: a caption typed and scrolled past was a caption lost.
 check(
   "the suggestion reaches the caption box only when the user presses Use it",
-  /onClick=\{\(\) => \{ setText\(showing\); setDismissed\(true\); \}\}/.test(ui),
+  /setText\(showing\);\s*\n\s*setDismissed\(true\);/.test(ui) &&
+    // Nothing else writes it. The suggestion is never applied on arrival.
+    !/useEffect\([^)]*setText\(suggestion/.test(ui),
 );
 check(
-  "the panel says nothing is saved until Save is pressed",
-  /Nothing is saved until you press Save/.test(ui),
+  "accepting a suggestion saves it, without a second press",
+  /setFlush\(\(count\) => count \+ 1\);/.test(ui) && !/Save<\/Button>/.test(ui),
+);
+check(
+  "the panel says so rather than promising a Save button that no longer exists",
+  /Accepting it saves it/.test(ui) && !/Nothing is saved until you press Save/.test(ui),
+);
+check(
+  "a caption saves itself when typing stops and when the box is left",
+  /setTimeout\(submit/.test(ui) && /onBlur=\{submit\}/.test(ui),
+);
+check(
+  "and a save that would change nothing is not sent",
+  /if \(text === savedRef\.current\.text && status === savedRef\.current\.status\) return;/.test(ui),
 );
 
 console.log("\n=== Result ===");

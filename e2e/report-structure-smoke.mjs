@@ -32,6 +32,11 @@ import {
   SURVEY_SECTIONS,
 } from "../lib/summary-reports/sections.ts";
 import { CLEANUP_SECTIONS } from "../lib/ai/cleanup-prompt.ts";
+import {
+  changedSections,
+  composeGroupText,
+  parseGroupText,
+} from "../lib/reports/group-text.ts";
 import { readFileSync } from "node:fs";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
@@ -292,6 +297,144 @@ for (const [name, source] of [
 }
 check("the daily screen keeps its workforce and plant rows", /workforceResult/.test(dailyPage));
 check("the consolidated screen keeps its source record", /sourceItems/.test(summaryPage));
+
+console.log("\n9. One writing box per section, and nothing lost going in or out");
+
+// The box shows several stored sections at once. Everything below is about the
+// one property that matters: text a person typed must come back out of the
+// parse, in the section it belongs to, every time.
+for (const kind of KINDS) {
+  for (const group of reportStructure(kind)) {
+    const sections = group.sections.map((type) => ({
+      type,
+      label: STORED[kind].find((section) => section.type === type)?.label ?? type,
+      content: `Text for ${type}.`,
+    }));
+    if (sections.length === 0) continue;
+
+    const composed = composeGroupText(sections);
+    const parsed = parseGroupText(composed, sections);
+
+    check(
+      `${kind}/${group.key}: every section survives a round trip unchanged`,
+      sections.every((section) => parsed[section.type] === section.content),
+      JSON.stringify(parsed),
+    );
+    check(
+      `${kind}/${group.key}: an untouched box reports nothing changed`,
+      changedSections(sections, parsed).length === 0,
+    );
+  }
+}
+
+const dailySummary = reportStructure("daily")[0];
+const dailySections = dailySummary.sections.map((type) => ({
+  type,
+  label: REPORT_SECTIONS.find((section) => section.type === type).label,
+  content: "",
+}));
+
+// The case that matters most on site: an empty box somebody dictates into.
+const dictated = parseGroupText("We finished the ducting on the east elevation.", dailySections);
+check(
+  "text with no headings lands in the group's first section",
+  dictated.executive_summary === "We finished the ducting on the east elevation.",
+  JSON.stringify(dictated),
+);
+check(
+  "and nothing is dropped for having no heading",
+  Object.values(dictated).join("").includes("finished the ducting"),
+);
+
+// Editing one part must not claim the others: they stay AI-written and stay
+// available to the next regeneration.
+const filled = dailySummary.sections.map((type) => ({
+  type,
+  label: REPORT_SECTIONS.find((section) => section.type === type).label,
+  content: `Original ${type}.`,
+}));
+const edited = parseGroupText(
+  composeGroupText(filled).replace("Original works_completed.", "Rewritten by hand."),
+  filled,
+);
+const changed = changedSections(filled, edited);
+check("only the section a person altered comes back as changed", changed.length === 1, JSON.stringify(changed));
+check("and it is the right one", changed[0]?.type === "works_completed");
+check(
+  "the others keep their text exactly",
+  filled
+    .filter((section) => section.type !== "works_completed")
+    .every((section) => edited[section.type] === section.content),
+);
+
+// A heading a person deleted merges that text upwards rather than losing it.
+const merged = parseGroupText(
+  composeGroupText(filled).replace(/^Works completed$/m, ""),
+  filled,
+);
+check(
+  "deleting a heading merges its text into the section above, never deletes it",
+  merged.executive_summary.includes("Original works_completed."),
+  JSON.stringify(merged.executive_summary),
+);
+
+// A sentence that merely starts with a section's name is prose, not a heading.
+const prose = parseGroupText(
+  "Works completed to the east elevation were signed for on site.",
+  dailySections,
+);
+check(
+  "a sentence beginning with a section name is not treated as a heading",
+  prose.executive_summary.startsWith("Works completed to the east"),
+  JSON.stringify(prose),
+);
+
+// A group holding one stored section needs no heading line at all.
+const single = [{ type: "photographic_record", label: "Photographic record", content: "A short introduction." }];
+check("a lone section is shown without its label", composeGroupText(single) === "A short introduction.");
+check(
+  "and parses straight back",
+  parseGroupText("Something else entirely.", single).photographic_record === "Something else entirely.",
+);
+
+// An empty group offers an empty box rather than a page of headings.
+check(
+  "an unwritten group composes to nothing",
+  composeGroupText(dailySections) === "",
+);
+
+console.log("\n10. The screens show one box per section, and it dictates");
+
+const groupEditor = read("../components/reports/group-editor.tsx");
+check("the box is the dictation field, not a second implementation", /DictationField/.test(groupEditor));
+check("it composes and the action parses", /composeGroupText/.test(groupEditor));
+check("it says which section it is saving", /name="groupKey"/.test(groupEditor));
+// Photos & Evidence holds no written sections on a daily report, a survey or a
+// Progress Report. A box there would save nowhere.
+check(
+  "a section with no written sections gets no box",
+  /if \(sections\.length === 0\) return null;/.test(groupEditor),
+);
+
+for (const [name, source] of [
+  ["the daily screen", dailyPage],
+  ["the consolidated screen", summaryPage],
+]) {
+  const editors = source.match(/<GroupEditor/g) ?? [];
+  check(`${name} has at most three writing boxes`, editors.length <= 3, String(editors.length));
+  check(
+    `${name} no longer stacks a textarea per stored section`,
+    !/SectionEditors/.test(source),
+  );
+}
+// A Progress Report is written by voice like a Daily Report, through the same
+// component rather than a second one.
+check(
+  "there is exactly one dictation implementation",
+  /useSpeechInput/.test(read("../components/reports/dictation-field.tsx")) &&
+    !/useSpeechInput/.test(groupEditor) &&
+    !/useSpeechInput/.test(summaryPage),
+);
 
 console.log("\n=== Result ===");
 if (failures.length === 0) {

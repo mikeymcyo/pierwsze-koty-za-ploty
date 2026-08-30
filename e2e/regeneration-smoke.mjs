@@ -8,7 +8,7 @@
  * a site manager rewrote in his own words is his, and losing it to a button
  * press would be the worst failure this screen has.
  *
- * ai_generated is what separates them: updateSection sets it false the moment
+ * ai_generated is what separates them: saving a section sets it false the moment
  * anybody edits.
  *
  *   npm run test:regeneration

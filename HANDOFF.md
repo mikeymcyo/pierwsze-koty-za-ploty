@@ -32,6 +32,67 @@ The current implementation completes the core workflow:
   snapshots its issue status and resolution.
 - Reports, Project detail and Dashboard list all three document types.
 
+### One writing box per section, and no Save button under a photograph
+
+The tester's four findings from the iPad screenshots, fixed together.
+
+**1. One editor per visible section.** Grouping the headings was not enough: a
+Progress Report still put five textareas on the screen. Each visible section
+now has ONE box. `lib/reports/group-text.ts` composes the group's stored
+sections into it and parses them back out:
+
+```
+Works completed
+Ducting was laid to the east elevation.
+
+Planned works
+Screed is programmed to start on Monday.
+```
+
+Those name lines are the seam. **No migration, and the stored model is
+untouched** - the drafting and cleanup prompts still write each section, the
+Master AI Review still reasons about them one at a time, and the PDF still
+prints each with its run-in label. Properties the test pins down: a round trip
+changes nothing; text with no heading lands in the group's first section (the
+dictate-into-an-empty-box case); deleting a heading merges its text upwards
+rather than losing it; a sentence that merely starts with a section's name
+stays prose; and **only a section whose own text moved is marked as edited by a
+person**, so one edit does not exempt the whole group from the next
+regeneration. A group with no written sections - Photos & Evidence everywhere
+but a Completion Report - gets no box at all.
+
+The per-section editors and the `updateSection` / `updateSummarySection`
+actions behind them are gone; `updateSectionGroup` and
+`updateSummarySectionGroup` replace them.
+
+**2. Progress dictates.** The box is `DictationField` - the same microphone the
+day's notes use, given `rows` and `placeholder` arguments rather than a second
+implementation. Every kind and both Progress modes (source-based and
+standalone) get it. On a standalone Progress Report the dictated text is also
+what the AI reads as evidence, which is the existing standalone behaviour.
+
+**3. Photo captions describe evidence, not pictures.** The prompt produced "an
+operative standing on a mobile scaffold tower reaching towards a dome camera" -
+accurate about a picture and worthless in a report. It now leads with *say why
+the photograph was taken*, carries five bad/good pairs (including the owner's
+fire-stopping one), and tells the model to name a document by type and say it
+was displayed or referenced - never what it authorises. `describePhotoAction`
+also passes **what the report's own sections already say**, so a caption can
+use the report's terms. Every "never state" rule is unchanged and still
+asserted, plus new ones for permits and briefings.
+
+**4. No Save button under a photograph.** Twelve plates carried twelve of them,
+and a caption typed and scrolled past was a caption lost. The caption now saves
+~900ms after typing stops, on blur, immediately when the status changes, and
+immediately when an AI suggestion is accepted - "Use it" applies **and**
+persists. A save that would change nothing is not sent (`savedRef`), and the
+accept path flushes through an effect rather than from inside the click
+handler, because a controlled textarea has not re-rendered yet at that point.
+Server-side rules are untouched: an issued report still refuses the write.
+
+Tests: `npm run test:report-structure` covers the round trip and the box count;
+`npm run test:photo-ai` covers the prompt and the autosave wiring.
+
 ### Three visible sections, everywhere
 
 A Daily Report showed nineteen headings on screen and printed thirteen in the

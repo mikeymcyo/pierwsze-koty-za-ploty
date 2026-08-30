@@ -240,7 +240,7 @@ export async function describePhotoAction(
   const { data: photo } = await supabase
     .from("photos")
     .select(
-      "id, caption, category, storage_path, projects(name, client, site_address), reports(report_date, raw_notes)",
+      "id, caption, category, storage_path, report_id, projects(name, client, site_address), reports(report_date, raw_notes)",
     )
     .eq("id", photoId)
     .maybeSingle();
@@ -251,6 +251,25 @@ export async function describePhotoAction(
 
   const project = Array.isArray(photo.projects) ? photo.projects[0] : photo.projects;
   const report = Array.isArray(photo.reports) ? photo.reports[0] : photo.reports;
+
+  // What the report already says, in its own words. A caption on a report
+  // whose works section names a drainage run should say drainage run rather
+  // than "a trench" - that is the difference between a record and a
+  // description of a picture.
+  // Only where the photograph belongs to a report. A project photograph has no
+  // report to read, and asking for one with a null id is an error rather than
+  // an empty answer.
+  const { data: sections } = photo.report_id
+    ? await supabase
+        .from("report_sections")
+        .select("section_type, content")
+        .eq("report_id", photo.report_id)
+        .order("sort_order", { ascending: true })
+    : { data: [] };
+  const writtenSections = (sections ?? [])
+    .filter((section) => section.content?.trim())
+    .map((section) => `${section.section_type.replaceAll("_", " ")}: ${section.content?.trim()}`)
+    .join("\n");
 
   const result = await describePhotograph(
     {
@@ -265,6 +284,7 @@ export async function describePhotoAction(
       statusLabel: PHOTO_STATUS_LABELS[photo.category] ?? null,
       existingCaption: photo.caption,
       reportContext: report?.raw_notes?.trim() || null,
+      writtenSections: writtenSections || null,
     },
   );
 

@@ -4,11 +4,13 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, ExternalLink } from "lucide-react";
 
 import { saveSummaryReportDocuments } from "@/app/(app)/documents/actions";
+import { updateSummarySectionGroup } from "@/app/(app)/summary-reports/ai-actions";
 import { applySummaryReview, reviewSummaryReportAction } from "@/app/(app)/reports/review-actions";
 import { SummaryCuration, type CuratedIssueChoice, type CuratedPhotoChoice } from "@/components/summary-reports/summary-curation";
 import { ReportPhotos, type ReportPhoto } from "@/components/summary-reports/report-photos";
 import { SummaryDetails } from "@/components/summary-reports/summary-details";
-import { SummarySectionEditors, SummaryWriter } from "@/components/summary-reports/summary-draft";
+import { SummaryWriter } from "@/components/summary-reports/summary-draft";
+import { GroupEditor } from "@/components/reports/group-editor";
 import { ReadOnlySection, ReportSectionCard } from "@/components/reports/report-section-card";
 import { DocumentPicker, type PickableDocument } from "@/components/documents/document-picker";
 import { MasterReviewPanel } from "@/components/reports/master-review";
@@ -236,7 +238,22 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
   }));
   const grouped = groupSections(report.kind, sectionRows);
   const groupFor = (key: string) => grouped.find((entry) => entry.group.key === key);
-  const sectionsIn = (key: string) => groupFor(key)?.entries ?? [];
+
+  /** Every stored section of a group, written or not, for its one writing box. */
+  const editorSections = (key: string) => {
+    const entry = groupFor(key);
+    if (!entry) return [];
+    const byType = new Map(entry.entries.map((section) => [section.section_type, section]));
+    return entry.group.sections.map((type) => {
+      const row = byType.get(type as SummarySectionType);
+      return {
+        type,
+        label: SUMMARY_SECTION_LABELS[type as SummarySectionType] ?? type,
+        content: row?.content ?? null,
+        aiGenerated: row?.ai_generated ?? true,
+      };
+    });
+  };
 
   return (
     <div className="flex flex-col gap-6">
@@ -319,7 +336,13 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
           {isFinal ? (
             <SectionProse entry={groupFor("summary")} />
           ) : (
-            <SummarySectionEditors reportId={id} sections={sectionsIn("summary")} />
+            <GroupEditor
+              key={JSON.stringify(editorSections("summary").map((section) => section.content))}
+              groupKey="summary"
+              groupLabel={summaryGroup.label}
+              sections={editorSections("summary")}
+              action={updateSummarySectionGroup.bind(null, id)}
+            />
           )}
         </ReportSectionCard>
       ) : null}
@@ -392,7 +415,13 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
           {isFinal ? (
             <SectionProse entry={groupFor("evidence")} />
           ) : (
-            <SummarySectionEditors reportId={id} sections={sectionsIn("evidence")} />
+            <GroupEditor
+              key={JSON.stringify(editorSections("evidence").map((section) => section.content))}
+              groupKey="evidence"
+              groupLabel={evidenceGroup.label}
+              sections={editorSections("evidence")}
+              action={updateSummarySectionGroup.bind(null, id)}
+            />
           )}
 
           {/* Taken, captioned and removed without leaving the report - for a
@@ -426,7 +455,13 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
           {isFinal ? (
             <SectionProse entry={groupFor("outstanding")} />
           ) : (
-            <SummarySectionEditors reportId={id} sections={sectionsIn("outstanding")} />
+            <GroupEditor
+              key={JSON.stringify(editorSections("outstanding").map((section) => section.content))}
+              groupKey="outstanding"
+              groupLabel={outstandingGroup.label}
+              sections={editorSections("outstanding")}
+              action={updateSummarySectionGroup.bind(null, id)}
+            />
           )}
 
           {!isFinal && direct ? (

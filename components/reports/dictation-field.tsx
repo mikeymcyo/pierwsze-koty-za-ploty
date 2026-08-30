@@ -10,20 +10,28 @@ import { useSpeechInput } from "@/lib/hooks/use-speech-input";
 import { joinTranscript } from "@/lib/speech/transcript";
 
 /**
- * The day's work, spoken or typed.
+ * Anything written on site, spoken or typed.
  *
- * Whatever ends up here is stored verbatim in reports.raw_notes and is never
- * overwritten by the AI drafting in a later phase - the user must always be able
- * to see what they actually said next to what was written for them.
+ * The day's notes, where whatever ends up here is stored verbatim in
+ * reports.raw_notes and is never overwritten by the AI drafting - the user must
+ * always be able to see what they actually said next to what was written for
+ * them. And the write-up box of a report's visible section, which is why the
+ * height and the placeholder are arguments: a Progress Report gets the same
+ * microphone as a Daily Report rather than a second implementation of one.
  */
 export function DictationField({
   name,
   label,
   defaultValue,
+  rows = 10,
+  placeholder = "Describe the day's work in your own words. Trades on site, what got done, deliveries, delays, anything the client should know.",
 }: {
   name: string;
   label: string;
   defaultValue: string;
+  /** Shorter where the box is one of several on a screen. */
+  rows?: number;
+  placeholder?: string;
 }) {
   const [value, setValue] = useState(defaultValue);
 
@@ -45,8 +53,8 @@ export function DictationField({
         aria-label={label}
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        rows={10}
-        placeholder="Describe the day's work in your own words. Trades on site, what got done, deliveries, delays, anything the client should know."
+        rows={rows}
+        placeholder={placeholder}
         className="text-base"
       />
 

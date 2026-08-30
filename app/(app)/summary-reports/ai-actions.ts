@@ -10,11 +10,13 @@ import { requireSessionContext } from "@/lib/auth/session";
 import { partitionDraft } from "@/lib/reports/regeneration";
 import { SUMMARY_REPORT_IS_FINAL } from "@/lib/summary-reports/finalisation";
 import { isStandalone } from "@/lib/summary-reports/provenance";
-import { summarySortOrder } from "@/lib/summary-reports/sections";
+import { SUMMARY_SECTION_LABELS, summarySortOrder } from "@/lib/summary-reports/sections";
+import { reportStructure } from "@/lib/report-structure";
+import { changedSections, parseGroupText } from "@/lib/reports/group-text";
 import { createClient } from "@/lib/supabase/server";
 import type { SummarySectionType } from "@/types/database";
 
-export type SummaryAiState = { error?: string; generated?: number; kept?: number };
+export type SummaryAiState = { error?: string; generated?: number; kept?: number; saved?: boolean };
 
 function sectionText(rows: { section_type: string; content: string | null }[]): string {
   return rows
@@ -350,35 +352,71 @@ export async function generateSummaryReport(
   return { generated: write.length, kept: kept.length };
 }
 
-const editSchema = z.object({ sectionId: z.uuid(), content: z.string().trim() });
+const groupSchema = z.object({ groupKey: z.string().min(1), text: z.string() });
 
-export async function updateSummarySection(
+/**
+ * Saves one visible section of a consolidated document - which is several
+ * stored sections. The daily report's twin; see the note on updateSectionGroup
+ * in app/(app)/reports/ai-actions.ts for why one box holds several sections
+ * and how the protection rule survives it.
+ */
+export async function updateSummarySectionGroup(
   reportId: string,
   _previous: SummaryAiState,
   formData: FormData,
 ): Promise<SummaryAiState> {
-  const parsed = editSchema.safeParse({
-    sectionId: formData.get("sectionId") ?? "",
-    content: formData.get("content") ?? "",
+  const parsedInput = groupSchema.safeParse({
+    groupKey: formData.get("groupKey") ?? "",
+    text: formData.get("text") ?? "",
   });
-  if (!parsed.success) return { error: "That edit could not be saved." };
-  await requireSessionContext();
+  if (!parsedInput.success) return { error: "That edit could not be saved." };
+
+  const session = await requireSessionContext();
   const supabase = await createClient();
 
   const { data: report } = await supabase
     .from("summary_reports")
-    .select("status")
+    .select("kind, status")
     .eq("id", reportId)
     .maybeSingle();
   if (!report) return { error: "That report could not be found." };
   if (report.status === "final") return { error: SUMMARY_REPORT_IS_FINAL };
 
-  const { error } = await supabase
+  const group = reportStructure(report.kind).find(
+    (candidate) => candidate.key === parsedInput.data.groupKey,
+  );
+  if (!group) return { error: "That part of the report could not be found." };
+
+  const { data: rows, error: readError } = await supabase
     .from("summary_report_sections")
-    .update({ content: parsed.data.content || null, ai_generated: false })
-    .eq("id", parsed.data.sectionId)
+    .select("section_type, content")
     .eq("summary_report_id", reportId);
+  if (readError) return { error: `Could not read the report: ${readError.message}` };
+
+  const byType = new Map((rows ?? []).map((row) => [row.section_type, row.content]));
+  const sections = group.sections.map((type) => ({
+    type,
+    label: SUMMARY_SECTION_LABELS[type as SummarySectionType] ?? type,
+    content: byType.get(type as SummarySectionType) ?? "",
+  }));
+
+  const parsed = parseGroupText(parsedInput.data.text, sections);
+  const changed = changedSections(sections, parsed);
+  if (changed.length === 0) return { saved: true };
+
+  const { error } = await supabase.from("summary_report_sections").upsert(
+    changed.map((section) => ({
+      company_id: session.companyId,
+      summary_report_id: reportId,
+      section_type: section.type as SummarySectionType,
+      content: section.content.trim() || null,
+      ai_generated: false,
+      sort_order: summarySortOrder(report.kind, section.type as SummarySectionType),
+    })),
+    { onConflict: "summary_report_id,section_type" },
+  );
   if (error) return { error: `Could not save your edit: ${error.message}` };
+
   revalidatePath(`/summary-reports/${reportId}`);
-  return {};
+  return { saved: true };
 }

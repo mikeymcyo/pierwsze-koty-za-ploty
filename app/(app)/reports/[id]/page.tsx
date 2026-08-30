@@ -5,6 +5,7 @@ import { ArrowLeft, ExternalLink } from "lucide-react";
 
 import { saveReportDocuments } from "@/app/(app)/documents/actions";
 import { applyDailyReview, reviewDailyReport } from "@/app/(app)/reports/review-actions";
+import { updateSectionGroup } from "@/app/(app)/reports/ai-actions";
 import { saveReport, type ReportFormState } from "@/app/(app)/reports/actions";
 import { IssueList } from "@/components/issues/issue-list";
 import { RaiseIssue, type PhotoChoice } from "@/components/issues/raise-issue";
@@ -17,7 +18,8 @@ import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
 import { ReportCaptureForm } from "@/components/reports/report-capture-form";
 import { ReadOnlySection, ReportSectionCard } from "@/components/reports/report-section-card";
-import { ReportSectionEditors, ReportWriter } from "@/components/reports/report-draft";
+import { GroupEditor } from "@/components/reports/group-editor";
+import { ReportWriter } from "@/components/reports/report-draft";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -216,7 +218,21 @@ export default async function ReportCapturePage({
     (sectionsResult.data ?? []).map((section) => ({ ...section, type: section.section_type })),
   );
   const groupFor = (key: string) => grouped.find((entry) => entry.group.key === key);
-  const sectionsIn = (key: string) => groupFor(key)?.entries ?? [];
+  /** Every stored section of a group, written or not, for its one writing box. */
+  const editorSections = (key: string) => {
+    const entry = groupFor(key);
+    if (!entry) return [];
+    const byType = new Map(entry.entries.map((section) => [section.section_type, section]));
+    return entry.group.sections.map((type) => {
+      const row = byType.get(type as ReportSectionType);
+      return {
+        type,
+        label: REPORT_SECTION_LABELS[type as ReportSectionType] ?? type,
+        content: row?.content ?? null,
+        aiGenerated: row?.ai_generated ?? true,
+      };
+    });
+  };
 
   const save = saveReport.bind(null, id) as (
     state: ReportFormState,
@@ -292,7 +308,13 @@ export default async function ReportCapturePage({
           {isFinal ? (
             <SectionProse entry={groupFor("summary")} />
           ) : (
-            <ReportSectionEditors reportId={report.id} sections={sectionsIn("summary")} />
+            <GroupEditor
+              key={JSON.stringify(editorSections("summary").map((section) => section.content))}
+              groupKey="summary"
+              groupLabel={summaryGroup.label}
+              sections={editorSections("summary")}
+              action={updateSectionGroup.bind(null, report.id)}
+            />
           )}
         </ReportSectionCard>
       )}
@@ -386,7 +408,13 @@ export default async function ReportCapturePage({
           {isFinal ? (
             <SectionProse entry={groupFor("outstanding")} />
           ) : (
-            <ReportSectionEditors reportId={report.id} sections={sectionsIn("outstanding")} />
+            <GroupEditor
+              key={JSON.stringify(editorSections("outstanding").map((section) => section.content))}
+              groupKey="outstanding"
+              groupLabel={outstandingGroup.label}
+              sections={editorSections("outstanding")}
+              action={updateSectionGroup.bind(null, report.id)}
+            />
           )}
 
           {isFinal ? null : (
