@@ -12,7 +12,7 @@ import { SUMMARY_REPORT_IS_FINAL } from "@/lib/summary-reports/finalisation";
 import { isStandalone } from "@/lib/summary-reports/provenance";
 import { SUMMARY_SECTION_LABELS, summarySortOrder } from "@/lib/summary-reports/sections";
 import { reportStructure } from "@/lib/report-structure";
-import { changedSections, parseGroupText } from "@/lib/reports/group-text";
+import { changedSections, readGroupFields } from "@/lib/reports/group-text";
 import { createClient } from "@/lib/supabase/server";
 import type { SummarySectionType } from "@/types/database";
 
@@ -352,7 +352,7 @@ export async function generateSummaryReport(
   return { generated: write.length, kept: kept.length };
 }
 
-const groupSchema = z.object({ groupKey: z.string().min(1), text: z.string() });
+const groupSchema = z.object({ groupKey: z.string().min(1) });
 
 /**
  * Saves one visible section of a consolidated document - which is several
@@ -365,10 +365,7 @@ export async function updateSummarySectionGroup(
   _previous: SummaryAiState,
   formData: FormData,
 ): Promise<SummaryAiState> {
-  const parsedInput = groupSchema.safeParse({
-    groupKey: formData.get("groupKey") ?? "",
-    text: formData.get("text") ?? "",
-  });
+  const parsedInput = groupSchema.safeParse({ groupKey: formData.get("groupKey") ?? "" });
   if (!parsedInput.success) return { error: "That edit could not be saved." };
 
   const session = await requireSessionContext();
@@ -400,8 +397,8 @@ export async function updateSummarySectionGroup(
     content: byType.get(type as SummarySectionType) ?? "",
   }));
 
-  const parsed = parseGroupText(parsedInput.data.text, sections);
-  const changed = changedSections(sections, parsed);
+  const submitted = readGroupFields((name) => formData.get(name)?.toString(), sections);
+  const changed = changedSections(sections, submitted);
   if (changed.length === 0) return { saved: true };
 
   const { error } = await supabase.from("summary_report_sections").upsert(

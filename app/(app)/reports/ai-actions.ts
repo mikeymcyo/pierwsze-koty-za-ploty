@@ -10,7 +10,7 @@ import { documentMedia, photoMedia } from "@/lib/ai/cleanup-context";
 import { generateSections, type GenerationInput } from "@/lib/ai/report-generation";
 import { REPORT_SECTION_LABELS, sortOrderOf } from "@/lib/report-sections";
 import { reportStructure } from "@/lib/report-structure";
-import { changedSections, parseGroupText } from "@/lib/reports/group-text";
+import { changedSections, readGroupFields } from "@/lib/reports/group-text";
 import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
 import { partitionDraft } from "@/lib/reports/regeneration";
 import type { ReportSectionType } from "@/types/database";
@@ -228,10 +228,7 @@ export async function generateReport(
   return { generated: rows.length, kept: kept.length };
 }
 
-const groupSchema = z.object({
-  groupKey: z.string().min(1),
-  text: z.string(),
-});
+const groupSchema = z.object({ groupKey: z.string().min(1) });
 
 /**
  * Saves one visible section of the report - which is several stored sections.
@@ -248,10 +245,7 @@ export async function updateSectionGroup(
   _prev: AiState,
   formData: FormData,
 ): Promise<AiState> {
-  const parsedInput = groupSchema.safeParse({
-    groupKey: formData.get("groupKey") ?? "",
-    text: formData.get("text") ?? "",
-  });
+  const parsedInput = groupSchema.safeParse({ groupKey: formData.get("groupKey") ?? "" });
   if (!parsedInput.success) return { error: "That edit could not be saved." };
 
   const session = await requireSessionContext();
@@ -284,8 +278,10 @@ export async function updateSectionGroup(
     content: byType.get(type as ReportSectionType) ?? "",
   }));
 
-  const parsed = parseGroupText(parsedInput.data.text, sections);
-  const changed = changedSections(sections, parsed);
+  // One field per section, read by name. Nothing here infers a boundary from
+  // what somebody typed, so no edit can move text between sections.
+  const submitted = readGroupFields((name) => formData.get(name)?.toString(), sections);
+  const changed = changedSections(sections, submitted);
   // Nothing moved. Saying so is friendlier than a write that changes no row.
   if (changed.length === 0) return { saved: true };
 

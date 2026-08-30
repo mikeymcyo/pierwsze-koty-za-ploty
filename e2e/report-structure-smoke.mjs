@@ -33,9 +33,11 @@ import {
 } from "../lib/summary-reports/sections.ts";
 import { CLEANUP_SECTIONS } from "../lib/ai/cleanup-prompt.ts";
 import {
+  SECTION_FIELD_PREFIX,
   changedSections,
-  composeGroupText,
-  parseGroupText,
+  editableSections,
+  readGroupFields,
+  sectionFieldName,
 } from "../lib/reports/group-text.ts";
 import { readFileSync } from "node:fs";
 
@@ -298,122 +300,172 @@ for (const [name, source] of [
 check("the daily screen keeps its workforce and plant rows", /workforceResult/.test(dailyPage));
 check("the consolidated screen keeps its source record", /sourceItems/.test(summaryPage));
 
-console.log("\n9. One writing box per section, and nothing lost going in or out");
+console.log("\n9. Editing prose cannot move it into another stored section");
 
-// The box shows several stored sections at once. Everything below is about the
-// one property that matters: text a person typed must come back out of the
-// parse, in the section it belongs to, every time.
-for (const kind of KINDS) {
-  for (const group of reportStructure(kind)) {
-    const sections = group.sections.map((type) => ({
-      type,
-      label: STORED[kind].find((section) => section.type === type)?.label ?? type,
-      content: `Text for ${type}.`,
-    }));
-    if (sections.length === 0) continue;
-
-    const composed = composeGroupText(sections);
-    const parsed = parseGroupText(composed, sections);
-
-    check(
-      `${kind}/${group.key}: every section survives a round trip unchanged`,
-      sections.every((section) => parsed[section.type] === section.content),
-      JSON.stringify(parsed),
-    );
-    check(
-      `${kind}/${group.key}: an untouched box reports nothing changed`,
-      changedSections(sections, parsed).length === 0,
-    );
-  }
-}
+// The fault this section exists for. The first version of the one-box editor
+// separated a group's sections with their names on a line inside the textarea
+// and split the text back apart on save, so deleting that line - easy to do
+// one-handed on a phone - silently moved next Monday's planned works into last
+// Friday's completed works. A status nobody changed, in a document that gets
+// read back in a dispute.
+//
+// The boundary is now the field a person typed into. Everything below is a
+// proof that no edit to prose can reclassify it.
 
 const dailySummary = reportStructure("daily")[0];
-const dailySections = dailySummary.sections.map((type) => ({
-  type,
-  label: REPORT_SECTIONS.find((section) => section.type === type).label,
-  content: "",
-}));
+const dailyOutstanding = reportStructure("daily")[2];
+const labelOf = (type) => REPORT_SECTIONS.find((section) => section.type === type).label;
+const sectionsOf = (group, contentFor = (type) => `Original ${type}.`) =>
+  group.sections.map((type) => ({ type, label: labelOf(type), content: contentFor(type) }));
 
-// The case that matters most on site: an empty box somebody dictates into.
-const dictated = parseGroupText("We finished the ducting on the east elevation.", dailySections);
-check(
-  "text with no headings lands in the group's first section",
-  dictated.executive_summary === "We finished the ducting on the east elevation.",
-  JSON.stringify(dictated),
-);
-check(
-  "and nothing is dropped for having no heading",
-  Object.values(dictated).join("").includes("finished the ducting"),
-);
+// A form is a set of named fields. This is what the browser actually posts.
+const formOf = (values) => (name) => values[name];
 
-// Editing one part must not claim the others: they stay AI-written and stay
-// available to the next regeneration.
-const filled = dailySummary.sections.map((type) => ({
-  type,
-  label: REPORT_SECTIONS.find((section) => section.type === type).label,
-  content: `Original ${type}.`,
-}));
-const edited = parseGroupText(
-  composeGroupText(filled).replace("Original works_completed.", "Rewritten by hand."),
+const filled = sectionsOf(dailySummary);
+const untouched = readGroupFields(
+  formOf(Object.fromEntries(filled.map((s) => [sectionFieldName(s.type), s.content]))),
   filled,
 );
-const changed = changedSections(filled, edited);
-check("only the section a person altered comes back as changed", changed.length === 1, JSON.stringify(changed));
-check("and it is the right one", changed[0]?.type === "works_completed");
 check(
-  "the others keep their text exactly",
+  "an untouched form gives every section back its own text",
+  filled.every((section) => untouched[section.type] === section.content),
+  JSON.stringify(untouched),
+);
+check("and reports nothing changed", changedSections(filled, untouched).length === 0);
+
+// THE CASE THE TESTER NAMED. Somebody deletes what looks like a heading, and
+// types the words "Works completed" into the middle of their planned works.
+// Neither can move a word out of planned works, because the section a field
+// belongs to is not written in the box.
+const planned = sectionsOf(dailyOutstanding);
+const meddled = readGroupFields(
+  formOf({
+    ...Object.fromEntries(planned.map((s) => [sectionFieldName(s.type), s.content])),
+    [sectionFieldName("planned_works")]:
+      "Works completed\nOutstanding items\nScreed is programmed to start on Monday.",
+  }),
+  planned,
+);
+check(
+  "text naming another section stays in the section it was typed into",
+  meddled.planned_works.includes("Screed is programmed to start on Monday."),
+  JSON.stringify(meddled.planned_works),
+);
+check(
+  "and the section it names is not touched by it",
+  meddled.works_completed === undefined && meddled.outstanding_items === "Original outstanding_items.",
+  JSON.stringify(meddled),
+);
+check(
+  "so only the section that was actually typed in comes back as changed",
+  changedSections(planned, meddled).map((section) => section.type).join(",") === "planned_works",
+  JSON.stringify(changedSections(planned, meddled)),
+);
+
+// Emptying one part clears that section and only that one.
+const emptied = readGroupFields(
+  formOf({
+    ...Object.fromEntries(filled.map((s) => [sectionFieldName(s.type), s.content])),
+    [sectionFieldName("works_completed")]: "",
+  }),
+  filled,
+);
+check("clearing one part clears that section", emptied.works_completed === "");
+check(
+  "and leaves every other section exactly as it was",
   filled
     .filter((section) => section.type !== "works_completed")
-    .every((section) => edited[section.type] === section.content),
+    .every((section) => emptied[section.type] === section.content),
+);
+check(
+  "with only that one reported as changed",
+  changedSections(filled, emptied).map((section) => section.type).join(",") === "works_completed",
 );
 
-// A heading a person deleted merges that text upwards rather than losing it.
-const merged = parseGroupText(
-  composeGroupText(filled).replace(/^Works completed$/m, ""),
+// A missing field is an empty section, never another section's text.
+const partial = readGroupFields(formOf({}), filled);
+check(
+  "a form that carried no fields writes no text anywhere",
+  filled.every((section) => partial[section.type] === ""),
+);
+
+// A field naming a section of a different group is not read at all, so a
+// handmade request cannot write a section the form was not showing.
+const crossGroup = readGroupFields(
+  formOf({
+    [sectionFieldName("works_completed")]: "Legitimate.",
+    [sectionFieldName("planned_works")]: "Injected from another group.",
+  }),
   filled,
 );
 check(
-  "deleting a heading merges its text into the section above, never deletes it",
-  merged.executive_summary.includes("Original works_completed."),
-  JSON.stringify(merged.executive_summary),
+  "a field for a section outside this group is ignored",
+  crossGroup.planned_works === undefined &&
+    Object.values(crossGroup).every((value) => !value.includes("Injected")),
+  JSON.stringify(crossGroup),
 );
 
-// A sentence that merely starts with a section's name is prose, not a heading.
-const prose = parseGroupText(
-  "Works completed to the east elevation were signed for on site.",
-  dailySections,
+// Whitespace-only differences are not edits: they must not flip a section to
+// "written by a person" and exempt it from the next regeneration.
+const respaced = readGroupFields(
+  formOf(
+    Object.fromEntries(filled.map((s) => [sectionFieldName(s.type), `  ${s.content}  `])),
+  ),
+  filled,
+);
+check("padding a section with spaces is not an edit", changedSections(filled, respaced).length === 0);
+
+check("field names are prefixed so they cannot collide", SECTION_FIELD_PREFIX.length > 0);
+check(
+  "and are derived from the section type, not its wording",
+  sectionFieldName("works_completed") === `${SECTION_FIELD_PREFIX}works_completed`,
+);
+
+console.log("\n9b. Which parts of a group get a box");
+
+check(
+  "the ones already written",
+  editableSections(sectionsOf(dailySummary, (type) => (type === "works_completed" ? "Text." : "")))
+    .map((section) => section.type)
+    .join(",") === "works_completed",
 );
 check(
-  "a sentence beginning with a section name is not treated as a heading",
-  prose.executive_summary.startsWith("Works completed to the east"),
-  JSON.stringify(prose),
+  "and where nothing is written, the first, so there is somewhere to start",
+  editableSections(sectionsOf(dailySummary, () => "")).map((section) => section.type).join(",") ===
+    "executive_summary",
 );
-
-// A group holding one stored section needs no heading line at all.
-const single = [{ type: "photographic_record", label: "Photographic record", content: "A short introduction." }];
-check("a lone section is shown without its label", composeGroupText(single) === "A short introduction.");
 check(
-  "and parses straight back",
-  parseGroupText("Something else entirely.", single).photographic_record === "Something else entirely.",
+  "never every stored section at once - that was the eight boxes this removed",
+  editableSections(sectionsOf(dailySummary, () => "")).length === 1,
 );
+check("a group with no sections gets nothing", editableSections([]).length === 0);
 
-// An empty group offers an empty box rather than a page of headings.
-check(
-  "an unwritten group composes to nothing",
-  composeGroupText(dailySections) === "",
-);
-
-console.log("\n10. The screens show one box per section, and it dictates");
+console.log("\n10. The screens show one writing area per section, and it dictates");
 
 const groupEditor = read("../components/reports/group-editor.tsx");
-check("the box is the dictation field, not a second implementation", /DictationField/.test(groupEditor));
-check("it composes and the action parses", /composeGroupText/.test(groupEditor));
+check(
+  "the section a field belongs to is decided in code, not typed by a person",
+  /name=\{sectionFieldName\(part\.type\)\}/.test(groupEditor),
+);
+check(
+  "the part names are page furniture, not text in a box",
+  /<span[\s\S]{0,200}\{part\.label\}/.test(groupEditor),
+);
+check(
+  "nothing splits prose back apart any more",
+  !/parseGroupText|composeGroupText/.test(groupEditor) &&
+    !/parseGroupText|composeGroupText/.test(read("../lib/reports/group-text.ts")),
+);
 check("it says which section it is saving", /name="groupKey"/.test(groupEditor));
 // Photos & Evidence holds no written sections on a daily report, a survey or a
 // Progress Report. A box there would save nowhere.
 check(
   "a section with no written sections gets no box",
-  /if \(sections\.length === 0\) return null;/.test(groupEditor),
+  /if \(parts\.length === 0\) return null;/.test(groupEditor),
+);
+check(
+  "the parts are fixed at mount, so none appears under a thumb mid-sentence",
+  /useState\(\(\) => editableSections\(sections\)\)/.test(groupEditor),
 );
 
 for (const [name, source] of [
@@ -421,19 +473,27 @@ for (const [name, source] of [
   ["the consolidated screen", summaryPage],
 ]) {
   const editors = source.match(/<GroupEditor/g) ?? [];
-  check(`${name} has at most three writing boxes`, editors.length <= 3, String(editors.length));
+  check(`${name} has at most three writing areas`, editors.length <= 3, String(editors.length));
   check(
     `${name} no longer stacks a textarea per stored section`,
     !/SectionEditors/.test(source),
   );
 }
-// A Progress Report is written by voice like a Daily Report, through the same
-// component rather than a second one.
+
+// A Progress Report is written by voice like a Daily Report, through the one
+// speech implementation rather than a second one.
+const dictationField = read("../components/reports/dictation-field.tsx");
+const speechHook = read("../lib/hooks/use-speech-input.ts");
+check("both writing surfaces dictate", /useSpeechInput/.test(groupEditor) && /useSpeechInput/.test(dictationField));
 check(
-  "there is exactly one dictation implementation",
-  /useSpeechInput/.test(read("../components/reports/dictation-field.tsx")) &&
-    !/useSpeechInput/.test(groupEditor) &&
-    !/useSpeechInput/.test(summaryPage),
+  "and there is only one implementation of dictation",
+  /SpeechRecognition/.test(speechHook) &&
+    !/SpeechRecognition/.test(groupEditor) &&
+    !/SpeechRecognition/.test(dictationField),
+);
+check(
+  "dictation goes into the part being written in",
+  /onFocus=\{\(\) => setTarget\(part\.type\)\}/.test(groupEditor),
 );
 
 console.log("\n=== Result ===");

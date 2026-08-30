@@ -36,38 +36,46 @@ The current implementation completes the core workflow:
 
 The tester's four findings from the iPad screenshots, fixed together.
 
-**1. One editor per visible section.** Grouping the headings was not enough: a
-Progress Report still put five textareas on the screen. Each visible section
-now has ONE box. `lib/reports/group-text.ts` composes the group's stored
-sections into it and parses them back out:
+**1. One writing area per visible section, with boundaries a person cannot
+edit.** Grouping the headings was not enough: a Progress Report still put five
+textareas on the screen. Each visible section now has ONE surface - one border,
+one Dictate button, one Save.
 
-```
-Works completed
-Ducting was laid to the east elevation.
+**The section boundaries are form field names, not text.** Inside that surface
+each stored section has its own field, `section:<type>`, and the part names
+between them are a `<span>` - page furniture, not a line in a box. Text is
+saved to the section whose field it was typed into and to no other. Nothing is
+parsed out of prose.
 
-Planned works
-Screed is programmed to start on Monday.
-```
+That is the second design. The first separated a group's sections with their
+names on a line inside one textarea and split the text back apart on save, and
+the tester was right to stop it: deleting that line - easy one-handed on a
+phone - silently moved next Monday's planned works into last Friday's completed
+works. A status nobody changed, in a document read back in a dispute.
+`e2e/report-structure-smoke.mjs` §9 proves the replacement: typing "Works
+completed" into the planned-works field leaves every word in planned works;
+clearing one part clears that part only; a field for a section outside the
+group is ignored; and whitespace is not an edit.
 
-Those name lines are the seam. **No migration, and the stored model is
-untouched** - the drafting and cleanup prompts still write each section, the
-Master AI Review still reasons about them one at a time, and the PDF still
-prints each with its run-in label. Properties the test pins down: a round trip
-changes nothing; text with no heading lands in the group's first section (the
-dictate-into-an-empty-box case); deleting a heading merges its text upwards
-rather than losing it; a sentence that merely starts with a section's name
-stays prose; and **only a section whose own text moved is marked as edited by a
-person**, so one edit does not exempt the whole group from the next
-regeneration. A group with no written sections - Photos & Evidence everywhere
-but a Completion Report - gets no box at all.
+**No migration, and the stored model is untouched** - the drafting and cleanup
+prompts still write each section, the Master AI Review still reasons about them
+one at a time, and the PDF still prints each with its run-in label. **Only a
+section whose own text moved is marked as edited by a person**, so one edit
+does not exempt the whole group from the next regeneration. Which parts get a
+box: the ones already written, or - where nothing is written - the first, so
+there is always somewhere to start. Never all eight. A group with no written
+sections at all (Photos & Evidence everywhere but a Completion Report) gets no
+box.
 
 The per-section editors and the `updateSection` / `updateSummarySection`
 actions behind them are gone; `updateSectionGroup` and
 `updateSummarySectionGroup` replace them.
 
-**2. Progress dictates.** The box is `DictationField` - the same microphone the
-day's notes use, given `rows` and `placeholder` arguments rather than a second
-implementation. Every kind and both Progress modes (source-based and
+**2. Progress dictates.** The surface uses `useSpeechInput` - the one
+implementation of dictation, shared with `DictationField`; `SpeechRecognition`
+appears in `lib/hooks/use-speech-input.ts` and nowhere else, and the test
+asserts it. Speech goes into the part currently being written in, and says so
+while listening. Every kind and both Progress modes (source-based and
 standalone) get it. On a standalone Progress Report the dictated text is also
 what the AI reads as evidence, which is the existing standalone behaviour.
 

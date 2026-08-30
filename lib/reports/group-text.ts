@@ -1,49 +1,32 @@
 /**
- * One writing box per visible section, over several stored sections.
+ * One writing area per visible section, over several stored sections - with
+ * boundaries a person cannot edit by accident.
  *
- * Pure, with no runtime imports and no path aliases, so the round-trip can be
- * tested without a database.
+ * Pure, with no runtime imports and no path aliases, so the rules can be tested
+ * without a database.
  *
- * ## Why
+ * ## Why this is not text parsing
  *
- * Grouping the headings was not enough. A Progress Report still put five
- * separate textareas on the screen - Period summary, Key activities, Works
- * completed, Works in progress, Resources and plant - and five boxes is five
- * boxes whichever heading they sit under. On an iPad, in a van, that is a
- * form to be endured rather than a report to be written.
+ * The first version of this put every section of a group into one textarea,
+ * separated by the section's name on its own line, and split it back apart on
+ * save. It read well and it was wrong: the boundary between "Works completed"
+ * and "Planned works" was a line of ordinary prose sitting in an editable box.
+ * Delete that line by accident - and people do, on a phone, one-handed - and
+ * next Monday's screed silently became work completed last Friday. That is a
+ * status change nobody made, in a document that may be read back in a dispute.
  *
- * So each visible section gets ONE box. The stored sections underneath are
- * untouched: the drafting and cleanup prompts still write them one at a time,
- * the Master AI Review still reasons about them one at a time, and the PDF
- * still prints each with its own run-in label. What changes is only how they
- * are handed to a person to edit.
+ * So there is no parsing of prose here, and there is no delimiter a person can
+ * type over. Each stored section has its own field, named after the section
+ * type, and the save reads the field for each section of the group and takes
+ * its value verbatim. Text can only be in the section whose field it was typed
+ * into. Moving a sentence between sections takes a deliberate cut and paste
+ * from one part of the box to another, which is exactly the level of intent
+ * such a move deserves.
  *
- * ## The format
- *
- * Each stored section appears as its own name on a line, then its text:
- *
- *     Works completed
- *     Ducting was laid to the east elevation.
- *
- *     Planned works
- *     Screed is programmed to start on Monday.
- *
- * Those name lines are the seam. Parsing puts each block back into the section
- * it came from, so a round-trip through the box changes nothing, and a person
- * can move a sentence from one section to another by moving it across a name
- * line - which is exactly the edit they would otherwise have made with two
- * textareas and a lot of scrolling.
- *
- * Where a group holds one stored section there is no name line at all: a lone
- * label under a heading that already says the same thing is noise.
- *
- * ## What happens to text nobody labelled
- *
- * It goes to the first section of the group. That is the case that matters
- * most: an empty box somebody dictates a paragraph into. It lands in the
- * group's leading section, which is the one whose brief describes an overview,
- * and the drafting pass can allocate it properly from there. Text is never
- * dropped for having no label.
+ * The screen still shows one writing area per visible section - the fields sit
+ * inside one surface, under quiet labels that are page furniture rather than
+ * text - so nothing about the simplification the tester asked for is given
+ * back. See components/reports/group-editor.tsx.
  */
 
 export type GroupTextSection = {
@@ -52,81 +35,38 @@ export type GroupTextSection = {
   content?: string | null;
 };
 
-/** A label line, as written and as recognised: "Works completed", "Works completed:". */
-function labelKey(line: string): string {
-  return line
-    .trim()
-    .replace(/[.:–—-]+$/, "")
-    .trim()
-    .toLowerCase();
+/**
+ * The form field carrying one stored section.
+ *
+ * Prefixed so it can never collide with `groupKey` or anything else on the
+ * form, and derived from the section type rather than from its label: a label
+ * is wording that may be improved one day, and a section type is an enum value
+ * in Postgres.
+ */
+export const SECTION_FIELD_PREFIX = "section:";
+
+export function sectionFieldName(type: string): string {
+  return `${SECTION_FIELD_PREFIX}${type}`;
 }
 
 /**
- * The group's stored sections as one editable block.
+ * The submitted text for each stored section of one group.
  *
- * Only sections carrying text appear. An empty section is a correct answer
- * from the drafting pass, and printing its name over a blank line would invite
- * somebody to fill it - which is the padding the whole product works against.
+ * Reads only the fields belonging to the sections it was given. A field naming
+ * a section of another group - or one invented by hand in a request - is not
+ * read at all, so a section can never be written by a form that was not
+ * showing it.
  */
-export function composeGroupText(sections: readonly GroupTextSection[]): string {
-  const written = sections.filter((section) => section.content?.trim());
-  if (written.length === 0) return "";
-
-  // One stored section means the box is simply that section.
-  if (sections.length === 1) return (written[0].content ?? "").trim();
-
-  return written
-    .map((section) => `${section.label}\n${(section.content ?? "").trim()}`)
-    .join("\n\n");
-}
-
-/**
- * The block split back into the sections it came from.
- *
- * Returns an entry for every section in the group, including the ones that
- * ended up empty - the caller needs to know a section was cleared, not merely
- * that it was not mentioned.
- */
-export function parseGroupText(
-  text: string,
+export function readGroupFields(
+  get: (name: string) => string | null | undefined,
   sections: readonly GroupTextSection[],
 ): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const section of sections) result[section.type] = "";
-  if (sections.length === 0) return result;
-
-  const trimmed = text.trim();
-  if (!trimmed) return result;
-
-  // One stored section: nothing to split, and no label to look for.
-  if (sections.length === 1) {
-    result[sections[0].type] = trimmed;
-    return result;
-  }
-
-  const byLabel = new Map(sections.map((section) => [labelKey(section.label), section.type]));
-  // Anything before the first name line belongs to the leading section - see
-  // the note above about a box somebody has just dictated into.
-  let current = sections[0].type;
-  const lines: Record<string, string[]> = {};
-  for (const section of sections) lines[section.type] = [];
-
-  for (const line of trimmed.split("\n")) {
-    const matched = byLabel.get(labelKey(line));
-    // A name line only opens a section when the line is the name and nothing
-    // else, so a sentence that happens to begin "Works completed to the east
-    // elevation" stays prose.
-    if (matched) {
-      current = matched;
-      continue;
-    }
-    lines[current].push(line);
-  }
-
+  const values: Record<string, string> = {};
   for (const section of sections) {
-    result[section.type] = lines[section.type].join("\n").trim();
+    const raw = get(sectionFieldName(section.type));
+    values[section.type] = typeof raw === "string" ? raw.trim() : "";
   }
-  return result;
+  return values;
 }
 
 /**
@@ -134,18 +74,31 @@ export function parseGroupText(
  *
  * The protection rule is unchanged and this is what keeps it: a section is
  * marked as written by a person only when its own text moved. Editing one
- * paragraph in the box must not quietly claim the other three and exempt them
- * from the next regeneration.
+ * paragraph must not quietly claim the others and exempt them from the next
+ * regeneration.
  */
 export function changedSections(
   sections: readonly GroupTextSection[],
-  parsed: Record<string, string>,
+  values: Record<string, string>,
 ): { type: string; content: string }[] {
   return sections
-    .filter((section) => (section.content ?? "").trim() !== (parsed[section.type] ?? "").trim())
-    .map((section) => ({ type: section.type, content: parsed[section.type] ?? "" }));
+    .filter((section) => (section.content ?? "").trim() !== (values[section.type] ?? "").trim())
+    .map((section) => ({ type: section.type, content: values[section.type] ?? "" }));
 }
 
-/** Said under the box, once, where a group holds more than one section. */
-export const GROUP_TEXT_HINT =
-  "Each heading below marks where that part of the report starts. Move a sentence across one to move it between them.";
+/**
+ * Which parts of a group get a writing area.
+ *
+ * The ones already written, and - where nothing is written at all - the first,
+ * so there is always somewhere to start. Deliberately NOT every stored section:
+ * a Daily Report would show eight empty boxes again, which is the clutter this
+ * whole batch removed.
+ *
+ * Computed once when the editor mounts and then left alone, so a box never
+ * appears or disappears under somebody's thumb while they are typing.
+ */
+export function editableSections<T extends GroupTextSection>(sections: readonly T[]): T[] {
+  const written = sections.filter((section) => section.content?.trim());
+  if (written.length > 0) return written;
+  return sections.length > 0 ? [sections[0]] : [];
+}
