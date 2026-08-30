@@ -19,6 +19,14 @@ export type GenerationInput = {
   plant: { description: string; quantity: number }[];
   photos: { category: string; caption: string | null }[];
   rawNotes: string;
+  /**
+   * The Cleanup AI's output, already labelled and in section order.
+   *
+   * Optional on purpose. A cleanup that could not run leaves this empty and
+   * this prompt is exactly what it was before that layer existed - see
+   * lib/ai/cleanup.ts.
+   */
+  cleanedSections?: { label: string; text: string }[];
 };
 
 /**
@@ -32,6 +40,18 @@ export type GenerationInput = {
  */
 export const RAW_NOTES_LABEL =
   "SOURCE NOTES (dictated on site, rough and unpunctuated - raw material to be rewritten, not text to be corrected):";
+
+/**
+ * How the Cleanup AI's output is introduced here.
+ *
+ * Named a draft, and named as somebody else's. The cleanup pass runs first and
+ * rewrites the raw notes into section text; this pass writes the report, and
+ * the Master AI Review (lib/ai/master-review-prompt.ts) reads the assembled
+ * document later. Neither of the other two is replaced or merged by the
+ * existence of this block: the notes below it remain the record, and stay last.
+ */
+export const CLEANED_SECTIONS_LABEL =
+  "CLEANED DRAFT FROM THE EARLIER CLEANUP PASS (proposed wording only - not evidence, and not a source of fact):";
 
 /**
  * Photo tags are evidence that a photograph exists. They are not evidence that
@@ -108,6 +128,19 @@ export const SYSTEM_PROMPT = [
   "and what equipment was there. They do not tell you what anyone did. Do not",
   "attribute work to a trade or a company unless the notes say so, and do not",
   "turn a photo tag into an event.",
+  "",
+  "A CLEANED DRAFT MAY BE PROVIDED",
+  "",
+  "A separate cleanup pass may have rewritten the notes into section text before",
+  "you saw them. Where that draft is present it is a proposal about language, not",
+  "a source of fact. The source notes remain the only record of what happened.",
+  "",
+  "Read the draft against the notes. Where it says more than the notes support,",
+  "or has firmed up a status the notes leave open - proposed into instructed,",
+  "observed into confirmed, installed into tested, completed into approved, work",
+  "into compliant or safe - write the weaker version the notes support and drop",
+  "the rest. Never repeat a claim from the draft that the notes do not carry, and",
+  "never treat the draft itself as evidence that something happened.",
   "",
   "SECTIONS",
   "",
@@ -201,6 +234,17 @@ export function buildPrompt(input: GenerationInput): string {
     "",
     PHOTO_TAGS_LABEL,
     photos,
+    // Before the notes, never after: the notes are the record, and the last
+    // thing the model reads is the thing it is judged against.
+    ...(input.cleanedSections?.length
+      ? [
+          "",
+          CLEANED_SECTIONS_LABEL,
+          input.cleanedSections
+            .map((section) => `${section.label}: ${section.text}`)
+            .join("\n"),
+        ]
+      : []),
     "",
     RAW_NOTES_LABEL,
     // Verbatim. The model is told to rewrite these; nothing here may alter

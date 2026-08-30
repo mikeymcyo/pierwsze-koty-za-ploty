@@ -15,7 +15,14 @@
  */
 
 import { chromium } from "playwright";
-import { NARROW_MARKER, startStub, STUB_MARKER, STUB_PORT } from "./stub-openai.mjs";
+import {
+  CLEANUP_MARKER,
+  NARROW_MARKER,
+  requestedCleanupKind,
+  startStub,
+  STUB_MARKER,
+  STUB_PORT,
+} from "./stub-openai.mjs";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const stamp = Date.now();
@@ -99,6 +106,28 @@ try {
     "the model was told not to invent",
     /never invent/i.test(sentPrompt),
     "system prompt must forbid invention",
+  );
+
+  console.log("\n3a. Two passes ran, in order, and the review had the last word");
+  // Cleanup first, review second. The report is written by the review: if that
+  // order ever inverts, or the cleanup call stops happening, the layer is not
+  // doing anything and this is where it shows.
+  const passes = stub.received.map((sent) => requestedCleanupKind(sent));
+  check("the cleanup pass ran", passes.includes("daily"), JSON.stringify(passes));
+  check("it ran first", passes[0] === "daily", JSON.stringify(passes));
+  check("and the review ran after it", passes.at(-1) === null, JSON.stringify(passes));
+  check(
+    "the review was handed the cleaned draft",
+    sentPrompt.includes(CLEANUP_MARKER),
+    "the cleaned sections must reach the drafting prompt",
+  );
+  check(
+    "and was told the draft is not evidence",
+    /not evidence, and not a source of fact/i.test(sentPrompt),
+  );
+  check(
+    "the cleanup pass was given the notes verbatim",
+    (stub.received[0]?.messages ?? []).map((m) => m.content).join("\n").includes(NOTES),
   );
 
   console.log("\n4. Empty sections are dropped, not padded");

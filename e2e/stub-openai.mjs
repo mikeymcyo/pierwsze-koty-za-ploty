@@ -16,11 +16,15 @@ import { createServer } from "node:http";
 // on, and hardcoding it here once left the stub silently reading an empty
 // string after the prompt was reworded.
 import { RAW_NOTES_LABEL } from "../lib/ai/prompt.ts";
+import { CLEANUP_SECTIONS, CLEANUP_SOURCE_LABEL } from "../lib/ai/cleanup-prompt.ts";
 
 export const STUB_PORT = 4010;
 
 /** Echoed back in the sections so a test can prove the text came from here. */
 export const STUB_MARKER = "STUBBED-SECTION";
+
+/** The same, for the cleanup pass, so the two are never confused for each other. */
+export const CLEANUP_MARKER = "STUBBED-CLEANUP";
 
 /**
  * Notes carrying this make the stub return a narrower draft, leaving two
@@ -49,6 +53,53 @@ export function sectionsFor(prompt) {
   };
 }
 
+/**
+ * The cleanup pass's reply, for whichever document the request asked about.
+ *
+ * The kind is read from the JSON schema name the app sends rather than guessed
+ * from the prose, so this stays right if the prompt is reworded.
+ *
+ * Two of the fields are deliberately awkward. period_summary comes back with
+ * five sentences, so a test can prove the three-sentence cap is enforced on
+ * our side and not merely requested of the model; and one section arrives
+ * wrapped in a markdown heading and its own label, which is what the
+ * "return only the section text" instruction is up against.
+ */
+export function cleanupSectionsFor(prompt, kind) {
+  const source = prompt.split(CLEANUP_SOURCE_LABEL)[1] ?? "";
+  const definitions = CLEANUP_SECTIONS[kind] ?? [];
+  const reply = {};
+
+  // The echo goes in the first section the three-sentence cap does not apply
+  // to, so that a test can assert both things at once without one truncating
+  // the other.
+  const echoable = definitions.filter((definition) => definition.type !== "period_summary");
+
+  for (const definition of definitions) {
+    if (definition.type === "period_summary") {
+      reply[definition.type] =
+        `${CLEANUP_MARKER} one. Sentence two. Sentence three. Sentence four. Sentence five.`;
+    } else if (definition.type === echoable[0]?.type) {
+      reply[definition.type] = `${CLEANUP_MARKER} lead. Source seen: ${source.trim().slice(0, 60)}`;
+    } else if (definition.type === echoable[1]?.type) {
+      // Packaging the app has to strip before this text is shown to anybody.
+      reply[definition.type] = `## ${definition.label}: ${CLEANUP_MARKER} second section.`;
+    } else {
+      // Empty is a correct answer, and most sections should be.
+      reply[definition.type] = "";
+    }
+  }
+
+  return reply;
+}
+
+/** Which pass a request belongs to, from the schema name it asks for. */
+export function requestedCleanupKind(parsed) {
+  const name = parsed?.response_format?.json_schema?.name ?? "";
+  const match = /^(daily|progress|completion|survey)_cleanup_sections$/.exec(name);
+  return match ? match[1] : null;
+}
+
 export function startStub({ port = STUB_PORT } = {}) {
   const received = [];
 
@@ -71,7 +122,14 @@ export function startStub({ port = STUB_PORT } = {}) {
       received.push(parsed);
 
       const prompt = parsed.messages?.map((m) => m.content).join("\n") ?? "";
-      const content = JSON.stringify(sectionsFor(prompt));
+      // The cleanup pass and the drafting pass hit the same endpoint and want
+      // different shapes back. Answering a cleanup call with report sections
+      // would fail its schema check, the app would fall back to the raw notes,
+      // and the test would pass while exercising nothing.
+      const cleanupKind = requestedCleanupKind(parsed);
+      const content = JSON.stringify(
+        cleanupKind ? cleanupSectionsFor(prompt, cleanupKind) : sectionsFor(prompt),
+      );
 
       res.writeHead(200, { "content-type": "application/json" });
       res.end(

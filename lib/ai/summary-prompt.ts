@@ -60,4 +60,19 @@ export const SUMMARY_SYSTEM_PROMPT = [
   "Use British English, professional continuous prose and concise paragraphs. Do not use markdown or headings.",
 
   "A completion report records what the evidence says was completed; it is not itself a certificate of completion, compliance, handover or acceptance.",
+
+  [
+    "A CLEANED DRAFT MAY BE PROVIDED",
+    "",
+    "An earlier cleanup pass may have rewritten the evidence into section text",
+    "before you saw it. Where that draft is present it is a proposal about",
+    "language, never a source of fact: the evidence below it is the record.",
+    "",
+    "Read the draft against the evidence. Where it says more than the evidence",
+    "supports, or has firmed a status up - proposed into instructed, observed",
+    "into confirmed, installed into tested, completed into approved, work into",
+    "compliant or safe - write the weaker version the evidence supports and drop",
+    "the rest. Never repeat a claim from the draft that the evidence does not",
+    "carry, and never treat the draft itself as evidence.",
+  ].join("\n"),
 ].join("\n\n");

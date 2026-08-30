@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+import { cleanedSectionsFor } from "@/lib/ai/cleanup";
+import { documentMedia, photoMedia } from "@/lib/ai/cleanup-context";
 import { generateSummarySections } from "@/lib/ai/summary-generation";
 import { requireSessionContext } from "@/lib/auth/session";
 import { partitionDraft } from "@/lib/reports/regeneration";
@@ -235,21 +237,75 @@ export async function generateSummaryReport(
   }
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
+  const projectName = project?.name ?? "Project";
+  const evidence = [
+    evidenceBlocks.join("\n\n"),
+    photoEvidence ? `CURATED PHOTOGRAPH CAPTIONS:\n${photoEvidence}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+
+  // Pass one, the Cleanup AI, over the same evidence the drafting pass reads.
+  // A survey's material is a visit rather than a period, and its sections ask
+  // what was found and what is proposed - which is why the kind is passed
+  // through rather than assumed.
+  // Skipped outright when there is no evidence: the drafting pass refuses an
+  // empty draft below, so there is nothing to clean and no reason to read the
+  // documents or call a model to find that out.
+  const cleanedSections = evidence.trim()
+    ? await cleanedSectionsFor({
+        kind: report.kind,
+        projectName,
+        client: project?.client ?? null,
+        siteAddress: project?.site_address ?? null,
+        dateLine:
+          report.period_start && report.period_end
+            ? `${report.kind === "survey" ? "VISIT" : "REPORTING PERIOD"}: ${report.period_start} to ${report.period_end}`
+            : "REPORTING PERIOD: whole project record",
+        weather: null,
+        authorName: null,
+        context: [
+          {
+            label: "ISSUE RECORD",
+            text: issueEvidence || "No issue rows were selected. Do not claim that no issues occurred.",
+          },
+        ],
+        media: [
+          ...photoMedia(
+            (selectedPhotos ?? []).flatMap((selected) => {
+              const photo = photoById.get(selected.photo_id);
+              return photo
+                ? [
+                    {
+                      category: photo.category,
+                      caption: selected.caption_override?.trim() || photo.caption,
+                    },
+                  ]
+                : [];
+            }),
+          ),
+          ...(await documentMedia(supabase, {
+            table: "summary_report_documents",
+            column: "summary_report_id",
+            id: reportId,
+          })),
+        ],
+        source: evidence,
+      })
+    : [];
+
+  // Pass two, the drafting pass, reading the evidence itself.
   const result = await generateSummarySections({
     kind: report.kind,
-    projectName: project?.name ?? "Project",
+    projectName,
     client: project?.client ?? null,
     siteAddress: project?.site_address ?? null,
     periodStart: report.period_start,
     periodEnd: report.period_end,
-    evidence: [
-      evidenceBlocks.join("\n\n"),
-      photoEvidence ? `CURATED PHOTOGRAPH CAPTIONS:\n${photoEvidence}` : "",
-    ]
-      .filter(Boolean)
-      .join("\n\n"),
+    evidence,
     issues: issueEvidence,
     standalone,
+    cleanedSections,
   });
   if (!result.ok) return { error: result.error };
 

@@ -5,6 +5,8 @@ import { z } from "zod";
 
 import { requireSessionContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { cleanedSectionsFor } from "@/lib/ai/cleanup";
+import { documentMedia, photoMedia } from "@/lib/ai/cleanup-context";
 import { generateSections, type GenerationInput } from "@/lib/ai/report-generation";
 import { sortOrderOf } from "@/lib/report-sections";
 import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
@@ -36,6 +38,13 @@ export type AiState = { error?: string; generated?: number; kept?: number };
  * words, in a document that goes to a client with his name on it, must not
  * lose it to a button press. How many were kept comes back in the result so
  * the screen can say so rather than leaving him to notice.
+ *
+ * Two model calls happen here, in order. The Cleanup AI rewrites the notes into
+ * professional section text under the fixed glossary, then the drafting pass
+ * writes the report from the notes with that draft alongside them. The Master
+ * AI Review is a separate layer that reads the assembled document afterwards
+ * and is untouched by either. A cleanup that cannot run is not an error - it
+ * leaves drafting reading the raw notes, exactly as it always has.
  */
 export async function generateReport(
   reportId: string,
@@ -74,8 +83,57 @@ export async function generateReport(
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
 
+  const projectName = project?.name ?? "Unnamed project";
+  const rawNotes = report.raw_notes ?? "";
+
+  // Pass one, the Cleanup AI. What it may call a photograph and what it may
+  // call a drawing is decided here, from stored metadata only - see
+  // lib/ai/cleanup-context.ts.
+  // Skipped outright when there are no notes: the drafting pass refuses an
+  // empty draft below, so there is nothing to clean and no reason to read the
+  // documents or call a model to find that out.
+  const cleanedSections = rawNotes.trim()
+    ? await cleanedSectionsFor({
+        kind: "daily",
+        projectName,
+        client: project?.client ?? null,
+        siteAddress: project?.site_address ?? null,
+        dateLine: `DATE: ${report.report_date}`,
+        weather: report.weather,
+        authorName: report.author_name,
+        context: [
+          {
+            label: "WORKFORCE ON SITE",
+            text: (workforce ?? []).length
+              ? (workforce ?? [])
+                  .map(
+                    (row) =>
+                      `- ${row.company_name}${row.trade ? ` (${row.trade})` : ""}: ${row.operatives} operative(s)`,
+                  )
+                  .join("\n")
+              : "- none recorded",
+          },
+          {
+            label: "PLANT AND EQUIPMENT",
+            text: (plant ?? []).length
+              ? (plant ?? []).map((row) => `- ${row.description} x${row.quantity}`).join("\n")
+              : "- none recorded",
+          },
+        ],
+        media: [
+          ...photoMedia(photos ?? []),
+          ...(await documentMedia(supabase, {
+            table: "report_documents",
+            column: "report_id",
+            id: reportId,
+          })),
+        ],
+        source: rawNotes,
+      })
+    : [];
+
   const input: GenerationInput = {
-    projectName: project?.name ?? "Unnamed project",
+    projectName,
     client: project?.client ?? null,
     siteAddress: project?.site_address ?? null,
     reportDate: report.report_date,
@@ -84,9 +142,11 @@ export async function generateReport(
     workforce: workforce ?? [],
     plant: plant ?? [],
     photos: photos ?? [],
-    rawNotes: report.raw_notes ?? "",
+    rawNotes,
+    cleanedSections,
   };
 
+  // Pass two, the drafting pass, reading the notes verbatim as it always has.
   const result = await generateSections(input);
   if (!result.ok) return { error: result.error };
 

@@ -3,9 +3,10 @@ import "server-only";
 import OpenAI from "openai";
 import { z } from "zod";
 
+import { CLEANED_SECTIONS_LABEL } from "@/lib/ai/prompt";
 import { SUMMARY_SYSTEM_PROMPT } from "@/lib/ai/summary-prompt";
 import { evidenceHeading, provenanceInstruction } from "@/lib/summary-reports/provenance";
-import { summarySectionsFor } from "@/lib/summary-reports/sections";
+import { SUMMARY_KIND_LABELS, summarySectionsFor } from "@/lib/summary-reports/sections";
 import type { SummaryReportKind, SummarySectionType } from "@/types/database";
 
 export type SummaryGenerationInput = {
@@ -23,6 +24,13 @@ export type SummaryGenerationInput = {
    * the evidence is labelled for what it actually is.
    */
   standalone?: boolean;
+  /**
+   * The Cleanup AI's output for this document, already labelled.
+   *
+   * Optional: a cleanup that could not run leaves this empty and the prompt is
+   * what it was before that layer existed. See lib/ai/cleanup.ts.
+   */
+  cleanedSections?: { label: string; text: string }[];
 };
 
 export type SummaryGenerationResult =
@@ -60,13 +68,25 @@ export async function generateSummarySections(
   );
 
   const prompt = [
-    `DOCUMENT: ${input.kind === "progress" ? "PROGRESS REPORT" : "COMPLETION REPORT"}`,
+    // From the label map rather than a ternary: a survey went in here as
+    // "COMPLETION REPORT", which is the one thing a survey must never be told
+    // it is.
+    `DOCUMENT: ${SUMMARY_KIND_LABELS[input.kind].toUpperCase()}`,
     `PROJECT: ${input.projectName}`,
     input.client ? `CLIENT: ${input.client}` : null,
     input.siteAddress ? `SITE: ${input.siteAddress}` : null,
     input.periodStart && input.periodEnd
       ? `REPORTING PERIOD: ${input.periodStart} to ${input.periodEnd}`
       : "REPORTING PERIOD: whole project record",
+    // Before the evidence, never after: the evidence is the record, and the
+    // last thing the model reads is what it is judged against.
+    ...(input.cleanedSections?.length
+      ? [
+          "",
+          CLEANED_SECTIONS_LABEL,
+          input.cleanedSections.map((section) => `${section.label}: ${section.text}`).join("\n"),
+        ]
+      : []),
     "",
     // Labelled for what it is. A block headed "issued source evidence" is how
     // a model comes to write "as recorded in the daily reports" about a report

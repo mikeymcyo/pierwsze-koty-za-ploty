@@ -32,6 +32,75 @@ The current implementation completes the core workflow:
   snapshots its issue status and resolution.
 - Reports, Project detail and Dashboard list all three document types.
 
+### The Cleanup AI pass, before anything else
+
+There are now **three AI layers**, in this order, and they are deliberately
+separate documents in the code:
+
+```
+raw / voice notes
+  -> CLEANUP AI              lib/ai/cleanup.ts, lib/ai/cleanup-prompt.ts
+  -> section drafting        lib/ai/prompt.ts, lib/ai/summary-prompt.ts
+  -> the assembled report
+  -> MASTER AI REVIEW        lib/ai/master-review-prompt.ts - later, untouched
+```
+
+**The Master AI Review is not replaced and not merged into anything.** It still
+reads the assembled document afterwards, still proposes changes a person ticks
+before a word is saved, and its prompt has never heard of a cleanup pass -
+`e2e/cleanup-smoke.mjs` fails if that changes.
+
+The Cleanup AI's only job is language: it rewrites raw or dictated material into
+concise British construction-report English under one hard-coded UK glossary
+(`lib/ai/glossary.ts`), puts each item under the section whose status it
+actually has, and moves no fact and no status. Five upgrades that look like
+synonyms are named and forbidden - proposed to instructed, observed to
+confirmed, installed to tested, completed to approved, work to compliant or
+safe - and work described in the future never comes back as work completed.
+
+Wired for all four documents: **Daily**, **Progress**, **Completion** and
+**Survey**, the last three through the same summary action.
+
+Points that are load-bearing:
+
+- **Nothing cleanup produces is stored.** It is an input to the drafting pass,
+  which is what writes `report_sections` / `summary_report_sections`. So
+  hand-written text protection is untouched: `partitionDraft` still keeps every
+  `ai_generated = false` section off limits, and cleanup never gets near one.
+- **A failed cleanup is not an error.** `cleanedSectionsFor` returns an empty
+  list and the pipeline behaves exactly as it did before this layer existed.
+- **The raw notes still reach drafting last and verbatim**, so the cleaned draft
+  can always be checked against what was actually said. Drafting is told the
+  draft is "proposed wording only - not evidence, and not a source of fact".
+- **The glossary is hard-coded and stays that way.** Configurable per-company
+  glossaries were explicitly not built. If they ever are, `STATUS_ESCALATIONS`
+  and `NOT_UNLESS_SOURCED` must stay out of what can be configured - a company
+  that can rename "observed" to "confirmed" defeats the layer.
+- **Period summary is capped at three sentences in code** (`capSentences`), not
+  only asked for in the prompt. The splitter is deliberately conservative: it
+  misses a boundary rather than cutting "4no." or "approx." in half.
+- **Photograph vs drawing comes only from metadata** (`lib/ai/cleanup-context.ts`).
+  A row in `photos` is a photograph; a document is a drawing only where its
+  recorded `doc_type` is `drawing`, and any other document is named by its own
+  type. Document metadata is resolved snapshot-first, exactly as
+  `lib/reports/review-context.ts` resolves it, so cleanup and the Master AI
+  Review never disagree about which revision a report was issued against.
+- **No migration.** Nothing in this layer touches the schema.
+- **Cost and latency doubled per draft** - two model calls where there was one.
+  `OPENAI_CLEANUP_MODEL` exists so cleanup can run on a cheaper model.
+
+Fixed in passing: `lib/ai/summary-generation.ts` told the model a **survey** was
+a `COMPLETION REPORT`, because the document line was a two-way ternary. It now
+reads `SUMMARY_KIND_LABELS`, so a survey is announced as a Site Survey - the one
+thing a survey must never be told it is.
+
+Tests: `npm run test:cleanup` - 354 checks, no key, no database, no dev server:
+the prompt contract for all four kinds, the three-sentence cap, the packaging
+stripper, and a real HTTP round-trip to the stub through the same request
+builder and parser the app calls. `npm run test:ai` additionally proves both
+passes run in order against a live app; it needs Supabase and a dev server and
+has **not** been run in this sandbox.
+
 ### Progress Reports can be written directly - no Daily Reports required
 
 The old rule ("there are no final Daily Reports in that period yet") blocked a
