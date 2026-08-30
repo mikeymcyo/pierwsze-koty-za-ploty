@@ -175,6 +175,35 @@ export const REPORT_STRUCTURES: Record<ReportDocumentKind, ReportStructure> = {
   ],
 };
 
+/**
+ * How a document is authored, which is not the same as how it is laid out.
+ *
+ * A Daily Report is dictated. One person, one day, one description of the work,
+ * and the AI turns that into the sections - so the writing surface is the notes
+ * box and the drafted sections are output to check, shown read-only with the
+ * editor one tap away. Anything else on that screen is in the way of the
+ * microphone.
+ *
+ * A consolidated document has no notes box: there is nowhere else for its words
+ * to come from, so its sections are the writing surface and each carries its
+ * own dictation.
+ *
+ * The distinction is here rather than in the screens because it decides the
+ * same thing in both of them.
+ */
+export type AuthoringMode = "notes" | "sections";
+
+export const AUTHORING_MODES: Record<ReportDocumentKind, AuthoringMode> = {
+  daily: "notes",
+  progress: "sections",
+  completion: "sections",
+  survey: "sections",
+};
+
+export function authoringMode(kind: ReportDocumentKind): AuthoringMode {
+  return AUTHORING_MODES[kind];
+}
+
 export function reportStructure(kind: ReportDocumentKind): ReportStructure {
   return REPORT_STRUCTURES[kind];
 }

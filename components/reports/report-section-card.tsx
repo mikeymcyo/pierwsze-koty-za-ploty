@@ -55,6 +55,29 @@ export function ReportSectionCard({
 }
 
 /**
+ * The written report, put away until somebody wants to change it.
+ *
+ * On a Daily Report the words are dictated once and drafted by the AI, and the
+ * drafted sections are output to read rather than a form to fill in. They are
+ * shown as prose; this is how they are corrected when a correction is needed,
+ * without a textarea standing between a site manager and the microphone.
+ */
+export function EditDisclosure({
+  label = "Edit the written report",
+  children,
+}: {
+  label?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <details className="rounded-xl border border-line bg-surface-muted p-4">
+      <summary className="cursor-pointer text-sm font-semibold text-ink">{label}</summary>
+      <div className="mt-4">{children}</div>
+    </details>
+  );
+}
+
+/**
  * A written section inside a group, read-only.
  *
  * The run-in label is the same device the PDF uses: three headings on the

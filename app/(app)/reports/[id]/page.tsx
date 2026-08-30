@@ -17,7 +17,11 @@ import { DeleteReport } from "@/components/reports/report-lifecycle";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
 import { ReportCaptureForm } from "@/components/reports/report-capture-form";
-import { ReadOnlySection, ReportSectionCard } from "@/components/reports/report-section-card";
+import {
+  EditDisclosure,
+  ReadOnlySection,
+  ReportSectionCard,
+} from "@/components/reports/report-section-card";
 import { GroupEditor } from "@/components/reports/group-editor";
 import { ReportWriter } from "@/components/reports/report-draft";
 import { Alert } from "@/components/ui/alert";
@@ -218,6 +222,13 @@ export default async function ReportCapturePage({
     (sectionsResult.data ?? []).map((section) => ({ ...section, type: section.section_type })),
   );
   const groupFor = (key: string) => grouped.find((entry) => entry.group.key === key);
+  const hasWritten = (key: string) => (groupFor(key)?.entries.length ?? 0) > 0;
+  // A Daily Report is dictated and drafted: the sections are output to read,
+  // not a form to fill in, so the editor waits behind a disclosure. It is
+  // offered once there is something to correct - or, where AI drafting is not
+  // configured at all, straight away, because then it is the only way to write
+  // the report. See authoringMode in lib/report-structure.ts.
+  const offerEditor = (key: string) => hasWritten(key) || !hasAiConfig();
   /** Every stored section of a group, written or not, for its one writing box. */
   const editorSections = (key: string) => {
     const entry = groupFor(key);
@@ -305,16 +316,18 @@ export default async function ReportCapturePage({
             />
           )}
 
-          {isFinal ? (
-            <SectionProse entry={groupFor("summary")} />
-          ) : (
-            <GroupEditor
-              key={JSON.stringify(editorSections("summary").map((section) => section.content))}
-              groupKey="summary"
-              groupLabel={summaryGroup.label}
-              sections={editorSections("summary")}
-              action={updateSectionGroup.bind(null, report.id)}
-            />
+          <SectionProse entry={groupFor("summary")} />
+
+          {isFinal || !offerEditor("summary") ? null : (
+            <EditDisclosure>
+              <GroupEditor
+                key={JSON.stringify(editorSections("summary").map((section) => section.content))}
+                groupKey="summary"
+                groupLabel={summaryGroup.label}
+                sections={editorSections("summary")}
+                action={updateSectionGroup.bind(null, report.id)}
+              />
+            </EditDisclosure>
           )}
         </ReportSectionCard>
       )}
@@ -405,16 +418,18 @@ export default async function ReportCapturePage({
           takes no new ones. */}
       {loadError ? null : (
         <ReportSectionCard group={outstandingGroup}>
-          {isFinal ? (
-            <SectionProse entry={groupFor("outstanding")} />
-          ) : (
-            <GroupEditor
-              key={JSON.stringify(editorSections("outstanding").map((section) => section.content))}
-              groupKey="outstanding"
-              groupLabel={outstandingGroup.label}
-              sections={editorSections("outstanding")}
-              action={updateSectionGroup.bind(null, report.id)}
-            />
+          <SectionProse entry={groupFor("outstanding")} />
+
+          {isFinal || !offerEditor("outstanding") ? null : (
+            <EditDisclosure>
+              <GroupEditor
+                key={JSON.stringify(editorSections("outstanding").map((section) => section.content))}
+                groupKey="outstanding"
+                groupLabel={outstandingGroup.label}
+                sections={editorSections("outstanding")}
+                action={updateSectionGroup.bind(null, report.id)}
+              />
+            </EditDisclosure>
           )}
 
           {isFinal ? null : (

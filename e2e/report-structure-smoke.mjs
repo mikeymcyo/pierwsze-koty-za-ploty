@@ -20,6 +20,7 @@ import {
   ADVANCED_DETAILS_LABEL,
   APPENDIX_LABEL,
   REPORT_STRUCTURES,
+  authoringMode,
   groupKeyOf,
   groupSections,
   reportStructure,
@@ -494,6 +495,105 @@ check(
 check(
   "dictation goes into the part being written in",
   /onFocus=\{\(\) => setTarget\(part\.type\)\}/.test(groupEditor),
+);
+
+console.log("\n11. A daily report is dictated; a consolidated one is written");
+
+check("a daily report is authored from its notes", authoringMode("daily") === "notes");
+for (const kind of ["progress", "completion", "survey"]) {
+  check(`a ${kind} report is authored in its sections`, authoringMode(kind) === "sections");
+}
+
+// The hurricane rule: descriptions, then photographs, then the AI, then done.
+// On a daily report the one writing window is the notes box; the drafted
+// sections are output to read, with the editor a tap away rather than in front
+// of the microphone.
+const dailyEditors = dailyPage.match(/<GroupEditor/g) ?? [];
+const dailyDisclosed = dailyPage.match(/<EditDisclosure>\s*\n\s*<GroupEditor/g) ?? [];
+check(
+  "every editor on the daily screen is behind a disclosure",
+  dailyEditors.length > 0 && dailyEditors.length === dailyDisclosed.length,
+  `${dailyDisclosed.length} of ${dailyEditors.length}`,
+);
+check(
+  "the drafted report is shown as prose while it is still a draft",
+  /<SectionProse entry=\{groupFor\("summary"\)\} \/>\s*\n\s*\n\s*\{isFinal/.test(dailyPage),
+);
+check(
+  "the one writing window is the notes box",
+  /<ReportCaptureForm/.test(dailyPage) && /DictationField/.test(captureForm),
+);
+check(
+  "and the editor is still offered where there is no AI to draft with",
+  /hasWritten\(key\) \|\| !hasAiConfig\(\)/.test(dailyPage),
+);
+
+// A consolidated document has no notes box, so its sections are the writing
+// surface and stay in front of the user.
+check(
+  "a consolidated document writes in its sections, not behind a disclosure",
+  !/EditDisclosure/.test(summaryPage),
+);
+const summaryEditors = summaryPage.match(/<GroupEditor/g) ?? [];
+check(
+  "and has at most three of them",
+  summaryEditors.length <= 3 && summaryEditors.length > 0,
+  String(summaryEditors.length),
+);
+// Progress and survey have two groups carrying written sections; the third is
+// photographs, which gets no box at all.
+for (const kind of ["progress", "survey"]) {
+  const withSections = reportStructure(kind).filter((group) => group.sections.length > 0);
+  check(`a ${kind} report has two writing areas`, withSections.length === 2, String(withSections.length));
+}
+check(
+  "a completion report keeps three, as the final record",
+  reportStructure("completion").filter((group) => group.sections.length > 0).length === 3,
+);
+
+console.log("\n12. One box in front, the rest folded - and still saved");
+
+const foldStart = groupEditor.indexOf("<details");
+const foldEnd = groupEditor.indexOf("</details>");
+const folded = groupEditor.slice(foldStart, foldEnd);
+check("there is a fold", foldStart > -1 && foldEnd > foldStart);
+check(
+  "only the first part is in front of you",
+  /<Part\s*\n\s*part=\{primary\}/.test(groupEditor),
+);
+check("the others are inside the fold", /rest\.map\(\(part\)/.test(folded) && /<Part/.test(folded));
+check(
+  "the fold names what is in it rather than hiding it",
+  /Also in this section: \$\{rest\.map/.test(groupEditor),
+);
+
+// THE PROPERTY THAT MATTERS. A folded field is still a field: <details> keeps
+// its children in the document, so the browser posts them. A conditional
+// render would post nothing for those sections, readGroupFields would read
+// them as empty, and saving one part would silently clear the rest.
+check(
+  "folded parts are rendered unconditionally, so the form still posts them",
+  !/\{open &&/.test(groupEditor) &&
+    !/showAll/.test(groupEditor) &&
+    // The only condition on the fold is whether there is anything to fold.
+    /\{rest\.length > 0 \? \(/.test(groupEditor),
+);
+check(
+  "and a field's section is still its name, folded or not",
+  (groupEditor.match(/name=\{sectionFieldName\(part\.type\)\}/g) ?? []).length === 1 &&
+    /<Part/.test(folded),
+);
+
+// Proof of the consequence, at the level the save actually works on: a form
+// that posts every part - which is what a fold does - changes nothing it was
+// not asked to change.
+const foldedForm = readGroupFields(
+  formOf(Object.fromEntries(filled.map((s) => [sectionFieldName(s.type), s.content]))),
+  filled,
+);
+check(
+  "a form carrying every part, opened or not, clears nothing",
+  changedSections(filled, foldedForm).length === 0,
 );
 
 console.log("\n=== Result ===");

@@ -32,6 +32,50 @@ The current implementation completes the core workflow:
   snapshots its issue status and resolution.
 - Reports, Project detail and Dashboard list all three document types.
 
+### The hurricane rule: describe, photograph, draft, review, done
+
+Authoring is now shaped by how a document is actually made, not by how many
+sections it stores. `authoringMode(kind)` in `lib/report-structure.ts` decides
+it, and both screens read the same answer.
+
+**Daily - `notes`.** One writing window: the dictation box. The drafted
+sections appear as prose beneath it, and the editor waits behind **"Edit the
+written report"**. No Works completed / In progress / Planned works boxes on
+the screen at all. The order is the workflow: describe → Photos & Evidence →
+Write my report → Master AI Review → Preview / Finalise / Share. Issues keep
+their existing collapsed "Raise an issue" control.
+
+The disclosure is offered once there is something to correct - **or straight
+away where `OPENAI_API_KEY` is not set**, because then it is the only way to
+write the report at all. That branch is asserted; without it a deployment with
+no AI would have a daily report that cannot be written.
+
+**Progress and Survey - `sections`.** Two writing areas, each with a visible
+Dictate button: Progress Overview / Outstanding-Next Actions, and Findings /
+Recommendations. There is no notes box on a consolidated document, so its
+sections are the writing surface and stay in front of the user.
+
+**Completion - `sections`, three areas.** It is the final project record and
+keeps a little more structure. Still no admin-heavy presentation.
+
+**Inside one writing area, only the first part is in front of you.** A Progress
+Overview drafted into five parts used to show five labelled fields, which is a
+pile of sub-section editors whatever the surface around it looks like. The rest
+fold behind one line naming them: *"Also in this section: Works completed,
+Works in progress, Resources and plant"*.
+
+**The folded fields stay in the form, and that is load-bearing.** `<details>`
+keeps its children in the document, so the browser posts them. A conditional
+render would post nothing for those sections, `readGroupFields` would read them
+as empty, and saving one part would silently clear the others.
+`e2e/report-structure-smoke.mjs` §12 asserts the fold is conditional only on
+there being something to fold, and §9 still proves no edit can move prose
+between statuses - the boundary is the field name, which nothing on the screen
+can type over.
+
+No migration. Issued reports, stored sections, the PDF, AI Cleanup, the Master
+AI Review, provenance and every H&S safeguard are untouched.
+
 ### One writing box per section, and no Save button under a photograph
 
 The tester's four findings from the iPad screenshots, fixed together.

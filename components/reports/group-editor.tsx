@@ -20,6 +20,58 @@ export type GroupEditorSection = {
 
 export type GroupEditorState = { error?: string; saved?: boolean };
 
+/**
+ * One stored section's field.
+ *
+ * The section it belongs to is `name`, decided here from the section type and
+ * never inferred from what is typed into it.
+ */
+function Part({
+  part,
+  groupKey,
+  groupLabel,
+  labelled,
+  value,
+  rows,
+  placeholder,
+  onChange,
+  onFocus,
+}: {
+  part: GroupEditorSection;
+  groupKey: string;
+  groupLabel: string;
+  labelled: boolean;
+  value: string;
+  rows: number;
+  placeholder?: string;
+  onChange: (value: string) => void;
+  onFocus: () => void;
+}) {
+  return (
+    <div>
+      {labelled ? (
+        <span
+          className="block px-4 pt-3 text-xs font-bold tracking-wide text-ink-muted uppercase"
+          aria-hidden
+        >
+          {part.label}
+        </span>
+      ) : null}
+      <textarea
+        id={`${groupKey}-${part.type}`}
+        name={sectionFieldName(part.type)}
+        aria-label={labelled ? `${groupLabel} - ${part.label}` : groupLabel}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        onFocus={onFocus}
+        rows={rows}
+        placeholder={placeholder}
+        className="w-full resize-y bg-transparent px-4 pt-2 pb-3 text-ink placeholder:text-ink-subtle focus:outline-none"
+      />
+    </div>
+  );
+}
+
 function SaveButton() {
   const { pending } = useFormStatus();
   return (
@@ -57,6 +109,17 @@ function SaveButton() {
  * The ones already written, and where nothing is written at all, the first -
  * so there is always somewhere to start. Not every stored section, which would
  * be eight empty boxes on a daily report and the clutter this removed.
+ *
+ * And only the first of them is in front of you. A Progress Overview drafted
+ * into five parts showed five labelled fields, which is a pile of sub-section
+ * editors whatever the surface around it looks like. The rest fold away behind
+ * one line naming them.
+ *
+ * **They stay in the form while folded**, and that is load-bearing rather than
+ * incidental: a field the browser does not post reads as an empty section on
+ * save, and an empty section is a section cleared. `<details>` keeps its
+ * children in the document, so folding hides them from a person and from
+ * nobody else. Never replace it with a conditional render.
  *
  * The Save button stays. Photograph captions autosave because losing one costs
  * a caption; a report section is a contractual record, and a person should say
@@ -101,9 +164,9 @@ export function GroupEditor({
 
   if (parts.length === 0) return null;
 
+  const [primary, ...rest] = parts;
   const written = sections.filter((section) => section.content?.trim());
   const edited = written.some((section) => !section.aiGenerated);
-  const labelled = parts.length > 1;
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
@@ -122,37 +185,46 @@ export function GroupEditor({
       {/* One surface. The parts inside it are divided by a hairline and a
           quiet name, not by anything anybody can type over. */}
       <div className="overflow-hidden rounded-xl border border-line-strong bg-surface-sunken focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/25">
-        {parts.map((part, index) => (
-          <div key={part.type} className={index > 0 ? "border-t border-line" : undefined}>
-            {labelled ? (
-              <span
-                className="block px-4 pt-3 text-xs font-bold tracking-wide text-ink-muted uppercase"
-                aria-hidden
-              >
-                {part.label}
-              </span>
-            ) : null}
-            <textarea
-              id={`${groupKey}-${part.type}`}
-              // The boundary: the section this text belongs to is the field's
-              // name, decided here and never inferred from what is typed.
-              name={sectionFieldName(part.type)}
-              aria-label={labelled ? `${groupLabel} - ${part.label}` : groupLabel}
-              value={values[part.type] ?? ""}
-              onChange={(event) =>
-                setValues((current) => ({ ...current, [part.type]: event.target.value }))
-              }
-              onFocus={() => setTarget(part.type)}
-              rows={labelled ? 4 : 6}
-              placeholder={
-                labelled
-                  ? undefined
-                  : `Write or dictate ${groupLabel.toLowerCase()}. The AI can draft this for you from what you record.`
-              }
-              className="w-full resize-y bg-transparent px-4 pt-2 pb-3 text-ink placeholder:text-ink-subtle focus:outline-none"
-            />
-          </div>
-        ))}
+        <Part
+          part={primary}
+          groupKey={groupKey}
+          groupLabel={groupLabel}
+          labelled={rest.length > 0}
+          value={values[primary.type] ?? ""}
+          rows={6}
+          placeholder={
+            rest.length > 0
+              ? undefined
+              : `Write or dictate ${groupLabel.toLowerCase()}. The AI can draft this for you from what you record.`
+          }
+          onChange={(next) => setValues((current) => ({ ...current, [primary.type]: next }))}
+          onFocus={() => setTarget(primary.type)}
+        />
+
+        {/* Folded, never removed. The fields below are still posted with the
+            form - see the note above - so saving does not empty the parts a
+            person did not open. */}
+        {rest.length > 0 ? (
+          <details className="border-t border-line">
+            <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-ink-muted">
+              {`Also in this section: ${rest.map((part) => part.label).join(", ")}`}
+            </summary>
+            {rest.map((part) => (
+              <div key={part.type} className="border-t border-line">
+                <Part
+                  part={part}
+                  groupKey={groupKey}
+                  groupLabel={groupLabel}
+                  labelled
+                  value={values[part.type] ?? ""}
+                  rows={4}
+                  onChange={(next) => setValues((current) => ({ ...current, [part.type]: next }))}
+                  onFocus={() => setTarget(part.type)}
+                />
+              </div>
+            ))}
+          </details>
+        ) : null}
       </div>
 
       {supported ? (
@@ -171,7 +243,7 @@ export function GroupEditor({
           {listening ? (
             <span className="flex items-center gap-2 text-sm font-semibold text-ink-muted">
               <span className="size-2.5 animate-pulse rounded-full bg-danger" aria-hidden />
-              {labelled
+              {rest.length > 0
                 ? `Listening - this goes into ${
                     parts.find((part) => part.type === target)?.label ?? groupLabel
                   }`
