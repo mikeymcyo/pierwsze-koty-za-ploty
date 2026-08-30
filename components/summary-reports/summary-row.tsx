@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ExternalLink, Pencil, Trash2 } from "lucide-react";
 
 import { DeleteSummaryReport } from "@/components/summary-reports/summary-lifecycle";
+import { ReportTiming } from "@/components/reports/report-timing";
 import { Badge } from "@/components/ui/badge";
 import { SwipeButton, SwipeLink, SwipeRow } from "@/components/ui/swipe-row";
 import { SUMMARY_KIND_LABELS } from "@/lib/summary-reports/sections";
@@ -19,6 +20,8 @@ export type SummaryReportRowData = {
   period_start: string | null;
   period_end: string | null;
   status: "draft" | "final";
+  created_at: string;
+  finalised_at: string | null;
   projectName: string | null;
 };
 
@@ -86,11 +89,12 @@ export function SummaryRow({ report }: { report: SummaryReportRowData }) {
           .filter(Boolean)
           .join(" · ")}
       </p>
-      <div className="mt-1.5 flex items-center gap-2">
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
         <Badge tone={isFinal ? "success" : "neutral"}>{isFinal ? "Final" : "Draft"}</Badge>
         {report.revision ? (
           <span className="text-xs font-medium text-ink-subtle">Rev {report.revision}</span>
         ) : null}
+        <ReportTiming createdAt={report.created_at} finalisedAt={report.finalised_at} />
       </div>
     </SwipeRow>
   );

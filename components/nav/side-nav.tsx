@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { Wordmark } from "@/components/brand/wordmark";
-import { NAV_ITEMS, isNavItemActive } from "@/lib/navigation";
+import { NAV_ITEMS, SETTINGS_HREF, isNavItemActive, settingsHref } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 /** The same destinations as the bottom bar, laid out as a sidebar on desktop. */
@@ -29,7 +29,9 @@ export function SideNav() {
             return (
               <li key={item.href}>
                 <Link
-                  href={item.href}
+                  // Settings carries the screen it was opened from, so it can
+                  // offer the way back. Every other destination is itself.
+                  href={item.href === SETTINGS_HREF ? settingsHref(pathname) : item.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
                     "relative flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors",

@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { ExternalLink, Pencil, Trash2 } from "lucide-react";
 
 import { DeleteReport } from "@/components/reports/report-lifecycle";
+import { ReportTiming } from "@/components/reports/report-timing";
 import { SwipeButton, SwipeLink, SwipeRow } from "@/components/ui/swipe-row";
 import { formatDate, formatReportNumber } from "@/lib/utils";
 
@@ -13,6 +14,8 @@ export type DailyReportRowData = {
   report_number: number;
   report_date: string;
   status: "draft" | "final";
+  created_at: string;
+  finalised_at: string | null;
   projectName: string | null;
 };
 
@@ -75,8 +78,11 @@ export function ReportRow({ report }: { report: DailyReportRowData }) {
       {report.projectName ? (
         <p className="truncate text-sm text-ink-muted">{report.projectName}</p>
       ) : null}
-      <div className="mt-1.5">
+      {/* The badge and the timing share a line, and wrap rather than stack, so
+          knowing the chronology costs the row no extra height on a phone. */}
+      <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1">
         <Badge tone={isFinal ? "success" : "neutral"}>{isFinal ? "Final" : "Draft"}</Badge>
+        <ReportTiming createdAt={report.created_at} finalisedAt={report.finalised_at} />
       </div>
     </SwipeRow>
   );

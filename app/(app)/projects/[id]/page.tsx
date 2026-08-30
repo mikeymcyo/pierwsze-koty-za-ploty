@@ -110,14 +110,14 @@ export default async function ProjectPage({
     withClockSkewRetry(() =>
       supabase
         .from("reports")
-        .select("id, report_number, report_date, status, created_at")
+        .select("id, report_number, report_date, status, created_at, finalised_at")
         .eq("project_id", project.id)
         .order("report_number", { ascending: false }),
     ),
     withClockSkewRetry(() =>
       supabase
         .from("summary_reports")
-        .select("id, kind, number, revision, title, period_start, period_end, status, created_at")
+        .select("id, kind, number, revision, title, period_start, period_end, status, created_at, finalised_at")
         .eq("project_id", project.id)
         .order("created_at", { ascending: false }),
     ),

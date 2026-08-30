@@ -19,10 +19,10 @@ export default async function ReportsPage() {
   const supabase = await createClient();
   const [dailyResult, summaryResult] = await Promise.all([
     withClockSkewRetry(() =>
-      supabase.from("reports").select("id, report_number, report_date, status, projects(name)").order("report_date", { ascending: false }).order("report_number", { ascending: false }),
+      supabase.from("reports").select("id, report_number, report_date, status, created_at, finalised_at, projects(name)").order("report_date", { ascending: false }).order("report_number", { ascending: false }),
     ),
     withClockSkewRetry(() =>
-      supabase.from("summary_reports").select("id, kind, number, revision, title, period_start, period_end, status, created_at, projects(name)").order("created_at", { ascending: false }),
+      supabase.from("summary_reports").select("id, kind, number, revision, title, period_start, period_end, status, created_at, finalised_at, projects(name)").order("created_at", { ascending: false }),
     ),
   ]);
   const error = dailyResult.error ?? summaryResult.error;

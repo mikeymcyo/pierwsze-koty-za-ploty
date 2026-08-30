@@ -169,8 +169,11 @@ check(
 check("Stores is one tap away", MOBILE_NAV_ITEMS.some((item) => item.href === "/stores"));
 check("Profile is reachable but out of the way", NAV_ITEMS.some((item) => item.href === "/profile"));
 check(
+  // The gear became its own component when it started carrying the screen it
+  // was opened from, so the href is built rather than written out here.
   "and it is in the top bar instead",
-  /href="\/profile"/.test(read("../components/nav/top-bar.tsx")),
+  /<SettingsLink\s*\/>/.test(read("../components/nav/top-bar.tsx")) &&
+    /settingsHref\(pathname\)/.test(read("../components/nav/settings-link.tsx")),
 );
 const tab = (href) => NAV_ITEMS.find((item) => item.href === href);
 check("a report lights up Reports", isNavItemActive(tab("/reports"), "/reports/abc"));

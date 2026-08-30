@@ -7,7 +7,7 @@
  *
  * Needs neither Supabase nor a browser.
  */
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 
 import {
   DEFAULT_PREFERENCES,
@@ -23,6 +23,20 @@ import {
   preferenceBootScript,
   serialisePreferences,
 } from "../lib/preferences.ts";
+import {
+  NAV_ITEMS,
+  SETTINGS_HREF,
+  safeReturnPath,
+  settingsHref,
+  settingsReturn,
+} from "../lib/navigation.ts";
+import {
+  COMPANY_NAME_MAX,
+  COMPANY_OWNER_ONLY,
+  COMPANY_RENAME_NOTE,
+  canEditCompanyDetails,
+  companyNameProblem,
+} from "../lib/company/details.ts";
 
 const failures = [];
 function check(label, ok, detail = "") {
@@ -44,8 +58,10 @@ check(
 const settings = read("../app/(app)/profile/page.tsx");
 check("the page is Settings", /title="Settings"/.test(settings));
 check(
+  // The company moved out of the read-only account rows and into its own
+  // editable section when renaming landed; it is still on this screen.
   "it carries the account summary",
-  /label="Email"/.test(settings) && /label="Company"/.test(settings),
+  /label="Email"/.test(settings) && /<CompanyDetails/.test(settings),
 );
 check("and sign out", /signOut/.test(settings));
 check("and what build this is", /APP_VERSION/.test(settings) && /shortBuildRef/.test(settings));
@@ -176,6 +192,122 @@ check(
     !/preferences/.test(read("../lib/pdf/report-document.tsx")),
 );
 check("PDF sizes are still fixed points", /fontSize: 9\.5/.test(pdfTheme));
+
+console.log("\n8. Settings can always be left, without the browser's Back");
+check("the gear carries where it was tapped", settingsHref("/reports") === "/profile?from=%2Freports");
+check(
+  "and a report screen, not just a section",
+  settingsHref("/summary-reports/abc") === "/profile?from=%2Fsummary-reports%2Fabc",
+);
+check("Settings does not carry itself", settingsHref(SETTINGS_HREF) === SETTINGS_HREF);
+check(
+  "the way back is named for the section it returns to",
+  settingsReturn("/reports/abc").label === "Back to Reports" &&
+    settingsReturn("/reports/abc").href === "/reports/abc",
+);
+check(
+  "projects and stores are named too",
+  settingsReturn("/projects/1").label === "Back to Projects" &&
+    settingsReturn("/stores/1470").label === "Back to Stores",
+);
+check(
+  "a screen outside the nav still gets a control",
+  settingsReturn("/surveys/new").label === "Back" &&
+    settingsReturn("/surveys/new").href === "/surveys/new",
+);
+check(
+  "and arriving with nothing is never a dead end",
+  settingsReturn(undefined).href === "/dashboard" &&
+    settingsReturn(null).href === "/dashboard" &&
+    settingsReturn("").href === "/dashboard" &&
+    settingsReturn(SETTINGS_HREF).href === "/dashboard",
+);
+check(
+  // Create is a raised action, not a place, so it is never named as one - the
+  // control still returns to the screen, just without borrowing its label.
+  "the Create button never becomes the way back",
+  NAV_ITEMS.some((item) => item.primary) &&
+    settingsReturn("/reports/new").label === "Back" &&
+    settingsReturn("/reports/new").href === "/reports/new",
+);
+
+console.log("\n9. The way back cannot leave the application");
+for (const hostile of [
+  "https://example.com/steal",
+  "//example.com/steal",
+  "http://example.com",
+  "javascript:alert(1)",
+  "\\\\example.com",
+  "/reports\\..\\..",
+  "reports",
+]) {
+  check(`refused: ${hostile}`, safeReturnPath(hostile) === null);
+}
+check("an ordinary path survives", safeReturnPath("/projects/abc?tab=reports") === "/projects/abc?tab=reports");
+check(
+  "and a refused one falls back rather than being patched up",
+  settingsReturn("https://example.com").href === "/dashboard",
+);
+
+console.log("\n10. The company name is the company's, and only the owner's to change");
+check("an owner may", canEditCompanyDetails("owner"));
+check("a member may not", !canEditCompanyDetails("member"));
+check("and is told who can", COMPANY_OWNER_ONLY.includes("owner"));
+check("an empty name is refused", companyNameProblem("   ") !== null);
+check("a one-character name is refused", companyNameProblem("A") !== null);
+check("a real one is not", companyNameProblem("  Empire Interiors Ltd  ") === null);
+check(
+  "a name that would not fit a PDF header is refused",
+  companyNameProblem("x".repeat(COMPANY_NAME_MAX + 1)) !== null &&
+    companyNameProblem("x".repeat(COMPANY_NAME_MAX)) === null,
+);
+check(
+  "trades' punctuation is not policed",
+  ["J & B Groundworks", "O'Connor Build", "Müller Bau GmbH", "A.C.E. (UK)"].every(
+    (name) => companyNameProblem(name) === null,
+  ),
+);
+check(
+  "the screen says what a rename does and does not touch",
+  /already issued/i.test(COMPANY_RENAME_NOTE) && /not rewritten/i.test(COMPANY_RENAME_NOTE),
+);
+
+console.log("\n11. Renaming reaches new documents and no stored one");
+const companyAction = read("../app/(app)/profile/actions.ts");
+check("the action only ever writes the companies row", /from\("companies"\)/.test(companyAction));
+check(
+  "it never opens the PDF bucket",
+  !/\.storage\b|PDF_BUCKET|pdf_path|report-pdfs/.test(companyAction),
+);
+check(
+  "and never touches a report",
+  !/from\("reports"\)|from\("summary_reports"\)/.test(companyAction),
+);
+check(
+  "ownership is checked before the write as well as by RLS",
+  /canEditCompanyDetails/.test(companyAction),
+);
+check(
+  "the policy that decides is still owner-only",
+  /companies_update_owners[\s\S]{0,200}is_company_owner/.test(
+    read("../supabase/migrations/20260826000002_rls_policies.sql"),
+  ),
+);
+check(
+  "no migration was needed for any of it",
+  !readdirSync(new URL("../supabase/migrations", import.meta.url)).some((file) =>
+    /company_details|settings|rename/i.test(file),
+  ),
+);
+check(
+  "every renderer still reads the name live, so the next PDF carries it",
+  [
+    "../app/(app)/reports/finalise-actions.ts",
+    "../app/(app)/reports/[id]/preview/route.ts",
+    "../app/(app)/summary-reports/finalise-actions.ts",
+    "../app/(app)/summary-reports/[id]/preview/route.ts",
+  ].every((file) => /companyName: session\.companyName|companyName: identity\.companyName|session\.companyName/.test(read(file))),
+);
 
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL SETTINGS CHECKS PASSED");

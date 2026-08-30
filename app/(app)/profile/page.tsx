@@ -1,14 +1,18 @@
 import type { Metadata } from "next";
-import { LogOut, Settings as SettingsIcon } from "lucide-react";
+import Link from "next/link";
+import { ArrowLeft, LogOut, Settings as SettingsIcon } from "lucide-react";
 
 import { signOut } from "@/app/(auth)/actions";
 import { AppearanceSettings } from "@/components/settings/appearance-settings";
+import { CompanyDetails } from "@/components/settings/company-details";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { APP_VERSION } from "@/lib/app-version";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
 import { shortBuildRef } from "@/lib/build-info";
+import { canEditCompanyDetails } from "@/lib/company/details";
+import { settingsReturn } from "@/lib/navigation";
 
 export const metadata: Metadata = { title: "Settings" };
 
@@ -27,8 +31,16 @@ function SectionTitle({ children }: { children: string }) {
   );
 }
 
-export default async function SettingsPage() {
-  const session = await requireSessionContext();
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string }>;
+}) {
+  const [session, { from }] = await Promise.all([requireSessionContext(), searchParams]);
+
+  // Where the gear was tapped, carried in the link rather than read out of the
+  // browser's history - see lib/navigation.ts. There is always a way out.
+  const back = settingsReturn(from);
 
   // Read as a literal rather than passing process.env through, so the value is
   // whatever this deployment was built and is running with.
@@ -36,9 +48,16 @@ export default async function SettingsPage() {
 
   return (
     <div className="flex flex-col gap-8">
+      <Button asChild variant="ghost" size="sm" className="-ml-3 self-start">
+        <Link href={back.href}>
+          <ArrowLeft aria-hidden />
+          {back.label}
+        </Link>
+      </Button>
+
       <PageHeader
         title="Settings"
-        description="How this device shows SiteBoss, and who you are signed in as."
+        description="How this device shows SiteBoss, your company's details, and who you are signed in as."
         icon={SettingsIcon}
       />
 
@@ -48,13 +67,20 @@ export default async function SettingsPage() {
       </section>
 
       <section className="flex flex-col gap-3">
+        <SectionTitle>Company</SectionTitle>
+        <CompanyDetails
+          companyName={session.companyName}
+          canEdit={canEditCompanyDetails(session.role)}
+        />
+      </section>
+
+      <section className="flex flex-col gap-3">
         <SectionTitle>Account</SectionTitle>
         <Card>
           <CardContent>
             <dl className="flex flex-col">
               <DetailRow label="Name" value={displayName(session)} />
               <DetailRow label="Email" value={session.email ?? "—"} />
-              <DetailRow label="Company" value={session.companyName} />
               <DetailRow
                 label="Role"
                 value={session.role === "owner" ? "Owner" : "Member"}

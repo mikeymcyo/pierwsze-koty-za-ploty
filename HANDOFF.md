@@ -32,6 +32,39 @@ The current implementation completes the core workflow:
   snapshots its issue status and resolution.
 - Reports, Project detail and Dashboard list all three document types.
 
+### A small UX and account batch
+
+Three things that were each one screen's worth of friction.
+
+**A report list now says when.** The report date does not give chronology -
+two reports can carry the same date, and one dated Monday may have been
+written on Monday evening and issued on Wednesday. `lib/reports/timing.ts`
+composes "Created 25 Aug, 14:32 · Issued 17:05" and
+`components/reports/report-timing.tsx` puts it on the badge's own line in both
+list rows, so knowing the chronology costs the row no height. The date is
+dropped from the issued half on the same day, and the year appears only on a
+report that is not from this one. Read in UK time, not the server's UTC, so a
+report filed at half past midnight in the summer is not shown on the day
+before. `npm run test:timing`.
+
+**Settings can always be left.** The gear now carries the screen it was tapped
+on (`/profile?from=/reports/abc`) and Settings offers "Back to Reports" at the
+top. Deliberately not `history.back()`: history holds redirects and form posts
+and is not ours to reason about, and a home-screen web app may have no back
+gesture at all. `safeReturnPath` refuses anything that could point off this
+origin, and an arrival with no `from` still gets a control - back to the
+Dashboard. `lib/navigation.ts` owns all of it.
+
+**The company name is editable, by its owner.** No migration: the
+`companies_update_owners` policy and the `update` grant have been there since
+`20260826000002`, unused. `app/(app)/profile/actions.ts` writes the one row and
+touches nothing else. It reaches new documents for free - every renderer reads
+`session.companyName` at the moment it draws - and reaches no issued one,
+because those are stored bytes that are never re-rendered. The screen says so
+above the field rather than after the fact. A member sees the name and who can
+change it, not a control that would be refused. `npm run test:settings` covers
+the rules and guards that the action never names the PDF bucket.
+
 ### The report reader is now a full-screen one that draws the pages
 
 `00a3bfb` gave the PDF a way out - Back, inside the app, instead of a new tab
@@ -1380,6 +1413,7 @@ npm run test:build-ref       the profile build marker
 npm run test:dictation       transcript accumulation and restart policy
 npm run test:regeneration    what a regeneration may and may not overwrite
 npm run test:viewer          which PDF the full-screen reader is pointed at
+npm run test:timing          the created/issued line on a report in a list
 ```
 
 These three need neither Supabase nor a dev server, so they run anywhere.
@@ -1429,6 +1463,13 @@ Supabase-backed test. `test:lifecycle` covers the rules, not the round trip.
 
 ### NOT verified
 
+- **The company rename has never been run against a database.** The rules,
+  the ownership check and the fact that the action reaches no stored PDF are
+  covered by `test:settings`, but the write itself - and the
+  `companies_update_owners` policy actually refusing a member - needs a
+  Supabase, which costs the session its push (F15). The policy has never been
+  exercised by anything: it was written in the first migration and nothing
+  used it until now.
 - **The full-screen reader has not been opened on an iPhone**, which is the
   device it exists for. It was driven by a real Chromium at 393x852 with
   `deviceScaleFactor: 3` and at 834x1112, against a three-page A4 PDF from

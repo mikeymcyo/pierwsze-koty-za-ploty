@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Settings } from "lucide-react";
 
 import { Wordmark } from "@/components/brand/wordmark";
+import { SettingsLink } from "@/components/nav/settings-link";
 
 /** Compact header for phones. Desktop uses the sidebar instead. */
 export function TopBar({ companyName }: { companyName: string }) {
@@ -15,15 +15,9 @@ export function TopBar({ companyName }: { companyName: string }) {
           <span className="truncate text-sm font-semibold text-ink-muted">
             {companyName}
           </span>
-          {/* Profile lives here rather than in the bottom bar: see
-              lib/navigation.ts. */}
-          <Link
-            href="/profile"
-            aria-label="Settings"
-            className="grid size-10 shrink-0 place-items-center rounded-xl text-ink-muted hover:bg-surface-muted hover:text-ink"
-          >
-            <Settings className="size-5" aria-hidden />
-          </Link>
+          {/* Settings lives here rather than in the bottom bar, and carries
+              the screen it was opened from: see lib/navigation.ts. */}
+          <SettingsLink />
         </div>
       </div>
       <div className="h-px brand-rule" />
