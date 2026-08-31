@@ -24,6 +24,7 @@ import {
   parseCaptureLog,
 } from "../lib/reports/capture-log.ts";
 import { CLEANUP_SOURCE_LABEL, CLEANUP_SYSTEM_PROMPT_HEAD } from "../lib/ai/cleanup-prompt.ts";
+import { SITE_TIME_ZONE, workingDay } from "../lib/reports/working-day.ts";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -169,14 +170,64 @@ const open = actions.slice(openStart, openEnd === -1 ? undefined : openEnd);
 check("it looks for an existing report first", /from\("reports"\)[\s\S]{0,200}\.select\("id"\)/.test(open));
 check("only a draft", /\.eq\("status", "draft"\)/.test(open));
 check("only this project", /\.eq\("project_id", projectId\)/.test(open));
-check("only today", /\.eq\("report_date", today\(\)\)/.test(open));
+check("only today", /\.eq\("report_date", date\)/.test(open));
 check("and opens it rather than making another", /if \(existing\) redirect\(`\/reports\/\$\{existing\.id\}\/capture`\)/.test(open));
 check("a new one is only inserted when there is none", open.indexOf(".insert(") > open.indexOf("if (existing)"));
-check("today is the same day the database means", /toISOString\(\)\.slice\(0, 10\)/.test(actions));
+check("today is the British working day", /workingDay\(\)/.test(open));
+check(
+  "and the new report is given that date rather than the column's UTC default",
+  /report_date: date/.test(actions),
+  "otherwise 00:30 BST looks for one date and creates another",
+);
+check(
+  "the lookup and the insert use the one value",
+  (open.match(/workingDay\(\)/g) ?? []).length === 1 && /\.eq\("report_date", date\)/.test(open),
+);
 check(
   "the oldest draft wins where there are somehow two",
   /\.order\("created_at", \{ ascending: true \}\)/.test(open),
 );
+
+console.log("\n6b. Midnight on a British site");
+
+check("the timezone is Europe/London", SITE_TIME_ZONE === "Europe/London");
+
+// 00:30 on a summer night: British Summer Time is an hour ahead, so the site
+// is already on the 1st while UTC is still on the 31st. This is the case that
+// used to create a second Daily Report for the same night.
+const summerNight = new Date("2026-08-31T23:30:00Z");
+check(
+  "00:30 BST belongs to the British date, not the UTC one",
+  workingDay(summerNight) === "2026-09-01",
+  workingDay(summerNight),
+);
+check("which is not what UTC would have said", summerNight.toISOString().slice(0, 10) === "2026-08-31");
+
+// The same clock time in winter, when London is UTC and the two agree.
+const winterNight = new Date("2026-01-15T23:30:00Z");
+check("a winter night stays on its own date", workingDay(winterNight) === "2026-01-15");
+
+// Either side of the boundary, in summer.
+check(
+  "23:59 BST is still the day before",
+  workingDay(new Date("2026-08-31T22:59:00Z")) === "2026-08-31",
+);
+check(
+  "and 00:00 BST has turned over",
+  workingDay(new Date("2026-08-31T23:00:00Z")) === "2026-09-01",
+);
+
+// The shape the database column wants, every time, for a year of instants.
+let shaped = 0;
+for (let day = 0; day < 365; day += 1) {
+  const at = new Date(Date.UTC(2026, 0, 1, 23, 30) + day * 86400000);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(workingDay(at))) shaped += 1;
+}
+check("every day of the year comes back as YYYY-MM-DD", shaped === 365, String(shaped));
+
+// And the clocks going forward and back are not special cases to this.
+check("the spring forward is an ordinary day", workingDay(new Date("2026-03-29T01:30:00Z")) === "2026-03-29");
+check("so is the autumn back", workingDay(new Date("2026-10-25T01:30:00Z")) === "2026-10-25");
 
 console.log("\n7. A capture is added, never substituted");
 

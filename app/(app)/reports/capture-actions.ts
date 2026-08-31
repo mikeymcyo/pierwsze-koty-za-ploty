@@ -7,22 +7,11 @@ import { z } from "zod";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
 import { appendCapture, isCaptureTime } from "@/lib/reports/capture-log";
 import { copyPreviousEntries } from "@/lib/reports/carry-over";
+import { workingDay } from "@/lib/reports/working-day";
 import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
 import { createClient } from "@/lib/supabase/server";
 
 export type CaptureState = { error?: string; savedAt?: string };
-
-/**
- * The date a Daily Report belongs to, on the same basis the database uses.
- *
- * `reports.report_date` defaults to `current_date`, which on a Supabase
- * instance is UTC. Choosing today by any other clock would let Site Capture
- * hunt for a draft dated differently from the one it just created, so it uses
- * the same one.
- */
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 /**
  * Site Capture: open today's Daily Report for a project, or start it.
@@ -36,6 +25,11 @@ function today(): string {
  * appending this morning's work to it would file today's site under
  * yesterday's date. An issued report is not a draft, and is never reopened
  * from here.
+ *
+ * Today is the British working day, and it is written onto the row rather than
+ * left to the column's UTC default - see lib/reports/working-day.ts. The
+ * lookup and the insert therefore use the same date, which is what stops
+ * 00:30 on a summer night creating a second report for the same night.
  *
  * Where two drafts somehow exist for the same project and day, the oldest wins.
  * It is the one that has been collected into all day, and the one the report
@@ -51,12 +45,14 @@ export async function openSiteCapture(formData: FormData) {
   const session = await requireSessionContext();
   const supabase = await createClient();
 
+  const date = workingDay();
+
   const { data: existing } = await supabase
     .from("reports")
     .select("id")
     .eq("project_id", projectId)
     .eq("status", "draft")
-    .eq("report_date", today())
+    .eq("report_date", date)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
@@ -70,6 +66,9 @@ export async function openSiteCapture(formData: FormData) {
       project_id: projectId,
       author_id: session.userId,
       author_name: displayName(session),
+      // Explicit, not the column's UTC default: this has to be the same date
+      // the lookup above just asked for.
+      report_date: date,
     })
     .select("id")
     .single();

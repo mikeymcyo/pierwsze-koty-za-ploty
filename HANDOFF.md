@@ -52,8 +52,18 @@ always did, with the same workforce and plant carry-over - now in
 `lib/reports/carry-over.ts` so both entry points share it. The match is narrow
 on purpose: a draft left over from yesterday is somebody's unfinished report,
 and appending this morning's work to it would file today's site under
-yesterday's date. "Today" is computed as UTC, the same basis as the
-`current_date` default the column already uses.
+yesterday's date.
+
+"Today" is the **British** working day - `workingDay()` in
+`lib/reports/working-day.ts`, `Europe/London` for every site until sites carry
+a timezone of their own - and Site Capture writes it onto the row rather than
+letting the column's `current_date` default decide. That default is UTC, so
+between midnight and 01:00 BST the two disagree by a day: the lookup would ask
+for the 1st, the insert would store the 31st, and the next tap would find
+nothing and start a second report for the same night. Lookup and insert now use
+one value, which makes that duplicate impossible rather than unlikely. The
+suite checks 00:30 BST, both sides of midnight, a winter night, and both clock
+changes.
 
 **Storing repeated captures.** Every capture is appended to `reports.raw_notes`,
 which already means "what the user actually said, word for word" and is already
