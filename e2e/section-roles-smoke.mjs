@@ -136,10 +136,18 @@ check(
   /worth less to the reader/i.test(SUMMARY_SYSTEM_PROMPT),
 );
 check(
-  "it gives each section a one-line job",
-  ["Project overview:", "Scope of works:", "Stages of works:", "Completed works:"].every((name) =>
+  // A Completion Report is now three written sections - see
+  // COMPLETION_DRAFTED_TYPES. The scope list, the stage sequence and the key
+  // technical activities are still stored and still print where somebody wrote
+  // them; the model is simply no longer asked for eight accounts of one job.
+  "it gives each completion section a one-line job",
+  ["Completion summary:", "Completed works:", "Outstanding and sign-off:"].every((name) =>
     SUMMARY_SYSTEM_PROMPT.includes(name),
   ),
+);
+check(
+  "and says the document prints its own issues, photographs and sources",
+  /Do not write a section that\s+describes them/.test(SUMMARY_SYSTEM_PROMPT),
 );
 
 console.log("\n5. The evidence safeguards are untouched");

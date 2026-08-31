@@ -81,7 +81,7 @@ const EXPECTED = {
   daily: ["Daily Summary", "Photos & Evidence", "Issues / Next Steps"],
   progress: ["Progress Overview", "Photos & Evidence", "Outstanding / Next Actions"],
   survey: ["Findings", "Photos & Evidence", "Recommendations"],
-  completion: ["Completion Summary", "Photos & Evidence", "Outstanding / Sign-off"],
+  completion: ["Completion Summary", "Photos & Evidence", "Outstanding / Follow-on"],
 };
 
 for (const [kind, labels] of Object.entries(EXPECTED)) {
@@ -135,6 +135,25 @@ check("a completion report still stores eight", COMPLETION_SECTIONS.length === 8
 check("a survey still stores seven", SURVEY_SECTIONS.length === 7, String(SURVEY_SECTIONS.length));
 
 for (const kind of KINDS) {
+  if (kind === "completion") {
+    // A Completion Report stores eight sections and is drafted in three: the
+    // client-facing document is a summary, the completed works and what is
+    // still open. Nothing was removed - every stored type is still stored,
+    // still editable and still printed where it carries words.
+    check(
+      "completion: the cleanup pass writes the three the client reads",
+      CLEANUP_SECTIONS.completion.map((section) => section.type).join(",") ===
+        "project_overview,completed_works,sign_off",
+      CLEANUP_SECTIONS.completion.map((section) => section.type).join(","),
+    );
+    check(
+      "completion: and every one is still a stored section",
+      CLEANUP_SECTIONS.completion.every((section) =>
+        STORED.completion.some((stored) => stored.type === section.type),
+      ),
+    );
+    continue;
+  }
   check(
     `${kind}: the cleanup pass still writes every stored section, not three`,
     CLEANUP_SECTIONS[kind].map((section) => section.type).join(",") ===

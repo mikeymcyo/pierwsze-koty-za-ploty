@@ -362,9 +362,16 @@ for (const [role, pattern] of [
   ["and an empty one is a good outcome", /An\s+empty Works completed on a daily report is a good outcome, not a gap/i],
   ["deliveries and plant stay put", /Deliveries and plant: the logistical and equipment facts/i],
   ["planned works are never invented", /Never invent future works/i],
-  ["scope is not chronology", /Scope of works: which workstreams and items were included\. Not chronology/i],
-  ["stages are not the scope again", /Not the scope again/i],
-  ["overview is context and outcome", /why the project or work package existed/i],
+  // A completion report is now three written sections. The scope list and the
+  // stage sequence are still stored and still print where somebody wrote them,
+  // so the reviewer is told to review them but never to restore that shape.
+  ["a completion report is three sections", /A completion report is three written sections and nothing else/i],
+  ["the summary is the executive account", /the executive account - what the project was, what was/i],
+  ["completed works never repeats it", /Never a sentence the\s+completion summary already carries/i],
+  [
+    "an older report's extra sections are still reviewed",
+    /never move the whole document back to that shape/i,
+  ],
   ["outstanding means evidenced", /only items actually evidenced as/i],
 ]) {
   check(role, pattern.test(MASTER_REVIEW_SYSTEM_PROMPT));

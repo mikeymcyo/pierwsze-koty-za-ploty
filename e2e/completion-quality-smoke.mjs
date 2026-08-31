@@ -354,7 +354,7 @@ const structure = reportStructure("completion");
 check("three visible groups", structure.length === 3);
 check("Completion Summary", structure[0].label === "Completion Summary");
 check("Photos & Evidence", structure[1].label === "Photos & Evidence");
-check("Outstanding / Sign-off", structure[2].label === "Outstanding / Sign-off");
+check("Outstanding / Follow-on", structure[2].label === "Outstanding / Follow-on");
 check(
   "and no more than three writing areas",
   structure.filter((group) => group.sections.length > 0).length <= 3,

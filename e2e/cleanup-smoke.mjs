@@ -55,6 +55,7 @@ import * as cleanupModule from "../lib/ai/cleanup-prompt.ts";
 import { CLEANED_SECTIONS_LABEL, RAW_NOTES_LABEL, SYSTEM_PROMPT, buildPrompt } from "../lib/ai/prompt.ts";
 import { REPORT_SECTIONS } from "../lib/report-sections.ts";
 import {
+  COMPLETION_DRAFTED_TYPES,
   COMPLETION_SECTIONS,
   PROGRESS_SECTIONS,
   SURVEY_SECTIONS,
@@ -202,10 +203,19 @@ check(
   typesOf(CLEANUP_SECTIONS.progress) === typesOf(PROGRESS_SECTIONS),
   typesOf(CLEANUP_SECTIONS.progress),
 );
+// A Completion Report stores eight sections and is drafted in three - see
+// COMPLETION_DRAFTED_TYPES. Cleanup must match what is drafted, and every type
+// it names must still be a real stored section, or its output is dead text.
 check(
-  "completion cleans exactly the sections a completion report stores",
-  typesOf(CLEANUP_SECTIONS.completion) === typesOf(COMPLETION_SECTIONS),
+  "completion cleans exactly the sections a completion report is drafted in",
+  typesOf(CLEANUP_SECTIONS.completion) === COMPLETION_DRAFTED_TYPES.join(","),
   typesOf(CLEANUP_SECTIONS.completion),
+);
+check(
+  "and every one of them is a section a completion report really stores",
+  CLEANUP_SECTIONS.completion.every((section) =>
+    COMPLETION_SECTIONS.some((stored) => stored.type === section.type),
+  ),
 );
 check(
   "survey cleans exactly the sections a site survey stores",

@@ -48,8 +48,8 @@ export const PROGRESS_SECTIONS: SummarySectionDefinition[] = [
 export const COMPLETION_SECTIONS: SummarySectionDefinition[] = [
   {
     type: "project_overview",
-    label: "Project overview",
-    brief: "The story of the job in three or four sentences: what the work was, why it was needed, and what it amounted to overall. Prose a director could read on its own. It must NOT list the completed activities - Completed works carries those and a reader will meet them there - and must not restate the workstreams (Scope of works) or the sequence (Stages of works). Never repeat a sentence that appears in another section. State the overall outcome only as the evidence supports it: where anything is recorded as outstanding or follow-on, this section must say the primary works are complete with those items remaining, never that all works are complete.",
+    label: "Completion summary",
+    brief: "The executive account of the job, in four or five sentences, able to stand on its own for a client who reads nothing else: what the project was, what was achieved, and where it now stands overall. It must NOT list the completed activities - Completed works carries those and a reader will meet them there - and must not restate the workstreams or the sequence. Never repeat a sentence that appears in another section. State the overall status only as the evidence supports it: where anything is recorded as outstanding or follow-on, this section must say the main works are complete with those items remaining, never that all works are complete.",
   },
   {
     type: "scope_of_works",
@@ -214,6 +214,51 @@ export function summaryPeriodFieldLabel(kind: SummaryReportKind): string {
 export function summarySectionsFor(kind: SummaryReportKind): SummarySectionDefinition[] {
   if (kind === "survey") return SURVEY_SECTIONS;
   return kind === "progress" ? PROGRESS_SECTIONS : COMPLETION_SECTIONS;
+}
+
+/**
+ * The Completion Report a client actually reads.
+ *
+ * Three written sections: what the job was and where it stands, what was
+ * completed, and what is still open. Everything else a Completion Report can
+ * hold - the scope list, the stage-by-stage sequence, the key technical
+ * activities, a written introduction to the plates - is left to the parts of
+ * the document that already carry it: the photographs to the photographic
+ * record, the issues to the issue record, the sources to the source record.
+ *
+ * ## Why fewer, and why not a migration
+ *
+ * Asked to fill eight fields from one body of evidence, a model fills all
+ * eight. The issued Completion Report 003 was the proof: Project Overview,
+ * Scope, Stages, Key technical activities and Completed Works were five
+ * accounts of the same fortnight, each true, together a compressed database of
+ * the underlying reports rather than a document anybody wants to read.
+ *
+ * So the model is asked for three. **No section type is removed**: every one is
+ * still stored, still editable, and still printed when it carries words. A
+ * Completion Report drafted before this - or one where somebody wrote a stage
+ * sequence by hand because that job needed one - prints exactly as it did.
+ * Nothing anybody wrote is dropped, which is why this is a change to what is
+ * asked for rather than to what exists.
+ */
+export const COMPLETION_DRAFTED_TYPES: readonly SummarySectionType[] = [
+  "project_overview",
+  "completed_works",
+  "sign_off",
+];
+
+/**
+ * The sections the AI is asked to write, which is not the same as the sections
+ * the document can hold.
+ *
+ * Only a Completion Report distinguishes the two today. Everything else drafts
+ * what it stores.
+ */
+export function summaryDraftedSectionsFor(kind: SummaryReportKind): SummarySectionDefinition[] {
+  if (kind !== "completion") return summarySectionsFor(kind);
+  return COMPLETION_SECTIONS.filter((section) =>
+    COMPLETION_DRAFTED_TYPES.includes(section.type),
+  );
 }
 
 export function summarySectionOrder(kind: SummaryReportKind): SummarySectionType[] {

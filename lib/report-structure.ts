@@ -148,8 +148,8 @@ export const REPORT_STRUCTURES: Record<ReportDocumentKind, ReportStructure> = {
     evidence(["photographic_record"]),
     {
       key: "outstanding",
-      label: "Outstanding / Sign-off",
-      hint: "What remains open, and what the record says about sign-off.",
+      label: "Outstanding / Follow-on",
+      hint: "What is still open, and what the record says about sign-off.",
       sections: ["issues_and_resolutions", "sign_off"],
     },
   ],

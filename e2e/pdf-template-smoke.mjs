@@ -357,7 +357,7 @@ for (const kind of ["progress", "completion"]) {
   check(
     `${kind}: uses the shared three-section structure`,
     text.includes("Photos & Evidence") &&
-      text.includes(kind === "completion" ? "Outstanding / Sign-off" : "Outstanding / Next Actions"),
+      text.includes(kind === "completion" ? "Outstanding / Follow-on" : "Outstanding / Next Actions"),
   );
   check(
     `${kind}: opens with its own overview heading`,

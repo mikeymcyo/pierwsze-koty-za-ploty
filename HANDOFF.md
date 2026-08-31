@@ -34,6 +34,48 @@ The current implementation completes the core workflow:
 
 
 
+### The Completion Report a client reads: three written sections
+
+**No migration.** `npm run test:completion-content` covers it, including a real
+rendered PDF.
+
+Completion 003 was structurally correct and still read like a compressed
+database of the reports beneath it. Page one carried Project Overview, Scope of
+Works, Stages of Works, Key Technical Activities and Completed Works - five
+accounts of the same fortnight, each true.
+
+**The cause is arithmetic, not wording.** Ask a model to fill eight fields from
+one body of evidence and it fills all eight. So it is now asked for **three**:
+
+- **Completion summary** - the executive account, four or five sentences,
+  standing on its own: what the project was, what was achieved, where it stands.
+- **Completed works** - the completed workstreams with their materials,
+  locations, quantities and technical detail.
+- **Outstanding and sign-off** - what is genuinely still open, then any sign-off
+  fact the records actually carry.
+
+Everything else the document needs it already has from its own records: the
+plates under Photos & Evidence, the issues in the issue record, the sources in
+the source record. The consolidator is told outright not to write a paragraph
+describing its own appendices.
+
+**Nothing was removed and nothing is dropped.** `COMPLETION_DRAFTED_TYPES` in
+`lib/summary-reports/sections.ts` splits *what the model writes* from *what the
+document can hold*; `summaryDraftedSectionsFor` is what the JSON schema and the
+cleanup pass now use. All eight section types are still stored, still editable
+and still printed wherever they carry words - so a Completion Report drafted
+before this, or one where somebody wrote a stage sequence by hand because that
+job needed one, prints exactly as it did. The stale-clearing step only ever
+touches `ai_generated = true` rows, so a hand-written section survives a
+redraft. The suite proves both: the four unwritten headings are absent from the
+rendered PDF, and a hand-written stages section still prints under its own
+run-in label.
+
+Two labels changed with it: `project_overview` reads **"Completion summary"**,
+and the third group is **"Outstanding / Follow-on"**. The Master Review was told
+what a Completion Report now is, and told to review an older report's extra
+sections normally but never to move the document back to that shape.
+
 ### A Completion Report that does not contradict itself
 
 **No migration.** `npm run test:completion-content` covers it.

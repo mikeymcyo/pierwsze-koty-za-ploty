@@ -6,7 +6,10 @@ import { z } from "zod";
 import { CLEANED_SECTIONS_LABEL } from "@/lib/ai/prompt";
 import { SUMMARY_SYSTEM_PROMPT } from "@/lib/ai/summary-prompt";
 import { evidenceHeading, provenanceInstruction } from "@/lib/summary-reports/provenance";
-import { SUMMARY_KIND_LABELS, summarySectionsFor } from "@/lib/summary-reports/sections";
+import {
+  SUMMARY_KIND_LABELS,
+  summaryDraftedSectionsFor,
+} from "@/lib/summary-reports/sections";
 import type { SummaryReportKind, SummarySectionType } from "@/types/database";
 
 export type SummaryGenerationInput = {
@@ -54,7 +57,10 @@ export async function generateSummarySections(
     };
   }
 
-  const definitions = summarySectionsFor(input.kind);
+  // What the model is asked to write, which on a Completion Report is fewer
+  // than the document can hold - see summaryDraftedSectionsFor. A section it is
+  // not asked for keeps whatever is already in it.
+  const definitions = summaryDraftedSectionsFor(input.kind);
   const shape = Object.fromEntries(definitions.map((section) => [section.type, z.string()])) as Record<
     SummarySectionType,
     z.ZodString

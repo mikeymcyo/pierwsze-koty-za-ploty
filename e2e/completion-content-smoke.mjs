@@ -25,11 +25,20 @@ import {
   outstandingMentions,
   repeatedSentences,
 } from "../lib/summary-reports/completion-claims.ts";
-import { COMPLETION_SECTIONS } from "../lib/summary-reports/sections.ts";
+import {
+  COMPLETION_DRAFTED_TYPES,
+  COMPLETION_SECTIONS,
+  summaryDraftedSectionsFor,
+} from "../lib/summary-reports/sections.ts";
+import { groupSections } from "../lib/report-structure.ts";
 import { CLEANUP_SECTIONS } from "../lib/ai/cleanup-prompt.ts";
 import { MASTER_REVIEW_SYSTEM_PROMPT } from "../lib/ai/master-review-prompt.ts";
 import { SUMMARY_SYSTEM_PROMPT } from "../lib/ai/summary-prompt.ts";
 import { buildEvidence } from "../lib/summary-reports/evidence.ts";
+import { SummaryReportDocument } from "../lib/pdf/summary-document.tsx";
+import { textJoined } from "./support/pdf-tree.mjs";
+import { PORTRAIT } from "./support/fixture-image.mjs";
+import { createElement } from "react";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -193,10 +202,55 @@ check(
   /Everything else: where two parts of the report disagree/.test(MASTER_REVIEW_SYSTEM_PROMPT),
 );
 
-console.log("\n4. The four sections have distinct jobs");
+console.log("\n4. Three sections the client reads, and they are distinct");
+
+check(
+  "a completion report is drafted in three",
+  COMPLETION_DRAFTED_TYPES.join() === "project_overview,completed_works,sign_off",
+  COMPLETION_DRAFTED_TYPES.join(),
+);
+check(
+  "the summary, the completed works, and what is still open",
+  summaryDraftedSectionsFor("completion").map((section) => section.label).join(" | ") ===
+    "Completion summary | Completed works | Outstanding and sign-off",
+  summaryDraftedSectionsFor("completion").map((section) => section.label).join(" | "),
+);
+check("and cleanup writes the same three", CLEANUP_SECTIONS.completion.length === 3);
+check(
+  "the model is asked for those and nothing else",
+  /const definitions = summaryDraftedSectionsFor\(input\.kind\)/.test(
+    read("../lib/ai/summary-generation.ts"),
+  ),
+);
+
+// Nothing was removed. Every stored type is still stored, still editable, and
+// still printed where somebody wrote it - a report drafted before this, or one
+// where a stage sequence was written by hand, prints exactly as it did.
+check("a completion report still stores eight sections", COMPLETION_SECTIONS.length === 8);
+for (const type of ["scope_of_works", "stages_of_works", "key_technical_activities", "photographic_record", "issues_and_resolutions"]) {
+  check(
+    `${type} is still stored, just not asked for`,
+    COMPLETION_SECTIONS.some((section) => section.type === type) &&
+      !COMPLETION_DRAFTED_TYPES.includes(type),
+  );
+}
+check(
+  "and a section that carries words still prints",
+  groupSections("completion", [
+    { type: "stages_of_works", content: "Somebody wrote this by hand." },
+  ])
+    .flatMap((entry) => entry.entries)
+    .some((entry) => entry.type === "stages_of_works"),
+  "no paragraph anybody wrote is dropped",
+);
+check(
+  "only an AI-written section is ever cleared on a redraft",
+  /\.eq\("ai_generated", true\)/.test(read("../app/(app)/summary-reports/ai-actions.ts")),
+);
 
 for (const [where, brief] of [["drafting", drafting("project_overview")], ["cleanup", cleanup("project_overview")]]) {
-  check(`${where}: the overview is the story, not a list`, /story of the job/i.test(brief), brief);
+  check(`${where}: the summary is the executive account`, /executive account|story of the job/i.test(brief), brief);
+  check(`${where}: it stands on its own`, /stand on its own/i.test(brief), brief);
   check(
     `${where}: and is told not to list the completed activities`,
     /NOT list the completed activities|Not a list of the completed activities/i.test(brief),
@@ -208,16 +262,20 @@ for (const [where, brief] of [["drafting", drafting("project_overview")], ["clea
     brief,
   );
 }
-for (const [where, brief] of [["drafting", drafting("scope_of_works")], ["cleanup", cleanup("scope_of_works")]]) {
-  check(`${where}: scope asks for real technical depth`, /elements, locations, materials and systems/i.test(brief), brief);
-  check(`${where}: a generic line is called a failure`, /generic line/i.test(brief), brief);
-  check(`${where}: and it is not completed works again`, /completed works/i.test(brief), brief);
-}
 for (const [where, brief] of [["drafting", drafting("completed_works")], ["cleanup", cleanup("completed_works")]]) {
-  check(`${where}: completed works are specific activities`, /specific activities/i.test(brief), brief);
+  check(
+    `${where}: completed works keeps the technical facts`,
+    /materials/i.test(brief) && /locations/i.test(brief) && /quantities/i.test(brief),
+    brief,
+  );
   check(
     `${where}: planned and awaited work is excluded`,
     /planned, programmed, awaited or still to be carried out/i.test(brief),
+    brief,
+  );
+  check(
+    `${where}: it never repeats the summary`,
+    /do not repeat (a sentence from )?the (project overview|completion summary)/i.test(brief),
     brief,
   );
   check(
@@ -226,6 +284,11 @@ for (const [where, brief] of [["drafting", drafting("completed_works")], ["clean
     brief,
   );
 }
+check(
+  "the summary and the completed works are materially different briefs",
+  drafting("project_overview") !== drafting("completed_works") &&
+    cleanup("project_overview") !== cleanup("completed_works"),
+);
 const signOff = drafting("sign_off");
 check("outstanding work comes before sign-off", /Two things, in this order/.test(signOff));
 check(
@@ -235,9 +298,83 @@ check(
   ),
 );
 check(
-  "the four briefs are all different",
-  new Set([drafting("project_overview"), drafting("scope_of_works"), drafting("completed_works"), signOff]).size === 4,
+  "the three briefs are all different",
+  new Set([drafting("project_overview"), drafting("completed_works"), signOff]).size === 3,
 );
+
+console.log("\n4b. What the client actually receives");
+
+const completionData = (sections) => ({
+  kind: "completion",
+  companyName: "Empire Interiors Ltd",
+  projectName: "RDC Northfleet",
+  client: "Lidl GB",
+  siteAddress: "Northfleet",
+  projectReference: "1470",
+  title: null,
+  number: "004",
+  revision: 0,
+  periodLabel: "Whole project record",
+  issuedAt: "1 September 2026",
+  issuedBy: "M. Korzeniak",
+  sections,
+  issues: [],
+  photos: [],
+  sourceLabels: ["Progress Report 001 · 3 August 2026 to 6 August 2026"],
+  supportingDocuments: [],
+  documentsAppended: false,
+  store: null,
+});
+
+// A report drafted under the new rules: three written sections, the rest empty.
+const drafted = summaryDraftedSectionsFor("completion").map((section) => ({
+  type: section.type,
+  label: section.label,
+  content: `${section.label} content.`,
+}));
+const clientFacing = textJoined(
+  createElement(SummaryReportDocument, { data: completionData(drafted) }),
+);
+
+check("the completion summary heading prints", /Completion Summary/i.test(clientFacing));
+// The evidence heading appears when there are plates, and is correctly absent
+// when there are none - a heading with nothing under it is not printed.
+check("photos and evidence is absent when there are no plates", !/Photos & Evidence/i.test(clientFacing));
+const withPlates = textJoined(
+  createElement(SummaryReportDocument, {
+    data: {
+      ...completionData(drafted),
+      photos: [{ id: "p1", caption: "The rebuilt manhole.", category: "general", data: PORTRAIT }],
+    },
+  }),
+);
+check("and prints once there are", /Photos & Evidence/i.test(withPlates));
+check("with the caption the report carries", withPlates.includes("The rebuilt manhole."));
+check("outstanding and follow-on prints", /Outstanding \/ Follow-on/i.test(clientFacing));
+check("and the source record prints", /Source record/i.test(clientFacing));
+for (const gone of ["Scope of works", "Stages of works", "Key technical activities", "Photographic record"]) {
+  check(
+    `${gone} is not printed when it was never drafted`,
+    !clientFacing.includes(gone),
+    "empty sections are dropped by lib/summary-reports/pdf-data.ts",
+  );
+}
+
+// And the promise that nothing anybody wrote is lost: a hand-written stage
+// sequence on an older report still prints.
+const withLegacy = textJoined(
+  createElement(SummaryReportDocument, {
+    data: completionData([
+      ...drafted,
+      { type: "stages_of_works", label: "Stages of works", content: "Phase one, then phase two." },
+    ]),
+  }),
+);
+check(
+  "a section somebody wrote by hand still prints",
+  withLegacy.includes("Phase one, then phase two."),
+);
+check("under its own run-in label", /Stages of works/.test(withLegacy));
 
 console.log("\n5. The consolidator is told the same thing");
 

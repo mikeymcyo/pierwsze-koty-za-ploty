@@ -158,41 +158,21 @@ export const CLEANUP_SECTIONS: Record<CleanupDocumentKind, readonly CleanupSecti
   ],
   completion: [
     {
+      // Three sections, matching COMPLETION_DRAFTED_TYPES in
+      // lib/summary-reports/sections.ts. A Completion Report can still hold the
+      // scope list, the stage sequence and the key technical activities, and
+      // prints them where somebody wrote them - but asking a model for eight
+      // accounts of one job produces eight versions of the same fortnight.
       type: "project_overview",
-      label: "Project overview",
-      brief: "The story of the job in three or four sentences: what the work was and what it amounted to overall. Not a list of the completed activities, which belong under completed works, and not the workstreams, which belong under scope. Where anything is recorded as outstanding or follow-on, say the primary works are complete with those items remaining - never that all works are complete.",
-    },
-    {
-      type: "scope_of_works",
-      label: "Scope of works",
-      brief: "The workstreams and items within the package, at the technical depth the records give - the elements, locations, materials and systems they name. A single generic line is a failure where the records name the components. Do not infer contractual scope, and do not write this list again as completed works.",
-    },
-    {
-      type: "stages_of_works",
-      label: "Stages of works",
-      brief: "The evidenced sequence of major stages, in the order the records give them.",
-    },
-    {
-      type: "key_technical_activities",
-      label: "Key technical activities",
-      brief: "Technical activities explicitly recorded, with materials, methods and references as recorded.",
+      label: "Completion summary",
+      brief:
+        "The executive account of the job, in four or five sentences, able to stand on its own: what the project was, what was achieved, and where it now stands overall. Not a list of the completed activities, which belong under completed works. Where anything is recorded as outstanding or follow-on, say the main works are complete with those items remaining - never that all works are complete.",
     },
     {
       type: "completed_works",
       label: "Completed works",
       brief:
-        "The specific activities the records record as finished, with their locations, materials and quantities. Nothing planned, programmed, awaited or still to be carried out belongs here. Do not repeat the project overview. A blanket sentence such as \"all works were completed successfully\" is not a completed activity and does not belong in this section. Completion is not approval, acceptance, compliance or certification.",
-    },
-    {
-      type: "issues_and_resolutions",
-      label: "Issues and resolutions",
-      brief: "Issues raised, their recorded outcome, and a resolution only where one is recorded.",
-    },
-    {
-      type: "photographic_record",
-      label: "Photographic record",
-      brief:
-        "A short introduction to the images the metadata lists. Do not state what an image proves.",
+        "The completed workstreams as a concise factual account, keeping the materials, locations, quantities, components and technical detail the records give. Nothing planned, programmed, awaited or still to be carried out belongs here. Do not repeat a sentence from the completion summary. A blanket sentence such as \"all works were completed successfully\" is not a completed workstream and does not belong in this section. Completion is not approval, acceptance, compliance or certification.",
     },
     {
       type: "sign_off",
