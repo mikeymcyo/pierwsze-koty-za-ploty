@@ -91,16 +91,15 @@ export function isSameSet(submitted: readonly string[], actual: readonly string[
 }
 
 /**
- * Whether two photographs will print side by side.
+ * Nothing here says how the PDF lays plates out.
  *
- * The PDF lays plates two to a row in the order given, so a pair is together
- * when the earlier one sits on an even index. The screen says so, because
- * "put the before and the after next to each other" is the whole reason
- * somebody reorders a report, and a rule they cannot see is a rule they have
- * to discover by issuing the document.
+ * An earlier version exported PLATES_PER_ROW and sharesRow, and the screen
+ * told somebody that the photograph they had just placed would "print beside
+ * P01". That made a promise this module is in no position to keep: how many
+ * plates go on a row is the document's decision, taken from the page width and
+ * the shape of the images, and it is free to put one, two or four there.
+ *
+ * Order is sequence. It decides which photograph is P01 and which is P07, and
+ * that is all it decides - so a change to the PDF's density can never make the
+ * screen a liar.
  */
-export const PLATES_PER_ROW = 2;
-
-export function sharesRow(indexA: number, indexB: number): boolean {
-  return Math.floor(indexA / PLATES_PER_ROW) === Math.floor(indexB / PLATES_PER_ROW);
-}

@@ -33,6 +33,36 @@ The current implementation completes the core workflow:
 - Reports, Project detail and Dashboard list all three document types.
 
 
+
+### Arranging is dnd-kit, in a view of its own
+
+The hand-written long-press drag felt wrong on a real iPhone, so it is gone.
+`components/reports/photo-arrange.tsx` is a dedicated full-screen arrange view
+built on **@dnd-kit** - a lifted `DragOverlay` that follows the finger,
+neighbours that move aside to show where the photograph lands, auto-scroll at
+the edges, and a keyboard sensor. One implementation, opened by the same
+`PhotoOrderBar` from the daily grid and the consolidated list.
+
+`usePhotoOrder` is unchanged and still owns the order, the debounce and the
+save, so nothing about `sort_order`, `isSameSet` or the refusal on an issued
+report moved.
+
+**The sensor split is load-bearing.** `MouseSensor` (distance 8) plus
+`TouchSensor` (delay 200ms, tolerance 8) rather than the single `PointerSensor`
+that covers both: a pointer sensor also receives touch, so it claims the
+gesture before the hold can be judged - a press-and-hold then does nothing and
+a swipe starts a drag the browser immediately cancels. This was found by
+driving the real component in a 390px browser, and the test asserts the two
+sensors stay separate.
+
+**Order is sequence, and nothing else.** `PLATES_PER_ROW` and `sharesRow` are
+deleted along with the "Prints beside P01" wording. That was a promise this
+layer could not keep: how many plates go on a row is the document's decision,
+and it is free to put one, two or four there. The PDF is untouched and stays
+free to change its density without making the screen a liar.
+
+No migration. No rotation. `npm run test:photo-order`.
+
 ### Photographs are arranged by dragging them
 
 The arrows in `578d3f4` worked and were slow: putting plate eleven next to

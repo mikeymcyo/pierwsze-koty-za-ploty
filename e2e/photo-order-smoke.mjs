@@ -12,16 +12,13 @@
 import { readFileSync } from "node:fs";
 
 import {
-  PLATES_PER_ROW,
   UNORDERED,
   isSameSet,
   movePhoto,
   movePhotoEarlier,
   movePhotoLater,
-  sharesRow,
   sortOrderValues,
 } from "../lib/photos-order.ts";
-import { photoReference } from "../lib/pdf/photo-evidence.ts";
 
 const failures = [];
 function check(label, ok, detail = "") {
@@ -77,15 +74,31 @@ check("a foreign id is refused", !isSameSet(["a", "b", "c", "zz"], IDS));
 check("a duplicate is refused", !isSameSet(["a", "a", "b", "c"], IDS));
 check("an empty list against a full report is refused", !isSameSet([], IDS));
 
-console.log("\n6. Which plates share a row, so a pair can be placed");
-check("the PDF prints two to a row", PLATES_PER_ROW === 2);
-check("P01 and P02 are side by side", sharesRow(0, 1));
-check("P02 and P03 are not", !sharesRow(1, 2));
-check("P03 and P04 are", sharesRow(2, 3));
+const arrangeView = read("../components/reports/photo-arrange.tsx");
+
+console.log("\n6. Order is sequence, and says nothing about the PDF's layout");
+
+// It used to. The module exported PLATES_PER_ROW and sharesRow and the screen
+// promised that the photograph just placed would "print beside P01" - a
+// guarantee it was in no position to make, because how many plates go on a row
+// is the document's decision and it is free to change it.
+const orderModule = read("../lib/photos-order.ts");
+// The exports, not the word: the comment explaining why they went names them.
+check("no plates-per-row constant is exported", !/export const PLATES_PER_ROW/.test(orderModule));
+check("and nothing exported works out what shares a row", !/export function sharesRow/.test(orderModule));
 check(
-  "and the references the screen shows are the PDF's own",
-  photoReference(0) === "P01" && photoReference(9) === "P10",
+  "the module says why, so it is not put back",
+  /Order is sequence/.test(orderModule),
 );
+for (const [name, file] of [
+  ["the reorder control", "../components/reports/photo-reorder.tsx"],
+  ["the arrange view", "../components/reports/photo-arrange.tsx"],
+  ["the daily grid", "../components/reports/photo-grid.tsx"],
+  ["the consolidated list", "../components/summary-reports/report-photos.tsx"],
+]) {
+  const screen = read(file);
+  check(`${name} promises nothing about rows`, !/Prints beside|plates to a row|side by side/.test(screen), file);
+}
 
 console.log("\n7. Reordering writes one column and touches no file");
 const action = read("../app/(app)/reports/photo-actions.ts");
@@ -140,10 +153,8 @@ console.log("\n7c. One reorder control, not two");
 const control = read("../components/reports/photo-reorder.tsx");
 check("the state, debounce and gesture live in one module", /export function usePhotoOrder/.test(control));
 check(
-  "with one set of controls",
-  /export function PhotoOrderBar/.test(control) &&
-    /export function usePhotoDrag/.test(control) &&
-    /export function PhotoOrderCaption/.test(control),
+  "with one switch into it, shared by every screen",
+  /export function PhotoOrderBar/.test(control),
 );
 for (const [name, file] of [
   ["the daily grid", "../components/reports/photo-grid.tsx"],
@@ -153,7 +164,7 @@ for (const [name, file] of [
   check(`${name} uses it`, /from "@\/components\/reports\/photo-reorder"/.test(screen));
   check(`${name} keeps no timer of its own`, !/setTimeout/.test(screen));
   check(`${name} keeps no move logic of its own`, !/movePhotoEarlier|movePhotoLater/.test(screen));
-  check(`${name} says the same thing`, /PhotoOrderBar/.test(screen) && /PhotoOrderHint/.test(screen));
+  check(`${name} says the same thing`, /PhotoOrderBar/.test(screen) && /PhotoArrangeView/.test(screen));
 }
 
 console.log("\n7d. Every document kind reaches it");
@@ -196,65 +207,78 @@ check(
   /photos\.length > 1/.test(grid) &&
     /photos\.length > 1/.test(read("../components/summary-reports/report-photos.tsx")),
 );
-check("each plate shows the number it will print as", /photoReference\(index\)/.test(grid));
+check("each plate shows the number it will print as", /photoReference\(index\)/.test(arrangeView));
 check(
-  "and a plate says what it is and how to move it",
-  /Photograph \$\{photoReference\(index\)\}\. Hold and drag to move it/.test(control),
+  "and the view says how to move a plate",
+  /Press and hold a photograph, then drag it into place/.test(arrangeView),
 );
-check("the pair rule is on the screen, not just in the PDF", /appear side by side/.test(control));
 check(
   "captions travel with the photograph, not the position",
   /photoId=\{photo\.id\}/.test(grid) && /caption=\{photo\.caption\}/.test(grid),
 );
 
 
-console.log("\n8b. The drag is built to survive a phone");
+console.log("\n8b. The drag is a maintained library, not a third hand-written gesture");
 
+// Two hand-written versions came before this - arrows, then a custom
+// long-press pointer drag - and the second felt wrong on a real iPhone. A
+// photograph that does not visibly lift and follow the finger reads as a
+// broken tap, and fixing that properly means an overlay, neighbours that move
+// aside, auto-scroll at the edges and a delay that tells a drag from a scroll.
+const dependencies = JSON.parse(read("../package.json")).dependencies;
+
+check("the sortable is a maintained library", Boolean(dependencies["@dnd-kit/sortable"]));
+check("with its core", Boolean(dependencies["@dnd-kit/core"]));
 check(
-  "a drag begins on a hold, not on contact, so the grid can still be scrolled",
-  /const HOLD_MS = \d+/.test(control) && /setTimeout\(/.test(control),
+  "no hand-written gesture is left behind",
+  !/elementFromPoint|setPointerCapture|passive: false/.test(arrangeView) &&
+    !/elementFromPoint|setPointerCapture|usePhotoDrag/.test(control),
 );
 check(
-  "movement before the hold completes hands the gesture back to the page",
-  /travelled > SLOP_PX/.test(control),
+  "a finger has to hold still first, so the grid can still be scrolled",
+  /TouchSensor, \{ activationConstraint: \{ delay: \d+, tolerance: \d+ \} \}/.test(arrangeView),
 );
 check(
-  "the pointer is captured, so a fast drag keeps its target",
-  /setPointerCapture\(pointerId\)/.test(control),
+  "and a mouse simply drags",
+  /MouseSensor, \{ activationConstraint: \{ distance: \d+ \} \}/.test(arrangeView),
+);
+// One sensor covering both inputs claims a touch before the hold above can be
+// judged, so a press-and-hold did nothing and a swipe started a drag the
+// browser then cancelled. Two sensors, one rule each.
+check(
+  "and the two are separate sensors, not one that covers both",
+  !/useSensor\(PointerSensor/.test(arrangeView),
 );
 check(
-  "and a browser that refuses the capture does not break the screen",
-  /try \{[\s\S]{0,140}setPointerCapture[\s\S]{0,120}\} catch/.test(control),
+  "touch-action lets a swipe through until the hold takes the gesture",
+  /touchAction: "manipulation"/.test(arrangeView),
 );
 check(
-  "the scroll lock is native and non-passive - React's own touch listeners are passive",
-  /addEventListener\("touchmove", hold, \{ passive: false \}\)/.test(control),
+  "the lifted photograph is a real tile following the finger",
+  /<DragOverlay/.test(arrangeView),
 );
 check(
-  "and it is taken off again when the drag ends",
-  /removeEventListener\("touchmove", hold\)/.test(control),
+  "the neighbours move aside to show where it lands",
+  /rectSortingStrategy/.test(arrangeView) && /opacity: isDragging/.test(arrangeView),
 );
 check(
-  "the drop target is hit-tested live, because the tiles reflow under the finger",
-  /elementFromPoint/.test(control) && /\[data-photo-id\]/.test(control),
+  "the view owns its scrolling, which is what lets it auto-scroll",
+  /overflow-y-auto/.test(arrangeView) && /overscroll-contain/.test(arrangeView),
+);
+check("a keyboard can still move a plate", /KeyboardSensor/.test(arrangeView));
+check(
+  "it is a screen of its own rather than controls sprinkled on the report",
+  /createPortal/.test(arrangeView) && /fixed inset-0/.test(arrangeView),
+);
+check("with a way out", /onDone/.test(arrangeView) && /Escape/.test(arrangeView));
+check(
+  "one implementation, used by every document kind",
+  /PhotoArrangeView/.test(grid) &&
+    /PhotoArrangeView/.test(read("../components/summary-reports/report-photos.tsx")),
 );
 check(
-  "one set of listeners on the grid rather than a closure per tile",
-  /gridProps/.test(control) && /tileProps/.test(control),
-);
-check(
-  "the lifted tile stops taking pointer events, so the test sees underneath it",
-  /pointer-events-none/.test(grid) &&
-    /pointer-events-none/.test(read("../components/summary-reports/report-photos.tsx")),
-);
-check(
-  "arrow keys still move a plate, for anybody not using a pointer",
-  /ArrowLeft/.test(control) && /order\.move\(id, "earlier"\)/.test(control),
-);
-check("and no dependency was added for any of it", !/dnd|sortable|dragula/i.test(read("../package.json")));
-check(
-  "both screens drag through the shared hook",
-  /usePhotoDrag/.test(grid) && /usePhotoDrag/.test(read("../components/summary-reports/report-photos.tsx")),
+  "the order it produces goes through the same debounced save as before",
+  /order\.moveTo\(/.test(arrangeView) && /usePhotoOrder/.test(control),
 );
 
 console.log("\n9. The order reaches the document");

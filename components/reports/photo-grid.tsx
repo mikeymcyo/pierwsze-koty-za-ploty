@@ -7,15 +7,9 @@ import { deletePhoto, reorderReportPhotos } from "@/app/(app)/reports/photo-acti
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PhotoDetails } from "@/components/reports/photo-details";
-import {
-  PhotoOrderCaption,
-  PhotoOrderBar,
-  PhotoOrderHint,
-  usePhotoOrder,
-  usePhotoDrag,
-} from "@/components/reports/photo-reorder";
+import { PhotoOrderBar, usePhotoOrder } from "@/components/reports/photo-reorder";
+import { PhotoArrangeView } from "@/components/reports/photo-arrange";
 import { photoPrintLabel, photoPrintLabelText } from "@/lib/photo-captions";
-import { photoReference } from "@/lib/pdf/photo-evidence";
 import type { Photo } from "@/types/database";
 
 export type PhotoWithUrl = Pick<
@@ -82,7 +76,6 @@ export function PhotoGrid({
   });
 
   const canReorder = Boolean(reportId) && deletable && photos.length > 1;
-  const drag = usePhotoDrag({ enabled: reordering && canReorder, order });
 
   return (
     <div className="flex flex-col gap-3">
@@ -94,30 +87,22 @@ export function PhotoGrid({
         />
       ) : null}
 
-      {reordering ? <PhotoOrderHint /> : null}
+      {reordering && canReorder ? (
+        <PhotoArrangeView
+          photos={ordered}
+          order={order}
+          onDone={() => setReordering(false)}
+        />
+      ) : null}
 
       <ul
-        {...drag.gridProps}
-        className="grid grid-cols-2 gap-3 sm:grid-cols-3"
-      >
-        {ordered.map((photo, index) => {
+        className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {ordered.map((photo) => {
           const label = photoPrintLabel(photo);
           const alt = photoPrintLabelText(photo);
 
           return (
-            <li
-              key={photo.id}
-              {...drag.tileProps(photo.id, index)}
-              className={[
-                "flex flex-col gap-2 transition-transform",
-                reordering ? "touch-manipulation select-none" : "",
-                drag.dragging === photo.id
-                  ? "z-10 scale-105 opacity-90 [&_*]:pointer-events-none"
-                  : "",
-              ]
-                .filter(Boolean)
-                .join(" ")}
-            >
+            <li key={photo.id} className="flex flex-col gap-2">
               <div className="relative aspect-square overflow-hidden rounded-xl border border-line bg-surface-muted">
                 {photo.url ? (
                   // Signed Supabase URLs expire, so next/image's optimiser would
@@ -135,13 +120,7 @@ export function PhotoGrid({
                   </div>
                 )}
 
-                {reordering ? (
-                  <span className="absolute top-1.5 left-1.5 rounded-lg bg-ink-inverse/85 px-2 py-1 text-xs font-bold text-ink">
-                    {photoReference(index)}
-                  </span>
-                ) : null}
-
-                {deletable && !reordering ? (
+                {deletable ? (
                   <form
                     action={deletePhoto}
                     className="absolute top-1.5 right-1.5 opacity-90"
@@ -160,9 +139,7 @@ export function PhotoGrid({
                 ) : null}
               </div>
 
-              {reordering ? (
-                <PhotoOrderCaption index={index} caption={label.caption} />
-              ) : editable ? (
+              {editable ? (
                 <PhotoDetails
                   photoId={photo.id}
                   caption={photo.caption}
