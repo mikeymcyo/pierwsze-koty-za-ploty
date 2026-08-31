@@ -34,6 +34,44 @@ The current implementation completes the core workflow:
 
 
 
+### Site Capture on one bar of signal
+
+**No migration. Not an offline system** - a capture still has to reach the
+server before it counts, and nothing ever says "saved" before it has.
+`npm run test:capture-reliability` covers the batch.
+
+The audit found four real holes, all in the gap between "the request went" and
+"the request came back":
+
+1. **Two taps were two entries.** A save that looks like it did nothing on one
+   bar of signal gets tapped again. `alreadyEnded` in
+   `lib/reports/capture-log.ts` now recognises a capture already at the end of
+   the log and the action answers *"that is saved"* rather than writing the
+   sentence into the day twice. Compared on the exact entry, so the same words
+   genuinely said again at a different minute are still a different capture -
+   somebody repeating themselves on site is a fact about the day. The button is
+   also dead for the round trip.
+2. **A failed request took the words with it.** `lib/capture-draft.ts` keeps
+   the unsent text on the phone, per report, read through
+   `useSyncExternalStore` so the server renders empty and the client picks it up
+   after hydration without writing state on mount. It is cleared **only** where
+   the server confirmed - `landed` is false whenever the action returned an
+   error - and every access is wrapped, because Safari in private mode throws on
+   `localStorage`.
+3. **A failed photograph was gone.** The compressed bytes and the storage path
+   are now kept, and the path is minted **once, when the file is chosen**, not
+   per attempt. Try again writes the same object (`upsert: true`) rather than a
+   second copy, and `attachPhoto` / `attachSummaryPhoto` return the row they
+   already made for that path instead of inserting a duplicate - so pressing
+   Retry twice cannot leave two of the same photograph in a report. Leaving the
+   page mid-upload asks first.
+4. **"Uploaded" was said too early.** An object in the bucket whose row failed
+   is not a photograph in the report. Nothing counts as uploaded until the row
+   exists; anything short of that lands in the failed list.
+
+The status line is now Saving… / Saved at HH:MM / *Not saved - your words are
+safe here*, with the button becoming **Try again**.
+
 ### A source-based Progress Report does not open as a blank page
 
 **No migration, and no change behind the screen.** `npm run test:progress-ux`

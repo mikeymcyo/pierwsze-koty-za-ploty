@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
-import { Camera, FolderOpen, Images, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Camera, FolderOpen, Images, Loader2, RotateCw } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
 import { attachPhoto } from "@/app/(app)/reports/photo-actions";
@@ -39,6 +39,21 @@ const SOURCE_ICONS: Record<PhotoSourceId, LucideIcon> = {
 };
 
 type Compressed = { blob: Blob; width: number; height: number };
+
+/**
+ * One photograph on its way to the bucket.
+ *
+ * The path is minted when the file is chosen and never again, which is what
+ * makes a retry write the same object instead of a second one.
+ */
+type PendingUpload = {
+  id: string;
+  name: string;
+  blob: Blob;
+  width: number;
+  height: number;
+  path: string;
+};
 
 /**
  * Re-encodes a photo to a sensible size before upload.
@@ -116,6 +131,27 @@ export function PhotoUpload({
   const [category, setCategory] = useState<PhotoCategory>(defaultCategory);
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Photographs that did not make it.
+   *
+   * The compressed bytes are kept, and so is the storage path minted when the
+   * file was chosen - not a fresh one per attempt. That is what makes a retry
+   * safe: it writes the same object again rather than a second copy, and
+   * attachPhoto refuses to insert a second row for a path it already has. So
+   * pressing Retry twice on one bar of signal cannot leave two of the same
+   * photograph in the report.
+   */
+  const [failed, setFailed] = useState<PendingUpload[]>([]);
+
+  // A photograph half-way to the bucket is work in progress. Leaving the page
+  // now loses it, so the browser asks first - the one thing that can be done
+  // about it without an offline queue.
+  useEffect(() => {
+    if (!busy) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [busy]);
 
   async function handleFiles(source: PhotoSourceId, files: FileList) {
     const chosen = Array.from(files);
@@ -139,65 +175,92 @@ export function PhotoUpload({
     }
 
     setError(null);
-    setBusy({ done: 0, total: list.length });
 
+    // Compressed and given its storage path here, once, before any attempt.
+    // Every retry of this photograph then writes the same object.
+    const pending: PendingUpload[] = [];
+    for (const file of list) {
+      const { blob, width, height } = await compress(file);
+      pending.push({
+        id: crypto.randomUUID(),
+        name: file.name,
+        blob,
+        width,
+        height,
+        path: `${photoPathPrefix(companyId, projectId)}${crypto.randomUUID()}.jpg`,
+      });
+    }
+
+    resetInput(source);
+    await send(pending, skippedNote);
+  }
+
+  /**
+   * Upload and attach, one at a time, keeping whatever failed.
+   *
+   * Nothing is reported as uploaded before the row exists: an object in the
+   * bucket with no row is not a photograph in the report, and saying it was
+   * would be the exact lie this pass exists to remove.
+   */
+  async function send(pending: PendingUpload[], skippedNote = "") {
+    setBusy({ done: 0, total: pending.length });
     const supabase = createClient();
-    const failures: string[] = [];
+    const stillFailing: PendingUpload[] = [];
+    let firstFailure: string | null = null;
 
-    for (const [index, file] of list.entries()) {
+    for (const [index, item] of pending.entries()) {
       try {
-        const { blob, width, height } = await compress(file);
-        const name = `${crypto.randomUUID()}.jpg`;
-        const path = `${photoPathPrefix(companyId, projectId)}${name}`;
-
         const { error: uploadError } = await supabase.storage
           .from(PHOTO_BUCKET)
-          .upload(path, blob, { contentType: blob.type || "image/jpeg", upsert: false });
+          .upload(item.path, item.blob, {
+            contentType: item.blob.type || "image/jpeg",
+            // The same path on a retry. Upsert so an object left behind by a
+            // half-finished first attempt is replaced rather than refused,
+            // which is what used to turn a retry into a second photograph.
+            upsert: true,
+          });
 
-        if (uploadError) {
-          failures.push(uploadError.message);
-        } else {
-          const result = summaryReportId
-            ? await attachSummaryPhoto({
-                summaryReportId,
-                storagePath: path,
-                caption: null,
-                category,
-                width: width || null,
-                height: height || null,
-              })
-            : await attachPhoto({
-                projectId,
-                reportId,
-                storagePath: path,
-                caption: null,
-                category,
-                width: width || null,
-                height: height || null,
-              });
-          if (result?.error) failures.push(result.error);
-        }
+        if (uploadError) throw new Error(uploadError.message);
+
+        const result = summaryReportId
+          ? await attachSummaryPhoto({
+              summaryReportId,
+              storagePath: item.path,
+              caption: null,
+              category,
+              width: item.width || null,
+              height: item.height || null,
+            })
+          : await attachPhoto({
+              projectId,
+              reportId,
+              storagePath: item.path,
+              caption: null,
+              category,
+              width: item.width || null,
+              height: item.height || null,
+            });
+        if (result?.error) throw new Error(result.error);
       } catch (cause) {
-        failures.push(cause instanceof Error ? cause.message : "Upload failed");
+        stillFailing.push(item);
+        firstFailure ??= cause instanceof Error ? cause.message : "Upload failed";
       }
 
-      setBusy({ done: index + 1, total: list.length });
+      setBusy({ done: index + 1, total: pending.length });
     }
 
     setBusy(null);
-    resetInput(source);
+    setFailed(stillFailing);
 
-    if (failures.length) {
+    if (stillFailing.length) {
       setError(
-        (failures.length === list.length
-          ? `Nothing uploaded. ${failures[0]}`
-          : `${list.length - failures.length} of ${list.length} uploaded. ${failures[0]}`) +
+        (stillFailing.length === pending.length
+          ? `Nothing uploaded. ${firstFailure}`
+          : `${pending.length - stillFailing.length} of ${pending.length} uploaded. ${firstFailure}`) +
           skippedNote,
       );
-    } else if (skipped > 0) {
-      setError(
-        `${list.length} ${list.length === 1 ? "photo" : "photos"} uploaded.${skippedNote}`,
-      );
+    } else {
+      setError(skippedNote.trim() ? `Uploaded.${skippedNote}` : null);
     }
   }
 
@@ -284,6 +347,33 @@ export function PhotoUpload({
       ) : null}
 
       {error ? <Alert tone="danger">{error}</Alert> : null}
+
+      {/* Kept, not lost. The bytes are still here and the storage path is the
+          one they were given when the photograph was chosen, so Try again
+          writes the same object rather than a second copy of it. */}
+      {failed.length > 0 && !busy ? (
+        <div className="flex flex-col gap-2 rounded-xl border border-danger/40 bg-surface p-3">
+          <p className="text-sm font-semibold text-ink">
+            {failed.length} {failed.length === 1 ? "photograph" : "photographs"} did not upload
+          </p>
+          <ul className="flex flex-col gap-1 text-xs text-ink-muted">
+            {failed.map((item) => (
+              <li key={item.id} className="truncate">
+                {item.name || "Site photograph"}
+              </li>
+            ))}
+          </ul>
+          <Button
+            type="button"
+            variant="secondary"
+            className="self-start"
+            onClick={() => void send(failed)}
+          >
+            <RotateCw aria-hidden />
+            Try again
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
 }

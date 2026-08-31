@@ -51,6 +51,7 @@
     "test:export": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/pdf-export-smoke.mjs",
     "test:photo-rotation": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/photo-rotation-smoke.mjs",
     "test:site-capture": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/site-capture-smoke.mjs",
+    "test:capture-reliability": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/capture-reliability-smoke.mjs",
     "test:photo-order": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/photo-order-smoke.mjs",
     "test:timing": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/report-timing-smoke.mjs",
     "test:viewer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/report-viewer-smoke.mjs",

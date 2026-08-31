@@ -103,7 +103,11 @@ export default async function SiteCapturePage({
 
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <SiteCaptureForm action={addCapture.bind(null, report.id)} entryCount={entries.length} />
+          <SiteCaptureForm
+            action={addCapture.bind(null, report.id)}
+            entryCount={entries.length}
+            reportId={report.id}
+          />
         </CardContent>
       </Card>
 

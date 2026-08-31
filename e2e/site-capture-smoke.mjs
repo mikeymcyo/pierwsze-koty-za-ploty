@@ -260,10 +260,17 @@ const form = read("../components/reports/site-capture-form.tsx");
 check("it is called Site Capture", /Site Capture/.test(page));
 check("it dictates with the one dictation component", /DictationField/.test(form));
 check("and asks for the large control", /prominent/.test(form));
-check("the box holds only the new capture", /defaultValue=""/.test(form));
+check(
+  "the box holds only the new capture",
+  /defaultValue=\{restored\}/.test(form),
+  "the day so far stays on the server; the box carries what has not been sent",
+);
 check(
   "and is cleared only when a capture actually landed",
-  /key=\{entryCount\}/.test(form),
+  // Keyed on the server's entry count and on the unsent draft, and the draft
+  // is cleared only where the server confirmed. See the reliability pass.
+  /key=\{`\$\{entryCount\}:\$\{restored\.length\}`\}/.test(form) &&
+    /if \(landed\) clearCaptureDraft\(reportId\)/.test(form),
   "a failed save must leave the words in the box",
 );
 check("photographs can be added here", /PhotoUpload/.test(page));

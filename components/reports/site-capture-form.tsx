@@ -1,22 +1,62 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
-import { Check } from "lucide-react";
+import { Check, RotateCw } from "lucide-react";
 
 import type { CaptureState } from "@/app/(app)/reports/capture-actions";
 import { DictationField } from "@/components/reports/dictation-field";
 import { Alert } from "@/components/ui/alert";
+import {
+  clearCaptureDraft,
+  readCaptureDraft,
+  subscribeToCaptureDraft,
+  writeCaptureDraft,
+} from "@/lib/capture-draft";
 import { Button } from "@/components/ui/button";
 
-function SaveButton() {
+function SaveButton({ retry }: { retry: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="lg" className="h-14 w-full text-base" loading={pending}>
-      {pending ? "Adding…" : "Add to today's report"}
+    <Button
+      type="submit"
+      size="lg"
+      className="h-14 w-full text-base"
+      loading={pending}
+      // Two taps on one bar of signal used to be two entries. The button goes
+      // dead for the round trip, and addCapture refuses a repeat of the entry
+      // it already wrote, so neither the finger nor the network can double it.
+      disabled={pending}
+    >
+      {pending ? (
+        "Adding…"
+      ) : retry ? (
+        <>
+          <RotateCw aria-hidden />
+          Try again
+        </>
+      ) : (
+        "Add to today's report"
+      )}
     </Button>
   );
+}
+
+/** Saving… / Saved / nothing. Never "saved" before the server says so. */
+function SaveStatus({ savedAt, failed }: { savedAt?: string; failed: boolean }) {
+  const { pending } = useFormStatus();
+  if (pending) return <span className="text-xs text-ink-subtle">Saving…</span>;
+  if (failed) return <span className="text-xs text-danger">Not saved - your words are safe here</span>;
+  if (savedAt !== undefined) {
+    return (
+      <span className="flex items-center gap-1 text-xs text-ink-muted">
+        <Check aria-hidden className="size-3.5" />
+        Saved{savedAt ? ` at ${savedAt}` : ""}
+      </span>
+    );
+  }
+  return null;
 }
 
 /**
@@ -34,12 +74,36 @@ function SaveButton() {
 export function SiteCaptureForm({
   action,
   entryCount,
+  reportId,
 }: {
   action: (state: CaptureState, formData: FormData) => Promise<CaptureState>;
   entryCount: number;
+  reportId: string;
 }) {
   const [state, formAction] = useActionState<CaptureState, FormData>(action, {});
   const capturedAt = useRef<HTMLInputElement>(null);
+
+  /**
+   * Anything a failed request or a discarded tab left on this phone.
+   *
+   * Read through the store rather than in an effect: the server snapshot is
+   * empty, the client picks the text up straight after hydration, and no state
+   * is written on mount. See lib/capture-draft.ts.
+   */
+  const restored = useSyncExternalStore(
+    subscribeToCaptureDraft,
+    () => readCaptureDraft(reportId),
+    () => "",
+  );
+
+  /**
+   * The server has it. Only now may the local copy go - and clearing it is
+   * what empties the box, because the field is keyed on it.
+   */
+  const landed = !state.error && state.savedAt !== undefined;
+  useEffect(() => {
+    if (landed) clearCaptureDraft(reportId);
+  }, [landed, entryCount, reportId]);
 
   return (
     <form
@@ -59,6 +123,12 @@ export function SiteCaptureForm({
       <input type="hidden" name="captured_at" ref={capturedAt} />
 
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
+      {restored && !landed ? (
+        <Alert tone="info">
+          Words you had not added yet were still on this phone. They are back in the box - add
+          them when you are ready.
+        </Alert>
+      ) : null}
       {!state.error && state.savedAt !== undefined ? (
         <Alert tone="success">
           <span className="flex items-center gap-2">
@@ -70,16 +140,23 @@ export function SiteCaptureForm({
       ) : null}
 
       <DictationField
-        key={entryCount}
+        // Keyed on the stored draft, so the box is rebuilt when the phone hands
+        // one back after hydration and again - empty - the moment a capture
+        // lands. A failed save changes neither, so every word stays put.
+        key={`${entryCount}:${restored.length}`}
         name="capture_text"
         label="What has happened on site"
-        defaultValue=""
+        defaultValue={restored}
+        onValueChange={(value) => writeCaptureDraft(reportId, value)}
         rows={8}
         prominent
         placeholder="Say what has happened since you were last here. Trades on site, what got done, deliveries, hold-ups, anything the client should know."
       />
 
-      <SaveButton />
+      <SaveButton retry={Boolean(state.error)} />
+      <div className="min-h-4">
+        <SaveStatus savedAt={state.error ? undefined : state.savedAt} failed={Boolean(state.error)} />
+      </div>
     </form>
   );
 }

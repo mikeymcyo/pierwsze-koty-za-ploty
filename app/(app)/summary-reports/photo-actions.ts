@@ -108,9 +108,21 @@ export async function attachSummaryPhoto(input: AttachSummaryPhotoInput) {
     return { error: "That photo could not be attached - please try again." };
   }
 
+  // Already here. A retry after a failed reply writes the same storage path -
+  // see components/reports/photo-upload.tsx - and must reuse the row it made
+  // last time rather than create a second photograph. The link below is
+  // insert-if-missing for the same reason.
+  const { data: attached } = await supabase
+    .from("photos")
+    .select("id")
+    .eq("storage_path", storagePath)
+    .maybeSingle();
+
   // report_id stays null: this belongs to the project, and to this document
   // through the link below. It is not a Daily Report photograph.
-  const { data: photo, error: photoError } = await supabase
+  const { data: inserted, error: photoError } = attached
+    ? { data: attached, error: null }
+    : await supabase
     .from("photos")
     .insert({
       company_id: session.companyId,
@@ -127,13 +139,23 @@ export async function attachSummaryPhoto(input: AttachSummaryPhotoInput) {
     .select("id")
     .single();
   if (photoError) return { error: `Could not attach the photo: ${photoError.message}` };
+  const photo = inserted;
 
-  const { error: linkError } = await supabase.from("summary_report_photos").insert({
-    company_id: session.companyId,
-    summary_report_id: summaryReportId,
-    photo_id: photo.id,
-    sort_order: await nextSortOrder(supabase, summaryReportId),
-  });
+  const { data: linked } = await supabase
+    .from("summary_report_photos")
+    .select("photo_id")
+    .eq("summary_report_id", summaryReportId)
+    .eq("photo_id", photo.id)
+    .maybeSingle();
+
+  const { error: linkError } = linked
+    ? { error: null }
+    : await supabase.from("summary_report_photos").insert({
+        company_id: session.companyId,
+        summary_report_id: summaryReportId,
+        photo_id: photo.id,
+        sort_order: await nextSortOrder(supabase, summaryReportId),
+      });
   // The photograph is safely on the project either way. Saying so is better
   // than pretending it was included when it was not.
   if (linkError) {

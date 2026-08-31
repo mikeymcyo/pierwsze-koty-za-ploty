@@ -81,6 +81,22 @@ export async function attachPhoto(input: AttachPhotoInput) {
     if (report?.status === "final") return { error: REPORT_IS_FINAL };
   }
 
+  // Already attached. A photograph whose upload succeeded but whose row failed -
+  // or one whose reply never arrived on a bad signal - is retried with the same
+  // storage path, and the retry must attach it once rather than a second time.
+  // The path carries a UUID minted when the file was chosen, so it identifies
+  // that one attempt and nothing else.
+  const { data: existing } = await supabase
+    .from("photos")
+    .select("id")
+    .eq("storage_path", storagePath)
+    .maybeSingle();
+  if (existing) {
+    revalidatePath(`/projects/${projectId}`);
+    if (reportId) revalidatePath(`/reports/${reportId}`);
+    return {};
+  }
+
   const { error } = await supabase.from("photos").insert({
     company_id: session.companyId,
     project_id: projectId,

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { displayName, requireSessionContext } from "@/lib/auth/session";
-import { appendCapture, isCaptureTime } from "@/lib/reports/capture-log";
+import { alreadyEnded, appendCapture, isCaptureTime } from "@/lib/reports/capture-log";
 import { copyPreviousEntries } from "@/lib/reports/carry-over";
 import { workingDay } from "@/lib/reports/working-day";
 import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
@@ -139,6 +139,13 @@ export async function addCapture(
     if (readError) return { error: `Could not read the report: ${readError.message}` };
     if (!current) return { error: "That report could not be found." };
     if (current.status !== "draft") return { error: REPORT_IS_FINAL };
+
+    // Already there. A tap on one bar of signal that looks like it did nothing
+    // is tapped again, and the reply to the second tap is "yes, that is saved"
+    // rather than the same sentence written into the day twice.
+    if (alreadyEnded(current.raw_notes, parsed.data.text, parsed.data.at)) {
+      return { savedAt: parsed.data.at ?? "" };
+    }
 
     const next = appendCapture(current.raw_notes, parsed.data.text, parsed.data.at);
     if (next === (current.raw_notes ?? "")) return { error: "Say or type something first" };

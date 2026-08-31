@@ -26,10 +26,22 @@ export function DictationField({
   rows = 10,
   placeholder = "Describe the day's work in your own words. Trades on site, what got done, deliveries, delays, anything the client should know.",
   prominent = false,
+  value,
+  onValueChange,
 }: {
   name: string;
   label: string;
-  defaultValue: string;
+  defaultValue?: string;
+  /**
+   * Where the caller owns the text.
+   *
+   * Site Capture does, because the words have to survive a failed request:
+   * they are kept on the phone until the server confirms the capture, which
+   * this component cannot know about. Everywhere else leaves it uncontrolled
+   * and passes defaultValue, exactly as before.
+   */
+  value?: string;
+  onValueChange?: (value: string) => void;
   /** Shorter where the box is one of several on a screen. */
   rows?: number;
   placeholder?: string;
@@ -41,13 +53,25 @@ export function DictationField({
    */
   prominent?: boolean;
 }) {
-  const [value, setValue] = useState(defaultValue);
+  const [own, setOwn] = useState(defaultValue ?? "");
+  const controlled = value !== undefined;
+  const text = controlled ? value : own;
+  const setText = (next: string) => {
+    if (!controlled) setOwn(next);
+    onValueChange?.(next);
+  };
 
   const { supported, listening, error, start, stop } = useSpeechInput({
     // The functional form matters: chunks can arrive faster than React
     // re-renders, and each one must build on the last rather than on whatever
     // this closure captured.
-    onText: (text) => setValue((current) => joinTranscript(current, text)),
+    // The functional form matters where this component owns the text: chunks
+    // can arrive faster than React re-renders. Where the caller owns it, the
+    // latest value is the one in props.
+    onText: (chunk) => {
+      if (controlled) setText(joinTranscript(value ?? "", chunk));
+      else setOwn((current) => joinTranscript(current, chunk));
+    },
   });
 
   return (
@@ -59,8 +83,8 @@ export function DictationField({
         // label would just be noise - but the field still needs a name of its
         // own for screen readers and for tests to find it by.
         aria-label={label}
-        value={value}
-        onChange={(event) => setValue(event.target.value)}
+        value={text}
+        onChange={(event) => setText(event.target.value)}
         rows={rows}
         placeholder={placeholder}
         className="text-base"

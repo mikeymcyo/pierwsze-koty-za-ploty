@@ -147,3 +147,27 @@ export function capturePreview(text: string, limit = 160): string {
   const flat = text.replace(/\s+/g, " ").trim();
   return flat.length <= limit ? flat : `${flat.slice(0, limit - 1).trimEnd()}…`;
 }
+
+/**
+ * Whether this capture is already the last thing in the log.
+ *
+ * A site manager on one bar of signal taps Save, sees nothing happen, and taps
+ * it again. Without this the second tap appends the same sentence twice and the
+ * day's record reads as though he said it twice.
+ *
+ * Compared on the exact entry the append would write, so it catches the retry
+ * and nothing else: the same words genuinely said again ten minutes later carry
+ * a different clock time and are a different entry, which is right - somebody
+ * repeating themselves on site is a fact about the day.
+ */
+export function alreadyEnded(
+  rawNotes: string | null | undefined,
+  text: string,
+  at?: string | null,
+): boolean {
+  const previous = typeof rawNotes === "string" ? rawNotes : "";
+  const addition = text.trim();
+  if (!addition || !previous.trim()) return false;
+  const entry = isCaptureTime(at) ? `[${at}] ${addition}` : addition;
+  return previous.replace(/\s+$/, "").endsWith(entry);
+}
