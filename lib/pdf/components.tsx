@@ -12,6 +12,8 @@
  * JSX below.
  */
 
+import { Fragment } from "react";
+
 import { Image, Text, View } from "@react-pdf/renderer";
 
 import type { IssuePriority } from "@/types/database";
@@ -340,6 +342,45 @@ export type GroupedSection = { type: string; label: string; content: string };
  * separate element would break the line and give back the heading this is
  * replacing.
  */
+
+/**
+ * A section's text, split into paragraphs and workstream lines.
+ *
+ * A line opening with a dash or a bullet is one workstream - see the writing
+ * rules in lib/ai/summary-prompt.ts. Everything else is prose, and consecutive
+ * prose lines stay in one paragraph so a hard-wrapped sentence is not broken
+ * into pieces. Text with no lists comes back as exactly one block, which is
+ * what every report written before this produces.
+ */
+export function proseBlocks(content: string): { bullet: boolean; text: string }[] {
+  const blocks: { bullet: boolean; text: string }[] = [];
+  let paragraph: string[] = [];
+  const flush = () => {
+    const text = paragraph.join(" ").trim();
+    if (text) blocks.push({ bullet: false, text });
+    paragraph = [];
+  };
+
+  for (const raw of content.split("\n")) {
+    const line = raw.trim();
+    // A bare marker with nothing after it counts as a marker too, so a stray
+    // dash on its own line is dropped rather than printed as a paragraph
+    // reading "-".
+    const marker = /^[-\u2013\u2022*](?:\s+(.*))?$/.exec(line);
+    if (marker) {
+      flush();
+      const text = (marker[1] ?? "").trim();
+      if (text) blocks.push({ bullet: true, text });
+    } else if (line) {
+      paragraph.push(line);
+    } else {
+      flush();
+    }
+  }
+  flush();
+  return blocks;
+}
+
 export function GroupedProse({
   s,
   group,
@@ -353,11 +394,33 @@ export function GroupedProse({
     <>
       {entries.map((entry) => {
         const label = runInLabel(group, entry.label, entries.length);
+        const blocks = proseBlocks(entry.content);
+        // A section that is nothing but workstream lines still needs its
+        // run-in label, and has no opening paragraph to carry it.
+        const labelNeedsALine = Boolean(label) && (blocks.length === 0 || blocks[0].bullet);
         return (
-          <Text key={entry.type} style={s.paragraph}>
-            {label ? <Text style={s.runIn}>{`${label} `}</Text> : null}
-            {entry.content}
-          </Text>
+          <Fragment key={entry.type}>
+            {labelNeedsALine ? (
+              <Text style={s.paragraph}>
+                <Text style={s.runIn}>{label}</Text>
+              </Text>
+            ) : null}
+            {blocks.map((block, index) =>
+              block.bullet ? (
+                <View key={index} style={s.bulletRow} wrap={false}>
+                  <Text style={s.bulletMark}>{"\u2013"}</Text>
+                  <Text style={s.bulletText}>{block.text}</Text>
+                </View>
+              ) : (
+                <Text key={index} style={s.paragraph}>
+                  {label && index === 0 && !labelNeedsALine ? (
+                    <Text style={s.runIn}>{`${label} `}</Text>
+                  ) : null}
+                  {block.text}
+                </Text>
+              ),
+            )}
+          </Fragment>
         );
       })}
     </>

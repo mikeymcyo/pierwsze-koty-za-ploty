@@ -22,6 +22,7 @@ import {
   CONTRADICTION_HEADING,
   blanketCompletionClaims,
   completionContradictions,
+  completionStatusLine,
   outstandingMentions,
   repeatedSentences,
 } from "../lib/summary-reports/completion-claims.ts";
@@ -31,6 +32,7 @@ import {
   summaryDraftedSectionsFor,
 } from "../lib/summary-reports/sections.ts";
 import { groupSections } from "../lib/report-structure.ts";
+import { proseBlocks } from "../lib/pdf/components.tsx";
 import { CLEANUP_SECTIONS } from "../lib/ai/cleanup-prompt.ts";
 import { MASTER_REVIEW_SYSTEM_PROMPT } from "../lib/ai/master-review-prompt.ts";
 import { SUMMARY_SYSTEM_PROMPT } from "../lib/ai/summary-prompt.ts";
@@ -375,6 +377,122 @@ check(
   withLegacy.includes("Phase one, then phase two."),
 );
 check("under its own run-in label", /Stages of works/.test(withLegacy));
+
+console.log("\n4c. The status a client reads first");
+
+check("nothing written claims no status", completionStatusLine([]) === null);
+check(
+  "a report with open work says so",
+  completionStatusLine(issued002) === "Primary works completed - follow-on works outstanding",
+  String(completionStatusLine(issued002)),
+);
+check(
+  "and never claims full completion while anything remains",
+  !/^Works completed$/.test(completionStatusLine(issued002) ?? ""),
+);
+check(
+  "an open issue is outstanding even where the prose says nothing",
+  completionStatusLine(
+    [{ type: "completed_works", label: "Completed works", content: "All works were completed." }],
+    1,
+  ) === "Primary works completed - follow-on works outstanding",
+);
+check(
+  "a finished job says so",
+  completionStatusLine(
+    [{ type: "completed_works", label: "Completed works", content: "All works were completed." }],
+    0,
+  ) === "Works completed",
+);
+check(
+  "and a report that never mentions completion claims none",
+  completionStatusLine(
+    [{ type: "completed_works", label: "Completed works", content: "The manhole was rebuilt." }],
+    0,
+  ) === null,
+  "a status nobody can substantiate is worse than none",
+);
+
+const statusText = textJoined(
+  createElement(SummaryReportDocument, {
+    data: {
+      ...completionData(drafted),
+      sections: issued002.map((section) => ({
+        type: section.type,
+        label: section.label,
+        content: section.content,
+      })),
+    },
+  }),
+);
+check("it prints on the document", statusText.includes("Primary works completed"), statusText.slice(0, 200));
+check("under a plain label", /Status/.test(statusText));
+check(
+  "a progress report gets no completion status",
+  !textJoined(
+    createElement(SummaryReportDocument, {
+      data: { ...completionData(drafted), kind: "progress", number: "007" },
+    }),
+  ).includes("Primary works completed"),
+);
+
+console.log("\n4d. How it reads, and how it lists");
+
+for (const brief of [drafting("project_overview"), cleanup("project_overview")]) {
+  check(
+    "the summary is told not to write in legal register",
+    /completion position is limited to/i.test(brief),
+    brief,
+  );
+}
+check(
+  "and the consolidator too, with the sentence it should write instead",
+  /the main reinstatement works are complete,/.test(SUMMARY_SYSTEM_PROMPT),
+);
+for (const phrase of ["insofar as", "for the avoidance of", "the aforementioned"]) {
+  check(`"${phrase}" is named as banned`, SUMMARY_SYSTEM_PROMPT.toLowerCase().includes(phrase));
+}
+for (const brief of [drafting("completed_works"), cleanup("completed_works")]) {
+  check("several workstreams may be written as lines", /one (workstream )?per line|one workstream per line/i.test(brief), brief);
+  check("and a single one stays as prose", /single workstream stays as prose/i.test(brief), brief);
+}
+check(
+  "the consolidator is told the same, and told not to bullet one thing",
+  /a bullet list of one is a paragraph/.test(SUMMARY_SYSTEM_PROMPT),
+);
+
+// The PDF has to draw those lines as lines.
+check("a dash opens a workstream line", proseBlocks("- One\n- Two").every((block) => block.bullet));
+check("and both survive", proseBlocks("- One\n- Two").map((block) => block.text).join() === "One,Two");
+check(
+  "prose with no list is exactly one block",
+  proseBlocks("A sentence. And another.").length === 1,
+  "every report written before this",
+);
+check(
+  "a paragraph then lines comes back in order",
+  proseBlocks("Intro line.\n- One\n- Two")
+    .map((block) => `${block.bullet ? "*" : "p"}:${block.text}`)
+    .join(" ") === "p:Intro line. *:One *:Two",
+);
+check("hard-wrapped prose stays one paragraph", proseBlocks("one\ntwo").length === 1);
+check("an empty line separates paragraphs", proseBlocks("one\n\ntwo").length === 2);
+check("and an empty marker is not a line", proseBlocks("- ").length === 0);
+
+const bulleted = textJoined(
+  createElement(SummaryReportDocument, {
+    data: completionData([
+      { type: "project_overview", label: "Completion summary", content: "The job overall." },
+      {
+        type: "completed_works",
+        label: "Completed works",
+        content: "- Manhole rebuilt in engineering brick.\n- C4 concrete placed to the main hall.",
+      },
+    ]),
+  }),
+);
+check("both workstreams print", bulleted.includes("Manhole rebuilt") && bulleted.includes("C4 concrete placed"));
+check("with a marker against each", (bulleted.match(/\u2013/g) ?? []).length >= 2);
 
 console.log("\n5. The consolidator is told the same thing");
 

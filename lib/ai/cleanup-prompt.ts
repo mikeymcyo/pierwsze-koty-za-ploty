@@ -166,13 +166,13 @@ export const CLEANUP_SECTIONS: Record<CleanupDocumentKind, readonly CleanupSecti
       type: "project_overview",
       label: "Completion summary",
       brief:
-        "The executive account of the job, in four or five sentences, able to stand on its own: what the project was, what was achieved, and where it now stands overall. Not a list of the completed activities, which belong under completed works. Where anything is recorded as outstanding or follow-on, say the main works are complete with those items remaining - never that all works are complete.",
+        "The executive account of the job, in four or five sentences, able to stand on its own: what the project was, what was achieved, and where it now stands overall. Not a list of the completed activities, which belong under completed works. Where anything is recorded as outstanding or follow-on, say the main works are complete with those items remaining - never that all works are complete. Plain site English, not legal register: never \"the completion position is limited to\", \"insofar as\", \"for the avoidance of doubt\" or \"the aforementioned\".",
     },
     {
       type: "completed_works",
       label: "Completed works",
       brief:
-        "The completed workstreams as a concise factual account, keeping the materials, locations, quantities, components and technical detail the records give. Nothing planned, programmed, awaited or still to be carried out belongs here. Do not repeat a sentence from the completion summary. A blanket sentence such as \"all works were completed successfully\" is not a completed workstream and does not belong in this section. Completion is not approval, acceptance, compliance or certification.",
+        "The completed workstreams as a concise factual account, keeping the materials, locations, quantities, components and technical detail the records give. Nothing planned, programmed, awaited or still to be carried out belongs here. Do not repeat a sentence from the completion summary. Where there were several distinct workstreams, write them as short lines each beginning \"- \", one per line; a single workstream stays as prose. A blanket sentence such as \"all works were completed successfully\" is not a completed workstream and does not belong in this section. Completion is not approval, acceptance, compliance or certification.",
     },
     {
       type: "sign_off",

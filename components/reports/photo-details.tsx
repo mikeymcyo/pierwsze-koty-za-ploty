@@ -10,6 +10,7 @@ import {
   type PhotoDescriptionState,
   type PhotoDetailsState,
 } from "@/app/(app)/reports/photo-actions";
+import { PhotoDescriptionField } from "@/components/reports/photo-description-field";
 import { Button } from "@/components/ui/button";
 import { PHOTO_STATUSES, RETIRED_PHOTO_STATUSES } from "@/lib/photo-captions";
 import type { PhotoCategory } from "@/types/database";
@@ -129,22 +130,16 @@ export function PhotoDetails({
   return (
     <div className="flex flex-col gap-2">
       <form ref={formRef} action={action} className="flex flex-col gap-2">
-        <label className="sr-only" htmlFor={`caption-${photoId}`}>
-          Caption for this photograph
-        </label>
-        <textarea
+        {/* The same box as the one a consolidated report's caption is typed
+            in - see components/reports/photo-description-field.tsx. Leaving it
+            saves now, which covers the case the debounce was written for: a
+            description typed and then scrolled past. */}
+        <PhotoDescriptionField
           id={`caption-${photoId}`}
           name="caption"
           value={text}
-          onChange={(event) => setText(event.target.value)}
-          // Belt and braces on the debounce: leaving the box saves it now,
-          // which covers the case the timer was written for - a caption typed
-          // and then scrolled past.
+          onChange={setText}
           onBlur={submit}
-          placeholder="What does this show?"
-          maxLength={300}
-          rows={2}
-          className="w-full rounded-lg border border-line-strong bg-surface px-3 py-2 text-sm text-ink placeholder:text-ink-subtle"
         />
 
         <label className="sr-only" htmlFor={`status-${photoId}`}>

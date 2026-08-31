@@ -5,6 +5,7 @@ import { useFormStatus } from "react-dom";
 import { ImageOff } from "lucide-react";
 
 import { saveSummaryCuration, type SummaryFormState } from "@/app/(app)/summary-reports/actions";
+import { PhotoDescriptionField } from "@/components/reports/photo-description-field";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,12 +100,16 @@ export function SummaryCuration({
             {photos.map((photo) => {
               const inReport = included.has(photo.id);
               return (
-                <label
+                // A div, not a label: the description box lives in this tile,
+                // and a textarea inside a label toggles the checkbox when it is
+                // tapped. Only the picture and the tick are the label now.
+                <div
                   key={photo.id}
-                  className={`flex cursor-pointer flex-col gap-2 rounded-xl border p-2 transition-colors ${
+                  className={`flex flex-col gap-2 rounded-xl border p-2 transition-colors ${
                     inReport ? "border-brand bg-brand-soft" : "border-line"
                   }`}
                 >
+                  <label className="flex cursor-pointer flex-col gap-2">
                   <div className="aspect-square overflow-hidden rounded-lg bg-surface-muted">
                     {photo.url ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -134,19 +139,22 @@ export function SummaryCuration({
                       {photo.caption ? <span className="block truncate text-xs text-ink-muted">{photo.caption}</span> : null}
                     </span>
                   </span>
+                  </label>
                   {/* Only on a photograph that is actually in the document.
                       A caption on one that is not would never print. */}
                   {inReport ? (
-                    <input
-                      type="text"
+                    // The same box as the one under a photograph's own
+                    // thumbnail. A one-line input scrolled a sentence sideways
+                    // out of sight while it was being typed.
+                    <PhotoDescriptionField
+                      id={`photoCaption_${photo.id}`}
                       name={`photoCaption_${photo.id}`}
                       defaultValue={photo.captionOverride ?? photo.caption ?? ""}
-                      placeholder="Caption in this report"
-                      className="min-h-10 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink"
-                      aria-label={`Report caption for ${photo.caption ?? "site photograph"}`}
+                      label="Photo description (optional)"
+                      placeholder="What does this show, in this report?"
                     />
                   ) : null}
-                </label>
+                </div>
               );
             })}
           </div>

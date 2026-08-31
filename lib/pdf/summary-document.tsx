@@ -22,6 +22,10 @@ import {
   priorityColour,
 } from "@/lib/pdf/components";
 import { photoReference } from "@/lib/pdf/photo-evidence";
+import {
+  COMPLETION_STATUS_LABEL,
+  completionStatusLine,
+} from "@/lib/summary-reports/completion-claims";
 import { pickCoverPhoto, type PdfStyle } from "@/lib/pdf/presentation";
 import { storeLine } from "@/lib/reports/site-identity";
 import { createPdfStyles, pdfTheme } from "@/lib/pdf/theme";
@@ -168,6 +172,22 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
             // in letters twice this size directly above, and repeating it
             // here would spend a line of the control panel saying nothing.
             { label: "Title", value: data.title },
+            // What a client wants to know before anything else, and only where
+            // the document supports it. Never "complete" while anything in the
+            // report is still open - see lib/summary-reports/completion-claims.ts.
+            {
+              label: COMPLETION_STATUS_LABEL,
+              value: completion
+                ? completionStatusLine(
+                    data.sections.map((section) => ({
+                      type: section.type,
+                      label: section.label,
+                      content: section.content,
+                    })),
+                    data.issues.filter((issue) => !/closed/i.test(issue.statusLabel)).length,
+                  )
+                : null,
+            },
             { label: summaryPeriodFieldLabel(data.kind), value: data.periodLabel },
             { label: "Store", value: storeLine(data.store) },
             { label: "Project reference", value: data.projectReference },

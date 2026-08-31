@@ -34,6 +34,47 @@ The current implementation completes the core workflow:
 
 
 
+### Completion, final client polish
+
+**No migration.** Covered by `test:completion-content` and `test:summary-photos`.
+
+Five refinements, no redesign.
+
+**A status line at the top.** `completionStatusLine` in
+`lib/summary-reports/completion-claims.ts` derives it from the document rather
+than asserting it: anything still open in the prose, or an issue that is not
+closed, and it reads **"Primary works completed - follow-on works
+outstanding"**. Only a document that says the works are done, with nothing open,
+reads "Works completed". A report supporting neither says nothing at all - a
+status nobody can substantiate is worse than none. It prints in the control
+panel under `Status`, on Completion Reports only.
+
+**Plainer wording.** The summary brief and the consolidator both name the
+register to avoid - "the completion position is limited to", "insofar as", "for
+the avoidance of doubt", "the aforementioned" - and the consolidator carries the
+sentence it should write instead.
+
+**Completed works may be a list.** Where a job had several distinct
+workstreams, the brief allows short lines each opening with a dash, one
+workstream to a line, keeping every material and location in its own line; a
+single workstream stays as prose, because a bullet list of one is a paragraph
+with a dash in front of it. `proseBlocks` in `lib/pdf/components.tsx` turns
+those into hanging-indent lines in the PDF - and turns text with no list into
+exactly one block, which is what every report written before this produces.
+
+**One box for a photograph's description.**
+`components/reports/photo-description-field.tsx` - a textarea, three lines
+growing to six and no further, wrapping, labelled "Photo description
+(optional)". Used both under a photograph's own thumbnail and where a
+consolidated report's caption is written, so the box is the same on both
+screens. The curation tile stopped being a `<label>` in the process: a textarea
+inside one toggles the checkbox when it is tapped.
+
+**A more legible printed caption**, at 8.75pt in the muted ink with the leading
+tightened to match, so it is set apart from the body without being any taller.
+Half a point and a top margin was tried first and put a one-plate progress
+report onto a second page - which the suite catches.
+
 ### The Completion Report a client reads: three written sections
 
 **No migration.** `npm run test:completion-content` covers it, including a real

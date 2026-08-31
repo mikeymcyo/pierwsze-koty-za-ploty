@@ -74,9 +74,10 @@ check(
 );
 check("the checkbox is controlled by it", /checked=\{inReport\}/.test(curation));
 check(
-  "and the caption box only exists when the photograph is in",
-  /\{inReport \? \(\s*<input\s*\n\s*type="text"\s*\n\s*name=\{`photoCaption_/.test(curation),
-  "a caption on a photograph that will not print goes nowhere",
+  "and the description box only exists when the photograph is in",
+  /\{inReport \? \(/.test(curation) &&
+    /<PhotoDescriptionField[\s\S]{0,200}name=\{`photoCaption_\$\{photo\.id\}`\}/.test(curation),
+  "a description on a photograph that will not print goes nowhere",
 );
 check(
   "an included photograph is visibly included",
@@ -169,6 +170,50 @@ check(
 check(
   "and the issue selection is still replaced wholesale",
   /\.from\("summary_report_issues"\)\s*\n\s*\.delete\(\)/.test(save),
+);
+
+console.log("\n5b. The box a description is typed in");
+
+const field = read("../components/reports/photo-description-field.tsx");
+const details = read("../components/reports/photo-details.tsx");
+
+check("it is a textarea, not a one-line input", /<textarea/.test(field));
+check("three lines to start", /const MIN_ROWS = 3/.test(field));
+check("growing to six", /const MAX_ROWS = 6/.test(field));
+check("and no further", /Math\.min\(element\.scrollHeight, max\)/.test(field));
+check("it wraps", /wrap="soft"/.test(field) && /whitespace-pre-wrap/.test(field));
+check("and cannot be dragged out of shape", /resize-none/.test(field));
+check(
+  "the label says what it is and that it is optional",
+  /Photo description \(optional\)/.test(field),
+);
+check(
+  "the same box is used under a photograph's own thumbnail",
+  /<PhotoDescriptionField/.test(details),
+);
+check(
+  "and where a report's own caption is written",
+  /<PhotoDescriptionField/.test(curation) && /photoCaption_\$\{photo\.id\}/.test(curation),
+);
+check(
+  "the tile is no longer a label wrapping a textarea",
+  /A div, not a label/.test(curation),
+  "a textarea inside a label toggles the checkbox when it is tapped",
+);
+check(
+  "leaving the box still saves the photograph's own caption",
+  /onBlur=\{submit\}/.test(details),
+);
+
+const theme = read("../lib/pdf/theme.ts");
+check(
+  "the printed caption is set apart from the body text",
+  /photoCaption: \{ fontSize: 8\.75, color: c\.muted/.test(theme),
+);
+check(
+  "without costing the photograph any height",
+  /lineHeight: 1\.3 \}/.test(theme) && !/photoCaption:[^}]*marginTop/.test(theme),
+  "half a point on this line put a one-plate progress report onto a second page",
 );
 
 console.log("\n6. Provenance and immutability are untouched");

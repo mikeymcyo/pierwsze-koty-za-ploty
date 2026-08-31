@@ -182,3 +182,33 @@ export function completionContradictions(
 /** The heading those lines are given in the reviewer's evidence. */
 export const CONTRADICTION_HEADING =
   "CONTRADICTIONS ALREADY FOUND IN THIS DOCUMENT (each one needs a warning, and the unsupported claim cut or qualified)";
+
+/**
+ * The line a client reads before anything else.
+ *
+ * Derived from the document, never asserted: it says the works are complete
+ * only where nothing in the report is still open. Where anything is - an
+ * outstanding sentence anywhere in the prose, or an issue that is not closed -
+ * it says so plainly, in the words a site manager would use.
+ *
+ * Returns null where the report supports neither statement. A completion status
+ * nobody can substantiate is worse than none: the reader then takes the
+ * document's own words for it, which is the correct outcome.
+ */
+export function completionStatusLine(
+  sections: readonly ClaimSection[],
+  openIssueCount = 0,
+): string | null {
+  const written = sections.some((section) => text(section).length > 0);
+  if (!written) return null;
+
+  const outstanding = outstandingMentions(sections).length > 0 || openIssueCount > 0;
+  if (outstanding) return "Primary works completed - follow-on works outstanding";
+
+  // Only where the document itself says the works are done. A report that
+  // simply never mentions completion is not a completed job.
+  return blanketCompletionClaims(sections).length > 0 ? "Works completed" : null;
+}
+
+/** What the control panel calls that line. */
+export const COMPLETION_STATUS_LABEL = "Status";

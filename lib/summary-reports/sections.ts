@@ -49,7 +49,7 @@ export const COMPLETION_SECTIONS: SummarySectionDefinition[] = [
   {
     type: "project_overview",
     label: "Completion summary",
-    brief: "The executive account of the job, in four or five sentences, able to stand on its own for a client who reads nothing else: what the project was, what was achieved, and where it now stands overall. It must NOT list the completed activities - Completed works carries those and a reader will meet them there - and must not restate the workstreams or the sequence. Never repeat a sentence that appears in another section. State the overall status only as the evidence supports it: where anything is recorded as outstanding or follow-on, this section must say the main works are complete with those items remaining, never that all works are complete.",
+    brief: "The executive account of the job, in four or five sentences, able to stand on its own for a client who reads nothing else: what the project was, what was achieved, and where it now stands overall. It must NOT list the completed activities - Completed works carries those and a reader will meet them there - and must not restate the workstreams or the sequence. Never repeat a sentence that appears in another section. State the overall status only as the evidence supports it: where anything is recorded as outstanding or follow-on, this section must say the main works are complete with those items remaining, never that all works are complete. Write it the way a site manager would say it out loud - \"the main reinstatement works are complete, with localised patch repairs remaining at the second manhole\" - not in legal register. Never write phrases like \"the completion position is limited to\", \"insofar as\", \"for the avoidance of doubt\" or \"the aforementioned\".",
   },
   {
     type: "scope_of_works",
@@ -69,7 +69,7 @@ export const COMPLETION_SECTIONS: SummarySectionDefinition[] = [
   {
     type: "completed_works",
     label: "Completed works",
-    brief: "The specific activities the evidence records as finished, with their locations, materials and quantities - what was actually done and to what. Nothing that is planned, programmed, awaited or still to be carried out belongs here; that is Outstanding and sign-off. Do not restate the scope as though all of it were delivered, do not repeat the Project overview, and do not certify quality or compliance. A blanket sentence such as 'all works were completed successfully' is not a completed activity and does not belong in this section at all.",
+    brief: "The specific activities the evidence records as finished, with their locations, materials and quantities - what was actually done and to what. Nothing that is planned, programmed, awaited or still to be carried out belongs here; that is Outstanding and sign-off. Do not restate the scope as though all of it were delivered, do not repeat the completion summary, and do not certify quality or compliance. Where the job had several distinct workstreams, write them as short lines each beginning \"- \", one workstream per line, rather than one dense paragraph; a single workstream stays as prose. A blanket sentence such as 'all works were completed successfully' is not a completed activity and does not belong in this section at all.",
   },
   {
     type: "issues_and_resolutions",

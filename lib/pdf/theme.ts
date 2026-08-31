@@ -297,6 +297,17 @@ export function createPdfStyles(theme: PdfTheme) {
     // leading it asked for.
     paragraph: { fontSize: 9.5, marginBottom: 3, lineHeight: 1.4 },
     /**
+     * One workstream on its own line.
+     *
+     * A completion report covering three or four distinct elements reads as a
+     * wall of prose when they are run together. The indent is a hanging one -
+     * the marker sits in the left margin of the line - so a wrapped line stays
+     * aligned under the text rather than under the dash.
+     */
+    bulletRow: { flexDirection: "row", marginBottom: 2 },
+    bulletMark: { fontSize: 9.5, lineHeight: 1.4, width: 10 },
+    bulletText: { fontSize: 9.5, lineHeight: 1.4, flex: 1 },
+    /**
      * The run-in label at the head of a paragraph: "Works completed."
      *
      * A visible structure of three sections means the stored sections no
@@ -405,7 +416,15 @@ export function createPdfStyles(theme: PdfTheme) {
       padding: 2,
       marginBottom: 3,
     },
-    photoCaption: { fontSize: 8.5, color: c.ink, lineHeight: 1.35 },
+    /**
+     * Under the plate. A quarter-point larger and set in the muted ink rather
+     * than the body's, so it reads as a caption rather than as a stray
+     * sentence - with the leading tightened to match, so the line is no taller
+     * than it was. A caption that costs a photograph its height is a bad
+     * trade: half a point on this line put a one-plate progress report onto a
+     * second page.
+     */
+    photoCaption: { fontSize: 8.75, color: c.muted, lineHeight: 1.3 },
     photoNoCaption: { fontSize: 8.5, color: c.faint, fontStyle: "italic" },
 
     // ---- source record ----------------------------------------------------

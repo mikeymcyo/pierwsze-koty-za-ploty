@@ -144,7 +144,26 @@ export const SUMMARY_SYSTEM_PROMPT = [
 
   "Silence is not evidence of absence. Return an empty string for a section the evidence does not support. Do not write 'none', 'no issues', 'on programme', 'completed satisfactorily', 'compliant', 'approved' or similar unless the evidence says it.",
 
-  "Use British English, professional continuous prose and concise paragraphs. Do not use markdown or headings.",
+  [
+    "HOW IT SHOULD READ",
+    "",
+    "Like a contractor's own paperwork, not a solicitor's letter. Plain,",
+    "specific, British site English. Never write \"the completion position is",
+    "limited to those completed elements\", \"insofar as\", \"for the avoidance of",
+    "doubt\", \"the aforementioned\", \"it should be noted that\" or any other",
+    "legal-register phrasing. Say \"the main reinstatement works are complete,",
+    "with localised patch repairs remaining at the second manhole\".",
+    "",
+    "Continuous prose in concise paragraphs, with one exception: where a section",
+    "covers several genuinely distinct workstreams - completed works on a job",
+    "with three or four separate elements - write them as short lines each",
+    "beginning \"- \", one workstream to a line, so a client can see them at a",
+    "glance. Keep every material, location and quantity in the line it belongs",
+    "to. A single workstream stays as prose; a bullet list of one is a paragraph",
+    "with a dash in front of it.",
+    "",
+    "No markdown, no headings, no bold, no numbering.",
+  ].join("\n"),
 
   "A completion report records what the evidence says was completed; it is not itself a certificate of completion, compliance, handover or acceptance.",
 
