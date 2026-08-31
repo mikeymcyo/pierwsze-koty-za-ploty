@@ -34,6 +34,33 @@ The current implementation completes the core workflow:
 
 
 
+### Waze, beside Google Maps
+
+**No migration.** The store directory is a JSON catalogue, not a table.
+`npm run test:stores` covers it.
+
+`https://waze.com/ul` is Waze's universal link: on an iPhone with the app
+installed iOS opens the app, and without it the same URL opens Waze on the web.
+One address, no user-agent sniffing, no second scheme to try, and no way to land
+on a page saying the link could not be opened - the same bargain the existing
+Google link already makes, which is why this is one more button rather than a
+mapping system. Both buttons appear on the store page and on a project's linked
+store card.
+
+**Coordinates are preferred where a directory has them.** `Store` and
+`ResolvedStore` gained optional `latitude`/`longitude`, and `storePoint`
+validates rather than trusts: a non-number, a non-finite number, a latitude past
+90, a longitude past 180 and the 0,0 that an empty spreadsheet cell becomes are
+all treated as absent, and the address is used instead. Today's Lidl list
+carries none, so **every Google URL is byte-for-byte what it was** - the
+preference only starts to matter when a directory arrives with points in it.
+
+`navigate=yes` is deliberately not set, for the same reason `dir_action=navigate`
+is not set on the Google link: somebody tapping a store's directions is often
+checking where it is, and starting turn-by-turn at them uninvited is not the
+same request. Waze opens on the destination with the Go button under their
+thumb. One line to change if that turns out to be the wrong call.
+
 ### The same pass, for photographs on a Progress or Completion Report
 
 **No migration.** Covered by `test:summary-photos` (section 5c) and

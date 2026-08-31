@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { MapPin, Moon, Store } from "lucide-react";
+import { MapPin, Moon, Navigation, Store } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { directionsUrl } from "@/lib/stores/directions";
+import { directionsUrl, wazeUrl } from "@/lib/stores/directions";
 import type { ResolvedStore } from "@/lib/stores/directory";
 
 /**
@@ -16,6 +16,7 @@ import type { ResolvedStore } from "@/lib/stores/directory";
  */
 export function LinkedStoreCard({ store }: { store: ResolvedStore }) {
   const directions = directionsUrl(store);
+  const waze = wazeUrl(store);
 
   return (
     <Card>
@@ -51,6 +52,16 @@ export function LinkedStoreCard({ store }: { store: ResolvedStore }) {
               <a href={directions} target="_blank" rel="noopener noreferrer">
                 <MapPin aria-hidden />
                 Directions
+              </a>
+            </Button>
+          ) : null}
+          {/* Beside it, not instead of it. Two links to the same place, and
+              whichever app is on the phone is the one that opens. */}
+          {waze ? (
+            <Button asChild variant="secondary" className="sm:flex-1">
+              <a href={waze} target="_blank" rel="noopener noreferrer">
+                <Navigation aria-hidden />
+                Waze
               </a>
             </Button>
           ) : null}

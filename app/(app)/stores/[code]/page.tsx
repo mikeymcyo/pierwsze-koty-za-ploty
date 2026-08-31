@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, ClipboardList, MapPin, Moon, Plus } from "lucide-react";
+import { ChevronRight, ClipboardList, MapPin, Moon, Navigation, Plus } from "lucide-react";
 
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { BackLink } from "@/components/ui/back-link";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireSessionContext } from "@/lib/auth/session";
 import { findStoreAnywhere } from "@/lib/stores/catalogue";
-import { directionsUrl } from "@/lib/stores/directions";
+import { directionsUrl, wazeUrl } from "@/lib/stores/directions";
 import { newProjectHref } from "@/lib/stores/project-link";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
@@ -43,6 +43,7 @@ export default async function StorePage({
   if (!store) notFound();
 
   const directions = directionsUrl(store);
+  const waze = wazeUrl(store);
 
   // The projects this company has run here. RLS scopes it to the caller's own
   // company, so a shared store page shows each company only its own work -
@@ -105,6 +106,18 @@ export default async function StorePage({
             <a href={directions} target="_blank" rel="noopener noreferrer">
               <MapPin aria-hidden />
               Directions
+            </a>
+          </Button>
+        ) : null}
+        {waze ? (
+          <Button asChild size="lg" variant="secondary" className="sm:flex-1">
+            {/* Waze's universal link, on the same terms: the app on a phone
+                that has it, the Waze website on one that does not, and the
+                store's point rather than its address wherever the directory
+                carries one. */}
+            <a href={waze} target="_blank" rel="noopener noreferrer">
+              <Navigation aria-hidden />
+              Waze
             </a>
           </Button>
         ) : null}

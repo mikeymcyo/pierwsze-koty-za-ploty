@@ -26,7 +26,13 @@ import {
   scoreStore,
   searchStores,
 } from "../lib/stores/directory.ts";
-import { directionsDestination, directionsUrl, mapUrl } from "../lib/stores/directions.ts";
+import {
+  directionsDestination,
+  directionsUrl,
+  mapUrl,
+  storePoint,
+  wazeUrl,
+} from "../lib/stores/directions.ts";
 import {
   newProjectHref,
   parseStoreLink,
@@ -162,6 +168,85 @@ check(
 );
 check("a store with no address has no link", directionsUrl({ address: null }) === null);
 check("looking at the place rather than routing to it also works", mapUrl(croydon)?.includes("/maps/search/") === true);
+
+console.log("\n6b. Waze, beside Google rather than instead of it");
+
+const wazed = wazeUrl(croydon);
+check("there is a Waze link", typeof wazed === "string");
+check(
+  "it is Waze's universal link, which the app answers and the web answers",
+  wazed.startsWith("https://waze.com/ul?"),
+  wazed,
+);
+check("no API key is involved here either", !/key=|apikey/i.test(wazed));
+check(
+  "it carries the same destination as Google",
+  decodeURIComponent(wazed).includes("375-401 Brighton Road, CR2 6ES, United Kingdom"),
+);
+check(
+  "and does not start navigating at somebody uninvited",
+  !wazed.includes("navigate=yes"),
+  "the same rule the Google link already follows",
+);
+check("a store with no address has no Waze link either", wazeUrl({ address: null }) === null);
+check("and Google's link is exactly what it always was", url.startsWith("https://www.google.com/maps/dir/?api=1&"));
+
+// A directory that carries a point is preferred over the address, because a
+// point needs no resolving at all. Today's list carries none, which is why
+// nothing above changed.
+const withPoint = { ...croydon, latitude: 51.35921, longitude: -0.09314 };
+check(
+  "a store with coordinates sends Waze to the point",
+  decodeURIComponent(wazeUrl(withPoint)) === "https://waze.com/ul?ll=51.35921,-0.09314",
+  wazeUrl(withPoint),
+);
+check(
+  "and Google to the same point",
+  decodeURIComponent(directionsUrl(withPoint)).includes("destination=51.35921,-0.09314"),
+);
+check(
+  "a store without them falls back to the address, as every store does today",
+  croydon.latitude === undefined || croydon.latitude === null,
+);
+check("the directory carries the columns, empty", "latitude" in stores[0] && "longitude" in stores[0]);
+
+// A directory file is data. A latitude of 200 would send somebody to sea.
+check("a real point is a point", storePoint({ latitude: 51.5, longitude: -0.1 }) !== null);
+check("no point is no point", storePoint({ latitude: null, longitude: null }) === null);
+check("half a point is no point", storePoint({ latitude: 51.5, longitude: null }) === null);
+check("a latitude off the earth is refused", storePoint({ latitude: 200, longitude: -0.1 }) === null);
+check("and a longitude too", storePoint({ latitude: 51.5, longitude: 999 }) === null);
+check("a string is not a number", storePoint({ latitude: "51.5", longitude: "-0.1" }) === null);
+check("NaN is refused", storePoint({ latitude: NaN, longitude: 0.1 }) === null);
+check(
+  "and 0,0 is an empty spreadsheet cell, not the Gulf of Guinea",
+  storePoint({ latitude: 0, longitude: 0 }) === null,
+);
+check(
+  "a bad point falls back to the address rather than to nothing",
+  decodeURIComponent(wazeUrl({ ...croydon, latitude: 200, longitude: 0 })).includes(
+    "375-401 Brighton Road",
+  ),
+);
+
+// Both buttons, on both screens a store appears on.
+const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+for (const [where, file] of [
+  ["the store page", "../app/(app)/stores/[code]/page.tsx"],
+  ["a project's linked store card", "../components/stores/linked-store-card.tsx"],
+]) {
+  const source = read(file);
+  check(`${where} still offers Directions`, /Directions\n/.test(source) || /Directions/.test(source));
+  check(`${where} offers Waze beside it`, /wazeUrl\(store\)/.test(source) && />\s*Waze\s*</.test(source));
+  check(
+    `${where} opens both in a new tab, safely`,
+    (source.match(/rel="noopener noreferrer"/g) ?? []).length >= 2,
+  );
+  check(
+    `${where} hides Waze when there is nowhere to send anybody`,
+    /\{waze \? \(/.test(source),
+  );
+}
 
 // The destination is a postal address, not a search. The client's list reads
 // widest first - "London, Croydon, 375-401 Brighton Road, CR2 6ES" - which

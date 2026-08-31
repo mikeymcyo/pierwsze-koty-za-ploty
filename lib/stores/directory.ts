@@ -32,6 +32,17 @@ export type Store = {
   /** Absent where the client's review has not reached this store. */
   nightShift?: boolean;
   nightShiftHours?: string;
+  /**
+   * Where the client's list carries a point rather than only an address.
+   *
+   * Optional because today's list does not: it has four columns - store
+   * number, name, RDC and address - and no coordinates anywhere. A directory
+   * that does carry them is preferred over the address by every map link, and
+   * one that does not falls back to the address exactly as it always has. See
+   * lib/stores/directions.ts.
+   */
+  latitude?: number;
+  longitude?: number;
 };
 
 export type StoreDirectory = {
@@ -64,6 +75,9 @@ export type ResolvedStore = {
   /** True, false, or null where the client has not reviewed this store. */
   nightShift: boolean | null;
   nightShiftHours: string | null;
+  /** A point on the ground, where the directory has one. */
+  latitude: number | null;
+  longitude: number | null;
 };
 
 /**
@@ -127,6 +141,8 @@ export function resolveStore(store: Store, directory: StoreDirectory): ResolvedS
     postcode: postcodeOf(store.address),
     nightShift: store.nightShift ?? null,
     nightShiftHours: store.nightShiftHours ?? null,
+    latitude: store.latitude ?? null,
+    longitude: store.longitude ?? null,
   };
 }
 
