@@ -88,7 +88,7 @@ export async function finaliseReport(
         .order("sort_order", { ascending: true }),
       supabase
         .from("photos")
-        .select("id, caption, category, storage_path")
+        .select("id, caption, category, storage_path, rotation")
         .eq("report_id", reportId)
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: true }),

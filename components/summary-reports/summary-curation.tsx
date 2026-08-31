@@ -16,6 +16,8 @@ export type CuratedPhotoChoice = {
   id: string;
   caption: string | null;
   category: PhotoCategory;
+  /** Quarter turns applied while drawing. Absent means as uploaded. */
+  rotation?: number | null;
   url: string | null;
   selected: boolean;
   captionOverride: string | null;

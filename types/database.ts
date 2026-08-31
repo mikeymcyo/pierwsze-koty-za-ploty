@@ -755,6 +755,8 @@ export type Database = {
           height: number | null;
           taken_at: string | null;
           sort_order: number;
+          /** Quarter turns applied when drawing. 0 means as uploaded. */
+          rotation: number;
           uploaded_by: string | null;
         };
         Insert: Partial<Timestamps> & {
@@ -772,6 +774,7 @@ export type Database = {
           height?: number | null;
           taken_at?: string | null;
           sort_order?: number;
+          rotation?: number;
           uploaded_by?: string | null;
         };
         Update: Partial<Timestamps> & {
@@ -789,6 +792,7 @@ export type Database = {
           height?: number | null;
           taken_at?: string | null;
           sort_order?: number;
+          rotation?: number;
           uploaded_by?: string | null;
         };
         Relationships: [

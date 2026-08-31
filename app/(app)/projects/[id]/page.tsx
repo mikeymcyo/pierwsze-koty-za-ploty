@@ -124,7 +124,7 @@ export default async function ProjectPage({
     withClockSkewRetry(() =>
       supabase
         .from("photos")
-        .select("id, caption, category, storage_path, width, height, created_at")
+        .select("id, caption, category, storage_path, width, height, rotation, created_at")
         .eq("project_id", project.id)
         .order("created_at", { ascending: false }),
     ),

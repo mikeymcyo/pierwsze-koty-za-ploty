@@ -10,12 +10,13 @@ import { PhotoDetails } from "@/components/reports/photo-details";
 import { PhotoOrderBar, usePhotoOrder } from "@/components/reports/photo-reorder";
 import { PhotoArrangeView } from "@/components/reports/photo-arrange";
 import { photoPrintLabel, photoPrintLabelText } from "@/lib/photo-captions";
+import { cssRotation } from "@/lib/photos-rotation";
 import type { Photo } from "@/types/database";
 
 export type PhotoWithUrl = Pick<
   Photo,
   "id" | "caption" | "category" | "storage_path" | "width" | "height"
-> & { url: string | null };
+> & { url: string | null; rotation?: number | null };
 
 /**
  * Photos as a thumbnail grid.
@@ -113,6 +114,12 @@ export function PhotoGrid({
                     alt={alt ?? "Site photo"}
                     className="size-full object-cover"
                     loading="lazy"
+                    // Presentation only: the stored file is never altered.
+                    style={
+                      cssRotation(photo.rotation)
+                        ? { transform: cssRotation(photo.rotation) }
+                        : undefined
+                    }
                   />
                 ) : (
                   <div className="grid size-full place-items-center text-ink-subtle">

@@ -57,6 +57,11 @@ export type PdfPhoto = {
   category: string;
   /** Already-downloaded bytes. A photo that could not be read is left out. */
   data: Buffer;
+  /**
+   * Quarter turns applied while drawing. Absent on every photograph nobody has
+   * turned, which prints exactly as it always did.
+   */
+  rotation?: number;
 };
 
 export type PdfIssue = {
@@ -147,6 +152,7 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
           <CoverPhoto
             s={s}
             data={cover.data}
+            rotation={cover.rotation}
             maxHeight={theme.cover.maxHeight}
             caption={photoPrintLabelText(cover)}
           />
@@ -200,7 +206,7 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
             entries.length > 0
               ? 48
               : photos.length > 0
-                ? plateReserve(photos[0].data, theme.plate)
+                ? plateReserve(photos[0].data, theme.plate, photos[0].rotation)
                 : issues.length > 0
                   ? issueReserve(issues[0])
                   : 48;
@@ -239,6 +245,7 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
                     id: photo.id,
                     label: photoPrintLabel(photo),
                     data: photo.data,
+                    rotation: photo.rotation,
                   }))}
                 />
               ) : null}

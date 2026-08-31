@@ -108,7 +108,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
         supabase.from("summary_report_issues").select("issue_id").eq("summary_report_id", id),
       ),
       withClockSkewRetry(() =>
-        supabase.from("photos").select("id, caption, category, storage_path").eq("project_id", report.project_id).order("created_at", { ascending: true }),
+        supabase.from("photos").select("id, caption, category, storage_path, rotation").eq("project_id", report.project_id).order("created_at", { ascending: true }),
       ),
       withClockSkewRetry(() =>
         supabase.from("issues").select("id, title, priority, status, resolution").eq("project_id", report.project_id).order("created_at", { ascending: true }),
@@ -167,6 +167,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
     id: photo.id,
     caption: photo.caption,
     category: photo.category,
+    rotation: photo.rotation,
     url: photoUrls.get(photo.storage_path) ?? null,
     selected: selectedPhotoIds.has(photo.id),
     captionOverride: captionByPhotoId.get(photo.id) ?? null,
@@ -186,7 +187,15 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
   const attachedPhotos: ReportPhoto[] = (photoLinksResult.data ?? []).flatMap((link) => {
     const photo = photoById.get(link.photo_id);
     return photo
-      ? [{ id: photo.id, url: photo.url, caption: photo.caption, category: photo.category }]
+      ? [
+          {
+            id: photo.id,
+            url: photo.url,
+            caption: photo.caption,
+            category: photo.category,
+            rotation: photo.rotation,
+          },
+        ]
       : [];
   });
   const availablePhotos: ReportPhoto[] = photos
@@ -196,6 +205,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
       url: photo.url,
       caption: photo.caption,
       category: photo.category,
+      rotation: photo.rotation,
     }));
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;

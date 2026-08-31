@@ -77,6 +77,8 @@ export type SummaryPdfData = {
     caption: string | null;
     category: string;
     data: Buffer;
+    /** Quarter turns applied while drawing. Absent means as uploaded. */
+    rotation?: number;
   }[];
   sourceLabels: string[];
   supportingDocuments: ResolvedDocument[];
@@ -141,6 +143,7 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
           <CoverPhoto
             s={s}
             data={cover.data}
+            rotation={cover.rotation}
             maxHeight={theme.cover.maxHeight}
             caption={photoPrintLabelText(cover)}
           />
@@ -192,7 +195,7 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
             entries.length > 0
               ? 48
               : photos.length > 0
-                ? plateReserve(photos[0].data, theme.plate)
+                ? plateReserve(photos[0].data, theme.plate, photos[0].rotation)
                 : issues.length > 0
                   ? issueReserve(issues[0])
                   : 48;
@@ -229,6 +232,7 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
                     id: photo.id,
                     label: photoPrintLabel(photo),
                     data: photo.data,
+                    rotation: photo.rotation,
                   }))}
                 />
               ) : null}

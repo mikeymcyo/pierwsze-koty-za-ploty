@@ -26,6 +26,8 @@ export type PhotoRow = {
   caption: string | null;
   category: string;
   storage_path: string;
+  /** Quarter turns applied while drawing. Absent on a row written before it existed. */
+  rotation?: number | null;
 };
 
 /**
@@ -99,12 +101,19 @@ export function issuesForReport(
 export function photosWithData(
   rows: readonly PhotoRow[],
   downloaded: Map<string, Buffer>,
-): { id: string; caption: string | null; category: string; data: Buffer }[] {
+): {
+  id: string;
+  caption: string | null;
+  category: string;
+  data: Buffer;
+  rotation: number;
+}[] {
   const printable: {
     id: string;
     caption: string | null;
     category: string;
     data: Buffer;
+    rotation: number;
   }[] = [];
 
   for (const photo of rows) {
@@ -115,6 +124,11 @@ export function photosWithData(
       caption: photo.caption,
       category: photo.category,
       data,
+      // The turn travels with the bytes, so a photograph cannot be printed at
+      // one angle and measured at another. Normalising it is the drawing
+      // layer's job - this module keeps no runtime imports, which is what lets
+      // it load straight into Node for its tests.
+      rotation: photo.rotation ?? 0,
     });
   }
 

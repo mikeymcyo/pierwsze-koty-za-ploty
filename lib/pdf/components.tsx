@@ -23,6 +23,7 @@ import {
 } from "@/lib/documents/metadata";
 import { fitBox, imageSize, photoBoxHeight, photoBoxSize } from "@/lib/pdf/image-size";
 import { photoEvidence, type PhotoEvidenceItem } from "@/lib/pdf/photo-evidence";
+import { isQuarterTurn, normaliseRotation, rotatedSize } from "@/lib/photos-rotation";
 import { runInLabel, type ReportGroup } from "@/lib/report-structure";
 import type { PdfStyles } from "@/lib/pdf/theme";
 
@@ -109,17 +110,47 @@ export function CoverPhoto({
   data,
   maxHeight,
   caption,
+  rotation = 0,
 }: {
   s: PdfStyles;
   data: Buffer;
   maxHeight: number;
   caption?: string | null;
+  /** Quarter turns to apply while drawing. The file itself is never altered. */
+  rotation?: number;
 }) {
-  const box = fitBox(imageSize(data), CONTENT_WIDTH, maxHeight);
+  const turn = normaliseRotation(rotation);
+  // Fitted on the photograph as it will appear, then drawn at its own
+  // orientation and turned - the same two steps as a plate.
+  const box = fitBox(rotatedSize(imageSize(data), turn), CONTENT_WIDTH, maxHeight);
+  const drawn = isQuarterTurn(turn)
+    ? { width: box.height, height: box.width }
+    : { width: box.width, height: box.height };
+
   return (
     <View style={s.cover} wrap={false}>
-      {/* eslint-disable-next-line jsx-a11y/alt-text */}
-      <Image style={{ width: box.width, height: box.height }} src={data} />
+      <View
+        style={
+          turn === 0
+            ? { width: box.width, height: box.height }
+            : { width: box.width, height: box.height, overflow: "hidden" }
+        }
+      >
+        {/* eslint-disable-next-line jsx-a11y/alt-text */}
+        <Image
+          style={
+            turn === 0
+              ? { width: drawn.width, height: drawn.height }
+              : {
+                  width: drawn.width,
+                  height: drawn.height,
+                  transform: `rotate(${turn}deg)`,
+                  transformOrigin: "center",
+                }
+          }
+          src={data}
+        />
+      </View>
       {caption ? <Text style={s.coverCaption}>{caption}</Text> : null}
     </View>
   );
@@ -513,8 +544,12 @@ export function IssueRecord({
  * with its first plate overleaf, or throw the heading forward and leave a hole
  * where two thirds of a plate would have fitted.
  */
-export function plateReserve(data: Buffer, bounds?: PlateBounds): number {
-  return photoBoxHeight(imageSize(data), PHOTO_COLUMN_WIDTH, bounds) + 34;
+export function plateReserve(data: Buffer, bounds?: PlateBounds, rotation = 0): number {
+  // Measured on the photograph as it will appear: a turned portrait reserves
+  // the room a landscape plate needs, not the room it needed before the turn.
+  return (
+    photoBoxHeight(rotatedSize(imageSize(data), rotation), PHOTO_COLUMN_WIDTH, bounds) + 34
+  );
 }
 
 /**
@@ -535,6 +570,7 @@ export function PhotoPlate({
   label,
   data,
   bounds,
+  rotation = 0,
 }: {
   s: PdfStyles;
   index: number;
@@ -542,9 +578,24 @@ export function PhotoPlate({
   data: Buffer;
   /** The Photo style prints its plates larger; the others use the defaults. */
   bounds?: PlateBounds;
+  /** Quarter turns to apply while drawing. The file itself is never altered. */
+  rotation?: number;
 }) {
   const item: PhotoEvidenceItem = photoEvidence(label, index);
-  const box = photoBoxSize(imageSize(data), PHOTO_COLUMN_WIDTH, bounds);
+  const turn = normaliseRotation(rotation);
+
+  // The plate is measured on the photograph as it will appear, not as it is
+  // stored: a portrait shot turned on its side is a landscape plate, and a box
+  // measured before the turn would be a tall frame round a wide picture.
+  const box = photoBoxSize(rotatedSize(imageSize(data), turn), PHOTO_COLUMN_WIDTH, bounds);
+
+  // The image is drawn at its own orientation and then turned inside that box,
+  // so for a quarter turn it is laid out with the box's dimensions swapped -
+  // rotating a w x h rectangle by 90 degrees leaves it occupying h x w.
+  const drawn = isQuarterTurn(turn)
+    ? { width: box.height, height: box.width }
+    : { width: box.width, height: box.height };
+
   return (
     <View style={s.photoCell} wrap={false}>
       <View style={s.photoRefRow}>
@@ -552,11 +603,33 @@ export function PhotoPlate({
         <Text style={s.photoRef}>{item.reference}</Text>
         {item.status ? <Text style={s.photoStatus}>{item.status}</Text> : null}
       </View>
-      <View style={[s.photoFrame, { width: box.width + 4, height: box.height + 4 }]}>
+      <View
+        style={[
+          s.photoFrame,
+          { width: box.width + 4, height: box.height + 4 },
+          // The turned image is wider or taller than its frame before it
+          // rotates; the frame holds the shape a reader sees.
+          turn === 0 ? {} : { overflow: "hidden" },
+        ]}
+      >
         {/* react-pdf's Image is not an HTML img and takes no alt - the caption
             below it is what a reader gets. */}
         {/* eslint-disable-next-line jsx-a11y/alt-text */}
-        <Image style={{ width: box.width, height: box.height }} src={data} />
+        <Image
+          style={
+            turn === 0
+              ? { width: drawn.width, height: drawn.height }
+              : {
+                  width: drawn.width,
+                  height: drawn.height,
+                  transform: `rotate(${turn}deg)`,
+                  // About its own middle, so a quarter turn lands centred in
+                  // the frame rather than pivoting off one corner.
+                  transformOrigin: "center",
+                }
+          }
+          src={data}
+        />
       </View>
       {item.caption ? <Text style={s.photoCaption}>{item.caption}</Text> : null}
     </View>
@@ -567,6 +640,8 @@ export type GridPhoto = {
   id: string;
   label: { caption: string | null; status: string | null };
   data: Buffer;
+  /** Quarter turns to apply while drawing. Absent means as uploaded. */
+  rotation?: number;
 };
 
 /**
@@ -603,6 +678,7 @@ export function PhotoGrid({
               label={photo.label}
               data={photo.data}
               bounds={bounds}
+              rotation={photo.rotation}
             />
           ))}
         </View>

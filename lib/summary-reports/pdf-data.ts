@@ -78,7 +78,7 @@ export async function loadSummaryPdfData(
   const { data: photoRows } = photoIds.length
     ? await supabase
         .from("photos")
-        .select("id, caption, category, storage_path")
+        .select("id, caption, category, storage_path, rotation")
         .in("id", photoIds)
     : { data: [] };
   const photoById = new Map((photoRows ?? []).map((photo) => [photo.id, photo]));
@@ -238,6 +238,8 @@ export async function loadSummaryPdfData(
             caption: link.caption_override?.trim() || photo.caption,
             category: photo.category,
             data,
+            // Normalised where it is drawn, in lib/pdf/components.tsx.
+            rotation: photo.rotation ?? 0,
           },
         ];
       }),

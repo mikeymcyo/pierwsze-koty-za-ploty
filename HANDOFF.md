@@ -104,33 +104,52 @@ report are all unchanged.
 
 **No migration.** `npm run test:photo-order` covers the gesture's contract.
 
-### Rotation: the proposal, not applied
+### Rotation: written and tested, migration NOT APPLIED
 
-Rotating a photograph has nowhere to be stored. `photos` carries `width`,
-`height` and no orientation, and re-encoding the stored object is out - it is
-the evidence. So it needs a migration, and the instruction was to stop and
-report first. The smallest safe approach:
+A photograph can be turned left or right a quarter at a time inside Arrange
+mode, on all four report kinds. **The stored object is never touched.** The
+turn is a number on the row; the bytes in the bucket are the evidence and are
+read, drawn and printed exactly as they were uploaded.
 
-```sql
-alter table public.photos
-  add column rotation smallint not null default 0
-  check (rotation in (0, 90, 180, 270));
-```
+**`supabase/migrations/20260901000009_photo_rotation.sql` is written and has
+NOT been applied.** Nobody ran `supabase db push`. Until somebody does, this
+code does not work against the live database: six SELECTs now ask for
+`photos.rotation`, and PostgREST rejects a column that does not exist, so
+photographs stop loading on the report page, the preview route, finalise, the
+summary report page, summary PDF data and the project page. **Apply the
+migration before deploying this commit.** Rollback is one line and is written
+into the migration file: `alter table public.photos drop column if exists
+rotation;`
 
-Additive, one column, nothing rewritten; every existing row reads 0 and looks
-exactly as it does today. Then:
+The column is additive - `smallint not null default 0` with a check constraint
+of `(0, 90, 180, 270)` - so every row already stored reads 0 and looks exactly
+as it does today. `supabase/tests/05_photo_rotation_test.sql` proves the shape,
+the default, that all four turns store, that 45, -90 and 360 are refused, and
+that caption, category and `storage_path` are unchanged by a turn.
 
-- **Screens**: `rotate(Ndeg)` on the thumbnail inside its existing square
-  frame. Cheap and exact.
-- **PDF**: the risky half. `@react-pdf/renderer` has limited `transform`
-  support, and a quarter turn also swaps the plate's aspect ratio, so
-  `lib/pdf/image-size.ts` and `photoBoxSize` must swap width and height for odd
-  turns. This wants proving against a rendered PDF before it is trusted -
-  `test:pdf-template` already measures page counts and plate boxes, which is
-  where that proof belongs.
-- **Issued reports**: refuse the write when the owning report is final, the
-  rule every other photo write already uses. Stored PDFs are files and are
-  never re-rendered, so nothing historical moves.
+`lib/photos-rotation.ts` is the whole model, pure and import-free so the tests
+can load it in Node: `normaliseRotation` (anything wild reads as 0),
+`rotateBy(value, "left" | "right")`, `isQuarterTurn`, `rotatedSize` (swaps
+width and height on 90 and 270), `cssRotation` and `describeRotation`.
+
+- **Screens**: `cssRotation` on the thumbnail inside its existing square frame,
+  in arrange mode, the daily grid, the summary curation list and the summary
+  photo list.
+- **PDF**: `PhotoPlate` and `CoverPhoto` measure the box on `rotatedSize`, so a
+  portrait turned on its side is laid out as a landscape, then draw the image
+  with `transform: rotate(Ndeg)`, `transformOrigin: "center"` and a clipped
+  frame. `plateReserve` takes the turn too, so the page budget is computed on
+  the shape that will actually appear. `npm run test:photo-rotation` renders
+  real PDFs through `renderToBuffer` and counts pages with pdf-lib: a single
+  photograph at 0, 90, 180 and 270 each costs one page, four mixed turns cost
+  at most two, and an unturned photograph produces the same bytes as one with
+  no rotation at all. **What is not proven here is how it looks:** the checks
+  are render-without-error plus geometry, not an eye on a page.
+- **The action** is `rotatePhoto` in `app/(app)/reports/photo-actions.ts`. It
+  writes `rotation` and nothing else, takes the direction from the form rather
+  than an angle, and refuses with `REPORT_IS_FINAL` when the owning report is
+  issued. Stored PDFs are files and are never re-rendered, so nothing
+  historical moves.
 - **Caption, status and AI description** are columns on the same row and follow
   the photograph without being touched.
 

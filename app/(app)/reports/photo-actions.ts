@@ -6,6 +6,7 @@ import { z } from "zod";
 import { describePhotograph } from "@/lib/ai/photo-description";
 import { requireSessionContext } from "@/lib/auth/session";
 import { photoStatusLabel } from "@/lib/photo-captions";
+import { rotateBy } from "@/lib/photos-rotation";
 import { createClient } from "@/lib/supabase/server";
 import { isSameSet, sortOrderValues } from "@/lib/photos-order";
 import { PHOTO_BUCKET, photoPathPrefix } from "@/lib/photos";
@@ -204,6 +205,59 @@ export async function savePhotoDetails(
     .update({ caption: parsed.data.caption, category: parsed.data.category })
     .eq("id", photoId);
   if (error) return { error: `Could not save the photograph: ${error.message}` };
+
+  revalidatePath(`/projects/${photo.project_id}`);
+  if (photo.report_id) revalidatePath(`/reports/${photo.report_id}`);
+  return { saved: true };
+}
+
+export type PhotoRotationState = { saved?: boolean; error?: string };
+
+/**
+ * Turns a photograph a quarter of the way round, and touches no file.
+ *
+ * The stored object is what came off the camera and stays that way: the turn
+ * is a number on the row, applied by the thumbnails, the preview and the PDF
+ * while they draw. So it is reversible - turning back returns the original
+ * exactly - and a caption, a status and an AI description all stay attached to
+ * the photograph, because the row is what changed.
+ *
+ * The direction comes from the form rather than the resulting angle, so two
+ * taps racing each other cannot land on a value neither person chose: each is
+ * one quarter turn from what the database says now.
+ */
+export async function rotatePhoto(
+  photoId: string,
+  _previous: PhotoRotationState,
+  formData: FormData,
+): Promise<PhotoRotationState> {
+  if (!z.uuid().safeParse(photoId).success) return { error: "That photograph could not be found." };
+
+  const direction = String(formData.get("direction") ?? "");
+  if (direction !== "left" && direction !== "right") {
+    return { error: "That photograph could not be turned." };
+  }
+
+  await requireSessionContext();
+  const supabase = await createClient();
+
+  const { data: photo } = await supabase
+    .from("photos")
+    .select("id, project_id, report_id, rotation, reports(status)")
+    .eq("id", photoId)
+    .maybeSingle();
+  if (!photo) return { error: "That photograph could not be found." };
+
+  // The same rule as editing a caption: an issued report's stored PDF already
+  // says what it says, and what it shows must not drift away from it.
+  const owner = Array.isArray(photo.reports) ? photo.reports[0] : photo.reports;
+  if (owner?.status === "final") return { error: REPORT_IS_FINAL };
+
+  const { error } = await supabase
+    .from("photos")
+    .update({ rotation: rotateBy(photo.rotation, direction) })
+    .eq("id", photoId);
+  if (error) return { error: `Could not turn the photograph: ${error.message}` };
 
   revalidatePath(`/projects/${photo.project_id}`);
   if (photo.report_id) revalidatePath(`/reports/${photo.report_id}`);

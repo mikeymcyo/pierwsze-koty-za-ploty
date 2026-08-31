@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, GripVertical, ImageOff } from "lucide-react";
+import { Check, GripVertical, ImageOff, RotateCcw, RotateCw } from "lucide-react";
 import {
   DndContext,
   DragOverlay,
@@ -19,14 +19,18 @@ import {
 } from "@dnd-kit/core";
 import { restrictToWindowEdges } from "@dnd-kit/modifiers";
 
+import { rotatePhoto, type PhotoRotationState } from "@/app/(app)/reports/photo-actions";
 import { Button } from "@/components/ui/button";
 import { photoReference } from "@/lib/pdf/photo-evidence";
+import { cssRotation, isQuarterTurn } from "@/lib/photos-rotation";
 import type { PhotoOrder } from "@/components/reports/photo-reorder";
 
 export type ArrangeablePhoto = {
   id: string;
   url: string | null;
   caption: string | null;
+  /** Quarter turns applied while drawing. Absent means as uploaded. */
+  rotation?: number | null;
 };
 
 /**
@@ -153,7 +157,8 @@ export function PhotoArrangeView({
 
       <p className="px-4 pt-3 text-sm text-ink-muted">
         Press and hold a photograph, then drop it on another to swap the two.
-        Nothing else moves. They are numbered and printed in this order.
+        Nothing else moves. The arrows turn a photograph a quarter at a time -
+        the file itself is never altered.
       </p>
 
       {/* This view owns its scrolling, which is what lets dnd-kit scroll it
@@ -188,6 +193,7 @@ export function PhotoArrangeView({
 }
 
 function Thumbnail({ photo }: { photo: ArrangeablePhoto }) {
+  const turn = cssRotation(photo.rotation);
   return (
     <div className="aspect-square overflow-hidden rounded-lg bg-surface-muted">
       {photo.url ? (
@@ -199,6 +205,18 @@ function Thumbnail({ photo }: { photo: ArrangeablePhoto }) {
           alt={photo.caption ?? "Site photograph"}
           className="size-full object-cover"
           draggable={false}
+          style={
+            turn
+              ? {
+                  transform: turn,
+                  // On its side the photograph's long edge runs down the box,
+                  // so it is drawn against the box's other dimension before
+                  // being turned - otherwise a quarter turn leaves bars.
+                  width: isQuarterTurn(photo.rotation) ? "100%" : undefined,
+                  height: isQuarterTurn(photo.rotation) ? "100%" : undefined,
+                }
+              : undefined
+          }
         />
       ) : (
         <div className="grid size-full place-items-center text-ink-subtle">
@@ -206,6 +224,42 @@ function Thumbnail({ photo }: { photo: ArrangeablePhoto }) {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * Turn this photograph a quarter of the way round.
+ *
+ * `stopPropagation` on the pointer, or the drag sensor on the tile beneath
+ * would see the press and a firm tap on a button would lift the photograph
+ * instead of turning it.
+ */
+function RotateButton({
+  photoId,
+  direction,
+}: {
+  photoId: string;
+  direction: "left" | "right";
+}) {
+  const turn = rotatePhoto.bind(null, photoId);
+  const [state, action] = useActionState<PhotoRotationState, FormData>(turn, {});
+  const Icon = direction === "left" ? RotateCcw : RotateCw;
+
+  return (
+    <form action={action} onPointerDown={(event) => event.stopPropagation()}>
+      <input type="hidden" name="direction" value={direction} />
+      <Button
+        type="submit"
+        variant="secondary"
+        size="icon"
+        // A finger, not a cursor: the same target the rest of the app uses.
+        className="size-10"
+        aria-label={`Rotate ${direction} 90 degrees`}
+        title={state.error ?? `Rotate ${direction}`}
+      >
+        <Icon aria-hidden />
+      </Button>
+    </form>
   );
 }
 
@@ -249,6 +303,15 @@ function ArrangeTile({ photo, index }: { photo: ArrangeablePhoto; index: number 
         </span>
         <GripVertical className="size-4 shrink-0 text-ink-subtle" aria-hidden />
       </div>
+
+      {/* Turning belongs here rather than on the report screen: this is the
+          view somebody opens when they are looking at the photographs
+          themselves. */}
+      <div className="flex items-center justify-center gap-2 px-1 pb-1">
+        <RotateButton photoId={photo.id} direction="left" />
+        <RotateButton photoId={photo.id} direction="right" />
+      </div>
+
       {photo.caption ? (
         <span className="truncate px-1 pb-1 text-[11px] text-ink-muted">{photo.caption}</span>
       ) : null}

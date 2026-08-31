@@ -18,6 +18,7 @@ import {
 } from "@/app/(app)/summary-reports/photo-actions";
 import { photoReference } from "@/lib/pdf/photo-evidence";
 import { UNSET_PHOTO_STATUS, photoPickerLabel, photoStatusLabel } from "@/lib/photo-captions";
+import { cssRotation } from "@/lib/photos-rotation";
 import type { PhotoCategory } from "@/types/database";
 
 export type ReportPhoto = {
@@ -25,6 +26,8 @@ export type ReportPhoto = {
   url: string | null;
   caption: string | null;
   category: PhotoCategory;
+  /** Quarter turns applied while drawing. Absent means as uploaded. */
+  rotation?: number | null;
 };
 
 /**
@@ -166,6 +169,11 @@ export function ReportPhotos({
                     src={photo.url}
                     alt={photo.caption ?? "Site photograph"}
                     className="size-full object-cover"
+                    style={
+                      cssRotation(photo.rotation)
+                        ? { transform: cssRotation(photo.rotation) }
+                        : undefined
+                    }
                   />
                 ) : (
                   <span className="grid size-full place-items-center">

@@ -138,7 +138,7 @@ export default async function ReportCapturePage({
     withClockSkewRetry(() =>
       supabase
         .from("photos")
-        .select("id, caption, category, storage_path, width, height")
+        .select("id, caption, category, storage_path, width, height, rotation")
         .eq("report_id", id)
         .order("sort_order", { ascending: true })
         .order("created_at", { ascending: true }),
