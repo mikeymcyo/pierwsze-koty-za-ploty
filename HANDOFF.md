@@ -34,6 +34,52 @@ The current implementation completes the core workflow:
 
 
 
+### The Completion Report, the document a client keeps
+
+**No migration.** `sign_off` was already a section type; what changed is the
+label a reader sees. `npm run test:completion-quality` covers the batch, and
+renders a full completion PDF through `renderToBuffer` to check it still fits.
+
+**Most of it was already right, and was left alone.** Standalone Completion
+works. Photograph curation and reorder work. The provenance model was already
+better than the brief asked for: `summary_report_sources` records every Daily
+Report, and `ai-actions.ts` feeds the writer only those with **no**
+`via_summary_report_id` - so a fortnight already consolidated into an issued
+Progress Report is kept on the record as provenance and never read a second
+time. "Daily evidence only for uncovered gaps" was already true.
+
+**What was missing was selection.** A Completion Report took every issued
+Progress Report whose period fell inside a date range. It now offers them one
+per row - number, period, how many Daily Reports sit beneath each, when it was
+issued - with Select all, Clear, and a live line saying how many days no ticked
+report covers and will therefore be read directly.
+`lib/summary-reports/progress-selection.ts` is pure and holds the rules; the
+action deduplicates the posted ids and intersects them with the issued Progress
+Reports of that project. **A report started without any selection still gets
+every issued Progress Report** - falling back to none would quietly turn a
+whole-project record into one built from raw dailies. Unticking a report gives
+its days back as direct evidence, so no period can fall out of the record.
+
+**Outstanding work was filed under a heading reading "Sign-off".** The
+`sign_off` section has always carried two jobs - what is still open, and any
+recorded acceptance - but its label named only the second, so a reader saw
+outstanding works under a heading implying they had been signed off. It now
+reads **"Outstanding and sign-off"**, and both briefs order it: outstanding and
+follow-on first, then any sign-off fact the records actually carry. The cleanup
+brief was worse than the drafting one - it asked for sign-off facts only, so
+follow-on work had nowhere to go in that pass at all - and now matches. Neither
+change touches the stored enum.
+
+**The Master Review now has a completion tier**, above the consolidated one and
+far above the proportionate daily one: every claim that the works were
+completed, accepted, handed over, approved, inspected, tested, commissioned,
+certified, snagged off or found compliant must be traceable to a source record
+that says it, and where one is not the instruction is to **cut the claim** and
+raise a warning naming the section - not to reword it. It also looks for an
+unresolved issue (which on this document reads as a defect handed over), Scope
+and Completed works describing the same list, Stages repeating the scope, an
+outstanding item that appears nowhere, and a sign-off sentence with no source.
+
 ### A Progress Report is built from the Dailies somebody chose
 
 **No migration.** `summary_report_sources` has held one row per source since

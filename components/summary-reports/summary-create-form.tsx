@@ -16,6 +16,12 @@ import {
   defaultDailySelection,
   type SelectableDaily,
 } from "@/lib/summary-reports/daily-selection";
+import {
+  defaultProgressSelection,
+  resolveProgressSelection,
+  uncoveredDailyIds,
+  type SelectableProgress,
+} from "@/lib/summary-reports/progress-selection";
 import type { SummarySourceMode } from "@/lib/summary-reports/provenance";
 import { formatDate, formatReportNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -160,17 +166,121 @@ function DailyPicker({
   );
 }
 
+
+/**
+ * The Progress Reports a Completion Report is built from.
+ *
+ * Each one is already consolidated, reviewed and issued, so its wording is the
+ * best account of its period that exists. Ticking it means "use this report,
+ * and leave the days beneath it as provenance". Unticking it does not lose
+ * that period: its days become direct evidence again, and the line under the
+ * list says how many days are being read that way.
+ */
+function ProgressPicker({
+  reports,
+  selected,
+  uncoveredCount,
+  onToggle,
+  onAll,
+  onNone,
+}: {
+  reports: SelectableProgress[];
+  selected: Set<string>;
+  uncoveredCount: number;
+  onToggle: (id: string) => void;
+  onAll: () => void;
+  onNone: () => void;
+}) {
+  return (
+    <fieldset className="flex flex-col gap-3">
+      <legend className="mb-1 text-sm font-medium text-ink">
+        Progress Reports to consolidate
+      </legend>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-sm text-ink-muted" aria-live="polite">
+          {selected.size} of {reports.length} selected
+        </p>
+        <div className="flex gap-2">
+          <Button type="button" variant="secondary" size="sm" onClick={onAll}>
+            Select all
+          </Button>
+          <Button type="button" variant="secondary" size="sm" onClick={onNone}>
+            Clear
+          </Button>
+        </div>
+      </div>
+
+      <ul className="flex flex-col gap-2">
+        {reports.map((report) => {
+          const checked = selected.has(report.id);
+          return (
+            <li key={report.id}>
+              <label
+                className={cn(
+                  "flex min-h-(--ui-control-min) cursor-pointer items-center gap-3 rounded-xl border p-3 transition-colors",
+                  checked ? "border-brand bg-brand-soft" : "border-line bg-surface",
+                )}
+              >
+                <input
+                  type="checkbox"
+                  name="progressIds"
+                  value={report.id}
+                  checked={checked}
+                  onChange={() => onToggle(report.id)}
+                  className="size-5 shrink-0 accent-[var(--color-brand)]"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-ink">
+                    Progress Report {formatReportNumber(report.number)}
+                  </span>
+                  <span className="block text-xs text-ink-muted">
+                    {report.periodStart && report.periodEnd
+                      ? `${formatDate(report.periodStart)} to ${formatDate(report.periodEnd)}`
+                      : "Period not stated"}
+                    {report.dailyIds.length > 0
+                      ? ` · ${report.dailyIds.length} ${
+                          report.dailyIds.length === 1 ? "Daily Report" : "Daily Reports"
+                        } beneath it`
+                      : ""}
+                    {report.issuedAt
+                      ? ` · issued ${new Date(report.issuedAt).toLocaleDateString()}`
+                      : ""}
+                  </span>
+                </span>
+              </label>
+            </li>
+          );
+        })}
+      </ul>
+
+      {/* The gap. Days no ticked Progress Report accounts for are read
+          directly, so nothing falls out of the record when one is unticked. */}
+      <p className="text-xs text-ink-subtle">
+        {uncoveredCount === 0
+          ? "Every issued Daily Report on this project is covered by the reports you have ticked. None will be read a second time."
+          : `${uncoveredCount} issued ${
+              uncoveredCount === 1 ? "Daily Report is" : "Daily Reports are"
+            } not covered by these, and will be used as evidence for the gap. Days that are covered stay on the record as provenance and are not read twice.`}
+      </p>
+    </fieldset>
+  );
+}
+
 export function SummaryCreateForm({
   projects,
   defaultProjectId,
   defaultKind,
   dailies,
+  progressReports,
 }: {
   projects: { id: string; name: string }[];
   defaultProjectId?: string;
   defaultKind: SummaryReportKind;
   /** The issued Daily Reports of the chosen project, empty until one is chosen. */
   dailies: SelectableDaily[];
+  /** The issued Progress Reports of the chosen project, with the days each covers. */
+  progressReports: SelectableProgress[];
 }) {
   const router = useRouter();
   const [kind, setKind] = useState<SummaryReportKind>(defaultKind);
@@ -181,6 +291,9 @@ export function SummaryCreateForm({
   const [selected, setSelected] = useState<Set<string>>(
     () => new Set(defaultDailySelection(dailies)),
   );
+  const [selectedProgress, setSelectedProgress] = useState<Set<string>>(
+    () => new Set(defaultProgressSelection(progressReports)),
+  );
   const [state, action] = useActionState<SummaryFormState, FormData>(startSummaryReport, {});
   const errors = state.fieldErrors ?? {};
 
@@ -188,6 +301,11 @@ export function SummaryCreateForm({
   // consolidates issued Progress Reports and keeps its own flow, and a report
   // written directly consolidates nothing at all.
   const picking = kind === "progress" && sourceMode === "sources";
+  const pickingProgress = kind === "completion" && sourceMode === "sources";
+  const uncovered = uncoveredDailyIds(
+    dailies.map((daily) => daily.id),
+    resolveProgressSelection(Array.from(selectedProgress), progressReports),
+  ).length;
 
   return (
     <form action={action} className="flex flex-col gap-6">
@@ -282,6 +400,32 @@ export function SummaryCreateForm({
         )
       ) : null}
 
+      {pickingProgress && projectId ? (
+        progressReports.length > 0 ? (
+          <ProgressPicker
+            reports={progressReports}
+            selected={selectedProgress}
+            uncoveredCount={uncovered}
+            onToggle={(id) =>
+              setSelectedProgress((current) => {
+                const next = new Set(current);
+                if (next.has(id)) next.delete(id);
+                else next.add(id);
+                return next;
+              })
+            }
+            onAll={() => setSelectedProgress(new Set(progressReports.map((report) => report.id)))}
+            onNone={() => setSelectedProgress(new Set())}
+          />
+        ) : (
+          <Alert tone="info">
+            This project has no issued Progress Reports. The Completion Report will be built
+            from its issued Daily Reports{dailies.length > 0 ? ` - ${dailies.length} of them` : ""},
+            which is the right answer for a job that ran without interim reports.
+          </Alert>
+        )
+      ) : null}
+
       <Field
         label="Document title"
         htmlFor="title"
@@ -307,7 +451,7 @@ export function SummaryCreateForm({
         {sourceMode === "standalone"
           ? "Nothing is consolidated. You write the report from your own notes, photographs, issues and documents, and it says so - there is no source record and nothing claims to come from a previous report."
           : kind === "completion"
-            ? "Issued Progress Reports are used first, with every underlying Daily Report retained as provenance. Leave the dates blank for the whole project."
+            ? "The Progress Reports you tick are used for their own periods, with the Daily Reports beneath them kept as provenance rather than read again. Any day they do not cover is read directly."
             : "Only the Daily Reports you tick become the evidence, and only those are listed in the PDF as the source record. Leave the dates blank and the report covers the span of what you chose."}
       </Alert>
 

@@ -196,9 +196,9 @@ export const CLEANUP_SECTIONS: Record<CleanupDocumentKind, readonly CleanupSecti
     },
     {
       type: "sign_off",
-      label: "Sign-off",
+      label: "Outstanding and sign-off",
       brief:
-        "Only sign-off, handover or acceptance facts explicitly present in the records. Leave empty if none is.",
+        "Two things, in this order. First, anything the records show as still outstanding or as follow-on work, with what it is waiting on where that is recorded. Then any sign-off, handover or acceptance fact explicitly present in the records. Never write that the works were accepted, handed over, approved, tested, commissioned, certified or signed off unless a record says it in those terms. Leave empty if the records carry neither.",
     },
   ],
   survey: [

@@ -376,7 +376,9 @@ check(
 );
 check(
   "sign-off may not claim completion or acceptance unsupported",
-  /must not claim completion, acceptance, handover or compliance/i.test(MASTER_REVIEW_SYSTEM_PROMPT),
+  /must not claim\s+completion, acceptance, handover, testing, commissioning, certification or\s+compliance/i.test(
+    MASTER_REVIEW_SYSTEM_PROMPT,
+  ),
 );
 check(
   "the commonest fault is shown worked through",

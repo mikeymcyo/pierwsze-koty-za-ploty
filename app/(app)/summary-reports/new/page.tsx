@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
 import type { SelectableDaily } from "@/lib/summary-reports/daily-selection";
+import type { SelectableProgress } from "@/lib/summary-reports/progress-selection";
 import { createClient } from "@/lib/supabase/server";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import type { SummaryReportKind } from "@/types/database";
@@ -39,7 +40,9 @@ export default async function NewSummaryReportPage({
   // fetched from the browser: the project select navigates, and the server that
   // already knows about RLS is the only thing that should decide what this
   // person may consolidate.
-  const dailies = project ? await selectableDailies(supabase, project) : [];
+  const [dailies, progressReports] = project
+    ? await Promise.all([selectableDailies(supabase, project), selectableProgress(supabase, project)])
+    : [[], []];
 
   return (
     <div className="flex flex-col gap-6">
@@ -60,6 +63,7 @@ export default async function NewSummaryReportPage({
           defaultProjectId={project}
           defaultKind={defaultKind}
           dailies={dailies}
+          progressReports={progressReports}
         />
       )}
     </div>
@@ -122,5 +126,56 @@ async function selectableDailies(
     date: report.report_date,
     issuedAt: report.finalised_at,
     usedIn: usedIn.get(report.id) ?? null,
+  }));
+}
+
+/**
+ * Every issued Progress Report on a project, with the days it consolidated.
+ *
+ * The coverage is what lets a Completion Report use a Progress Report's
+ * reviewed wording and leave the days beneath it as provenance rather than
+ * feeding the same fortnight to the writer twice. See
+ * lib/summary-reports/progress-selection.ts.
+ */
+async function selectableProgress(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  projectId: string,
+): Promise<SelectableProgress[]> {
+  const { data: reports } = await withClockSkewRetry(() =>
+    supabase
+      .from("summary_reports")
+      .select("id, number, period_start, period_end, finalised_at")
+      .eq("project_id", projectId)
+      .eq("kind", "progress")
+      .eq("status", "final")
+      .order("number", { ascending: true }),
+  );
+  if (!reports?.length) return [];
+
+  const { data: links } = await supabase
+    .from("summary_report_sources")
+    .select("summary_report_id, report_id")
+    .in(
+      "summary_report_id",
+      reports.map((report) => report.id),
+    )
+    .not("report_id", "is", null)
+    .order("sort_order", { ascending: true });
+
+  const dailyIdsByReport = new Map<string, string[]>();
+  for (const link of links ?? []) {
+    if (!link.report_id) continue;
+    const values = dailyIdsByReport.get(link.summary_report_id) ?? [];
+    values.push(link.report_id);
+    dailyIdsByReport.set(link.summary_report_id, values);
+  }
+
+  return reports.map((report) => ({
+    id: report.id,
+    number: report.number,
+    periodStart: report.period_start,
+    periodEnd: report.period_end,
+    issuedAt: report.finalised_at,
+    dailyIds: dailyIdsByReport.get(report.id) ?? [],
   }));
 }

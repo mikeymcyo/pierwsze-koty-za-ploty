@@ -83,9 +83,14 @@ export const COMPLETION_SECTIONS: SummarySectionDefinition[] = [
     brief: "A short introduction to the curated photographs, without inventing what they prove.",
   },
   {
+    // The label carries both jobs because the section does. Naming it
+    // "Sign-off" alone put outstanding works under a heading that reads as
+    // though they had been signed off - the opposite of what the evidence
+    // said. The stored type is unchanged; this is what a reader sees.
     type: "sign_off",
-    label: "Sign-off",
-    brief: "Only sign-off, handover or acceptance facts explicitly present in the source records, together with anything recorded as genuinely outstanding or follow-on. Leave empty rather than implying acceptance.",
+    label: "Outstanding and sign-off",
+    brief:
+      "Two things, in this order. First, anything the evidence records as genuinely outstanding or as follow-on work, with what it is waiting on where that is recorded. Then, only where the source records explicitly say so, any sign-off, handover or acceptance fact. Never write that the works were accepted, handed over, approved, tested, commissioned, certified or signed off unless a source record says it in those terms; leave the sentence out instead. An empty section is a correct answer.",
   },
 ];
 

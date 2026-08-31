@@ -214,7 +214,7 @@ for (const [kind, labels] of [
   ["daily", ["Works completed", "Works in progress", "Planned works"]],
   ["progress", ["Works completed", "Works in progress", "Next period"]],
   ["survey", ["Recommended works", "Findings and existing condition"]],
-  ["completion", ["Completed works", "Sign-off"]],
+  ["completion", ["Completed works", "Outstanding and sign-off"]],
 ]) {
   const sections = contentFor(kind);
   const grouped = groupSections(kind, sections);

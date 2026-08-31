@@ -16,6 +16,10 @@ import {
   selectedPeriod,
   type SelectableDaily,
 } from "@/lib/summary-reports/daily-selection";
+import {
+  resolveProgressSelection,
+  type SelectableProgress,
+} from "@/lib/summary-reports/progress-selection";
 import { completionSourcePlan } from "@/lib/summary-reports/source-plan";
 import { createClient } from "@/lib/supabase/server";
 import type { SummaryReportKind } from "@/types/database";
@@ -58,6 +62,11 @@ const createSchema = z
      * its own flow, and on a standalone report, which consolidates nothing.
      */
     reportIds: z.array(z.uuid()),
+    /**
+     * The Progress Reports a Completion Report was told to consolidate. Empty
+     * on a Progress Report and on a standalone one.
+     */
+    progressIds: z.array(z.uuid()),
   })
   .superRefine((value, context) => {
     if ((value.periodStart === null) !== (value.periodEnd === null)) {
@@ -113,6 +122,7 @@ export async function startSummaryReport(
     // Deduplicated before it is even validated. A form can post the same value
     // twice; a report must never carry the same source row twice.
     reportIds: Array.from(new Set(formData.getAll("reportIds").map(String).filter(Boolean))),
+    progressIds: Array.from(new Set(formData.getAll("progressIds").map(String).filter(Boolean))),
   });
   if (!parsed.success) return { fieldErrors: errorsOf(parsed.error) };
 
@@ -216,23 +226,40 @@ export async function startSummaryReport(
   if (input.kind === "completion" && !standalone) {
     const { data: progress, error: progressError } = await supabase
       .from("summary_reports")
-      .select("id, period_start, period_end")
+      .select("id, number, period_start, period_end, finalised_at")
       .eq("project_id", input.projectId)
       .eq("kind", "progress")
       .eq("status", "final")
       .order("number", { ascending: true });
     if (progressError) return { error: `Could not read the Progress Reports: ${progressError.message}` };
 
+    /**
+     * The Progress Reports the author ticked, intersected with the issued ones
+     * this company may actually read - the same rule as the Daily picker, and
+     * for the same reason: the form is a request, not an authority.
+     *
+     * A Completion Report started before the picker existed, or from a link
+     * that carries no selection, still gets every issued Progress Report.
+     * Falling back to none would quietly turn a whole-project record into one
+     * built from raw dailies.
+     */
+    const availableProgress: SelectableProgress[] = (progress ?? []).map((report) => ({
+      id: report.id,
+      number: report.number,
+      periodStart: report.period_start,
+      periodEnd: report.period_end,
+      issuedAt: report.finalised_at,
+      dailyIds: [],
+    }));
     progressForCompletion.push(
-      ...(progress ?? []).filter(
-        (report) =>
-          !input.periodStart ||
-          !input.periodEnd ||
-          (Boolean(report.period_start) &&
-            Boolean(report.period_end) &&
-            report.period_start! >= input.periodStart &&
-            report.period_end! <= input.periodEnd),
-      ),
+      ...(input.progressIds.length > 0
+        ? resolveProgressSelection(input.progressIds, availableProgress)
+        : availableProgress
+      ).map((report) => ({
+        id: report.id,
+        period_start: report.periodStart,
+        period_end: report.periodEnd,
+      })),
     );
 
     if (progressForCompletion.length > 0) {
