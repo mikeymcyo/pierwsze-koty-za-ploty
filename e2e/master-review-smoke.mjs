@@ -357,8 +357,9 @@ check(
 
 console.log("\n15. Every section is given its own job");
 for (const [role, pattern] of [
-  ["Daily Summary is an overview, not a list", /Never a list of every activity/i],
-  ["Works completed is not a paraphrase", /Never a paraphrase of the Summary/i],
+  ["the Daily Summary is the day's one account", /this is the main section and may carry the whole day by itself/i],
+  ["Works completed adds particulars or nothing", /KEEP THE SUMMARY AND RETURN WORKS COMPLETED EMPTY/],
+  ["and an empty one is a good outcome", /An\s+empty Works completed on a daily report is a good outcome, not a gap/i],
   ["deliveries and plant stay put", /Deliveries and plant: the logistical and equipment facts/i],
   ["planned works are never invented", /Never invent future works/i],
   ["scope is not chronology", /Scope of works: which workstreams and items were included\. Not chronology/i],

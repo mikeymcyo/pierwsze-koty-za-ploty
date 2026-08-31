@@ -26,13 +26,13 @@ export const REPORT_SECTIONS: {
     type: "executive_summary",
     label: "Summary",
     brief:
-      "A management overview for a client who will read nothing else: two or three sentences on what the day amounted to overall and where the work now stands. Do not list the individual activities - Works completed carries those, and a summary that lists them is a duplicate. Do not judge progress against programme and do not mention delay unless the notes record one.",
+      "The one account of the day, for a client who will read nothing else: what was done, where, and anything that mattered. This is the main section of a Daily Report and carries the day on its own where the notes support nothing further. Do not judge progress against programme and do not mention delay unless the notes record one.",
   },
   {
     type: "works_completed",
     label: "Works completed",
     brief:
-      "The detailed record of what the notes say was actually done: the specific activities, with location, trade, materials, components and technical detail wherever the notes give them. Particulars, not an overview - if a sentence would sit equally well in the Summary, it belongs here and the Summary should say something broader. State completion only where the notes state it.",
+      "Particulars the Summary does not already carry - specific activities with their location, trade, materials, components, quantities and technical detail, where the notes actually give them. LEAVE THIS EMPTY when the notes support nothing beyond what the Summary says; a day's work described twice in different words is the commonest fault in these reports, and one good Summary is better than two accounts of the same thing. State completion only where the notes state it. Looking for, sourcing, pricing, chasing or ordering something is not completed work.",
   },
   {
     type: "works_in_progress",
@@ -61,7 +61,7 @@ export const REPORT_SECTIONS: {
     type: "outstanding_items",
     label: "Outstanding items",
     brief:
-      "Items the notes record as awaiting a decision, an instruction, information or another party - things the works are held up by rather than things we intend to do. Where such an item is also programmed, say so here, with its timing, and do not repeat it under Planned works. Leave this empty rather than stating that nothing is outstanding.",
+      "Items the notes record as awaiting a decision, an instruction, information, a delivery or another party - things the works are held up by rather than things we intend to do. Materials being sourced, priced, chased or awaited belong here, never under completed work. Where such an item is also programmed, say so here, with its timing, and do not repeat it under Planned works. Leave this empty rather than stating that nothing is outstanding.",
   },
   {
     type: "planned_works",

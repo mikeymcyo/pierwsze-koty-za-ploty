@@ -72,13 +72,13 @@ export const CLEANUP_SECTIONS: Record<CleanupDocumentKind, readonly CleanupSecti
       type: "executive_summary",
       label: "Summary",
       brief:
-        "Two or three sentences covering the work the source actually describes. Do not judge progress against programme.",
+        "The one account of the day: what was done, where, and anything that mattered. This is the main section of a Daily Report and carries the day on its own where the source supports nothing further. Do not judge progress against programme.",
     },
     {
       type: "works_completed",
       label: "Works completed",
       brief:
-        "Only work the source records as finished. Past tense. Work that is part-done belongs in works in progress, and work not yet started belongs in planned works.",
+        "Particulars the Summary does not already carry, and only work the source records as finished. Past tense. LEAVE THIS EMPTY when the source supports nothing beyond the Summary - the same day told twice is worse than told once. Part-done work belongs in works in progress, work not yet started in planned works, and anything being sourced, priced, chased or awaited under outstanding items.",
     },
     {
       type: "works_in_progress",
@@ -108,7 +108,7 @@ export const CLEANUP_SECTIONS: Record<CleanupDocumentKind, readonly CleanupSecti
       type: "outstanding_items",
       label: "Outstanding items",
       brief:
-        "Items the source records as awaiting a decision, an instruction, information or another party. Awaiting, not resolved. Where such an item also has a date against it, keep the date in this sentence - it does not become a planned work as well.",
+        "Items the source records as awaiting a decision, an instruction, information, a delivery or another party - including materials being sourced, priced, chased or awaited. Awaiting, not resolved. Where such an item also has a date against it, keep the date in this sentence - it does not become a planned work as well.",
     },
     {
       type: "planned_works",
@@ -425,6 +425,14 @@ export const CLEANUP_SYSTEM_PROMPT_TAIL = [
   "",
   "Work described in the future NEVER appears as work completed. \"Screed starts",
   "Monday\" is planned works and stays in the future, in every section it touches.",
+  "",
+  "Looking for something is not doing it. Sourcing, searching for, pricing,",
+  "chasing, ordering or waiting on materials, plant, labour or information is",
+  "NEVER work completed, however much of the day it took. \"Spent the morning",
+  "trying to find the right sealant\" is an outstanding item - the works are",
+  "waiting on it - and becomes work completed only where the source says the",
+  "sealant was obtained and used. Procurement described as done means the",
+  "ordering was done, never the works.",
   "",
   "A section the source does not support comes back as an empty string. An empty",
   "section is a correct answer and is expected. Padding one is a serious error.",

@@ -123,7 +123,10 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
   const s = createPdfStyles(theme);
   const c = theme.colors;
 
-  const documentType = "Site Progress Report";
+  // What it is. It was "Site Progress Report", which is the name of a
+  // different document in this system - the consolidated one - and a client
+  // holding both had no way to tell them apart.
+  const documentType = "Site Daily Report";
   const documentLabel = `${documentType} No. ${data.reportNumber}`;
   const cover = pickCoverPhoto(data.photos, data.coverPhotoId);
   const groups = groupSections("daily", data.sections);

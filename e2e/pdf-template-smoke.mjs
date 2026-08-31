@@ -231,7 +231,7 @@ const dailyText = textJoined(dailyTree);
 for (const [what, needle] of [
   ["the product identity", "SiteBoss Pro"],
   ["the company whose report it is", "Empire Interiors Ltd"],
-  ["the document type", "Site Progress Report"],
+  ["the document type", "Site Daily Report"],
   ["the number", "009"],
   ["the project", "South Croydon"],
   ["the client", "Riverside Developments Ltd"],

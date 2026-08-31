@@ -34,6 +34,57 @@ The current implementation completes the core workflow:
 
 
 
+### The Daily says one thing once, and calls itself a Daily
+
+**No migration.** `npm run test:daily-output` covers this batch.
+
+Four faults a tester found in issued dailies:
+
+**The same day under two headings.** The Summary and Works completed were both
+briefed to give a full account, so they gave two. The Daily Summary is now the
+day's *one* account and may carry the whole day by itself; Works completed
+carries particulars the Summary does not already have - trade, location,
+materials, quantities, technical detail - **and is left empty when there are
+none**. An empty Works completed on a daily is now a stated good outcome in
+all three layers, and the Master Review is told which one to keep when they say
+the same thing: keep the Summary, empty the other. It is also told not to
+invent detail to justify the second section, which is the obvious wrong way to
+resolve it.
+
+**Procurement counted as completed work.** "Spent the morning trying to find
+the right sealant" was being written up as work completed. Sourcing, searching
+for, pricing, chasing, ordering and awaiting anything is now explicitly never
+completed work in the cleanup tail, the reviewer, and the daily briefs for both
+Works completed and Outstanding items - it is an outstanding item, because the
+works are waiting on it, and becomes completed only where the notes say the
+thing was obtained and used. The rest of the status ladder is untouched.
+
+**A review out of proportion to one day.** The reviewer now sizes its warnings
+to the document. On a daily it raises contradictions, anything safety-critical,
+and serious gaps a reader would notice - and is told explicitly **not** to
+demand a supplier, an order reference, a responsible person, a target date or a
+programme position merely because one is absent, because ordinary site notes do
+not carry them. No warning at all is now stated to be a valid review. The
+progress, completion and survey bar is unchanged and the suite checks that the
+loosening did not leak: those still want a supplier on a bare delivery, somebody
+against an outstanding item, and a resolution on a completion report. Every
+existing safeguard - flag-never-resolve, raise-never-fill, no new facts,
+silence-is-not-absence, no H&S nil returns - is asserted still present.
+
+**The document called itself a Progress Report.** The Daily PDF now prints
+`SITE DAILY REPORT`. "Progress Report" is the name of a different document in
+this system and a client holding both could not tell them apart.
+
+One UI change went with it: an **issued** daily no longer prints a group
+heading with nothing under it. The PDF has always dropped an empty group; the
+screen now agrees. A draft still shows all three, because those headings carry
+the controls that raise an issue, add a photograph and edit the words.
+
+Nothing else moved. Raw Site Capture notes are still verbatim, Cleanup still
+runs before drafting, the Master Review is still a separate layer that proposes
+changes a person ticks, photographs are untouched and issued PDFs are still
+files that are never re-rendered.
+
 ### Site Capture: one Daily Report, collected into all day
 
 **No migration.** `npm run test:site-capture` covers the whole contract.

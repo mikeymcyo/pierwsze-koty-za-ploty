@@ -29,14 +29,13 @@ const summary = briefOf(REPORT_SECTIONS, "executive_summary");
 const completed = briefOf(REPORT_SECTIONS, "works_completed");
 check("both briefs exist", Boolean(summary) && Boolean(completed));
 check("they are not the same text", summary !== completed);
+// The Daily Report leads with one account of the day. Works completed is not
+// a second telling of it - it is the particulars, and it is empty when there
+// are none. See the Daily output cleanup batch.
 check(
-  "the summary is told it is an overview, not a list",
-  /overview/i.test(summary) && /not list|do not list/i.test(summary),
+  "the summary is the day's one account",
+  /one account of the day/i.test(summary) && /carries the day on its own/i.test(summary),
   summary,
-);
-check(
-  "the summary is told the activities live elsewhere",
-  /works completed/i.test(summary),
 );
 check(
   "works completed is told to carry the particulars",
@@ -44,8 +43,19 @@ check(
   completed,
 );
 check(
-  "and is told to take a sentence that would fit both",
-  /equally well|belongs here/i.test(completed),
+  "and to add nothing the summary already said",
+  /does not already carry/i.test(completed),
+  completed,
+);
+check(
+  "an empty works completed is an expected answer",
+  /LEAVE THIS EMPTY/.test(completed),
+  completed,
+);
+check(
+  "and procurement is not completed work",
+  /sourcing|pricing|chasing|ordering/i.test(completed),
+  completed,
 );
 
 console.log("\n2. The daily prompt allocates each fact to one section");

@@ -221,6 +221,24 @@ export default async function ReportCapturePage({
   );
   const groupFor = (key: string) => grouped.find((entry) => entry.group.key === key);
   const hasWritten = (key: string) => (groupFor(key)?.entries.length ?? 0) > 0;
+  const hasProse = (key: string) =>
+    (groupFor(key)?.entries ?? []).some((section) => section.content?.trim());
+  /**
+   * Whether an issued report shows this heading at all.
+   *
+   * The PDF has always dropped a group with nothing under it - a heading with
+   * no content reads as an omission rather than as an honest silence - and the
+   * screen now agrees with it. A quiet day genuinely has no Issues / Next
+   * Steps, and printing the heading anyway invites somebody to fill it.
+   *
+   * Only on an issued report. A draft keeps all three: their headings carry
+   * the controls that raise an issue, add a photograph and edit the words, and
+   * a section cannot be written if there is nowhere to write it.
+   */
+  const showsWhenIssued = (key: string) =>
+    hasProse(key) ||
+    (key === "evidence" && (photos.length > 0 || referencedDocuments.length > 0)) ||
+    (key === "outstanding" && (issuesResult.data?.length ?? 0) > 0);
   // A Daily Report is dictated and drafted: the sections are output to read,
   // not a form to fill in, so the editor waits behind a disclosure. It is
   // offered once there is something to correct - or, where AI drafting is not
@@ -307,7 +325,7 @@ export default async function ReportCapturePage({
           plant live behind "Advanced details" inside the form - they are a
           record that carries over from yesterday, not what somebody came here
           to do. */}
-      {loadError ? null : (
+      {loadError || (isFinal && !showsWhenIssued("summary")) ? null : (
         <ReportSectionCard group={summaryGroup}>
           {isFinal ? null : (
             <ReportCaptureForm
@@ -348,7 +366,7 @@ export default async function ReportCapturePage({
       {/* Two. What it looked like, and what it is read alongside. The document
           register is real work but it is weekly work, so it waits behind the
           disclosure while the camera does not. */}
-      {loadError ? null : (
+      {loadError || (isFinal && !showsWhenIssued("evidence")) ? null : (
         <ReportSectionCard
           group={evidenceGroup}
           advancedLabel="Supporting documents"
@@ -434,7 +452,7 @@ export default async function ReportCapturePage({
       {/* Three. What is wrong and what happens next. Issues outlive the report
           they were raised in, so a finalised report still lists them - but it
           takes no new ones. */}
-      {loadError ? null : (
+      {loadError || (isFinal && !showsWhenIssued("outstanding")) ? null : (
         <ReportSectionCard group={outstandingGroup}>
           <SectionProse entry={groupFor("outstanding")} />
 
