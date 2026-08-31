@@ -100,7 +100,9 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
         supabase.from("summary_report_sources").select("report_id, source_summary_report_id, via_summary_report_id, sort_order").eq("summary_report_id", id).order("sort_order", { ascending: true }),
       ),
       withClockSkewRetry(() =>
-        supabase.from("summary_report_photos").select("photo_id, caption_override").eq("summary_report_id", id),
+        // In the order they print. The screen shows plate references against
+        // them and offers to reorder them, so it has to agree with the PDF.
+        supabase.from("summary_report_photos").select("photo_id, caption_override, sort_order").eq("summary_report_id", id).order("sort_order", { ascending: true }),
       ),
       withClockSkewRetry(() =>
         supabase.from("summary_report_issues").select("issue_id").eq("summary_report_id", id),
@@ -441,6 +443,23 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
               // it, so its photographs start on Before. Everything else starts
               // unmarked: a status is something a person opts into.
               defaultCategory={survey ? "before" : undefined}
+            />
+          ) : null}
+
+          {/* A consolidating report chooses its photographs by ticking them in
+              the form below, which says nothing about what order they print
+              in. This is the same list and the same Reorder control, with the
+              camera and the remove taken off - the curation form still owns
+              which photographs are in, and this owns the order they appear. */}
+          {!isFinal && !direct && attachedPhotos.length > 1 ? (
+            <ReportPhotos
+              reportId={id}
+              companyId={session.companyId}
+              projectId={report.project_id}
+              photos={attachedPhotos}
+              available={[]}
+              aiConfigured={hasAiConfig()}
+              manage={false}
             />
           ) : null}
 

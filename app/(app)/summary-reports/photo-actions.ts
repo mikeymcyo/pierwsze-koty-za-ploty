@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireSessionContext } from "@/lib/auth/session";
+import { isSameSet, sortOrderValues } from "@/lib/photos-order";
 import { photoPathPrefix } from "@/lib/photos";
 import { SUMMARY_REPORT_IS_FINAL } from "@/lib/summary-reports/finalisation";
 import { createClient } from "@/lib/supabase/server";
@@ -187,6 +188,69 @@ export async function linkSummaryPhotos(
     })),
   );
   if (error) return { error: `Could not add the photographs: ${error.message}` };
+
+  revalidatePath(`/summary-reports/${reportId}`);
+  return { saved: true };
+}
+
+/**
+ * Stores the order the photographs are printed in.
+ *
+ * The same job as `reorderReportPhotos` on a Daily Report, against the link
+ * table instead of the photograph itself - which is the right place for it: a
+ * photograph can be in a Daily Report and a Progress Report at once, and the
+ * order it prints in one is nothing to do with the other. Only
+ * `summary_report_photos.sort_order` is written. The photograph, its file, its
+ * caption and its status are not touched, and nothing is added or removed.
+ *
+ * The submitted order is checked against what the report actually holds rather
+ * than trusted: a list missing a photograph would strand it at position zero
+ * in front of everything, and one carrying an extra id would be an attempt to
+ * write a link on another report. Either is refused whole.
+ *
+ * An issued report is refused by `editableReport`, as every other write here
+ * is - its PDF was written once and the order inside that file is the order it
+ * went out in.
+ */
+export async function reorderSummaryPhotos(
+  reportId: string,
+  photoIds: string[],
+): Promise<SummaryPhotoState> {
+  if (!z.uuid().safeParse(reportId).success) return { error: "That report could not be found." };
+  if (!z.array(z.uuid()).min(1).max(200).safeParse(photoIds).success) {
+    return { error: "That order could not be saved - please try again." };
+  }
+
+  const supabase = await createClient();
+  const report = await editableReport(supabase, reportId);
+  if (!report.ok) return { error: report.error };
+
+  const { data: existing, error: readError } = await supabase
+    .from("summary_report_photos")
+    .select("photo_id")
+    .eq("summary_report_id", reportId);
+  if (readError) return { error: `Could not read the photographs: ${readError.message}` };
+
+  if (!isSameSet(photoIds, (existing ?? []).map((row) => row.photo_id))) {
+    // Stale screen, most likely: a photograph added or removed on another
+    // device since this list was rendered. Saying so beats writing an order
+    // that leaves one of them behind.
+    return {
+      error: "The photographs have changed since this screen loaded. Reload the report and try again.",
+    };
+  }
+
+  // One row at a time rather than an upsert: an upsert would have to carry
+  // every not-null column back to the database, and a mistake there writes a
+  // link's ownership rather than its position.
+  for (const { id, sortOrder } of sortOrderValues(photoIds)) {
+    const { error } = await supabase
+      .from("summary_report_photos")
+      .update({ sort_order: sortOrder })
+      .eq("summary_report_id", reportId)
+      .eq("photo_id", id);
+    if (error) return { error: `Could not save the order: ${error.message}` };
+  }
 
   revalidatePath(`/summary-reports/${reportId}`);
   return { saved: true };

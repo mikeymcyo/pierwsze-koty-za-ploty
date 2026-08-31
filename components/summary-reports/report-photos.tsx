@@ -5,12 +5,19 @@ import { ImageOff, Images, Plus, X } from "lucide-react";
 import { useFormStatus } from "react-dom";
 
 import { PhotoDetails } from "@/components/reports/photo-details";
+import {
+  PhotoOrderArrows,
+  PhotoOrderBar,
+  PhotoOrderHint,
+  usePhotoOrder,
+} from "@/components/reports/photo-reorder";
 import { PhotoUpload } from "@/components/reports/photo-upload";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   linkSummaryPhotos,
   removeSummaryPhoto,
+  reorderSummaryPhotos,
   type SummaryPhotoState,
 } from "@/app/(app)/summary-reports/photo-actions";
 import { photoReference } from "@/lib/pdf/photo-evidence";
@@ -37,7 +44,14 @@ export type ReportPhoto = {
  * caption and AI description are the same PhotoDetails used everywhere else,
  * and the link is the `summary_report_photos` row the PDF already reads. The
  * plate references match what will be printed, so P03 on the screen is P03 in
- * the document.
+ * the document - and Reorder is the same control a Daily Report uses, from
+ * components/reports/photo-reorder.tsx, writing the link's own sort_order.
+ *
+ * With `manage` off it is the ordering half alone: the list, the plate
+ * references and the arrows, with no camera and no remove. That is what a
+ * report consolidating issued Daily Reports needs, because it chooses its
+ * photographs by ticking them in the curation form and then has to be able to
+ * say what order they print in.
  */
 export function ReportPhotos({
   reportId,
@@ -47,13 +61,14 @@ export function ReportPhotos({
   available,
   aiConfigured,
   defaultCategory = UNSET_PHOTO_STATUS,
+  manage = true,
 }: {
   reportId: string;
   companyId: string;
   projectId: string;
   /** Already in this report, in the order they will print. */
   photos: ReportPhoto[];
-  /** On the project but not in this report yet. */
+  /** On the project but not in this report yet. Unused when `manage` is off. */
   available: ReportPhoto[];
   aiConfigured: boolean;
   /**
@@ -62,10 +77,27 @@ export function ReportPhotos({
    * Before. A Progress Report written directly has no such reason.
    */
   defaultCategory?: PhotoCategory;
+  /**
+   * Whether photographs are taken, captioned and removed here. False on a
+   * report that curates them in its own form, which still has to be able to
+   * put them in order.
+   */
+  manage?: boolean;
 }) {
   const [picking, setPicking] = useState(false);
+  const [reordering, setReordering] = useState(false);
   const add = linkSummaryPhotos.bind(null, reportId);
   const [addState, addAction] = useActionState<SummaryPhotoState, FormData>(add, {});
+
+  const order = usePhotoOrder(
+    photos.map((photo) => photo.id),
+    (ids) => reorderSummaryPhotos(reportId, ids),
+  );
+  const byId = new Map(photos.map((photo) => [photo.id, photo]));
+  const ordered = order.ids.flatMap((id) => {
+    const photo = byId.get(id);
+    return photo ? [photo] : [];
+  });
 
   return (
     <section className="flex flex-col gap-4">
@@ -77,24 +109,38 @@ export function ReportPhotos({
         </h3>
         <p className="mt-1 text-sm text-ink-muted">
           {photos.length === 0
-            ? "Take or choose photographs here. They are added to this report straight away."
+            ? manage
+              ? "Take or choose photographs here. They are added to this report straight away."
+              : "Tick photographs in the form below to include them."
             : `${photos.length} ${photos.length === 1 ? "photograph" : "photographs"} in this report, printed as ${photoReference(0)}${
                 photos.length > 1 ? ` to ${photoReference(photos.length - 1)}` : ""
               }.`}
         </p>
       </div>
 
-      <PhotoUpload
-        companyId={companyId}
-        projectId={projectId}
-        reportId={null}
-        summaryReportId={reportId}
-        defaultCategory={defaultCategory}
-      />
+      {manage ? (
+        <PhotoUpload
+          companyId={companyId}
+          projectId={projectId}
+          reportId={null}
+          summaryReportId={reportId}
+          defaultCategory={defaultCategory}
+        />
+      ) : null}
+
+      {photos.length > 1 ? (
+        <PhotoOrderBar
+          reordering={reordering}
+          onToggle={() => setReordering((open) => !open)}
+          order={order}
+        />
+      ) : null}
+
+      {reordering ? <PhotoOrderHint /> : null}
 
       {photos.length > 0 ? (
         <ul className="grid gap-4 sm:grid-cols-2">
-          {photos.map((photo, index) => (
+          {ordered.map((photo, index) => (
             <li key={photo.id} className="flex flex-col gap-2 rounded-xl border border-line p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-2">
@@ -107,7 +153,9 @@ export function ReportPhotos({
                     </span>
                   ) : null}
                 </span>
-                <RemovePhoto reportId={reportId} photoId={photo.id} />
+                {manage && !reordering ? (
+                  <RemovePhoto reportId={reportId} photoId={photo.id} />
+                ) : null}
               </div>
 
               <div className="aspect-4/3 overflow-hidden rounded-lg bg-surface-muted">
@@ -125,19 +173,30 @@ export function ReportPhotos({
                 )}
               </div>
 
-              {/* The same caption and AI description used everywhere else. */}
-              <PhotoDetails
-                photoId={photo.id}
-                caption={photo.caption}
-                category={photo.category}
-                aiConfigured={aiConfigured}
-              />
+              {reordering ? (
+                <PhotoOrderArrows
+                  index={index}
+                  count={ordered.length}
+                  onMove={(direction) => order.move(photo.id, direction)}
+                  caption={photo.caption}
+                />
+              ) : manage ? (
+                /* The same caption and AI description used everywhere else. */
+                <PhotoDetails
+                  photoId={photo.id}
+                  caption={photo.caption}
+                  category={photo.category}
+                  aiConfigured={aiConfigured}
+                />
+              ) : photo.caption ? (
+                <p className="truncate text-xs text-ink-muted">{photo.caption}</p>
+              ) : null}
             </li>
           ))}
         </ul>
       ) : null}
 
-      {available.length > 0 ? (
+      {manage && available.length > 0 ? (
         picking ? (
           <form action={addAction} className="flex flex-col gap-3 rounded-xl border border-line p-3">
             <p className="text-sm font-semibold text-ink">

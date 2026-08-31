@@ -80,8 +80,18 @@ placed together print side by side, and the screen says so. Positions are
 one-based so a saved order is never confused with the unordered `0`. No
 migration: the column was already there.
 
-**Out of scope, deliberately:** a summary report's own photograph order lives
-in `summary_report_photos` and is a separate model; it was not touched.
+A follow-up extended the same control to Progress, Completion and Survey.
+`summary_report_photos.sort_order` already existed and was already written on
+insert and read in order by the PDF; what was missing was the screen. The
+state, the debounce, the arrows and the wording moved into
+`components/reports/photo-reorder.tsx` so there is one control rather than two,
+and `reorderSummaryPhotos` writes the link's `sort_order` - never the
+photograph, which may be in a Daily Report and a Progress Report at once with a
+different position in each. A report that curates by ticking boxes gets the
+same list with the camera and the remove taken off (`manage={false}`): the
+curation form still owns which photographs are in, and this owns the order.
+The report screen now reads its links ordered, which it did not before, so the
+plate references it was already showing are the PDF's.
 
 ### A small UX and account batch
 
