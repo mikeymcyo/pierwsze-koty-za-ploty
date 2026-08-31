@@ -176,7 +176,9 @@ check(
 check("and the generator is told which it is", /standalone,/.test(aiActions));
 check(
   "photographs and issues still reach the draft",
-  /CURATED PHOTOGRAPH CAPTIONS/.test(aiActions) && /issues: issueEvidence/.test(aiActions),
+  /photoCaptions/.test(aiActions) &&
+    /CURATED PHOTOGRAPH CAPTIONS/.test(read("../lib/summary-reports/evidence.ts")) &&
+    /issues: issueEvidence/.test(aiActions),
 );
 
 console.log("\n5. Creating one, without weakening the consolidating path");

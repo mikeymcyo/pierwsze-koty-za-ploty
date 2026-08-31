@@ -137,7 +137,15 @@ export async function generateSummarySections(
       if (value) sections[definition.type] = value;
     }
     if (Object.keys(sections).length === 0) {
-      return { ok: false, error: "The evidence did not support any report sections." };
+      // Evidence reached the model - the caller refuses to call it otherwise -
+      // and it still wrote nothing. Say which, because "the evidence did not
+      // support any report sections" reads as a verdict on the site manager's
+      // reports when it is usually a retry away from working.
+      return {
+        ok: false,
+        error:
+          "The model read the evidence but returned no sections. Try again - if it keeps happening, check the source reports actually carry written content.",
+      };
     }
     return { ok: true, sections };
   } catch (cause) {

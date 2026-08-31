@@ -34,6 +34,62 @@ The current implementation completes the core workflow:
 
 
 
+### The evidence pipeline: does the text actually get there?
+
+**No migration.** `npm run test:evidence-flow` is the suite that proves the
+words arrive.
+
+A real iPhone test produced the worst kind of failure: two rich Daily Reports,
+exact provenance, photographs carried across - and a Progress Report with every
+AI section empty and the site manager typing a period summary by hand. The live
+database confirmed it: both source rows correct, both dailies carrying four and
+three written sections of real content, and all six AI sections of the Progress
+Report still `NULL` from creation.
+
+**Root cause: the assembly that turns source reports into model context lived
+inside a `"use server"` action.** Nothing could test it, and nothing reported
+what it produced, so a consolidation that read nothing looked identical to one
+that read everything. Three real defects were hiding in there:
+
+1. **Read errors were swallowed.** `const { data: daily } = await supabase…`
+   with no error check. A failed read dropped a whole source report from the
+   evidence in silence, and the user was told the reports carried no content.
+2. **A heading with nothing under it was pushed as evidence.** So
+   `evidence.trim()` was non-empty, the "nothing to work from" guard never
+   fired, and the model was handed a list of headings and returned nothing -
+   surfacing as "the evidence did not support any report sections", which
+   reads as a verdict on the site manager's reports.
+3. **Raw notes were all-or-nothing.** `written || rawNotes` meant a daily whose
+   sections were drafted at lunchtime lost every Site Capture entry added
+   afterwards.
+
+**`lib/summary-reports/evidence.ts`** is now the whole builder, pure and
+import-free. `dailyEvidenceBlock`, `progressEvidenceBlock` and `buildEvidence`
+return null or empty rather than a bare heading; sections arrive under the
+labels a reader knows ("Works completed:", not "works_completed:");
+`gapFillingNotes` sends raw notes only where they carry material the sections
+do not - measured by `unrepresentedShare`, the proportion of substantive words
+(five letters or containing a digit) in the notes that appear in no section,
+against a stated `RAW_NOTES_THRESHOLD` of 0.25. A daily written up faithfully
+contributes no duplicate; a daily issued without drafting contributes its notes
+as the only account there is; an afternoon captured after drafting comes through
+labelled "Also recorded on site that day".
+
+**The action now fails loudly and reports what it read.** Every evidence read is
+error-checked and returns a named message. When nothing was read it says so
+before a model is called - and says something different for "these two reports
+carry no written content" than for "you have not written anything yet". On
+success the screen says *"6 sections written from 2 Daily Reports"*, so a
+consolidation that silently read nothing can never again look like one that
+worked.
+
+**Progress → Completion was already right and is now proved.** `directDailyIds`
+already excluded rows carrying `via_summary_report_id`, so a day covered by a
+selected Progress Report reaches the writer once, through that report's reviewed
+wording, and stays on the record as provenance. The suite asserts the covered
+day's own words are absent, the uncovered day's are present, and the Progress
+Report's period summary, completed works and next-period text all arrive.
+
 ### The Completion Report, the document a client keeps
 
 **No migration.** `sign_off` was already a section type; what changed is the

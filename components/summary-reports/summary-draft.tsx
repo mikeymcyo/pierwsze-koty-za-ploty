@@ -11,6 +11,16 @@ import type { SummaryReportSection } from "@/types/database";
 
 type Section = Pick<SummaryReportSection, "id" | "section_type" | "content" | "ai_generated">;
 
+
+/** What the evidence actually was, in the words a site manager would use. */
+function describeEvidence(progress: number, daily: number): string {
+  const parts = [
+    progress > 0 ? `${progress} Progress Report${progress === 1 ? "" : "s"}` : null,
+    daily > 0 ? `${daily} Daily Report${daily === 1 ? "" : "s"}` : null,
+  ].filter(Boolean);
+  return parts.length > 0 ? parts.join(" and ") : "what you recorded here";
+}
+
 function GenerateButton({ hasContent }: { hasContent: boolean }) {
   const { pending } = useFormStatus();
   return (
@@ -53,7 +63,11 @@ export function SummaryWriter({
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
       {state.generated !== undefined ? (
         <Alert tone="success">
-          {state.generated} {state.generated === 1 ? "section" : "sections"} written from the evidence.
+          {/* Named sources, not just a count of sections. A consolidation that
+              silently read nothing used to look identical to one that read two
+              rich Daily Reports, and there was no way to tell from the phone. */}
+          {state.generated} {state.generated === 1 ? "section" : "sections"} written from{" "}
+          {describeEvidence(state.fromProgress ?? 0, state.fromDaily ?? 0)}.
           {state.kept
             ? ` ${state.kept} section${state.kept === 1 ? "" : "s"} you edited ${
                 state.kept === 1 ? "was" : "were"

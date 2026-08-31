@@ -9,21 +9,33 @@ import { generateSummarySections } from "@/lib/ai/summary-generation";
 import { requireSessionContext } from "@/lib/auth/session";
 import { partitionDraft } from "@/lib/reports/regeneration";
 import { SUMMARY_REPORT_IS_FINAL } from "@/lib/summary-reports/finalisation";
+import {
+  buildEvidence,
+  noEvidenceMessage,
+  type DailyEvidence,
+  type ProgressEvidence,
+} from "@/lib/summary-reports/evidence";
 import { isStandalone } from "@/lib/summary-reports/provenance";
 import { SUMMARY_SECTION_LABELS, summarySortOrder } from "@/lib/summary-reports/sections";
+import { REPORT_SECTION_LABELS } from "@/lib/report-sections";
 import { reportStructure } from "@/lib/report-structure";
 import { changedSections, readGroupFields } from "@/lib/reports/group-text";
 import { createClient } from "@/lib/supabase/server";
 import type { SummarySectionType } from "@/types/database";
 
-export type SummaryAiState = { error?: string; generated?: number; kept?: number; saved?: boolean };
-
-function sectionText(rows: { section_type: string; content: string | null }[]): string {
-  return rows
-    .filter((row) => row.content?.trim())
-    .map((row) => `${row.section_type.replaceAll("_", " ")}: ${row.content?.trim()}`)
-    .join("\n");
-}
+export type SummaryAiState = {
+  error?: string;
+  generated?: number;
+  kept?: number;
+  saved?: boolean;
+  /**
+   * What the evidence actually amounted to, so the screen can say so. A
+   * consolidation that silently read nothing is the one failure a user cannot
+   * diagnose from the outside - see lib/summary-reports/evidence.ts.
+   */
+  fromDaily?: number;
+  fromProgress?: number;
+};
 
 export async function generateSummaryReport(
   reportId: string,
@@ -49,6 +61,13 @@ export async function generateSummaryReport(
     .order("sort_order", { ascending: true });
   if (sourcesError) return { error: `Could not read the source reports: ${sourcesError.message}` };
 
+  /**
+   * A Daily Report covered by a Progress Report this document is also
+   * consolidating is provenance, not evidence: its words already reached the
+   * reader through that report's reviewed wording, and feeding both would
+   * consolidate the same period twice. `via_summary_report_id` is what records
+   * that, and this is where it is honoured.
+   */
   const directDailyIds = (sources ?? [])
     .filter((source) => source.report_id && !source.via_summary_report_id)
     .map((source) => source.report_id as string);
@@ -56,9 +75,9 @@ export async function generateSummaryReport(
     .filter((source) => source.source_summary_report_id)
     .map((source) => source.source_summary_report_id as string);
 
-  const evidenceBlocks: string[] = [];
+  const progressEvidence: ProgressEvidence[] = [];
   if (progressIds.length > 0) {
-    const [{ data: progress }, { data: progressSections }] = await Promise.all([
+    const [progressResult, progressSectionsResult] = await Promise.all([
       supabase
         .from("summary_reports")
         .select("id, number, title, period_start, period_end")
@@ -70,37 +89,40 @@ export async function generateSummaryReport(
         .in("summary_report_id", progressIds)
         .order("sort_order", { ascending: true }),
     ]);
-    for (const source of progress ?? []) {
-      const content = sectionText(
-        (progressSections ?? []).filter((section) => section.summary_report_id === source.id),
-      );
-      evidenceBlocks.push(
-        [
-          `ISSUED PROGRESS REPORT ${String(source.number).padStart(3, "0")}`,
-          source.title ? `Title: ${source.title}` : null,
-          source.period_start && source.period_end
-            ? `Period: ${source.period_start} to ${source.period_end}`
-            : null,
-          content,
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      );
+    // Read errors were swallowed here. A failure meant a whole source report
+    // vanished from the evidence and the user was told the reports had nothing
+    // in them - which sends somebody looking in exactly the wrong place.
+    const readError = progressResult.error ?? progressSectionsResult.error;
+    if (readError) {
+      return { error: `Could not read the source Progress Reports: ${readError.message}` };
+    }
+    for (const source of progressResult.data ?? []) {
+      progressEvidence.push({
+        number: source.number,
+        title: source.title,
+        periodStart: source.period_start,
+        periodEnd: source.period_end,
+        sections: (progressSectionsResult.data ?? [])
+          .filter((section) => section.summary_report_id === source.id)
+          .map((section) => ({
+            label:
+              SUMMARY_SECTION_LABELS[section.section_type as SummarySectionType] ??
+              section.section_type,
+            content: section.content,
+          })),
+      });
     }
   }
 
+  const dailyEvidence: DailyEvidence[] = [];
   if (directDailyIds.length > 0) {
-    const [
-      { data: daily },
-      { data: dailySections },
-      { data: workforce },
-      { data: plant },
-    ] = await Promise.all([
+    const [dailyResult, dailySectionsResult, workforceResult, plantResult] = await Promise.all([
       supabase
         .from("reports")
         .select("id, report_number, report_date, raw_notes")
         .in("id", directDailyIds)
-        .order("report_date", { ascending: true }),
+        .order("report_date", { ascending: true })
+        .order("report_number", { ascending: true }),
       supabase
         .from("report_sections")
         .select("report_id, section_type, content, sort_order")
@@ -117,31 +139,40 @@ export async function generateSummaryReport(
         .in("report_id", directDailyIds)
         .order("sort_order", { ascending: true }),
     ]);
-    for (const source of daily ?? []) {
-      const written = sectionText(
-        (dailySections ?? []).filter((section) => section.report_id === source.id),
-      );
-      const dailyWorkforce = (workforce ?? [])
-        .filter((row) => row.report_id === source.id)
-        .map(
-          (row) =>
-            `${row.company_name}${row.trade ? ` (${row.trade})` : ""}: ${row.operatives} operative(s)`,
-        )
-        .join("; ");
-      const dailyPlant = (plant ?? [])
-        .filter((row) => row.report_id === source.id)
-        .map((row) => `${row.description} x${row.quantity}`)
-        .join("; ");
-      evidenceBlocks.push(
-        [
-          `FINAL DAILY REPORT ${String(source.report_number).padStart(3, "0")} - ${source.report_date}`,
-          written || (source.raw_notes ? `Source notes: ${source.raw_notes}` : ""),
-          dailyWorkforce ? `Recorded workforce: ${dailyWorkforce}` : null,
-          dailyPlant ? `Recorded plant: ${dailyPlant}` : null,
-        ]
-          .filter(Boolean)
-          .join("\n"),
-      );
+    const readError =
+      dailyResult.error ??
+      dailySectionsResult.error ??
+      workforceResult.error ??
+      plantResult.error;
+    if (readError) {
+      return { error: `Could not read the source Daily Reports: ${readError.message}` };
+    }
+    for (const source of dailyResult.data ?? []) {
+      dailyEvidence.push({
+        number: source.report_number,
+        date: source.report_date,
+        // Labelled as a reader knows them - "Works completed", not
+        // "works_completed" - so the consolidator is reading a report rather
+        // than a database dump.
+        sections: (dailySectionsResult.data ?? [])
+          .filter((section) => section.report_id === source.id)
+          .map((section) => ({
+            label:
+              REPORT_SECTION_LABELS[section.section_type as keyof typeof REPORT_SECTION_LABELS] ??
+              section.section_type,
+            content: section.content,
+          })),
+        rawNotes: source.raw_notes,
+        workforce: (workforceResult.data ?? [])
+          .filter((row) => row.report_id === source.id)
+          .map(
+            (row) =>
+              `${row.company_name}${row.trade ? ` (${row.trade})` : ""}: ${row.operatives} operative(s)`,
+          ),
+        plant: (plantResult.data ?? [])
+          .filter((row) => row.report_id === source.id)
+          .map((row) => `${row.description} x${row.quantity}`),
+      });
     }
   }
 
@@ -205,14 +236,12 @@ export async function generateSummaryReport(
         .in("id", selectedPhotoIds)
     : { data: [] };
   const photoById = new Map((photos ?? []).map((photo) => [photo.id, photo]));
-  const photoEvidence = (selectedPhotos ?? [])
-    .flatMap((selected) => {
-      const photo = photoById.get(selected.photo_id);
-      return photo
-        ? [`[${photo.category}] ${selected.caption_override?.trim() || photo.caption || "uncaptioned photograph"}`]
-        : [];
-    })
-    .join("\n");
+  const photoCaptions = (selectedPhotos ?? []).flatMap((selected) => {
+    const photo = photoById.get(selected.photo_id);
+    return photo
+      ? [`[${photo.category}] ${selected.caption_override?.trim() || photo.caption || "uncaptioned photograph"}`]
+      : [];
+  });
 
   // A report with no source reports is written rather than consolidated - a
   // survey from a visit, or a Progress Report for a period the site manager
@@ -222,30 +251,43 @@ export async function generateSummaryReport(
   // protected from being overwritten further down, so this reads those notes
   // without replacing them.
   const standalone = isStandalone((sources ?? []).length);
+  let own: { label: string; content: string | null }[] | undefined;
   if (standalone) {
-    const { data: own } = await supabase
+    const { data: rows, error: ownError } = await supabase
       .from("summary_report_sections")
       .select("section_type, content, sort_order")
       .eq("summary_report_id", reportId)
       .order("sort_order", { ascending: true });
-    const written = sectionText(own ?? []);
-    if (written) {
-      evidenceBlocks.push(
-        report.kind === "survey"
-          ? `SURVEY NOTES RECORDED ON SITE\n${written}`
-          : `SITE INFORMATION RECORDED FOR THIS PERIOD\n${written}`,
-      );
-    }
+    if (ownError) return { error: `Could not read your notes: ${ownError.message}` };
+    own = (rows ?? []).map((row) => ({
+      label: SUMMARY_SECTION_LABELS[row.section_type as SummarySectionType] ?? row.section_type,
+      content: row.content,
+    }));
   }
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const projectName = project?.name ?? "Project";
-  const evidence = [
-    evidenceBlocks.join("\n\n"),
-    photoEvidence ? `CURATED PHOTOGRAPH CAPTIONS:\n${photoEvidence}` : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+
+  const built = buildEvidence({
+    progress: progressEvidence,
+    daily: dailyEvidence,
+    own,
+    ownHeading:
+      report.kind === "survey"
+        ? "SURVEY NOTES RECORDED ON SITE"
+        : "SITE INFORMATION RECORDED FOR THIS PERIOD",
+    photoCaptions: photoCaptions,
+  });
+  const evidence = built.text;
+
+  // Said before a model is called, and said in terms somebody can act on. A
+  // consolidation of two issued reports that carry no words is a fact about
+  // those reports, not a judgement on the evidence - and it used to arrive as
+  // "the evidence did not support any report sections", which sends somebody
+  // looking in the wrong place entirely.
+  if (built.characters === 0) {
+    return { error: noEvidenceMessage(built, (sources ?? []).length) };
+  }
 
   // Pass one, the Cleanup AI, over the same evidence the drafting pass reads.
   // A survey's material is a visit rather than a period, and its sections ask
@@ -349,7 +391,12 @@ export async function generateSummaryReport(
   if (staleError) console.error("[siteboss] could not clear stale summary sections:", staleError.message);
 
   revalidatePath(`/summary-reports/${reportId}`);
-  return { generated: write.length, kept: kept.length };
+  return {
+    generated: write.length,
+    kept: kept.length,
+    fromDaily: built.dailyCount,
+    fromProgress: built.progressCount,
+  };
 }
 
 const groupSchema = z.object({ groupKey: z.string().min(1) });

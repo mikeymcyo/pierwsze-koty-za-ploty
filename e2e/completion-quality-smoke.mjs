@@ -136,7 +136,9 @@ check(
 );
 check(
   "while the chosen Progress Reports are fed as issued documents",
-  /ISSUED PROGRESS REPORT/.test(aiActions),
+  /progressEvidence\.push\(/.test(aiActions) &&
+    /ISSUED PROGRESS REPORT/.test(read("../lib/summary-reports/evidence.ts")),
+  "the block is built in lib/summary-reports/evidence.ts, where it can be tested",
 );
 check(
   "and the writer is told which to prefer",

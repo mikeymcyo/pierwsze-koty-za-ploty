@@ -35,6 +35,7 @@
     "test:summary-reports": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/summary-reports-smoke.mjs",
     "test:progress-sources": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/progress-sources-smoke.mjs",
     "test:completion-quality": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/completion-quality-smoke.mjs",
+    "test:evidence-flow": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/evidence-flow-smoke.mjs",
     "test:lifecycle": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/lifecycle-smoke.mjs",
     "test:photo-captions": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/photo-captions-smoke.mjs",
     "test:section-roles": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/section-roles-smoke.mjs",
