@@ -6,10 +6,11 @@ import { useFormStatus } from "react-dom";
 
 import { PhotoDetails } from "@/components/reports/photo-details";
 import {
-  PhotoOrderArrows,
+  PhotoOrderCaption,
   PhotoOrderBar,
   PhotoOrderHint,
   usePhotoOrder,
+  usePhotoDrag,
 } from "@/components/reports/photo-reorder";
 import { PhotoUpload } from "@/components/reports/photo-upload";
 import { Alert } from "@/components/ui/alert";
@@ -93,6 +94,7 @@ export function ReportPhotos({
     photos.map((photo) => photo.id),
     (ids) => reorderSummaryPhotos(reportId, ids),
   );
+  const drag = usePhotoDrag({ enabled: reordering, order });
   const byId = new Map(photos.map((photo) => [photo.id, photo]));
   const ordered = order.ids.flatMap((id) => {
     const photo = byId.get(id);
@@ -139,9 +141,24 @@ export function ReportPhotos({
       {reordering ? <PhotoOrderHint /> : null}
 
       {photos.length > 0 ? (
-        <ul className="grid gap-4 sm:grid-cols-2">
+        <ul
+          {...drag.gridProps}
+          className="grid gap-4 sm:grid-cols-2"
+        >
           {ordered.map((photo, index) => (
-            <li key={photo.id} className="flex flex-col gap-2 rounded-xl border border-line p-3">
+            <li
+              key={photo.id}
+              {...drag.tileProps(photo.id, index)}
+              className={[
+                "flex flex-col gap-2 rounded-xl border p-3 transition-transform",
+                reordering ? "touch-manipulation select-none" : "",
+                drag.dragging === photo.id
+                  ? "z-10 scale-105 border-brand opacity-90 shadow-lg [&_*]:pointer-events-none"
+                  : "border-line",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
               <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-2">
                   <span className="rounded-md bg-surface-muted px-2 py-1 font-mono text-xs font-semibold tabular-nums text-ink">
@@ -174,12 +191,7 @@ export function ReportPhotos({
               </div>
 
               {reordering ? (
-                <PhotoOrderArrows
-                  index={index}
-                  count={ordered.length}
-                  onMove={(direction) => order.move(photo.id, direction)}
-                  caption={photo.caption}
-                />
+                <PhotoOrderCaption index={index} caption={photo.caption} />
               ) : manage ? (
                 /* The same caption and AI description used everywhere else. */
                 <PhotoDetails

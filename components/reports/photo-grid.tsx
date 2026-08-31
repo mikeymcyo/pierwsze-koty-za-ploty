@@ -8,10 +8,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { PhotoDetails } from "@/components/reports/photo-details";
 import {
-  PhotoOrderArrows,
+  PhotoOrderCaption,
   PhotoOrderBar,
   PhotoOrderHint,
   usePhotoOrder,
+  usePhotoDrag,
 } from "@/components/reports/photo-reorder";
 import { photoPrintLabel, photoPrintLabelText } from "@/lib/photo-captions";
 import { photoReference } from "@/lib/pdf/photo-evidence";
@@ -81,6 +82,7 @@ export function PhotoGrid({
   });
 
   const canReorder = Boolean(reportId) && deletable && photos.length > 1;
+  const drag = usePhotoDrag({ enabled: reordering && canReorder, order });
 
   return (
     <div className="flex flex-col gap-3">
@@ -94,13 +96,28 @@ export function PhotoGrid({
 
       {reordering ? <PhotoOrderHint /> : null}
 
-      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+      <ul
+        {...drag.gridProps}
+        className="grid grid-cols-2 gap-3 sm:grid-cols-3"
+      >
         {ordered.map((photo, index) => {
           const label = photoPrintLabel(photo);
           const alt = photoPrintLabelText(photo);
 
           return (
-            <li key={photo.id} className="flex flex-col gap-2">
+            <li
+              key={photo.id}
+              {...drag.tileProps(photo.id, index)}
+              className={[
+                "flex flex-col gap-2 transition-transform",
+                reordering ? "touch-manipulation select-none" : "",
+                drag.dragging === photo.id
+                  ? "z-10 scale-105 opacity-90 [&_*]:pointer-events-none"
+                  : "",
+              ]
+                .filter(Boolean)
+                .join(" ")}
+            >
               <div className="relative aspect-square overflow-hidden rounded-xl border border-line bg-surface-muted">
                 {photo.url ? (
                   // Signed Supabase URLs expire, so next/image's optimiser would
@@ -144,12 +161,7 @@ export function PhotoGrid({
               </div>
 
               {reordering ? (
-                <PhotoOrderArrows
-                  index={index}
-                  count={ordered.length}
-                  onMove={(direction) => order.move(photo.id, direction)}
-                  caption={label.caption}
-                />
+                <PhotoOrderCaption index={index} caption={label.caption} />
               ) : editable ? (
                 <PhotoDetails
                   photoId={photo.id}

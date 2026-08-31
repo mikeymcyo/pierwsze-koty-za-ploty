@@ -138,8 +138,13 @@ check(
 
 console.log("\n7c. One reorder control, not two");
 const control = read("../components/reports/photo-reorder.tsx");
-check("the state, debounce and arrows live in one module", /export function usePhotoOrder/.test(control));
-check("with one set of controls", /export function PhotoOrderBar/.test(control) && /export function PhotoOrderArrows/.test(control));
+check("the state, debounce and gesture live in one module", /export function usePhotoOrder/.test(control));
+check(
+  "with one set of controls",
+  /export function PhotoOrderBar/.test(control) &&
+    /export function usePhotoDrag/.test(control) &&
+    /export function PhotoOrderCaption/.test(control),
+);
 for (const [name, file] of [
   ["the daily grid", "../components/reports/photo-grid.tsx"],
   ["the consolidated list", "../components/summary-reports/report-photos.tsx"],
@@ -193,13 +198,63 @@ check(
 );
 check("each plate shows the number it will print as", /photoReference\(index\)/.test(grid));
 check(
-  "and the arrows say which plate they move",
-  /Move \$\{photoReference\(index\)\} earlier/.test(control),
+  "and a plate says what it is and how to move it",
+  /Photograph \$\{photoReference\(index\)\}\. Hold and drag to move it/.test(control),
 );
 check("the pair rule is on the screen, not just in the PDF", /appear side by side/.test(control));
 check(
   "captions travel with the photograph, not the position",
   /photoId=\{photo\.id\}/.test(grid) && /caption=\{photo\.caption\}/.test(grid),
+);
+
+
+console.log("\n8b. The drag is built to survive a phone");
+
+check(
+  "a drag begins on a hold, not on contact, so the grid can still be scrolled",
+  /const HOLD_MS = \d+/.test(control) && /setTimeout\(/.test(control),
+);
+check(
+  "movement before the hold completes hands the gesture back to the page",
+  /travelled > SLOP_PX/.test(control),
+);
+check(
+  "the pointer is captured, so a fast drag keeps its target",
+  /setPointerCapture\(pointerId\)/.test(control),
+);
+check(
+  "and a browser that refuses the capture does not break the screen",
+  /try \{[\s\S]{0,140}setPointerCapture[\s\S]{0,120}\} catch/.test(control),
+);
+check(
+  "the scroll lock is native and non-passive - React's own touch listeners are passive",
+  /addEventListener\("touchmove", hold, \{ passive: false \}\)/.test(control),
+);
+check(
+  "and it is taken off again when the drag ends",
+  /removeEventListener\("touchmove", hold\)/.test(control),
+);
+check(
+  "the drop target is hit-tested live, because the tiles reflow under the finger",
+  /elementFromPoint/.test(control) && /\[data-photo-id\]/.test(control),
+);
+check(
+  "one set of listeners on the grid rather than a closure per tile",
+  /gridProps/.test(control) && /tileProps/.test(control),
+);
+check(
+  "the lifted tile stops taking pointer events, so the test sees underneath it",
+  /pointer-events-none/.test(grid) &&
+    /pointer-events-none/.test(read("../components/summary-reports/report-photos.tsx")),
+);
+check(
+  "arrow keys still move a plate, for anybody not using a pointer",
+  /ArrowLeft/.test(control) && /order\.move\(id, "earlier"\)/.test(control),
+);
+check("and no dependency was added for any of it", !/dnd|sortable|dragula/i.test(read("../package.json")));
+check(
+  "both screens drag through the shared hook",
+  /usePhotoDrag/.test(grid) && /usePhotoDrag/.test(read("../components/summary-reports/report-photos.tsx")),
 );
 
 console.log("\n9. The order reaches the document");

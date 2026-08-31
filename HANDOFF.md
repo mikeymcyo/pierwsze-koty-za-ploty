@@ -32,6 +32,69 @@ The current implementation completes the core workflow:
   snapshots its issue status and resolution.
 - Reports, Project detail and Dashboard list all three document types.
 
+
+### Photographs are arranged by dragging them
+
+The arrows in `578d3f4` worked and were slow: putting plate eleven next to
+plate two was nine taps. They are replaced by press-and-hold drag, in the same
+module - `usePhotoDrag` sits beside `usePhotoOrder` in
+`components/reports/photo-reorder.tsx`, and the daily grid and the consolidated
+list both compose it, so there is still one reorder control rather than two.
+
+Four things make it work on a phone, and each was a way to fail:
+
+- **A hold, not a contact.** 200ms, and more than 10px of travel before that
+  hands the gesture back to the page - the whole screen is photographs, so
+  every scroll starts on one.
+- **`setPointerCapture` on the grid**, or a fast drag loses its target halfway
+  across.
+- **The scroll lock is a native `touchmove` listener registered
+  `{ passive: false }`.** React attaches its own touch listeners passively, so
+  `preventDefault` inside `onTouchMove` is ignored and the page scrolls out
+  from under the drag. Bound only while a drag is running.
+- **`elementFromPoint` on every move**, not rectangles measured at the start:
+  the tiles reflow as the order changes under the finger. The lifted tile stops
+  taking pointer events so the hit test sees what is beneath it.
+
+One set of listeners on the grid rather than a closure per tile - which is also
+what keeps `react-hooks/refs` happy, since nothing is computed from a ref
+during render. **Arrow keys still move a plate**, so a keyboard is not shut out
+by a gesture. No dependency was added. `usePhotoOrder`, its debounce, the
+one-based `sort_order`, the `isSameSet` guard and the refusal on an issued
+report are all unchanged.
+
+**No migration.** `npm run test:photo-order` covers the gesture's contract.
+
+### Rotation: the proposal, not applied
+
+Rotating a photograph has nowhere to be stored. `photos` carries `width`,
+`height` and no orientation, and re-encoding the stored object is out - it is
+the evidence. So it needs a migration, and the instruction was to stop and
+report first. The smallest safe approach:
+
+```sql
+alter table public.photos
+  add column rotation smallint not null default 0
+  check (rotation in (0, 90, 180, 270));
+```
+
+Additive, one column, nothing rewritten; every existing row reads 0 and looks
+exactly as it does today. Then:
+
+- **Screens**: `rotate(Ndeg)` on the thumbnail inside its existing square
+  frame. Cheap and exact.
+- **PDF**: the risky half. `@react-pdf/renderer` has limited `transform`
+  support, and a quarter turn also swaps the plate's aspect ratio, so
+  `lib/pdf/image-size.ts` and `photoBoxSize` must swap width and height for odd
+  turns. This wants proving against a rendered PDF before it is trusted -
+  `test:pdf-template` already measures page counts and plate boxes, which is
+  where that proof belongs.
+- **Issued reports**: refuse the write when the owning report is final, the
+  rule every other photo write already uses. Stored PDFs are files and are
+  never re-rendered, so nothing historical moves.
+- **Caption, status and AI description** are columns on the same row and follow
+  the photograph without being touched.
+
 ### Standalone Completion, free dates, one fact one section, and photo order
 
 **A Completion Report can be written directly.** It was the last document that
