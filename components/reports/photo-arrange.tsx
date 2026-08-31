@@ -10,19 +10,14 @@ import {
   MouseSensor,
   TouchSensor,
   closestCenter,
+  useDraggable,
+  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { restrictToWindowEdges } from "@dnd-kit/modifiers";
-import {
-  SortableContext,
-  rectSortingStrategy,
-  sortableKeyboardCoordinates,
-  useSortable,
-} from "@dnd-kit/sortable";
-import { CSS } from "@dnd-kit/utilities";
 
 import { Button } from "@/components/ui/button";
 import { photoReference } from "@/lib/pdf/photo-evidence";
@@ -58,6 +53,10 @@ export type ArrangeablePhoto = {
  *   photograph up. `touch-action: manipulation` lets that scroll through.
  * - **DragOverlay**, so the thing under the finger is a real lifted tile
  *   rather than a hole in the grid.
+ * - **A swap, not an insertion.** Dropping one photograph onto another
+ *   exchanges the two and moves nothing else, and the grid stands perfectly
+ *   still while the finger travels - the tile it is over lights up, and that
+ *   is the only thing that changes until the drop.
  * - **Auto-scroll** is dnd-kit's own, and works because this view owns its
  *   scroll container.
  * - **A dedicated view.** Captions, delete buttons and the AI have nothing to
@@ -102,7 +101,7 @@ export function PhotoArrangeView({
     // photograph.
     useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(KeyboardSensor),
   );
 
   const byId = new Map(photos.map((photo) => [photo.id, photo]));
@@ -120,9 +119,9 @@ export function PhotoArrangeView({
     setLifted(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    // The index it was dropped on is where it goes. usePhotoOrder holds the
-    // order and debounces the write, exactly as it did for the arrows.
-    order.moveTo(String(active.id), order.ids.indexOf(String(over.id)));
+    // The two photographs exchange places, and nothing else moves.
+    // usePhotoOrder holds the order and debounces the write.
+    order.swap(String(active.id), String(over.id));
   }
 
   // Never server-rendered - it only exists once somebody has pressed Arrange -
@@ -153,8 +152,8 @@ export function PhotoArrangeView({
       </header>
 
       <p className="px-4 pt-3 text-sm text-ink-muted">
-        Press and hold a photograph, then drag it into place. They are numbered
-        and printed in this order.
+        Press and hold a photograph, then drop it on another to swap the two.
+        Nothing else moves. They are numbered and printed in this order.
       </p>
 
       {/* This view owns its scrolling, which is what lets dnd-kit scroll it
@@ -167,13 +166,11 @@ export function PhotoArrangeView({
           onDragEnd={onDragEnd}
           onDragCancel={() => setLifted(null)}
         >
-          <SortableContext items={order.ids} strategy={rectSortingStrategy}>
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              {ordered.map((photo, index) => (
-                <ArrangeTile key={photo.id} photo={photo} index={index} />
-              ))}
-            </ul>
-          </SortableContext>
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            {ordered.map((photo, index) => (
+              <ArrangeTile key={photo.id} photo={photo} index={index} />
+            ))}
+          </ul>
 
           {/* What the finger is actually holding. */}
           <DragOverlay modifiers={[restrictToWindowEdges]}>
@@ -213,26 +210,37 @@ function Thumbnail({ photo }: { photo: ArrangeablePhoto }) {
 }
 
 function ArrangeTile({ photo, index }: { photo: ArrangeablePhoto; index: number }) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+  // Both at once: every tile can be picked up, and every tile is somewhere a
+  // photograph can be dropped. Nothing here is a sortable list, because a
+  // sortable list reflows - see swapPhotos in lib/photos-order.ts for why the
+  // grid has to stand still.
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
     id: photo.id,
   });
+  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: photo.id });
 
   return (
     <li
-      ref={setNodeRef}
+      ref={(node) => {
+        setDragRef(node);
+        setDropRef(node);
+      }}
       style={{
-        transform: CSS.Transform.toString(transform),
-        transition,
         // Scrolling still works: the touch sensor's delay lets a swipe through
         // and only takes the gesture once a finger has held still.
         touchAction: "manipulation",
-        // The gap left behind is the insertion point, and the neighbours
-        // sliding around it are what show where the photograph will land.
+        // The one it came from, dimmed. Its position does not change, and no
+        // neighbour moves - the only thing travelling is the overlay under the
+        // finger.
         opacity: isDragging ? 0.35 : 1,
       }}
       {...attributes}
       {...listeners}
-      className="flex cursor-grab flex-col gap-1 rounded-xl border border-line bg-surface p-1 select-none active:cursor-grabbing"
+      className={[
+        "flex cursor-grab flex-col gap-1 rounded-xl border-2 bg-surface p-1 transition-colors select-none active:cursor-grabbing",
+        // What it will swap with, said plainly while the finger is still down.
+        isOver && !isDragging ? "border-brand bg-brand/10" : "border-line",
+      ].join(" ")}
     >
       <Thumbnail photo={photo} />
       <div className="flex items-center justify-between gap-1 px-1 pb-0.5">

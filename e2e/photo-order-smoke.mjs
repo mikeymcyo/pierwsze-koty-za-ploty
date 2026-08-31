@@ -15,6 +15,7 @@ import {
   UNORDERED,
   isSameSet,
   movePhoto,
+  swapPhotos,
   movePhotoEarlier,
   movePhotoLater,
   sortOrderValues,
@@ -34,6 +35,30 @@ check("one step earlier", movePhotoEarlier(IDS, "c").join() === "a,c,b,d");
 check("one step later", movePhotoLater(IDS, "b").join() === "a,c,b,d");
 check("to the front", movePhoto(IDS, "d", 0).join() === "d,a,b,c");
 check("to the back", movePhoto(IDS, "a", 3).join() === "b,c,d,a");
+
+console.log("\n1b. A drag swaps two photographs and moves nothing else");
+
+// The tester's example, exactly. Dropping P01 onto P03 must give C, B, A, D -
+// not the B, C, A, D that an insertion produces. A report somebody has already
+// put in order must not come apart because they moved one picture.
+const ABCD = ["a", "b", "c", "d"];
+check("dropping the first onto the third exchanges the two", swapPhotos(ABCD, "a", "c").join() === "c,b,a,d");
+check("and the two between them do not move", swapPhotos(ABCD, "a", "d").join() === "d,b,c,a");
+check("it is not an insertion", swapPhotos(ABCD, "a", "c").join() !== movePhoto(ABCD, "a", 2).join());
+check("neighbours swap like a one-step move", swapPhotos(ABCD, "a", "b").join() === movePhotoLater(ABCD, "a").join());
+check("a photograph dropped on itself changes nothing", swapPhotos(ABCD, "b", "b").join() === ABCD.join());
+check("an unknown id changes nothing", swapPhotos(ABCD, "zz", "b").join() === ABCD.join());
+check("and neither does an unknown target", swapPhotos(ABCD, "b", "zz").join() === ABCD.join());
+check("the original list is never altered", ABCD.join() === "a,b,c,d");
+check(
+  "nothing is lost or duplicated, whichever two are swapped",
+  ABCD.every((from) =>
+    ABCD.every((to) => {
+      const next = swapPhotos(ABCD, from, to);
+      return next.length === 4 && new Set(next).size === 4;
+    }),
+  ),
+);
 
 console.log("\n2. A tap that cannot mean anything does nothing");
 check("the first cannot go earlier", movePhotoEarlier(IDS, "a").join() === IDS.join());
@@ -210,7 +235,7 @@ check(
 check("each plate shows the number it will print as", /photoReference\(index\)/.test(arrangeView));
 check(
   "and the view says how to move a plate",
-  /Press and hold a photograph, then drag it into place/.test(arrangeView),
+  /Press and hold a photograph, then drop it on another to swap the two/.test(arrangeView),
 );
 check(
   "captions travel with the photograph, not the position",
@@ -227,8 +252,10 @@ console.log("\n8b. The drag is a maintained library, not a third hand-written ge
 // aside, auto-scroll at the edges and a delay that tells a drag from a scroll.
 const dependencies = JSON.parse(read("../package.json")).dependencies;
 
-check("the sortable is a maintained library", Boolean(dependencies["@dnd-kit/sortable"]));
-check("with its core", Boolean(dependencies["@dnd-kit/core"]));
+// dnd-kit core alone: the sortable package went with the insertion behaviour
+// it existed to provide.
+check("the drag is a maintained library", Boolean(dependencies["@dnd-kit/core"]));
+check("and the sortable list it no longer needs is gone", !dependencies["@dnd-kit/sortable"]);
 check(
   "no hand-written gesture is left behind",
   !/elementFromPoint|setPointerCapture|passive: false/.test(arrangeView) &&
@@ -257,9 +284,27 @@ check(
   "the lifted photograph is a real tile following the finger",
   /<DragOverlay/.test(arrangeView),
 );
+// The grid stands still. An insertion-style sortable reflows every tile
+// between the two, which is what made a drag feel like it had taken the report
+// apart. Here the only things that change before the drop are the lifted
+// tile's opacity and the highlight on the one under the finger.
 check(
-  "the neighbours move aside to show where it lands",
-  /rectSortingStrategy/.test(arrangeView) && /opacity: isDragging/.test(arrangeView),
+  "nothing reflows: the tiles are droppables, not a sortable list",
+  /useDroppable/.test(arrangeView) &&
+    /useDraggable/.test(arrangeView) &&
+    !/SortableContext|rectSortingStrategy|useSortable/.test(arrangeView),
+);
+check(
+  "the tile it is over lights up, so the swap is obvious before the drop",
+  /isOver && !isDragging/.test(arrangeView) && /border-brand/.test(arrangeView),
+);
+check(
+  "and the one it came from is dimmed where it stands",
+  /opacity: isDragging \? 0\.35 : 1/.test(arrangeView),
+);
+check(
+  "no tile is ever transformed, so the grid cannot shuffle under a finger",
+  !/CSS\.Transform/.test(arrangeView),
 );
 check(
   "the view owns its scrolling, which is what lets it auto-scroll",
@@ -278,7 +323,12 @@ check(
 );
 check(
   "the order it produces goes through the same debounced save as before",
-  /order\.moveTo\(/.test(arrangeView) && /usePhotoOrder/.test(control),
+  /order\.swap\(/.test(arrangeView) && /usePhotoOrder/.test(control),
+);
+check(
+  "and the swap happens on the drop, not while the finger moves",
+  /function onDragEnd[\s\S]{0,400}order\.swap\(/.test(arrangeView) &&
+    !/onDragOver/.test(arrangeView),
 );
 
 console.log("\n9. The order reaches the document");

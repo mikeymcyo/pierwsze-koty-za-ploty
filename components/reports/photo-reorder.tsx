@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { ListOrdered } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { movePhoto, movePhotoEarlier, movePhotoLater } from "@/lib/photos-order";
+import { movePhotoEarlier, movePhotoLater, swapPhotos } from "@/lib/photos-order";
 
 /**
  * Putting photographs in the order they will print, in one place.
@@ -35,8 +35,13 @@ export type PhotoOrder = {
   ids: string[];
   /** Move one photograph one place, and schedule the save. */
   move: (id: string, direction: "earlier" | "later") => void;
-  /** Move it straight to a position - what a drag does - and schedule the save. */
-  moveTo: (id: string, index: number) => void;
+  /**
+   * Exchange two photographs - what a drag does - and schedule the save.
+   *
+   * A swap rather than an insertion: dropping one plate onto another changes
+   * those two numbers and leaves every other photograph exactly where it was.
+   */
+  swap: (a: string, b: string) => void;
   pending: boolean;
   saved: boolean;
   error: string | null;
@@ -85,8 +90,8 @@ export function usePhotoOrder(
     ids: order.ids,
     move: (id: string, direction: "earlier" | "later") =>
       apply(direction === "earlier" ? movePhotoEarlier(order.ids, id) : movePhotoLater(order.ids, id)),
-    // What a drag does: straight to a position, however far away.
-    moveTo: (id: string, index: number) => apply(movePhoto(order.ids, id, index)),
+    // What a drag does: the two exchange places, and nothing else moves.
+    swap: (a: string, b: string) => apply(swapPhotos(order.ids, a, b)),
     pending,
     saved,
     error,

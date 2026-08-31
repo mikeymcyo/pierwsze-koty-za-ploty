@@ -31,6 +31,33 @@
 export const UNORDERED = 0;
 
 /**
+ * Exchange two photographs, and leave everything else exactly where it is.
+ *
+ * This is what a drag does. Dropping P01 onto P03 makes P01's photograph P03
+ * and P03's photograph P01; P02 and P04 do not move at all.
+ *
+ * Deliberately not an insertion. Inserting is what a sortable list does by
+ * default, and on a page of plates it is the wrong model: dragging one
+ * photograph three places along renumbered every plate between them, so a
+ * report somebody had already put in order came apart because they moved one
+ * picture. A swap changes two numbers and nothing else, which is what somebody
+ * looking at a grid of photographs means by "put that one there".
+ *
+ * Unknown ids, or the same id twice, leave the list alone - an accidental drop
+ * onto the photograph already under the finger is not a change.
+ */
+export function swapPhotos(ids: readonly string[], a: string, b: string): string[] {
+  const from = ids.indexOf(a);
+  const to = ids.indexOf(b);
+  if (from === -1 || to === -1 || from === to) return [...ids];
+
+  const next = [...ids];
+  next[from] = b;
+  next[to] = a;
+  return next;
+}
+
+/**
  * Move one photograph to a new position.
  *
  * Returns the ids in their new order, or the list unchanged when the move
@@ -49,7 +76,12 @@ export function movePhoto(ids: readonly string[], id: string, to: number): strin
   return next;
 }
 
-/** One step towards the front of the report, or nothing at the front. */
+/**
+ * One step towards the front of the report, or nothing at the front.
+ *
+ * For neighbours a move and a swap are the same thing, so the keyboard and the
+ * drag agree about what one step means.
+ */
 export function movePhotoEarlier(ids: readonly string[], id: string): string[] {
   return movePhoto(ids, id, ids.indexOf(id) - 1);
 }

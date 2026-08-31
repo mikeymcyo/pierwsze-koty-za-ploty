@@ -47,6 +47,15 @@ the edges, and a keyboard sensor. One implementation, opened by the same
 save, so nothing about `sort_order`, `isSameSet` or the refusal on an issued
 report moved.
 
+**A drag swaps two photographs; it does not insert one.** Dropping P01 onto
+P03 gives C, B, A, D - not the B, C, A, D an insertion produces. That was the
+tester's second finding: a sortable list reflows every tile between the two, so
+moving one picture renumbered a report somebody had already put in order. The
+tiles are now `useDraggable` + `useDroppable` rather than a `SortableContext`,
+nothing is ever transformed, and the only things that change before the drop
+are the lifted tile's opacity and the highlight on the one under the finger.
+`@dnd-kit/sortable` went with the behaviour it existed to provide.
+
 **The sensor split is load-bearing.** `MouseSensor` (distance 8) plus
 `TouchSensor` (delay 200ms, tolerance 8) rather than the single `PointerSensor`
 that covers both: a pointer sensor also receives touch, so it claims the
