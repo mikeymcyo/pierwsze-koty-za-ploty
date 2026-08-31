@@ -282,7 +282,7 @@ export const LENGTH_GUIDED_SECTIONS: Readonly<Record<string, number>> = {
  * commas moved. This is raw material.
  */
 export const CLEANUP_SOURCE_LABEL =
-  "SOURCE MATERIAL (dictated or typed on site, rough and unpunctuated - raw material to be rewritten, not text to be corrected):";
+  "SOURCE MATERIAL (dictated or typed on site, rough and unpunctuated, possibly captured in several entries across one day - raw material to be rewritten, not text to be corrected):";
 
 /**
  * Media are described by their metadata, never by what they look like: the
@@ -363,6 +363,25 @@ export const CLEANUP_SYSTEM_PROMPT_HEAD = [
   "- Terminology. Use the glossary below, consistently, every time.",
   "- Structure. Consolidate scattered or repeated notes about the same work into",
   "  one statement. One item of work, one description.",
+  "",
+  "CAPTURED ACROSS A DAY",
+  "",
+  "The source may arrive as several entries, each opened by a bracketed clock",
+  "time on its own line - [08:14], [10:32], [14:05]. These are the moments the",
+  "site manager stopped to speak, collected through one working day into one",
+  "report. Consolidate all of them into each section as a single account of the",
+  "day: the same wall described at 08:14 and again at 14:05 is one item of work,",
+  "not two.",
+  "",
+  "The bracketed time is when it was said, which is not necessarily when it",
+  "happened. Never print it, never turn it into a heading, and never state it as",
+  "the time of an event. Times stated inside the words - \"the delivery came at",
+  "half seven\" - are facts and are carried through exactly, like any other.",
+  "",
+  "Where the entries record a change over the day, the later entry is the",
+  "current position: work described as underway at 08:14 and finished by 14:05",
+  "is completed. Where they contradict each other on a fact, keep both readings",
+  "or write the conservative one - never silently pick the later.",
   "- Voice. Impersonal - \"works were completed\", never \"I did\" or \"we did\".",
   "- Length. Concise. A cleaned section is shorter than the rambling notes it",
   "  came from, never longer.",

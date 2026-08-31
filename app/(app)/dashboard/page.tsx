@@ -7,6 +7,7 @@ import {
   FileText,
   FolderKanban,
   HardHat,
+  Mic,
   Plus,
   Store,
 } from "lucide-react";
@@ -123,7 +124,7 @@ export default async function DashboardPage() {
       {/* The three things somebody opens this app to do, one tap from the top
           of the screen rather than found through a menu. */}
       <div className="grid grid-cols-3 gap-3">
-        <QuickAction href="/reports/new" icon={<FileText aria-hidden />} label="Daily report" primary />
+        <QuickAction href="/reports/new" icon={<Mic aria-hidden />} label="Site Capture" primary />
         <QuickAction href="/projects/new" icon={<Plus aria-hidden />} label="New project" />
         <QuickAction href="/stores" icon={<Store aria-hidden />} label="Store locator" />
       </div>

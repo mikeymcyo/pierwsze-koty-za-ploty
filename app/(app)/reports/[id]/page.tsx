@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, Mic } from "lucide-react";
 
 import { saveReportDocuments } from "@/app/(app)/documents/actions";
 import { applyDailyReview, reviewDailyReport } from "@/app/(app)/reports/review-actions";
@@ -274,6 +274,21 @@ export default async function ReportCapturePage({
           {report.status === "final" ? "Final" : reopened ? "Reopened" : "Draft"}
         </Badge>
       </header>
+
+      {/* Back to the microphone. The report screen is where a day is finished -
+          drafted, reviewed, issued - but a draft is often still being collected
+          into, and making somebody navigate to the project to speak again would
+          be the long way round. */}
+      {isFinal ? null : (
+        <div>
+          <Button asChild size="lg">
+            <Link href={`/reports/${report.id}/capture`}>
+              <Mic aria-hidden />
+              Site Capture
+            </Link>
+          </Button>
+        </div>
+      )}
 
       {isFinal ? (
         <Alert tone="info">

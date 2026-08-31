@@ -34,6 +34,77 @@ The current implementation completes the core workflow:
 
 
 
+### Site Capture: one Daily Report, collected into all day
+
+**No migration.** `npm run test:site-capture` covers the whole contract.
+
+Site Capture is the prominent action on a project, on the site chooser at
+`/reports/new`, on the dashboard, and on a draft report. It is the fastest path
+from standing on site to a Daily Report, and it is used repeatedly through the
+day rather than once at the end of it.
+
+**Choosing the report.** `openSiteCapture` in
+`app/(app)/reports/capture-actions.ts` looks for a report on this project that
+is still a draft and dated today, oldest first, and opens
+`/reports/{id}/capture`. Only when there is none does it insert one and let the
+`reports_assign_number` trigger allocate the number, exactly as `startReport`
+always did, with the same workforce and plant carry-over - now in
+`lib/reports/carry-over.ts` so both entry points share it. The match is narrow
+on purpose: a draft left over from yesterday is somebody's unfinished report,
+and appending this morning's work to it would file today's site under
+yesterday's date. "Today" is computed as UTC, the same basis as the
+`current_date` default the column already uses.
+
+**Storing repeated captures.** Every capture is appended to `reports.raw_notes`,
+which already means "what the user actually said, word for word" and is already
+the source the Cleanup AI reads. `lib/reports/capture-log.ts` owns the format
+and is pure, so a test loads it straight into Node:
+
+    [08:00] Poured the slab in the north bay.
+
+    [10:30] Steel delivery arrived, offloaded to the compound.
+
+A line beginning `[HH:MM]` opens an entry; everything else belongs to the entry
+above it. Three properties carry the weight:
+
+- **Appending never rewrites.** `appendCapture` returns the previous text
+  unchanged with the new entry after it - the result always *starts with*
+  everything already there. The suite asserts that as a property over eight
+  different starting shapes, not as one example.
+- **The form never posts the day back.** Only the new words are submitted, and
+  the server reads the existing notes from the database. A phone left open in a
+  van since eight o'clock has nothing to overwrite. The write is conditional on
+  the notes still being what was just read - `.eq("raw_notes", …)`, or
+  `.is(…, null)` on the first capture - and re-reads and retries up to three
+  times if another device got there first. PostgREST cannot express
+  `set raw_notes = raw_notes || $1`, and this is the honest alternative.
+- **Markers carry no status.** Damage one, mistype one, or type `[10:30]` in
+  the middle of a sentence, and the worst that happens is where the on-screen
+  list draws a boundary. No word is lost and nothing moves between stored
+  sections - the tester's rule from the section-boundary batch, which is why
+  `report_sections` was not the place for this even before its
+  `unique (report_id, section_type)` made it impossible.
+
+`raw_notes` is not printed in the PDF - it is an on-screen record and an AI
+source - so the chronology stays internal and the issued document stays a
+report rather than a timeline. Reports written before Site Capture existed have
+no markers and read as one untimed entry.
+
+**The screen** (`app/(app)/reports/[id]/capture/page.tsx`) is four things:
+a full-width `DictationField` with `prominent` set - the same component, not a
+second implementation - the same `PhotoUpload` and `PhotoGrid` as the report,
+a `<details>` holding the day so far, and Continue later / Finish the report.
+The box clears only when a capture actually landed: it is keyed on the server's
+entry count, so a failed save leaves every word where the user left it. An
+issued report redirects to the document.
+
+**The end of the day is unchanged.** Cleanup, Master AI Review, preview,
+finalise and share all work exactly as before; the Cleanup AI is simply told
+that its source may arrive as several timestamped entries, to consolidate them
+into one account of the day, to treat the later entry as the current position,
+and never to print a capture time as the time of an event - while times said
+out loud stay facts like any other.
+
 ### Arranging is dnd-kit, in a view of its own
 
 The hand-written long-press drag felt wrong on a real iPhone, so it is gone.
@@ -104,22 +175,24 @@ report are all unchanged.
 
 **No migration.** `npm run test:photo-order` covers the gesture's contract.
 
-### Rotation: written and tested, migration NOT APPLIED
+### Migration `20260901000009_photo_rotation.sql` is APPLIED
 
 A photograph can be turned left or right a quarter at a time inside Arrange
 mode, on all four report kinds. **The stored object is never touched.** The
 turn is a number on the row; the bytes in the bucket are the evidence and are
 read, drawn and printed exactly as they were uploaded.
 
-**`supabase/migrations/20260901000009_photo_rotation.sql` is written and has
-NOT been applied.** Nobody ran `supabase db push`. Until somebody does, this
-code does not work against the live database: six SELECTs now ask for
-`photos.rotation`, and PostgREST rejects a column that does not exist, so
-photographs stop loading on the report page, the preview route, finalise, the
-summary report page, summary PDF data and the project page. **Apply the
-migration before deploying this commit.** Rollback is one line and is written
-into the migration file: `alter table public.photos drop column if exists
-rotation;`
+The migration was applied to the hosted project on 2026-08-31, through the
+Supabase MCP `apply_migration` tool rather than `supabase db push`, and is
+recorded in the ledger as `20260831170716 photo_rotation`. It was deployed
+before the migration once, which is what caused the live 42703: six SELECTs ask
+for `photos.rotation`, and PostgREST rejects a column that does not exist.
+**That is the lesson for the next additive column - the migration goes first.**
+Verified after applying: the column is `smallint NOT NULL default 0`, the check
+constraint is validated, row counts, policy counts, index counts and the
+caption/category/`storage_path` fingerprint were all unchanged, and the app's
+query shape runs. Rollback is one line and is written into the migration file:
+`alter table public.photos drop column if exists rotation;`
 
 The column is additive - `smallint not null default 0` with a check constraint
 of `(0, 90, 180, 270)` - so every row already stored reads 0 and looks exactly

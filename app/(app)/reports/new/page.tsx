@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { HardHat, Plus } from "lucide-react";
+import { HardHat, Mic } from "lucide-react";
 
-import { startReport } from "@/app/(app)/reports/actions";
+import { openSiteCapture } from "@/app/(app)/reports/capture-actions";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -12,7 +12,7 @@ import { requireSessionContext } from "@/lib/auth/session";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 
-export const metadata: Metadata = { title: "Create Daily Report" };
+export const metadata: Metadata = { title: "Site Capture" };
 
 export default async function NewReportPage() {
   await requireSessionContext();
@@ -36,11 +36,11 @@ export default async function NewReportPage() {
     <div className="flex flex-col gap-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
-          Create Daily Report
+          Site Capture
         </h1>
         <p className="text-sm text-ink-muted">
-          Pick the site you are on. The date, your name and the report number are
-          filled in for you.
+          Pick the site you are on. If today&apos;s report is already going, this
+          opens it where you left off - it never starts a second one.
         </p>
       </header>
 
@@ -62,7 +62,7 @@ export default async function NewReportPage() {
           {projects.map((project) => (
             <li key={project.id}>
               <Card>
-                <form action={startReport} className="flex items-center gap-4 p-5">
+                <form action={openSiteCapture} className="flex items-center gap-4 p-5">
                   <input type="hidden" name="projectId" value={project.id} />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold text-ink">{project.name}</p>
@@ -73,8 +73,8 @@ export default async function NewReportPage() {
                   </div>
                   <ProjectStatusBadge status={project.status} />
                   <Button type="submit" size="md" className="shrink-0">
-                    <Plus aria-hidden />
-                    Start
+                    <Mic aria-hidden />
+                    Capture
                   </Button>
                 </form>
               </Card>

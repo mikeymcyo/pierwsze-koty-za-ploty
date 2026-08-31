@@ -2,9 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { AlertTriangle, Camera, ClipboardList, FileText, Pencil, Plus } from "lucide-react";
+import { AlertTriangle, Camera, ClipboardList, FileText, Mic, Pencil, Plus } from "lucide-react";
 
-import { startReport } from "@/app/(app)/reports/actions";
+import { openSiteCapture } from "@/app/(app)/reports/capture-actions";
 import { IssueList } from "@/components/issues/issue-list";
 import { RaiseIssue, type PhotoChoice } from "@/components/issues/raise-issue";
 import { DocumentCard, type DocumentCardData } from "@/components/documents/document-card";
@@ -236,13 +236,17 @@ export default async function ProjectPage({
               appear the moment the work is awarded. */}
           {enquiry ? null : (
             <>
-              {/* Posts rather than links: starting a report inserts a row and
-                  lets the database assign its number, which a GET must not do. */}
-              <form action={startReport}>
+              {/* The one action somebody standing on site needs. It opens
+                  today's Daily Report if there is one and starts it if there is
+                  not, so tapping it at eight, at half ten and at two lands on
+                  the same report every time. Posts rather than links: it may
+                  insert a row and let the database assign its number, which a
+                  GET must not do. */}
+              <form action={openSiteCapture}>
                 <input type="hidden" name="projectId" value={project.id} />
                 <Button type="submit">
-                  <Plus aria-hidden />
-                  New Daily Report
+                  <Mic aria-hidden />
+                  Site Capture
                 </Button>
               </form>
               <Button asChild variant="secondary">

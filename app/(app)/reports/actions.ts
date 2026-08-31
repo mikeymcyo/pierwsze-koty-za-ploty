@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { displayName, requireSessionContext } from "@/lib/auth/session";
 import { PDF_BUCKET } from "@/lib/pdf/signing";
+import { copyPreviousEntries } from "@/lib/reports/carry-over";
 import { dependentsOfDailyReport } from "@/lib/reports/dependents";
 import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
 import { canDelete } from "@/lib/reports/lifecycle";
@@ -128,55 +129,6 @@ export async function startReport(formData: FormData) {
   revalidatePath("/dashboard");
   revalidatePath(`/projects/${projectId}`);
   redirect(`/reports/${report.id}`);
-}
-
-/**
- * Copies workforce and plant from the project's most recent other report.
- *
- * Best effort on purpose: a failure here costs the user some retyping, which is
- * not a reason to fail creating the report they asked for.
- */
-async function copyPreviousEntries(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  projectId: string,
-  reportId: string,
-  companyId: string,
-) {
-  const { data: previous } = await supabase
-    .from("reports")
-    .select("id")
-    .eq("project_id", projectId)
-    .neq("id", reportId)
-    .order("report_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (!previous) return;
-
-  const [{ data: workforce }, { data: plant }] = await Promise.all([
-    supabase
-      .from("workforce_entries")
-      .select("company_name, trade, operatives, sort_order")
-      .eq("report_id", previous.id)
-      .order("sort_order", { ascending: true }),
-    supabase
-      .from("plant_entries")
-      .select("description, quantity, sort_order")
-      .eq("report_id", previous.id)
-      .order("sort_order", { ascending: true }),
-  ]);
-
-  if (workforce?.length) {
-    await supabase
-      .from("workforce_entries")
-      .insert(workforce.map((row) => ({ ...row, report_id: reportId, company_id: companyId })));
-  }
-
-  if (plant?.length) {
-    await supabase
-      .from("plant_entries")
-      .insert(plant.map((row) => ({ ...row, report_id: reportId, company_id: companyId })));
-  }
 }
 
 /**

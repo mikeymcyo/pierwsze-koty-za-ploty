@@ -25,6 +25,7 @@ export function DictationField({
   defaultValue,
   rows = 10,
   placeholder = "Describe the day's work in your own words. Trades on site, what got done, deliveries, delays, anything the client should know.",
+  prominent = false,
 }: {
   name: string;
   label: string;
@@ -32,6 +33,13 @@ export function DictationField({
   /** Shorter where the box is one of several on a screen. */
   rows?: number;
   placeholder?: string;
+  /**
+   * Site Capture is a screen somebody opens to speak and nothing else, so the
+   * microphone is the full width of the phone there rather than a button
+   * sitting beside a textarea. Same component, same hook, same transcript
+   * joining - only the size of the control changes.
+   */
+  prominent?: boolean;
 }) {
   const [value, setValue] = useState(defaultValue);
 
@@ -59,13 +67,20 @@ export function DictationField({
       />
 
       {supported ? (
-        <div className="flex flex-wrap items-center gap-3">
+        <div
+          className={
+            prominent
+              ? "flex flex-col items-stretch gap-3"
+              : "flex flex-wrap items-center gap-3"
+          }
+        >
           <Button
             type="button"
-            variant={listening ? "danger" : "secondary"}
+            variant={listening ? "danger" : prominent ? "primary" : "secondary"}
             size="lg"
             onClick={listening ? stop : start}
             aria-pressed={listening}
+            className={prominent ? "h-16 w-full text-base" : undefined}
           >
             {listening ? <Square aria-hidden /> : <Mic aria-hidden />}
             {listening ? "Stop dictating" : "Dictate"}
