@@ -492,8 +492,11 @@ for (const [name, source] of [
   ["the daily screen", dailyPage],
   ["the consolidated screen", summaryPage],
 ]) {
-  const editors = source.match(/<GroupEditor/g) ?? [];
-  check(`${name} has at most three writing areas`, editors.length <= 3, String(editors.length));
+  // Counted by which visible group each box writes into, not by how many
+  // times the component appears: a screen may render the same box in two
+  // branches - in front, or folded away - and that is still one writing area.
+  const editors = new Set([...source.matchAll(/groupKey="([a-z]+)"/g)].map((match) => match[1]));
+  check(`${name} has at most three writing areas`, editors.size <= 3, Array.from(editors).join());
   check(
     `${name} no longer stacks a textarea per stored section`,
     !/SectionEditors/.test(source),
@@ -548,16 +551,39 @@ check(
 );
 
 // A consolidated document has no notes box, so its sections are the writing
-// surface and stay in front of the user.
+// surface and stay in front of the user - with one deliberate exception. A
+// report that consolidates issued reports and has nothing written yet puts the
+// box away and leads with Generate instead: an empty box under a heading is
+// what made a site manager think his Daily Reports had gone and he had to type
+// the job again.
+const summaryDisclosures = summaryPage.match(/<EditDisclosure/g) ?? [];
 check(
-  "a consolidated document writes in its sections, not behind a disclosure",
-  !/EditDisclosure/.test(summaryPage),
+  "a consolidated document writes in its sections",
+  summaryDisclosures.length <= 1,
+  `${summaryDisclosures.length} disclosures`,
 );
-const summaryEditors = summaryPage.match(/<GroupEditor/g) ?? [];
+check(
+  "and folds the box away only where the report has sources and no words yet",
+  summaryDisclosures.length === 0 ||
+    /consolidating && !hasWrittenSummary \?/.test(summaryPage),
+);
+check(
+  "under a label saying it is optional",
+  summaryDisclosures.length === 0 || /Add your own notes \(optional\)/.test(summaryPage),
+);
+check(
+  "and a report written directly still writes in its sections",
+  /\) : \(\s*\n\s*<GroupEditor/.test(summaryPage),
+);
+// The real measure of "how many writing areas": one per visible group, however
+// many branches render it.
+const summaryEditors = new Set(
+  [...summaryPage.matchAll(/groupKey="([a-z]+)"/g)].map((match) => match[1]),
+);
 check(
   "and has at most three of them",
-  summaryEditors.length <= 3 && summaryEditors.length > 0,
-  String(summaryEditors.length),
+  summaryEditors.size <= 3 && summaryEditors.size > 0,
+  Array.from(summaryEditors).join(),
 );
 // Progress and survey have two groups carrying written sections; the third is
 // photographs, which gets no box at all.

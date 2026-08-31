@@ -34,6 +34,7 @@
     "test:issues-pdf": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/issues-pdf-smoke.mjs",
     "test:summary-reports": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/summary-reports-smoke.mjs",
     "test:progress-sources": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/progress-sources-smoke.mjs",
+    "test:progress-ux": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/progress-ux-smoke.mjs",
     "test:completion-quality": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/completion-quality-smoke.mjs",
     "test:completion-content": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/completion-content-smoke.mjs",
     "test:evidence-flow": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/evidence-flow-smoke.mjs",

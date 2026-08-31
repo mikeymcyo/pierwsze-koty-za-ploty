@@ -34,6 +34,44 @@ The current implementation completes the core workflow:
 
 
 
+### A source-based Progress Report does not open as a blank page
+
+**No migration, and no change behind the screen.** `npm run test:progress-ux`
+asserts the evidence builder, the `via` filter, `partitionDraft`, immutability
+and the photograph pipeline are all untouched.
+
+A site manager ticked two Daily Reports, started a Progress Report, and was
+shown empty writing boxes under a button reading **"Write from evidence"**. He
+read that as: the reports are gone, type the job again. They had not gone
+anywhere - the evidence was frozen onto the document at creation - but nothing
+on the screen said so.
+
+Four changes, all presentation:
+
+- **The button names and counts what it will read.** "Generate from 2 Daily
+  Reports", and "Regenerate from 2 Daily Reports" once there is something to
+  replace. A Completion Report reads "Generate from 2 Progress Reports and 1
+  Daily Report". `generateLabel` in `lib/summary-reports/source-summary.ts`.
+- **One line near the top**: "Built from Daily Reports 001 and 002". Beyond four
+  it counts rather than lists, because a month of dailies must not print twenty
+  numbers in a line meant to reassure; a daily reached *through* a Progress
+  Report is counted as provenance rather than named; and a report written
+  directly says nothing at all, because it has no sources and must never imply
+  any. The full clickable list stays where it was, behind Advanced details.
+- **Typing is stated to be optional.** "SiteBoss will consolidate the selected
+  reports into this one. Add your own notes only if you want to provide extra
+  context." On a consolidating report with nothing written yet, the writing box
+  goes behind **"Add your own notes (optional)"** and the Generate button is
+  full width and taller - the one thing to do on that screen. As soon as there
+  is something to correct, the box comes back in front. A report written
+  directly is untouched: its sections are its writing surface and stay there.
+- **Nothing generates on its own.** No effect fires the action; it is still a
+  form somebody presses, so opening a document never changes it.
+
+Two structural assertions were rewritten rather than weakened: a writing area is
+now counted by the visible group it writes into, not by how many branches render
+the component, and the one permitted disclosure is pinned to exactly this case.
+
 ### Completion, final client polish
 
 **No migration.** Covered by `test:completion-content` and `test:summary-photos`.

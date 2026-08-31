@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ArrowLeft, ExternalLink, Layers } from "lucide-react";
 
 import { saveSummaryReportDocuments } from "@/app/(app)/documents/actions";
 import { updateSummarySectionGroup } from "@/app/(app)/summary-reports/ai-actions";
@@ -11,7 +11,11 @@ import { ReportPhotos, type ReportPhoto } from "@/components/summary-reports/rep
 import { SummaryDetails } from "@/components/summary-reports/summary-details";
 import { SummaryWriter } from "@/components/summary-reports/summary-draft";
 import { GroupEditor } from "@/components/reports/group-editor";
-import { ReadOnlySection, ReportSectionCard } from "@/components/reports/report-section-card";
+import {
+  EditDisclosure,
+  ReadOnlySection,
+  ReportSectionCard,
+} from "@/components/reports/report-section-card";
 import { DocumentPicker, type PickableDocument } from "@/components/documents/document-picker";
 import { MasterReviewPanel } from "@/components/reports/master-review";
 import { DocumentUpload } from "@/components/documents/document-upload";
@@ -32,6 +36,10 @@ import { photoPrintLabelText } from "@/lib/photo-captions";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import { groupSections, reportStructure, runInLabel, type ReportGroup } from "@/lib/report-structure";
 import { describeProvenance, isStandalone } from "@/lib/summary-reports/provenance";
+import {
+  describeSourceLine,
+  type SourceCounts,
+} from "@/lib/summary-reports/source-summary";
 import {
   SUMMARY_KIND_LABELS,
   SUMMARY_SECTION_LABELS,
@@ -156,6 +164,34 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
     return [];
   });
 
+  /**
+   * What this document was built from, as numbers rather than as a list of
+   * links. One line near the top saying "Built from Daily Reports 001 and 002"
+   * is what stops a source-based report reading as though the evidence had
+   * vanished - see lib/summary-reports/source-summary.ts.
+   *
+   * A daily carrying `via` is provenance beneath a Progress Report and is
+   * counted rather than named: it reached the writer through that report's
+   * reviewed wording, not on its own.
+   */
+  const sourceCounts: SourceCounts = {
+    progress: sources.flatMap((source) => {
+      const progress = source.source_summary_report_id
+        ? progressById.get(source.source_summary_report_id)
+        : undefined;
+      return progress ? [progress.number] : [];
+    }),
+    daily: sources.flatMap((source) => {
+      if (!source.report_id || source.via_summary_report_id) return [];
+      const daily = dailyById.get(source.report_id);
+      return daily ? [daily.report_number] : [];
+    }),
+    viaDaily: sources.filter((source) => source.report_id && source.via_summary_report_id).length,
+  };
+  const sourceLine = describeSourceLine(sourceCounts);
+  /** Whether this document consolidates anything, which decides how it reads. */
+  const consolidating = sourceCounts.daily.length + sourceCounts.progress.length > 0;
+
   const selectedPhotoIds = new Set((photoLinksResult.data ?? []).map((row) => row.photo_id));
   const captionByPhotoId = new Map(
     (photoLinksResult.data ?? []).map((row) => [row.photo_id, row.caption_override]),
@@ -272,6 +308,10 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
   }));
   const grouped = groupSections(report.kind, sectionRows);
   const groupFor = (key: string) => grouped.find((entry) => entry.group.key === key);
+  /** Whether the summary group has anything in it yet, drafted or written. */
+  const hasWrittenSummary = (groupFor("summary")?.entries ?? []).some((entry) =>
+    entry.content?.trim(),
+  );
 
   /** Every stored section of a group, written or not, for its one writing box. */
   const editorSections = (key: string) => {
@@ -311,6 +351,18 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
         </div>
         <Badge tone={isFinal ? "success" : "neutral"}>{isFinal ? "Final" : reopened ? "Reopened" : "Draft"}</Badge>
       </header>
+
+      {/* One line, and deliberately only one. The evidence is frozen onto this
+          document and a site manager needs to see that before he sees an empty
+          writing box - but a panel of links here would be the clutter this
+          screen was already carrying. The full list stays behind Advanced
+          details below. */}
+      {sourceLine ? (
+        <p className="flex items-start gap-2 rounded-xl border border-line bg-surface-muted px-3 py-2 text-sm text-ink-muted">
+          <Layers aria-hidden className="mt-0.5 size-4 shrink-0" />
+          {sourceLine}
+        </p>
+      ) : null}
 
       {isFinal ? <Alert tone="info">This document has been issued and is no longer editable.</Alert> : null}
       {loadError ? <LoadError what="this report's contents" code={loadError.code} /> : null}
@@ -364,11 +416,27 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
               reportId={id}
               sections={sectionsResult.data ?? []}
               configured={hasAiConfig()}
+              sources={sourceCounts}
             />
           ) : null}
 
           {isFinal ? (
             <SectionProse entry={groupFor("summary")} />
+          ) : consolidating && !hasWrittenSummary ? (
+            /* Sources ticked and nothing written yet. The writing box is put
+               away rather than presented as the thing to do: an empty box under
+               a heading is what made a site manager think his Daily Reports had
+               gone and he had to type the job again. It is one tap away, and
+               the disclosure says it is optional. */
+            <EditDisclosure label="Add your own notes (optional)">
+              <GroupEditor
+                key={JSON.stringify(editorSections("summary").map((section) => section.content))}
+                groupKey="summary"
+                groupLabel={summaryGroup.label}
+                sections={editorSections("summary")}
+                action={updateSummarySectionGroup.bind(null, id)}
+              />
+            </EditDisclosure>
           ) : (
             <GroupEditor
               key={JSON.stringify(editorSections("summary").map((section) => section.content))}
