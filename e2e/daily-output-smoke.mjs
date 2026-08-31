@@ -184,6 +184,60 @@ check(
   /Never\s+write "no incidents occurred"/.test(MASTER_REVIEW_SYSTEM_PROMPT),
 );
 
+console.log("\n3b. A photograph needs no caption");
+
+check(
+  "an uncaptioned photograph is stated to be valid evidence",
+  /A PHOTOGRAPH NEEDS NO CAPTION/.test(MASTER_REVIEW_SYSTEM_PROMPT),
+);
+check(
+  "and never a gap",
+  /is valid evidence and\s+is never a gap/.test(MASTER_REVIEW_SYSTEM_PROMPT),
+);
+check(
+  "the reviewer is told captions are optional",
+  /captions and statuses are\s+optional/i.test(MASTER_REVIEW_SYSTEM_PROMPT),
+);
+check(
+  "and told outright not to warn about a missing one",
+  /Never warn that a caption,\s+a status, a description or a label is missing/.test(
+    MASTER_REVIEW_SYSTEM_PROMPT,
+  ),
+);
+check("nor to ask for one", /and never\s+ask for one/.test(MASTER_REVIEW_SYSTEM_PROMPT));
+
+// What is still worth saying about a photograph: a real contradiction, or no
+// photographs at all behind substantial work.
+check(
+  "a caption that contradicts the prose is still a warning",
+  /CONTRADICTS the prose/.test(MASTER_REVIEW_SYSTEM_PROMPT),
+);
+check(
+  "and so is substantial work with no photographs at all",
+  /no photographs at all/.test(MASTER_REVIEW_SYSTEM_PROMPT),
+);
+check(
+  "the contradiction list still names a disagreeing caption",
+  /a photograph's status or caption disagreeing with the prose/.test(MASTER_REVIEW_SYSTEM_PROMPT),
+);
+
+// And the evidence the reviewer is handed no longer frames a plain photograph
+// as one missing something.
+const context = read("../lib/reports/review-context.ts");
+check(
+  "a plain photograph is listed as included evidence",
+  /"a photograph included as evidence"/.test(context),
+  context.match(/photoPrintLabelText\(photo\) \?\? "[^"]*"/)?.[0] ?? "",
+);
+check(
+  "not as one with something missing",
+  !/no status or caption recorded/.test(context),
+);
+check(
+  "and the images themselves are still not re-read",
+  /the images are not re-read/.test(context),
+);
+
 console.log("\n4. The document says what it is");
 
 const document = read("../lib/pdf/report-document.tsx");

@@ -22,9 +22,13 @@ type Client = Awaited<ReturnType<typeof createClient>>;
  * Photographs are represented by their status and caption, never their pixels.
  * A description somebody has already written and accepted is better evidence
  * of what a photograph shows than a fresh look would be, and re-reading twelve
- * images to tidy some prose is not worth the money. A photograph with nothing
- * written against it is listed as exactly that, so the reviewer can say a
- * caption is missing rather than guess at one.
+ * images to tidy some prose is not worth the money.
+ *
+ * A photograph with nothing written against it is listed plainly as an included
+ * photograph, not as one missing something. Captions and statuses are optional
+ * and most site photographs carry neither, so wording the line as an absence
+ * invited the reviewer to warn about every one of them - which is what it did.
+ * The prompt says the same thing outright: a caption is never a gap.
  *
  * Supporting documents are represented by their metadata. Their contents are
  * not parsed: a drawing is evidence that a drawing was issued, and reading it
@@ -57,7 +61,7 @@ function photoLines(
   photos: readonly { category: string; caption: string | null }[],
 ): string[] {
   return photos.map(
-    (photo) => photoPrintLabelText(photo) ?? "a photograph with no status or caption recorded",
+    (photo) => photoPrintLabelText(photo) ?? "a photograph included as evidence",
   );
 }
 

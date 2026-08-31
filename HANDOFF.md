@@ -75,6 +75,17 @@ silence-is-not-absence, no H&S nil returns - is asserted still present.
 `SITE DAILY REPORT`. "Progress Report" is the name of a different document in
 this system and a client holding both could not tell them apart.
 
+**A photograph needs no caption.** The reviewer was warning about every
+photograph with nothing written against it, which is most of them - captions
+and statuses are optional and always have been. The prompt now says outright
+that an uncaptioned photograph is valid evidence and never a gap, and never to
+warn about or ask for a caption, a status, a description or a label. What still
+earns a warning is a caption or status that *contradicts* the prose, or
+substantial written work with no photographs at all. The context builder was
+part of the problem - it listed such a photograph as "a photograph with no
+status or caption recorded", wording an ordinary case as a deficiency - and now
+lists it as "a photograph included as evidence".
+
 One UI change went with it: an **issued** daily no longer prints a group
 heading with nothing under it. The PDF has always dropped an empty group; the
 screen now agrees. A draft still shows all three, because those headings carry
