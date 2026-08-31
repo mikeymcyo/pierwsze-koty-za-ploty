@@ -1,8 +1,8 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { ImageOff } from "lucide-react";
+import { ImageOff, RotateCw } from "lucide-react";
 
 import { saveSummaryCuration, type SummaryFormState } from "@/app/(app)/summary-reports/actions";
 import { PhotoDescriptionField } from "@/components/reports/photo-description-field";
@@ -33,9 +33,21 @@ export type CuratedIssueChoice = {
   selected: boolean;
 };
 
-function SaveButton() {
+function SaveButton({ retry }: { retry: boolean }) {
   const { pending } = useFormStatus();
-  return <Button type="submit" loading={pending}>{pending ? "Saving selection…" : "Save selection"}</Button>;
+  return (
+    <Button
+      type="submit"
+      loading={pending}
+      // Dead for the round trip. The save reconciles rather than rewrites, so a
+      // second submission would be harmless - but a button that still looks
+      // pressable is a button somebody presses again wondering if it worked.
+      disabled={pending}
+    >
+      {retry && !pending ? <RotateCw aria-hidden /> : null}
+      {pending ? "Saving selection…" : retry ? "Try again" : "Save selection"}
+    </Button>
+  );
 }
 
 export function SummaryCuration({
@@ -70,8 +82,29 @@ export function SummaryCuration({
   const [included, setIncluded] = useState<Set<string>>(
     () => new Set(photos.filter((photo) => photo.selected).map((photo) => photo.id)),
   );
+
+  /**
+   * Ticks moved, or a description typed, and not yet saved.
+   *
+   * There is no queue behind this form - it is a request like any other - so
+   * the honest thing to do about a phone walking away with an unsaved
+   * selection is to ask first. Cleared the moment the server confirms.
+   */
+  const [touched, setTouched] = useState(false);
+  // Derived rather than reset in an effect: submitting clears it in the submit
+  // handler, and a save that came back with an error puts it straight back -
+  // which is exactly when leaving would lose something.
+  const dirty = touched || Boolean(state.error);
+  const setDirty = setTouched;
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
   return (
-    <form action={action} className="flex flex-col gap-6">
+    <form action={action} onSubmit={() => setTouched(false)} className="flex flex-col gap-6">
       <div>
         {/* An h3: the report's three section headings are the h2s on this
             screen now, and this control sits under one of them. */}
@@ -82,7 +115,12 @@ export function SummaryCuration({
             : "Choose the issues included in this document."}
         </p>
       </div>
-      {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
+      {state.error ? (
+        <Alert tone="danger">
+          {state.error} Nothing was lost - your ticks and descriptions are still on this screen.
+          Press Try again.
+        </Alert>
+      ) : null}
       {state.saved ? <Alert tone="success">Selection saved.</Alert> : null}
 
       {/* Tells the action this form carried a photograph selection at all. A
@@ -124,14 +162,15 @@ export function SummaryCuration({
                       name="photoId"
                       value={photo.id}
                       checked={inReport}
-                      onChange={(event) =>
+                      onChange={(event) => {
+                        setDirty(true);
                         setIncluded((current) => {
                           const next = new Set(current);
                           if (event.target.checked) next.add(photo.id);
                           else next.delete(photo.id);
                           return next;
-                        })
-                      }
+                        });
+                      }}
                       className="mt-1 size-5 accent-brand"
                     />
                     <span className="min-w-0">
@@ -152,6 +191,7 @@ export function SummaryCuration({
                       defaultValue={photo.captionOverride ?? photo.caption ?? ""}
                       label="Photo description (optional)"
                       placeholder="What does this show, in this report?"
+                      onChange={() => setDirty(true)}
                     />
                   ) : null}
                 </div>
@@ -169,7 +209,14 @@ export function SummaryCuration({
         ) : (
           issues.map((issue) => (
             <label key={issue.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-4">
-              <input type="checkbox" name="issueId" value={issue.id} defaultChecked={issue.selected} className="mt-1 size-5 shrink-0 accent-brand" />
+              <input
+                type="checkbox"
+                name="issueId"
+                value={issue.id}
+                defaultChecked={issue.selected}
+                onChange={() => setDirty(true)}
+                className="mt-1 size-5 shrink-0 accent-brand"
+              />
               <span className="min-w-0 flex-1">
                 <span className="block font-semibold text-ink">{issue.title}</span>
                 <span className="mt-1 flex flex-wrap gap-2">
@@ -182,7 +229,7 @@ export function SummaryCuration({
           ))
         )}
       </fieldset>
-      <SaveButton />
+      <SaveButton retry={Boolean(state.error)} />
     </form>
   );
 }

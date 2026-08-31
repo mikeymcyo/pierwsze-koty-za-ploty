@@ -34,6 +34,41 @@ The current implementation completes the core workflow:
 
 
 
+### The same pass, for photographs on a Progress or Completion Report
+
+**No migration.** Covered by `test:summary-photos` (section 5c) and
+`test:photo-order`.
+
+The upload path was already fixed by the Site Capture pass - `PhotoUpload` is
+one component and a consolidated report uses it with `summaryReportId`, so the
+kept-bytes, same-path retry and beforeunload warning came with it, and
+`attachSummaryPhoto` was made idempotent at the same time. What this pass found
+is everything **after** the upload:
+
+1. **A failed reorder had no way back.** The error was printed and the screen
+   went on showing the arrangement while the database held the old one - and
+   walking away lost it silently. `usePhotoOrder` now exposes `retry()`, the bar
+   shows **"Order not saved"** with a **Try again**, and an arrangement that is
+   scheduled, in flight or failed counts as `unsaved` and warns before the page
+   goes. Sending the same order writes the same numbers to the same rows, so the
+   retry is safe however many times it is pressed.
+2. **A reorder stopped at the first failed row**, leaving a report *partly*
+   renumbered - a worse state than either order. Both reorder actions now
+   attempt every row and report `"3 of 8 photographs kept their old position"`,
+   and the retry heals whatever did not land.
+3. **The curation save could be double-submitted** and said nothing about what
+   happened to typed descriptions when it failed. The button is dead for the
+   round trip, the failure says *"Nothing was lost - your ticks and descriptions
+   are still on this screen"* and becomes **Try again**, and unsaved ticks or
+   descriptions warn before the page goes. The save itself was already safe to
+   repeat - it reconciles rather than rewrites, so running it twice removes the
+   same rows and writes the same captions.
+
+Two things were already right and are now asserted rather than assumed:
+removing a photograph twice is not an error (a delete of a row that has gone
+succeeds), and a retried upload onto a consolidated report reuses both the photo
+row and its link rather than creating a second of either.
+
 ### Site Capture on one bar of signal
 
 **No migration. Not an offline system** - a capture still has to reach the

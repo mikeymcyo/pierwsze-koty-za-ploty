@@ -216,6 +216,74 @@ check(
   "half a point on this line put a one-plate progress report onto a second page",
 );
 
+console.log("\n5c. Poor signal, on a consolidated report");
+
+const reorderUi = read("../components/reports/photo-reorder.tsx");
+
+check(
+  "the selection save cannot be double-submitted",
+  /disabled=\{pending\}/.test(curation),
+);
+check(
+  "and would be harmless if it were, because it reconciles",
+  /const keeping = new Set/.test(save) && /if \(existing\) \{/.test(save),
+  "running it twice removes the same rows and rewrites the same captions",
+);
+check(
+  "a failed save says nothing was lost",
+  /Nothing was lost - your ticks and descriptions are still on this screen/.test(curation),
+);
+check("and the button becomes Try again", /retry \? "Try again"/.test(curation));
+check(
+  "leaving with unsaved ticks or descriptions asks first",
+  /beforeunload/.test(curation) && /const dirty = touched \|\| Boolean\(state\.error\)/.test(curation),
+);
+check(
+  "a failed save still counts as unsaved",
+  /Boolean\(state\.error\)/.test(curation),
+);
+
+check("an order that failed says so", /Order not saved\./.test(reorderUi));
+check("and offers the same order again", /onClick=\{order\.retry\}/.test(reorderUi));
+check(
+  "which is safe however many times it is pressed",
+  /writes the same numbers to the same rows/.test(reorderUi),
+);
+check(
+  "leaving with an unsaved arrangement asks first",
+  /beforeunload/.test(reorderUi) && /const unsaved = scheduled \|\| pending \|\| error !== null/.test(reorderUi),
+);
+check(
+  "a debounce still waiting counts as unsaved",
+  /setScheduled\(true\)/.test(reorderUi),
+);
+
+check(
+  "a reorder attempts every row rather than stopping at the first failure",
+  /unwritten \+= 1;/.test(photoActions),
+  "a partly renumbered report is worse than either order",
+);
+check(
+  "and says how many kept their old position",
+  /kept their old position/.test(photoActions),
+);
+check(
+  "the daily reorder behaves the same",
+  /kept their old position/.test(read("../app/(app)/reports/photo-actions.ts")),
+);
+check(
+  "removing a photograph twice is not an error",
+  /\.delete\(\)\s*\n\s*\.eq\("summary_report_id", reportId\)\s*\n\s*\.eq\("photo_id", photoId\)/.test(
+    photoActions,
+  ),
+  "a delete of a row that has already gone succeeds",
+);
+check(
+  "and an upload retried onto a consolidated report attaches once",
+  /\.eq\("storage_path", storagePath\)/.test(photoActions) &&
+    /\.eq\("photo_id", photo\.id\)/.test(photoActions),
+);
+
 console.log("\n6. Provenance and immutability are untouched");
 
 check("an issued report refuses the save", /SUMMARY_REPORT_IS_FINAL/.test(save));

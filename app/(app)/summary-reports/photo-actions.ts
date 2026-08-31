@@ -262,16 +262,34 @@ export async function reorderSummaryPhotos(
     };
   }
 
-  // One row at a time rather than an upsert: an upsert would have to carry
-  // every not-null column back to the database, and a mistake there writes a
-  // link's ownership rather than its position.
+  /**
+   * One row at a time rather than an upsert: an upsert would have to carry
+   * every not-null column back to the database, and a mistake there writes a
+   * link's ownership rather than its position.
+   *
+   * Every row is attempted even after one fails, rather than abandoning the
+   * loop half-way. A partly renumbered report is a worse state than either the
+   * old order or the new one, and stopping at the first failure is how it
+   * happens. Sending the same order again writes the same numbers to the same
+   * rows, so the retry on the screen heals whatever did not land.
+   */
+  let unwritten = 0;
+  let firstFailure: string | null = null;
   for (const { id, sortOrder } of sortOrderValues(photoIds)) {
     const { error } = await supabase
       .from("summary_report_photos")
       .update({ sort_order: sortOrder })
       .eq("summary_report_id", reportId)
       .eq("photo_id", id);
-    if (error) return { error: `Could not save the order: ${error.message}` };
+    if (error) {
+      unwritten += 1;
+      firstFailure ??= error.message;
+    }
+  }
+  if (unwritten > 0) {
+    return {
+      error: `${unwritten} of ${photoIds.length} photographs kept their old position. ${firstFailure}`,
+    };
   }
 
   revalidatePath(`/summary-reports/${reportId}`);

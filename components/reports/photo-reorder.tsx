@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
-import { ListOrdered } from "lucide-react";
+import { useEffect, useRef, useState, useTransition } from "react";
+import { ListOrdered, RotateCw } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { movePhotoEarlier, movePhotoLater, swapPhotos } from "@/lib/photos-order";
@@ -42,9 +42,16 @@ export type PhotoOrder = {
    * those two numbers and leaves every other photograph exactly where it was.
    */
   swap: (a: string, b: string) => void;
+  /** Send the current order again. The same order twice writes the same rows. */
+  retry: () => void;
   pending: boolean;
   saved: boolean;
   error: string | null;
+  /**
+   * Whether the arrangement on screen is not yet known to be in the database -
+   * a save still waiting out the debounce, one in flight, or one that failed.
+   */
+  unsaved: boolean;
 };
 
 /**
@@ -67,23 +74,49 @@ export function usePhotoOrder(
   const [order, setOrder] = useState({ key, ids: incoming });
   if (order.key !== key) setOrder({ key, ids: incoming });
 
+  // Scheduled, in flight, or failed: in all three the database does not yet
+  // hold what is on the screen.
+  const [scheduled, setScheduled] = useState(false);
+  const unsaved = scheduled || pending || error !== null;
+
+  /**
+   * Leaving now loses the arrangement.
+   *
+   * There is no queue behind this - the order is written by a request like any
+   * other - so the one honest thing to do about a phone walking away mid-save
+   * is to ask first.
+   */
+  useEffect(() => {
+    if (!unsaved) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [unsaved]);
+
+  function send(ids: string[]) {
+    setScheduled(false);
+    startTransition(async () => {
+      const result = await save(ids);
+      if (result.error) setError(result.error);
+      else {
+        setError(null);
+        setSaved(true);
+      }
+    });
+  }
+
   function apply(next: string[]) {
     if (next.join() === order.ids.join()) return;
 
     setOrder((current) => ({ ...current, ids: next }));
     setSaved(false);
     setError(null);
+    setScheduled(true);
 
     // Debounced: somebody moving a plate three places taps three times, and
     // that is one decision rather than three.
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      startTransition(async () => {
-        const result = await save(next);
-        if (result.error) setError(result.error);
-        else setSaved(true);
-      });
-    }, SAVE_DELAY_MS);
+    timer.current = setTimeout(() => send(next), SAVE_DELAY_MS);
   }
 
   return {
@@ -92,9 +125,17 @@ export function usePhotoOrder(
       apply(direction === "earlier" ? movePhotoEarlier(order.ids, id) : movePhotoLater(order.ids, id)),
     // What a drag does: the two exchange places, and nothing else moves.
     swap: (a: string, b: string) => apply(swapPhotos(order.ids, a, b)),
+    // Sending the same order again writes the same numbers to the same rows,
+    // so a retry is safe however many times it is pressed - and it heals a
+    // write that failed part-way through.
+    retry: () => {
+      if (timer.current) clearTimeout(timer.current);
+      send(order.ids);
+    },
     pending,
     saved,
     error,
+    unsaved,
   };
 }
 
@@ -121,9 +162,17 @@ export function PhotoOrderBar({
         {reordering ? "Done" : "Arrange photos"}
       </Button>
 
-      <span aria-live="polite" className="text-xs text-ink-muted">
+      <span aria-live="polite" className="flex items-center gap-2 text-xs text-ink-muted">
         {order.error ? (
-          <span className="text-danger">{order.error}</span>
+          <>
+            <span className="text-danger">Order not saved. {order.error}</span>
+            {/* The same order again, which writes the same numbers to the same
+                rows - safe however many times it is pressed. */}
+            <Button type="button" variant="secondary" size="sm" onClick={order.retry}>
+              <RotateCw aria-hidden />
+              Try again
+            </Button>
+          </>
         ) : order.pending ? (
           "Saving order…"
         ) : order.saved ? (
