@@ -4,10 +4,112 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Last updated:** 2026-08-31
+**Written:** 2026-08-26 · **Last updated:** 2026-08-31 (end of day)
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
+**Head:** `3452443` - Waze, beside Google Maps
 **Recovery head:** `fe6bf7f` - AI photo descriptions and supporting documents
+
+## Stopping point, 2026-08-31
+
+Working tree clean, local and `origin` both on `3452443`. **Tomorrow's session
+may be on a different machine**, so start by cloning or pulling this branch -
+everything below is in the repository and nothing of value is only in a
+container:
+
+    git fetch origin claude/siteboss-pro-react-441-diagnosis-bhvwk8
+    git checkout claude/siteboss-pro-react-441-diagnosis-bhvwk8
+    npm ci
+
+### Today's commits, newest first
+
+| Commit | What it was |
+| --- | --- |
+| `3452443` | Waze, beside Google Maps |
+| `8f40c54` | The same reliability pass, for photographs on a Progress or Completion Report |
+| `6179bd1` | Site Capture on one bar of signal |
+| `a1a95c4` | A source-based Progress Report does not open as a blank page |
+| `5283b43` | Completion, final client polish |
+| `47a5313` | The Completion Report a client reads: three written sections |
+| `9393ca5` | A Completion Report that does not contradict itself |
+| `41e66fd` | One photograph set on a consolidated report |
+| `ec98de2` | Prove the source reports' words reach the writer |
+| `b984d88` | The Completion Report, the document a client keeps |
+| `3a07f97` | A Progress Report is built from the Dailies somebody chose |
+| `2afbef3` | A photograph needs no caption |
+| `e73cbea` | The Daily says one thing once, and calls itself a Daily |
+| `507cdd8` | Site Capture resolves the working day in Europe/London |
+| `e1a313f` | Site Capture: one Daily Report, collected into all day |
+| `1002c02` | Turn a photograph without touching the file |
+
+### What is finished and owner-testable
+
+- **Site Capture.** One Daily Report per project per British working day,
+  appended to all day, never overwritten. Idempotent against a double tap;
+  unsent words kept on the phone through a failed request; Saving… / Saved /
+  Try again.
+- **Daily → Progress.** Pick the Daily Reports by hand, see them named on the
+  document, generate with no typing. Source text provably reaches the model.
+- **Progress → Completion.** Pick the Progress Reports; days they cover stay as
+  provenance and are never read twice; uncovered days fill the gaps.
+- **Completion output.** Three written sections, a derived status line, no
+  blanket completion claim while anything is outstanding, no sentence printed
+  twice.
+- **Photographs.** One set per report, selected, ordered and captioned in one
+  place; rotation; failed uploads kept and retried onto the same object with no
+  duplicate rows.
+- **Store Locator.** Google Maps and Waze, coordinates preferred where a
+  directory has them.
+
+### Verification state
+
+`npm run lint`, `npx tsc --noEmit`, `npm run build` and **41 dependency-free
+suites** all pass. The six Playwright suites (`projects`, `isolation`,
+`reports`, `photos`, `ai`, `pdf`) need a running dev server and a live Supabase
+and were **never run today** - they are the first thing to run on a machine that
+has both.
+
+### Known risks and backlog, roughly in priority order
+
+1. **Nothing has been driven in a real browser today.** Every UI change above
+   is proved by construction and by source assertions. The reliability work in
+   particular - Airplane Mode, retry, `beforeunload` - has never met a real
+   failed request.
+2. **The AI output is unverified against a live key.** Every prompt rule is
+   asserted present; whether a Completion Report actually reads well for Lidl
+   needs a generate on real data.
+3. **`beforeunload` is advisory on iOS Safari** and is often ignored on tab
+   switch or backgrounding. An upload interrupted that way is still lost.
+4. **A hard refresh loses typed photo descriptions** in the curation form.
+   Ticks and text survive a failed save and a navigation warning, but there is
+   no local draft store for them as there is for capture notes.
+5. **A partial reorder is still possible** if some rows fail. It is reported and
+   heals on retry, but a transactional fix would need a migration.
+6. **Regenerating an existing Completion draft clears AI-written Scope, Stages,
+   Key technical activities and Photographic record.** Deliberate; hand-written
+   text is safe.
+7. **No coordinates exist in the Lidl directory**, so Waze and Maps both use the
+   address today. The point path is unit-tested only.
+8. **No offline queue.** By design - not started.
+
+### Next recommended task
+
+**Run the six browser suites and walk the whole chain on a real iPhone.**
+
+Everything shipped today is behavioural, and the container this was built in has
+neither a browser nor a live Supabase. On a machine that has both:
+
+1. `npm run test:projects test:isolation test:reports test:photos test:ai test:pdf`
+   (each needs `npm run dev` and the Supabase env), then fix whatever they catch.
+2. Walk it end to end on a phone: Site Capture twice in a day → issue the Daily →
+   Progress from two Dailies → Completion from that Progress → preview, finalise,
+   share.
+3. Repeat steps 4-8 of the Site Capture reliability tests in Airplane Mode - the
+   retry paths are the least proven code in the repository.
+
+Only after that is worth starting new feature work. **Do not begin an offline
+queue, a second mapping system, or more report sections until the chain has been
+seen working on a device.**
 
 ## Current state - read this before the historical sections below
 
