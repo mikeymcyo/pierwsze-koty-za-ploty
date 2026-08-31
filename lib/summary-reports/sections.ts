@@ -49,12 +49,12 @@ export const COMPLETION_SECTIONS: SummarySectionDefinition[] = [
   {
     type: "project_overview",
     label: "Project overview",
-    brief: "Why this project or work package existed and what it amounted to overall - the context and outcome a reader needs before any detail. Not a list of workstreams (Scope of works) and not a sequence of events (Stages of works).",
+    brief: "The story of the job in three or four sentences: what the work was, why it was needed, and what it amounted to overall. Prose a director could read on its own. It must NOT list the completed activities - Completed works carries those and a reader will meet them there - and must not restate the workstreams (Scope of works) or the sequence (Stages of works). Never repeat a sentence that appears in another section. State the overall outcome only as the evidence supports it: where anything is recorded as outstanding or follow-on, this section must say the primary works are complete with those items remaining, never that all works are complete.",
   },
   {
     type: "scope_of_works",
     label: "Scope of works",
-    brief: "Which workstreams and items were within the package: what was included. Not how or when any of it was carried out, and never inferred contractual scope.",
+    brief: "The workstreams and items within the package, at the technical depth the evidence actually gives: name the elements, locations, materials and systems the records name - manholes, slabs, expansion joints, drainage, the areas and levels involved. A single generic line such as 'concrete works at the site' is a failure when the records name the components. What was included, not how or when it was carried out, and never inferred contractual scope. Do not restate this list as Completed works.",
   },
   {
     type: "stages_of_works",
@@ -69,7 +69,7 @@ export const COMPLETION_SECTIONS: SummarySectionDefinition[] = [
   {
     type: "completed_works",
     label: "Completed works",
-    brief: "What the evidence explicitly records as complete. Do not restate the scope as though all of it were delivered, and do not certify quality or compliance.",
+    brief: "The specific activities the evidence records as finished, with their locations, materials and quantities - what was actually done and to what. Nothing that is planned, programmed, awaited or still to be carried out belongs here; that is Outstanding and sign-off. Do not restate the scope as though all of it were delivered, do not repeat the Project overview, and do not certify quality or compliance. A blanket sentence such as 'all works were completed successfully' is not a completed activity and does not belong in this section at all.",
   },
   {
     type: "issues_and_resolutions",

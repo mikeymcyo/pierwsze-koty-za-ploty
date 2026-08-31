@@ -88,7 +88,7 @@ check(
 );
 check(
   "it may not quietly drop one side",
-  /must not choose between them,\s+quietly drop one/i.test(MASTER_REVIEW_SYSTEM_PROMPT),
+  /must not choose\s+between them, quietly drop one/i.test(MASTER_REVIEW_SYSTEM_PROMPT),
 );
 check(
   "the decision belongs to the person who was there",

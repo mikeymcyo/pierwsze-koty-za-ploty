@@ -7,6 +7,10 @@ import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS } from "@/lib/issues/metadat
 import { photoPrintLabelText } from "@/lib/photo-captions";
 import { REPORT_SECTIONS } from "@/lib/report-sections";
 import { reportNumberLabel } from "@/lib/pdf/report-data";
+import {
+  CONTRADICTION_HEADING,
+  completionContradictions,
+} from "@/lib/summary-reports/completion-claims";
 import { summarySectionsFor, SUMMARY_KIND_LABELS } from "@/lib/summary-reports/sections";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatReportNumber } from "@/lib/utils";
@@ -306,6 +310,19 @@ export async function buildSummaryReviewContext(
         aiGenerated: section.aiGenerated,
       })),
       evidence: [
+        // Found mechanically, before the model reads a word. "Check for
+        // contradictions" is advice; "these two sentences cannot both be true,
+        // here they are" is a task. See lib/summary-reports/completion-claims.ts.
+        {
+          heading: CONTRADICTION_HEADING,
+          lines: completionContradictions(
+            sections.map((section) => ({
+              type: section.sectionType,
+              label: section.label,
+              content: section.content,
+            })),
+          ).map((contradiction) => contradiction.line),
+        },
         {
           heading: "WHAT THIS DOCUMENT WAS BUILT FROM (counts only - the source prose is not repeated)",
           lines: [

@@ -88,7 +88,16 @@ check(
   "overview, scope and stages are three different briefs",
   new Set([overview, scope, stages]).size === 3,
 );
-check("the overview disclaims the other two", /not a list of workstreams/i.test(overview) && /sequence/i.test(overview), overview);
+check(
+  "the overview disclaims the other two",
+  /must not restate the workstreams/i.test(overview) && /sequence/i.test(overview),
+  overview,
+);
+check(
+  "and disclaims completed works, which is the fault that was actually issued",
+  /NOT list the completed activities/.test(overview),
+  overview,
+);
 check("scope is about what was included, not how", /what was included/i.test(scope) && /not how or when/i.test(scope), scope);
 check("stages is chronological and disclaims scope", /in order/i.test(stages) && /not the scope list/i.test(stages), stages);
 check(

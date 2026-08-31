@@ -160,12 +160,12 @@ export const CLEANUP_SECTIONS: Record<CleanupDocumentKind, readonly CleanupSecti
     {
       type: "project_overview",
       label: "Project overview",
-      brief: "A factual overview of the project and the work the records evidence.",
+      brief: "The story of the job in three or four sentences: what the work was and what it amounted to overall. Not a list of the completed activities, which belong under completed works, and not the workstreams, which belong under scope. Where anything is recorded as outstanding or follow-on, say the primary works are complete with those items remaining - never that all works are complete.",
     },
     {
       type: "scope_of_works",
       label: "Scope of works",
-      brief: "The scope the records actually evidence. Do not infer contractual scope.",
+      brief: "The workstreams and items within the package, at the technical depth the records give - the elements, locations, materials and systems they name. A single generic line is a failure where the records name the components. Do not infer contractual scope, and do not write this list again as completed works.",
     },
     {
       type: "stages_of_works",
@@ -181,7 +181,7 @@ export const CLEANUP_SECTIONS: Record<CleanupDocumentKind, readonly CleanupSecti
       type: "completed_works",
       label: "Completed works",
       brief:
-        "Work the records explicitly record as complete. Completion is not approval, acceptance, compliance or certification.",
+        "The specific activities the records record as finished, with their locations, materials and quantities. Nothing planned, programmed, awaited or still to be carried out belongs here. Do not repeat the project overview. A blanket sentence such as \"all works were completed successfully\" is not a completed activity and does not belong in this section. Completion is not approval, acceptance, compliance or certification.",
     },
     {
       type: "issues_and_resolutions",

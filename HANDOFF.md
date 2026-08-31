@@ -34,6 +34,58 @@ The current implementation completes the core workflow:
 
 
 
+### A Completion Report that does not contradict itself
+
+**No migration.** `npm run test:completion-content` covers it.
+
+Completion Report 002 said "all works had been completed successfully" in its
+Project Overview and again, **word for word**, in Completed Works - while its own
+Outstanding section recorded localised concrete patch repairs still to be
+carried out. Scope of Works was one generic line; Stages, Key technical
+activities and Issues were all empty.
+
+**Two root causes, and only one of them was still live.**
+
+The poverty was already fixed. 002's evidence was a single hand-typed sentence,
+because the Progress Report beneath it had been written during the era when
+consolidation silently read nothing - see the evidence pipeline entry below.
+**Completion 003, generated after that fix, is rich and distinct**: Scope names
+engineering bricks, mortar, C4 and the expansion joint; Stages gives the real
+sequence; Key technical activities and Issues are populated. Nothing further was
+needed there, and requirement 3 of the brief is verified rather than rebuilt.
+
+**What was still live is the contradiction.** A blanket completion claim inside
+a source is a statement about *that source's period*. Carried into a Completion
+Report unqualified it becomes a claim about the whole job, and if anything is
+still outstanding it is a false one. Nothing anywhere reconciled the two, so 003
+repeats the fault in a better-written document.
+
+**`lib/summary-reports/completion-claims.ts`** now finds it mechanically, before
+any model reads the document: `blanketCompletionClaims` (narrow - "the manhole
+was rebuilt" is an activity, "all works were completed" is a claim),
+`outstandingMentions` (read from anywhere, including a photograph caption),
+`repeatedSentences` (normalised, six words or more), and
+`completionContradictions`, which names the sections and **quotes both
+sentences**. Those lines go into the Master Review's evidence under a heading
+saying each one needs a warning and the unsupported claim cut or qualified. An
+empty block is dropped, so a clean document costs nothing.
+
+**The reviewer is given one exception to flag-never-resolve.** A completion
+claim contradicted by outstanding work is not two facts disagreeing - it is one
+claim the evidence refutes. It is cut or qualified, replaced with what was
+completed and what remains, and a warning raised. Everything else still flags
+and never resolves.
+
+**The four sections were given genuinely different jobs**, in both the drafting
+and cleanup briefs: Project Overview is the story and outcome and is told
+outright not to list the completed activities; Scope must name the elements,
+locations, materials and systems the records name, with a generic line called a
+failure; Completed Works takes specific finished activities only and refuses a
+blanket sentence outright; Outstanding and sign-off is unchanged from the
+previous batch. The consolidator gained two blocks to match - COMPLETION STATUS
+(with the true sentence written out, not merely described) and NO SENTENCE
+TWICE.
+
 ### One photograph set on a consolidated report
 
 **No migration.** `npm run test:summary-photos` covers it.
