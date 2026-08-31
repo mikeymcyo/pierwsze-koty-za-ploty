@@ -28,6 +28,17 @@ export type ReportPhoto = {
   category: PhotoCategory;
   /** Quarter turns applied while drawing. Absent means as uploaded. */
   rotation?: number | null;
+  /**
+   * The caption written for this document, where one is.
+   *
+   * A consolidated report may caption a photograph differently from the day it
+   * was taken - `summary_report_photos.caption_override`. This list is the
+   * report's own plates, so it shows what will actually print rather than the
+   * photograph's original caption. Without it the arrange view and the
+   * curation form described the same photographs in two different ways, which
+   * is how they came to look like two different sets.
+   */
+  captionOverride?: string | null;
 };
 
 /**
@@ -190,8 +201,13 @@ export function ReportPhotos({
                   category={photo.category}
                   aiConfigured={aiConfigured}
                 />
-              ) : photo.caption ? (
-                <p className="truncate text-xs text-ink-muted">{photo.caption}</p>
+              ) : photo.captionOverride?.trim() || photo.caption ? (
+                /* What this document will print under the plate - the report's
+                   own caption where one was written, the photograph's own
+                   otherwise. Same photograph, same words, both surfaces. */
+                <p className="truncate text-xs text-ink-muted">
+                  {photo.captionOverride?.trim() || photo.caption}
+                </p>
               ) : null}
             </li>
           ))}

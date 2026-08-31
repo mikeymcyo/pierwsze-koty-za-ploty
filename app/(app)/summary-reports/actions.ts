@@ -478,27 +478,89 @@ export async function saveSummaryCuration(
       : Promise.resolve({ data: [] as { id: string; status: "open" | "in_progress" | "closed"; resolution: string | null }[] }),
   ]);
 
-  const [{ error: photoDeleteError }, { error: issueDeleteError }] = await Promise.all([
-    photosIncluded
-      ? supabase.from("summary_report_photos").delete().eq("summary_report_id", reportId)
-      : Promise.resolve({ error: null }),
-    supabase.from("summary_report_issues").delete().eq("summary_report_id", reportId),
-  ]);
-  const deleteError = photoDeleteError ?? issueDeleteError;
-  if (deleteError) return { error: `Could not update the selection: ${deleteError.message}` };
+  /**
+   * Photographs are reconciled against what is already linked, never deleted
+   * and re-inserted.
+   *
+   * The old code emptied the table and wrote the selection back with
+   * `sort_order: index` taken from the order PostgREST happened to return the
+   * rows in. So arranging the plates and then touching this form - ticking one
+   * more photograph, correcting one caption - silently scrambled the order the
+   * report would print in, and the tester saw a document that no longer matched
+   * the screen they had just arranged.
+   *
+   * Now a photograph that is staying keeps its position and only its caption is
+   * written; one that has been unticked is removed; a new one is appended after
+   * everything already there. Nothing that was in order moves.
+   */
+  const { data: existingLinks, error: existingError } = await supabase
+    .from("summary_report_photos")
+    .select("photo_id, sort_order, caption_override")
+    .eq("summary_report_id", reportId)
+    .order("sort_order", { ascending: true });
+  if (existingError) {
+    return { error: `Could not read the photograph selection: ${existingError.message}` };
+  }
 
-  if (photos?.length) {
-    const { error } = await supabase.from("summary_report_photos").insert(
-      photos.map((photo, index) => ({
+  const captionFor = (photoId: string) =>
+    String(formData.get(`photoCaption_${photoId}`) ?? "").trim() || null;
+
+  if (photosIncluded) {
+    const keeping = new Set((photos ?? []).map((photo) => photo.id));
+    const linked = new Map(
+      (existingLinks ?? []).map((link) => [link.photo_id, link] as const),
+    );
+
+    const dropped = (existingLinks ?? [])
+      .map((link) => link.photo_id)
+      .filter((photoId) => !keeping.has(photoId));
+    if (dropped.length > 0) {
+      const { error } = await supabase
+        .from("summary_report_photos")
+        .delete()
+        .eq("summary_report_id", reportId)
+        .in("photo_id", dropped);
+      if (error) return { error: `Could not update the selection: ${error.message}` };
+    }
+
+    let next = (existingLinks ?? []).reduce(
+      (highest, link) => Math.max(highest, link.sort_order),
+      -1,
+    );
+    for (const photo of photos ?? []) {
+      const existing = linked.get(photo.id);
+      const caption = captionFor(photo.id);
+      if (existing) {
+        // Only the caption. Writing sort_order here is exactly what lost the
+        // arranged order.
+        if (existing.caption_override !== caption) {
+          const { error } = await supabase
+            .from("summary_report_photos")
+            .update({ caption_override: caption })
+            .eq("summary_report_id", reportId)
+            .eq("photo_id", photo.id);
+          if (error) return { error: `Could not save the caption: ${error.message}` };
+        }
+        continue;
+      }
+      next += 1;
+      const { error } = await supabase.from("summary_report_photos").insert({
         company_id: session.companyId,
         summary_report_id: reportId,
         photo_id: photo.id,
-        sort_order: index,
-        caption_override:
-          String(formData.get(`photoCaption_${photo.id}`) ?? "").trim() || null,
-      })),
-    );
-    if (error) return { error: `Could not save the photograph selection: ${error.message}` };
+        sort_order: next,
+        caption_override: caption,
+      });
+      if (error) return { error: `Could not save the photograph selection: ${error.message}` };
+    }
+  }
+
+  const { error: issueDeleteError } = await supabase
+    .from("summary_report_issues")
+    .delete()
+    .eq("summary_report_id", reportId);
+  if (issueDeleteError) {
+    return { error: `Could not update the selection: ${issueDeleteError.message}` };
   }
   if (issues?.length) {
     const { error } = await supabase.from("summary_report_issues").insert(

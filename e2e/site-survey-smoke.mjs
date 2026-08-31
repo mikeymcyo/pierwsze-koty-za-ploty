@@ -321,8 +321,14 @@ check(
   /const photosIncluded = formData\.get\("photosIncluded"\) !== null/.test(summaryActions),
 );
 check(
-  "saving issues alone deletes no photograph links",
-  /photosIncluded \? supabase\.from\("summary_report_photos"\)\.delete\(\)/.test(flatActions),
+  // The whole photograph reconciliation now lives inside this branch, so an
+  // issue-only save reads nothing, deletes nothing and writes nothing about
+  // photographs. It used to be one guarded delete; it is now the lot.
+  "saving issues alone touches no photograph link at all",
+  /if \(photosIncluded\) \{/.test(summaryActions) &&
+    !/photoCaption_[\s\S]*?\}\s*const \{ error: issueDeleteError \}/.test(
+      summaryActions.slice(0, summaryActions.indexOf("if (photosIncluded) {")),
+    ),
 );
 check(
   "and reads no photograph fields either",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { ImageOff } from "lucide-react";
 
@@ -56,6 +56,19 @@ export function SummaryCuration({
 }) {
   const save = saveSummaryCuration.bind(null, reportId);
   const [state, action] = useActionState<SummaryFormState, FormData>(save, {});
+  /**
+   * Which photographs are in the document, tracked here rather than left to
+   * the DOM.
+   *
+   * A caption box used to sit under every photograph on the project, whether or
+   * not it was ticked. Somebody captioned twelve of them, six were not in the
+   * report, and those six captions went nowhere - which read as a second set of
+   * photographs that would not export. A caption belongs to a photograph that
+   * is in the document, so the box appears with the tick and goes with it.
+   */
+  const [included, setIncluded] = useState<Set<string>>(
+    () => new Set(photos.filter((photo) => photo.selected).map((photo) => photo.id)),
+  );
   return (
     <form action={action} className="flex flex-col gap-6">
       <div>
@@ -64,7 +77,7 @@ export function SummaryCuration({
         <h3 className="text-sm font-bold tracking-wide text-ink-muted uppercase">What the client sees</h3>
         <p className="mt-1 text-sm text-ink-muted">
           {showPhotos
-            ? "Choose the photographs and issues included in this document."
+            ? "Tick the photographs this document includes - those, and only those, are printed. A ticked photograph can carry a caption written for this report. Their order is set in Arrange Photos above and is not changed by saving here."
             : "Choose the issues included in this document."}
         </p>
       </div>
@@ -83,33 +96,59 @@ export function SummaryCuration({
           <p className="text-sm text-ink-muted">No project photographs are available.</p>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {photos.map((photo) => (
-              <label key={photo.id} className="flex cursor-pointer flex-col gap-2 rounded-xl border border-line p-2">
-                <div className="aspect-square overflow-hidden rounded-lg bg-surface-muted">
-                  {photo.url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={photo.url} alt={photo.caption ?? "Site photograph"} className="size-full object-cover" />
-                  ) : (
-                    <span className="grid size-full place-items-center"><ImageOff className="size-6 text-ink-subtle" aria-hidden /></span>
-                  )}
-                </div>
-                <span className="flex items-start gap-2 text-sm text-ink">
-                  <input type="checkbox" name="photoId" value={photo.id} defaultChecked={photo.selected} className="mt-1 size-5 accent-brand" />
-                  <span className="min-w-0">
-                    <span className="block font-medium">{photoStatusLabel(photo.category) ?? "Photograph"}</span>
-                    {photo.caption ? <span className="block truncate text-xs text-ink-muted">{photo.caption}</span> : null}
+            {photos.map((photo) => {
+              const inReport = included.has(photo.id);
+              return (
+                <label
+                  key={photo.id}
+                  className={`flex cursor-pointer flex-col gap-2 rounded-xl border p-2 transition-colors ${
+                    inReport ? "border-brand bg-brand-soft" : "border-line"
+                  }`}
+                >
+                  <div className="aspect-square overflow-hidden rounded-lg bg-surface-muted">
+                    {photo.url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={photo.url} alt={photo.caption ?? "Site photograph"} className="size-full object-cover" />
+                    ) : (
+                      <span className="grid size-full place-items-center"><ImageOff className="size-6 text-ink-subtle" aria-hidden /></span>
+                    )}
+                  </div>
+                  <span className="flex items-start gap-2 text-sm text-ink">
+                    <input
+                      type="checkbox"
+                      name="photoId"
+                      value={photo.id}
+                      checked={inReport}
+                      onChange={(event) =>
+                        setIncluded((current) => {
+                          const next = new Set(current);
+                          if (event.target.checked) next.add(photo.id);
+                          else next.delete(photo.id);
+                          return next;
+                        })
+                      }
+                      className="mt-1 size-5 accent-brand"
+                    />
+                    <span className="min-w-0">
+                      <span className="block font-medium">{photoStatusLabel(photo.category) ?? "Photograph"}</span>
+                      {photo.caption ? <span className="block truncate text-xs text-ink-muted">{photo.caption}</span> : null}
+                    </span>
                   </span>
-                </span>
-                <input
-                  type="text"
-                  name={`photoCaption_${photo.id}`}
-                  defaultValue={photo.captionOverride ?? photo.caption ?? ""}
-                  placeholder="Caption in this report"
-                  className="min-h-10 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink"
-                  aria-label={`Report caption for ${photo.caption ?? "site photograph"}`}
-                />
-              </label>
-            ))}
+                  {/* Only on a photograph that is actually in the document.
+                      A caption on one that is not would never print. */}
+                  {inReport ? (
+                    <input
+                      type="text"
+                      name={`photoCaption_${photo.id}`}
+                      defaultValue={photo.captionOverride ?? photo.caption ?? ""}
+                      placeholder="Caption in this report"
+                      className="min-h-10 w-full rounded-lg border border-line-strong bg-surface px-3 text-sm text-ink"
+                      aria-label={`Report caption for ${photo.caption ?? "site photograph"}`}
+                    />
+                  ) : null}
+                </label>
+              );
+            })}
           </div>
         )}
       </fieldset>

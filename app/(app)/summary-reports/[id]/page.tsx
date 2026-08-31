@@ -184,6 +184,15 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
   const standalone = isStandalone(sources.length);
   const direct = survey || standalone;
   const photoById = new Map(photos.map((photo) => [photo.id, photo]));
+  /**
+   * The report's own plates, in the order they print.
+   *
+   * One set, not two. This is `summary_report_photos` - exactly what
+   * lib/summary-reports/pdf-data.ts reads to build the document - carrying the
+   * caption written for this report so the arrange view shows what will
+   * actually appear under each plate. The curation form below ticks the same
+   * rows; nothing else decides what is exported.
+   */
   const attachedPhotos: ReportPhoto[] = (photoLinksResult.data ?? []).flatMap((link) => {
     const photo = photoById.get(link.photo_id);
     return photo
@@ -194,10 +203,23 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
             caption: photo.caption,
             category: photo.category,
             rotation: photo.rotation,
+            captionOverride: link.caption_override,
           },
         ]
       : [];
   });
+  /**
+   * A plate the screen could not show.
+   *
+   * `attachedPhotos` is built by looking each link up among the project's
+   * photographs, so a link pointing at a photograph this page did not load
+   * would vanish from the screen while still printing in the PDF - the exact
+   * shape of "the photographs I arranged are not the photographs that came
+   * out". It should be impossible, and if it ever happens it is said out loud
+   * rather than swallowed.
+   */
+  const unresolvedPlates = (photoLinksResult.data ?? []).length - attachedPhotos.length;
+
   const availablePhotos: ReportPhoto[] = photos
     .filter((photo) => !selectedPhotoIds.has(photo.id))
     .map((photo) => ({
@@ -454,6 +476,15 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
               // unmarked: a status is something a person opts into.
               defaultCategory={survey ? "before" : undefined}
             />
+          ) : null}
+
+          {unresolvedPlates > 0 ? (
+            <Alert tone="danger">
+              {unresolvedPlates} {unresolvedPlates === 1 ? "photograph is" : "photographs are"} in
+              this report but could not be loaded onto this screen, so what you see here is not
+              what would be printed. Do not issue this report - reload it, and tell support if it
+              persists.
+            </Alert>
           ) : null}
 
           {/* A consolidating report chooses its photographs by ticking them in

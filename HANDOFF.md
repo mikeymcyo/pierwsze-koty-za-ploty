@@ -34,6 +34,48 @@ The current implementation completes the core workflow:
 
 
 
+### One photograph set on a consolidated report
+
+**No migration.** `npm run test:summary-photos` covers it.
+
+A real test reported two photograph sets: the plates in Arrange Photos were the
+ones that printed but carried no caption control, and a second list offered
+"Caption in this report" on photographs that never appeared in the PDF.
+
+**They were never two sets in the database.** `summary_report_photos` has always
+been the one truth, and both the screen and `lib/summary-reports/pdf-data.ts`
+read it. The screen made it look like two, and one of the two ways it did that
+was destroying real work:
+
+1. **The curation form offered a caption box on every photograph on the
+   project**, ticked or not. Captions typed against untick­ed photographs were
+   read by nothing, because only selected rows are inserted - so half the
+   captions somebody wrote silently went nowhere. The box now appears with the
+   tick and goes with it, the tick is React state rather than the DOM, and an
+   included photograph is visibly included.
+2. **Saving that form scrambled the arranged order.** `saveSummaryCuration`
+   deleted every link and re-inserted the selection with `sort_order: index`
+   taken from whatever order PostgREST returned the rows in. Arrange the
+   plates, then correct one caption, and the document printed in a different
+   order from the screen you had just arranged. It now **reconciles**: a
+   photograph that is staying keeps its position and has only its caption
+   written, one that has been unticked is deleted, and a newly ticked one is
+   appended after the highest `sort_order` already there. Nothing that was in
+   order moves.
+3. **Arrange showed the wrong caption.** It printed the photograph's own
+   caption while the PDF prints `caption_override` where one exists. It now
+   shows exactly what will print, so both surfaces describe the same plate in
+   the same words.
+
+`reorderSummaryPhotos` was already correct - it writes `sort_order` and nothing
+else, so a caption has always stayed with its own photograph - and the suite now
+proves it rather than assuming it.
+
+One guard was added: `unresolvedPlates` counts links the screen could not
+resolve against the project's photographs. It should always be zero; if it is
+not, the report says so in red and says not to issue it, because that is exactly
+the shape of "what I arranged is not what came out".
+
 ### The evidence pipeline: does the text actually get there?
 
 **No migration.** `npm run test:evidence-flow` is the suite that proves the
