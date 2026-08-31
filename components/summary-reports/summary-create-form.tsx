@@ -15,27 +15,34 @@ import { cn } from "@/lib/utils";
 import type { SummaryReportKind } from "@/types/database";
 
 /**
- * The two honest ways to write a Progress Report.
+ * The two honest ways to write a consolidated report.
  *
- * Consolidating issued Daily Reports is the original path and stays the
- * default. Writing it directly is for the week the site manager was not there
- * and the work came back by phone, by message and by photograph - which is a
- * real week on a real job, and used to be impossible.
+ * Consolidating issued reports is the original path and stays the default.
+ * Writing it directly is for the week the site manager was not there and the
+ * work came back by phone, by message and by photograph - and, for a
+ * Completion Report, for the job that finished without a Daily Report ever
+ * having been filed. Both are real jobs; both used to be impossible.
  */
-const SOURCE_MODES: { value: SummarySourceMode; label: string; description: string }[] = [
-  {
-    value: "sources",
-    label: "From issued Daily Reports",
-    description:
-      "Every final Daily Report in the period becomes the evidence, and is listed in the PDF as the source record.",
-  },
-  {
-    value: "standalone",
-    label: "Write it directly",
-    description:
-      "No Daily Reports needed. Type or dictate what happened, add photographs and issues, and draft from those. The report will not claim any Daily Reports behind it.",
-  },
-];
+function sourceModes(
+  kind: SummaryReportKind,
+): { value: SummarySourceMode; label: string; description: string }[] {
+  const completion = kind === "completion";
+  return [
+    {
+      value: "sources",
+      label: completion ? "From issued reports" : "From issued Daily Reports",
+      description: completion
+        ? "Issued Progress Reports are used first, with every underlying Daily Report kept as provenance and listed in the PDF."
+        : "Every final Daily Report in the period becomes the evidence, and is listed in the PDF as the source record.",
+    },
+    {
+      value: "standalone",
+      label: "Write it directly",
+      description:
+        "No previous reports needed. Type or dictate what happened, add photographs, documents and issues, and draft from those. The report will not claim any reports behind it.",
+    },
+  ];
+}
 
 function StartButton() {
   const { pending } = useFormStatus();
@@ -85,15 +92,15 @@ export function SummaryCreateForm({
         </Select>
       </Field>
 
-      {/* Only a Progress Report has the choice. A Completion Report is a
-          consolidation by definition - it is the record of a job, drawn from
-          what was issued while the job ran. */}
-      {kind === "progress" ? (
-        <fieldset className="flex flex-col gap-2">
+      {/* Both kinds have the choice. A Completion Report is a consolidation by
+          intent, but a job can genuinely finish with nothing issued behind it,
+          and refusing to write that job's completion document does not make
+          the job less finished. */}
+      <fieldset className="flex flex-col gap-2">
           <legend className="mb-1 text-sm font-medium text-ink">Where the content comes from</legend>
           <input type="hidden" name="sourceMode" value={sourceMode} />
           <div className="grid gap-2 sm:grid-cols-2">
-            {SOURCE_MODES.map((mode) => {
+            {sourceModes(kind).map((mode) => {
               const active = mode.value === sourceMode;
               return (
                 <button
@@ -114,8 +121,7 @@ export function SummaryCreateForm({
               );
             })}
           </div>
-        </fieldset>
-      ) : null}
+      </fieldset>
 
       <Field
         label="Document title"
@@ -128,30 +134,22 @@ export function SummaryCreateForm({
       </Field>
 
       <div className="grid gap-5 sm:grid-cols-2">
-        <Field
-          label="Period start"
-          htmlFor="periodStart"
-          optional={kind === "completion"}
-          error={errors.periodStart}
-        >
-          <Input id="periodStart" name="periodStart" type="date" required={kind === "progress"} />
+        {/* Optional on both, and blank means blank: no date is invented for a
+            report whose author did not give one. */}
+        <Field label="Period start" htmlFor="periodStart" optional error={errors.periodStart}>
+          <Input id="periodStart" name="periodStart" type="date" />
         </Field>
-        <Field
-          label="Period end"
-          htmlFor="periodEnd"
-          optional={kind === "completion"}
-          error={errors.periodEnd}
-        >
-          <Input id="periodEnd" name="periodEnd" type="date" required={kind === "progress"} />
+        <Field label="Period end" htmlFor="periodEnd" optional error={errors.periodEnd}>
+          <Input id="periodEnd" name="periodEnd" type="date" />
         </Field>
       </div>
 
       <Alert tone="info">
-        {kind === "completion"
-          ? "Issued Progress Reports are used first, with every underlying Daily Report retained as provenance. Leave the dates blank for the whole project."
-          : sourceMode === "standalone"
-            ? "Nothing is consolidated. You write the report from your own notes, photographs, issues and documents, and it says so - there is no source record and nothing claims to come from a Daily Report."
-            : "All final Daily Reports in this period become the evidence for the draft."}
+        {sourceMode === "standalone"
+          ? "Nothing is consolidated. You write the report from your own notes, photographs, issues and documents, and it says so - there is no source record and nothing claims to come from a previous report."
+          : kind === "completion"
+            ? "Issued Progress Reports are used first, with every underlying Daily Report retained as provenance. Leave the dates blank for the whole project."
+            : "Every final Daily Report in the period becomes the evidence for the draft. Leave the dates blank to use every one on the project."}
       </Alert>
 
       <div className="flex flex-wrap gap-3">

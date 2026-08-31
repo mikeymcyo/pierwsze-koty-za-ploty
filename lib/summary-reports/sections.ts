@@ -193,7 +193,11 @@ export function summaryPeriodLabel(
     return visited ? (format(visited) ?? visited) : "Date not recorded";
   }
   if (start && end) return `${format(start) ?? start} to ${format(end) ?? end}`;
-  return "Whole project record";
+  // A Completion Report with no dates is the record of the whole job, which is
+  // what it is for. A Progress Report is not: it covers whatever the manager
+  // wrote or whatever was issued, and claiming it covers the whole project
+  // would be inventing a scope nobody entered. Neither invents a date.
+  return kind === "completion" ? "Whole project record" : "Period not stated";
 }
 
 /** What the control panel calls that date. */

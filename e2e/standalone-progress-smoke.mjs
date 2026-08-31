@@ -28,6 +28,7 @@ import {
   describeProvenance,
   evidenceHeading,
   isStandalone,
+  noSourcesMessage,
   provenanceInstruction,
   sourceModeOf,
 } from "../lib/summary-reports/provenance.ts";
@@ -95,8 +96,17 @@ check(
   canFinaliseSummary({ status: "draft", kind: "progress", sourceCount: 3, sectionCount: 2 }).ok,
 );
 check(
-  "a completion report still needs something to consolidate",
-  !canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 0, sectionCount: 4 }).ok,
+  // Was: a completion report needed a source. A job can finish without a
+  // Daily Report ever having been filed, and the absence is stated rather
+  // than hidden - no source record, a screen that says so, and a prompt
+  // forbidding the claim - so the check was protecting nothing.
+  "a completion report may be written directly too",
+  canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 0, sectionCount: 4 }).ok,
+);
+check(
+  "but no document may be issued with nothing written in it",
+  !canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 0, sectionCount: 0 }).ok &&
+    !canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 5, sectionCount: 0 }).ok,
 );
 check(
   "and a survey is as it was",
@@ -172,7 +182,15 @@ check(
 console.log("\n5. Creating one, without weakening the consolidating path");
 const actions = read("../app/(app)/summary-reports/actions.ts");
 check("the mode is read from the form", /sourceMode: sourceModeOf\(/.test(actions));
-check("only a progress report can be standalone", /input\.kind === "progress" && input\.sourceMode === "standalone"/.test(actions));
+check(
+  "either kind can be standalone, and it is the choice that decides",
+  /const standalone = input\.sourceMode === "standalone";/.test(actions) &&
+    !/input\.kind === "progress" && input\.sourceMode/.test(actions),
+);
+check(
+  "a standalone completion does not go hunting for progress reports either",
+  /input\.kind === "completion" && !standalone/.test(actions),
+);
 check(
   "a standalone report does not go looking for Daily Reports",
   /standalone\s*\n?\s*\? \{ data: \[\], error: null \}/.test(actions),
@@ -184,11 +202,19 @@ check(
 );
 check(
   "and still refuses an empty period, pointing at the other option",
-  /!standalone && daily\.length === 0/.test(actions) && /NO_DAILY_REPORTS/.test(actions),
+  /!standalone && daily\.length === 0 && progressForCompletion\.length === 0/.test(actions) &&
+    /noSourcesMessage\(input\.kind\)/.test(actions),
 );
 check(
-  "the refusal explains the alternative",
-  /Write it directly/.test(NO_DAILY_REPORTS) && /no final Daily Reports/i.test(NO_DAILY_REPORTS),
+  "the refusal explains the alternative, for either kind",
+  /Write it directly/.test(NO_DAILY_REPORTS) &&
+    /no final Daily Reports/i.test(NO_DAILY_REPORTS) &&
+    /Write it directly/.test(noSourcesMessage("completion")) &&
+    noSourcesMessage("progress") === NO_DAILY_REPORTS,
+);
+check(
+  "a standalone report is never refused for having no sources",
+  /Only a report that asked to consolidate/.test(actions),
 );
 check(
   "completion still prefers issued progress reports and keeps provenance",
@@ -202,7 +228,10 @@ check(
 console.log("\n6. On the screen");
 const form = read("../components/summary-reports/summary-create-form.tsx");
 check("the choice is offered", /From issued Daily Reports/.test(form) && /Write it directly/.test(form));
-check("only for a progress report", /kind === "progress" \? \(/.test(form));
+check(
+  "for either kind, and named for what it draws on",
+  /sourceModes\(kind\)\.map/.test(form) && /From issued reports/.test(form),
+);
 check("and it is sent with the form", /name="sourceMode"/.test(form));
 const page = read("../app/(app)/summary-reports/[id]/page.tsx");
 check(

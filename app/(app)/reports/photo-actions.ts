@@ -7,6 +7,7 @@ import { describePhotograph } from "@/lib/ai/photo-description";
 import { requireSessionContext } from "@/lib/auth/session";
 import { photoStatusLabel } from "@/lib/photo-captions";
 import { createClient } from "@/lib/supabase/server";
+import { isSameSet, sortOrderValues } from "@/lib/photos-order";
 import { PHOTO_BUCKET, photoPathPrefix } from "@/lib/photos";
 import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
 
@@ -206,6 +207,83 @@ export async function savePhotoDetails(
 
   revalidatePath(`/projects/${photo.project_id}`);
   if (photo.report_id) revalidatePath(`/reports/${photo.report_id}`);
+  return { saved: true };
+}
+
+export type PhotoOrderState = { saved?: boolean; error?: string };
+
+/**
+ * Stores the order the photographs are printed in.
+ *
+ * Only `sort_order` is written. Nothing is uploaded, copied, moved between
+ * reports or deleted: a photograph's caption, status, AI description and
+ * stored object all belong to its row, and it is the row that changes
+ * position. So reordering is presentation and nothing else, exactly like the
+ * P01/P02 references that are derived from it at render time.
+ *
+ * The submitted order is checked against what the report actually holds rather
+ * than trusted. A list arriving from a browser could be missing a photograph -
+ * which would silently strand it at position zero, in front of everything -
+ * or carrying an id from somewhere else, which is an attempt to write a row on
+ * another report. Either is refused whole; a partial reorder is worse than
+ * none.
+ *
+ * An issued report is not reordered. Its PDF was written once and the order
+ * inside that file is the order it went out in; moving the rows underneath it
+ * would make the screen and the document disagree about a record somebody is
+ * holding.
+ */
+export async function reorderReportPhotos(
+  reportId: string,
+  photoIds: string[],
+): Promise<PhotoOrderState> {
+  if (!z.uuid().safeParse(reportId).success) return { error: "That report could not be found." };
+  if (!z.array(z.uuid()).min(1).max(200).safeParse(photoIds).success) {
+    return { error: "That order could not be saved - please try again." };
+  }
+
+  await requireSessionContext();
+  const supabase = await createClient();
+
+  // RLS scopes this to the caller's company, so another company's report is
+  // simply not found.
+  const { data: report } = await supabase
+    .from("reports")
+    .select("id, project_id, status")
+    .eq("id", reportId)
+    .maybeSingle();
+  if (!report) return { error: "That report could not be found." };
+  if (report.status === "final") return { error: REPORT_IS_FINAL };
+
+  const { data: existing, error: readError } = await supabase
+    .from("photos")
+    .select("id")
+    .eq("report_id", reportId);
+  if (readError) return { error: `Could not read the photographs: ${readError.message}` };
+
+  if (!isSameSet(photoIds, (existing ?? []).map((photo) => photo.id))) {
+    // Stale screen, most likely: a photograph added or deleted on another
+    // device since this list was rendered. Saying so beats writing an order
+    // that leaves one of them behind.
+    return {
+      error: "The photographs have changed since this screen loaded. Reload the report and try again.",
+    };
+  }
+
+  // One row at a time rather than an upsert: an upsert would have to carry
+  // every not-null column back to the database, and a mistake there writes a
+  // photograph's ownership rather than its position.
+  for (const { id, sortOrder } of sortOrderValues(photoIds)) {
+    const { error } = await supabase
+      .from("photos")
+      .update({ sort_order: sortOrder })
+      .eq("id", id)
+      .eq("report_id", reportId);
+    if (error) return { error: `Could not save the order: ${error.message}` };
+  }
+
+  revalidatePath(`/reports/${reportId}`);
+  revalidatePath(`/projects/${report.project_id}`);
   return { saved: true };
 }
 

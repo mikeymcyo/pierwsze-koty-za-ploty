@@ -5,8 +5,8 @@
  * Pure, with no runtime imports and no path aliases, so the rules can be
  * tested directly and used from a client component.
  *
- * There are two honest ways to write a Progress Report, and the product had
- * only ever supported one:
+ * There are two honest ways to write a consolidated report - a Progress Report
+ * or a Completion Report - and the product had only ever supported one:
  *
  * - **From issued Daily Reports.** The report consolidates records that were
  *   already written and issued. Their list is frozen at creation and printed
@@ -91,3 +91,12 @@ export function describeProvenance(kind: string, sourceCount: number): string {
 /** Said when somebody asks to consolidate a period that has nothing in it. */
 export const NO_DAILY_REPORTS =
   "There are no final Daily Reports in that period. Choose \"Write it directly\" to produce the report from your own notes and photographs instead.";
+
+/** The same answer for a Completion Report, which draws on Progress Reports too. */
+export const NO_ISSUED_REPORTS =
+  "There are no issued reports to build this Completion Report from. Choose \"Write it directly\" to produce it from your own notes, photographs and issues instead.";
+
+/** Which of the two a document should say when it finds nothing to consolidate. */
+export function noSourcesMessage(kind: string): string {
+  return kind === "completion" ? NO_ISSUED_REPORTS : NO_DAILY_REPORTS;
+}

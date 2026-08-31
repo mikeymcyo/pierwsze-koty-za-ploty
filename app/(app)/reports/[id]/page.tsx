@@ -406,7 +406,12 @@ export default async function ReportCapturePage({
           )}
 
           {photos.length > 0 ? (
-            <PhotoGrid photos={photos} deletable={!isFinal} aiConfigured={hasAiConfig()} />
+            <PhotoGrid
+              photos={photos}
+              deletable={!isFinal}
+              aiConfigured={hasAiConfig()}
+              reportId={report.id}
+            />
           ) : null}
         </ReportSectionCard>
       )}

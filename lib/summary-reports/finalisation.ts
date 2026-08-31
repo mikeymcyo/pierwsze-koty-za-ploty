@@ -10,23 +10,25 @@ export function canFinaliseSummary(input: {
   sectionCount: number;
 }): { ok: true } | { ok: false; message: string } {
   if (input.status === "final") return { ok: false, message: SUMMARY_REPORT_IS_FINAL };
-  // Only a Completion Report is required to have something behind it. It is a
-  // consolidation by definition - the record of a job, drawn from the reports
-  // issued while the job ran - and one with no evidence at all would be a
-  // claim rather than a record.
+
+  // No document requires a source report. A Completion Report used to: it is a
+  // consolidation by intent, and one with nothing behind it looked like a
+  // claim rather than a record. But a job can genuinely finish without a
+  // single Daily Report having been filed - a short fit-out, a job taken over
+  // part-built, work reported nightly by phone - and refusing to issue the
+  // completion document for that job does not make the job less finished. It
+  // just means the record of it lives in somebody's email instead.
   //
-  // A survey is built from a visit, and a Progress Report may be written
-  // directly when the work was reported by phone or by message rather than in
-  // Daily Reports. Requiring a source would make both impossible to issue.
-  // Neither claims a provenance it does not have: with no sources there is no
-  // source record in the PDF, and the drafting prompt is told plainly that
-  // there are no daily reports. See lib/summary-reports/provenance.ts.
+  // What made the rule unnecessary is that the absence is already stated
+  // rather than hidden. A report with no sources prints no source record,
+  // says on its own screen that it has no reports behind it, and hands the
+  // model an instruction forbidding it to claim otherwise. So a standalone
+  // Completion Report cannot pass itself off as a consolidated one, which is
+  // the only thing this check was ever protecting. See
+  // lib/summary-reports/provenance.ts.
   //
-  // Compared here rather than through isSurvey so this module keeps no runtime
-  // imports and can be tested by loading it directly.
-  if (input.kind === "completion" && input.sourceCount === 0) {
-    return { ok: false, message: "Add at least one issued source report before finalising." };
-  }
+  // What is still required of every document is content: a report with no
+  // written section would be an official-looking document that says nothing.
   if (input.sectionCount === 0) {
     return { ok: false, message: "Write at least one section before finalising." };
   }

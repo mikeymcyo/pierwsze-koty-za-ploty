@@ -61,12 +61,13 @@ export const REPORT_SECTIONS: {
     type: "outstanding_items",
     label: "Outstanding items",
     brief:
-      "Items the notes record as awaiting a decision, an instruction or another party. Leave this empty rather than stating that nothing is outstanding.",
+      "Items the notes record as awaiting a decision, an instruction, information or another party - things the works are held up by rather than things we intend to do. Where such an item is also programmed, say so here, with its timing, and do not repeat it under Planned works. Leave this empty rather than stating that nothing is outstanding.",
   },
   {
     type: "planned_works",
     label: "Planned works",
-    brief: "What the notes say is planned for the next working day.",
+    brief:
+      "Work the notes say we intend to carry out next and which is not waiting on anybody else. Anything already stated as outstanding belongs there with its timing, not here as well.",
   },
 ];
 

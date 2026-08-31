@@ -9,7 +9,7 @@ import { PDF_BUCKET } from "@/lib/pdf/signing";
 import { dependentsOfSummaryReport } from "@/lib/reports/dependents";
 import { canDelete } from "@/lib/reports/lifecycle";
 import { SUMMARY_REPORT_IS_FINAL } from "@/lib/summary-reports/finalisation";
-import { NO_DAILY_REPORTS, sourceModeOf } from "@/lib/summary-reports/provenance";
+import { noSourcesMessage, sourceModeOf } from "@/lib/summary-reports/provenance";
 import { summarySectionsFor } from "@/lib/summary-reports/sections";
 import { completionSourcePlan } from "@/lib/summary-reports/source-plan";
 import { createClient } from "@/lib/supabase/server";
@@ -42,9 +42,9 @@ const createSchema = z
     periodStart: optionalDate,
     periodEnd: optionalDate,
     /**
-     * Whether this Progress Report consolidates issued Daily Reports or is
-     * written directly. Ignored for a Completion Report, which is a
-     * consolidation by definition.
+     * Whether this report consolidates issued reports or is written directly.
+     * Both kinds may be either: a job can finish without a Daily Report ever
+     * having been filed. See lib/summary-reports/provenance.ts.
      */
     sourceMode: z.enum(["sources", "standalone"]),
   })
@@ -54,13 +54,6 @@ const createSchema = z
         code: "custom",
         path: [value.periodStart === null ? "periodStart" : "periodEnd"],
         message: "Enter both dates or leave both blank",
-      });
-    }
-    if (value.kind === "progress" && (!value.periodStart || !value.periodEnd)) {
-      context.addIssue({
-        code: "custom",
-        path: ["periodStart"],
-        message: "A Progress Report needs a reporting period",
       });
     }
     if (value.periodStart && value.periodEnd && value.periodEnd < value.periodStart) {
@@ -120,10 +113,11 @@ export async function startSummaryReport(
     .maybeSingle();
   if (!project) return { error: "That project could not be found." };
 
-  // A standalone Progress Report is not built from Daily Reports, so it does
-  // not go looking for any. Nothing is linked, nothing is frozen, and nothing
-  // can later be mistaken for provenance.
-  const standalone = input.kind === "progress" && input.sourceMode === "standalone";
+  // A standalone report is not built from issued reports, so it does not go
+  // looking for any. Nothing is linked, nothing is frozen, and nothing can
+  // later be mistaken for provenance. True of a Completion Report as much as a
+  // Progress one: the job that was reported by phone still finishes.
+  const standalone = input.sourceMode === "standalone";
 
   const { data: allDaily, error: dailyError } = standalone
     ? { data: [], error: null }
@@ -153,7 +147,7 @@ export async function startSummaryReport(
   const progressForCompletion: { id: string; period_start: string | null; period_end: string | null }[] = [];
   const viaByDaily = new Map<string, string>();
 
-  if (input.kind === "completion") {
+  if (input.kind === "completion" && !standalone) {
     const { data: progress, error: progressError } = await supabase
       .from("summary_reports")
       .select("id, period_start, period_end")
@@ -194,11 +188,10 @@ export async function startSummaryReport(
     }
   }
 
-  if (input.kind === "progress" && !standalone && daily.length === 0) {
-    return { error: NO_DAILY_REPORTS };
-  }
-  if (input.kind === "completion" && daily.length === 0 && progressForCompletion.length === 0) {
-    return { error: "There are no issued reports to build this Completion Report from yet." };
+  // Only a report that asked to consolidate can fail for having nothing to
+  // consolidate. Standalone was chosen deliberately and has nothing to find.
+  if (!standalone && daily.length === 0 && progressForCompletion.length === 0) {
+    return { error: noSourcesMessage(input.kind) };
   }
 
   const { data: summary, error: createError } = await supabase

@@ -125,6 +125,12 @@ check(
   "and a completion report with no period still says so",
   summaryPeriodLabel("completion", null, null) === "Whole project record",
 );
+check(
+  // A progress report covers what was written or issued, not the whole job,
+  // and no date is invented for one that was left blank.
+  "a progress report with no period says so rather than claiming the project",
+  summaryPeriodLabel("progress", null, null) === "Period not stated",
+);
 check("their labels are unchanged", summaryPeriodFieldLabel("progress") === "Reporting period");
 
 console.log("\n5. A survey can be issued with nothing to consolidate");
@@ -144,8 +150,13 @@ check(
   canFinaliseSummary({ status: "draft", kind: "progress", sourceCount: 0, sectionCount: 3 }).ok,
 );
 check(
-  "but a completion report still does: it is a consolidation by definition",
-  !canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 0, sectionCount: 3 }).ok,
+  "and neither does a completion report: a job can finish with nothing filed",
+  canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 0, sectionCount: 3 }).ok,
+);
+check(
+  "what every kind still needs is something written in it",
+  !canFinaliseSummary({ status: "draft", kind: "survey", sourceCount: 0, sectionCount: 0 }).ok &&
+    !canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 0, sectionCount: 0 }).ok,
 );
 check(
   "an issued survey is still immutable",

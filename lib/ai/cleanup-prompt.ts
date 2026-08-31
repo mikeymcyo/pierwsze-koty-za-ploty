@@ -108,13 +108,13 @@ export const CLEANUP_SECTIONS: Record<CleanupDocumentKind, readonly CleanupSecti
       type: "outstanding_items",
       label: "Outstanding items",
       brief:
-        "Items the source records as awaiting a decision, an instruction, information or another party. Awaiting, not resolved.",
+        "Items the source records as awaiting a decision, an instruction, information or another party. Awaiting, not resolved. Where such an item also has a date against it, keep the date in this sentence - it does not become a planned work as well.",
     },
     {
       type: "planned_works",
       label: "Planned works",
       brief:
-        "Work the source records as intended or planned, and not yet started. Future tense throughout; never write planned work as done.",
+        "Work the source records as intended or planned, not yet started, and not waiting on another party - anything awaiting one belongs under Outstanding items with its timing. Future tense throughout; never write planned work as done.",
     },
   ],
   progress: [

@@ -4,7 +4,7 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Last updated:** 2026-08-30
+**Written:** 2026-08-26 · **Last updated:** 2026-08-31
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
 **Recovery head:** `fe6bf7f` - AI photo descriptions and supporting documents
@@ -31,6 +31,57 @@ The current implementation completes the core workflow:
 - Closing an issue now requires a recorded resolution. Finalising a summary
   snapshots its issue status and resolution.
 - Reports, Project detail and Dashboard list all three document types.
+
+### Standalone Completion, free dates, one fact one section, and photo order
+
+**A Completion Report can be written directly.** It was the last document that
+demanded a source, on the reasoning that a consolidation with nothing behind it
+is a claim rather than a record. But a job can finish without a Daily Report
+ever having been filed - a short fit-out, a job taken over part-built, work
+reported nightly by phone - and refusing to issue that job's completion
+document does not make the job less finished. Both gates are gone: the create
+form offers the same two modes it offered a Progress Report, and
+`canFinaliseSummary` no longer asks any kind for a source. What made the rule
+unnecessary is that the absence was already stated rather than hidden - no
+source record in the PDF, a screen that says the report has none, and a
+provenance instruction forbidding the model to claim one. `provenance.ts` was
+already kind-agnostic and did not change.
+
+**The reporting period is optional on every kind.** The Progress-only
+`superRefine` and the `required` inputs are gone. Blank means blank - no date
+is invented. A consolidating report with no dates takes every final Daily
+Report on the project, which is what the existing filter already did with a
+null bound. `summaryPeriodLabel` now says **"Period not stated"** for a Progress
+Report with no period rather than "Whole project record", which is a Completion
+Report's phrase and would be claiming a scope nobody entered.
+
+**Outstanding items and Planned works are no longer two chances to say one
+thing.** The briefs were distinct in intent but nothing forbade the repeat, so
+one activity could appear in both. The line is now drawn by who the work waits
+on - Outstanding is what we are waiting on somebody else for, Planned is what
+is ours to schedule - and an item that is both is written **once, under
+Outstanding, with its timing carried into the sentence**. The rule is in the
+daily briefs, the system prompt and the cleanup briefs, with a worked example,
+and it explicitly refuses the two cheap ways out: dropping the timing, and
+hedging what the notes said. Thirteen assertions in `test:section-roles`.
+
+**Photographs can be put in order.** `photos.sort_order` has existed since the
+first migration and nothing ever wrote it, so every row carried `0` and the
+lists fell back to `created_at` - upload order, by accident. `Reorder` on the
+photo section turns the grid into a mode where each tile shows the plate number
+it will print as (P01, P02 …) and two large arrows move it one place. Arrows
+rather than a drag: a long-press drag fights iOS's own scrolling, and fifteen
+photographs is a lot of dragging one-handed. Moves are debounced and written by
+`reorderReportPhotos`, which writes **only** `sort_order`, validates the
+submitted list against what the report actually holds, and refuses an issued
+report. `lib/photos-order.ts` holds the rules, including which plates share a
+row - the PDF prints two to a row in the given order, so a before and an after
+placed together print side by side, and the screen says so. Positions are
+one-based so a saved order is never confused with the unordered `0`. No
+migration: the column was already there.
+
+**Out of scope, deliberately:** a summary report's own photograph order lives
+in `summary_report_photos` and is a separate model; it was not touched.
 
 ### A small UX and account batch
 
@@ -1374,8 +1425,16 @@ the cache box unticked.
 ### Working preview alias
 
 ```
-https://pierwsze-koty-za-ploty-git-claude-siteboss-pro-b74a40-mikeymcyo.vercel.app
+https://pierwsze-koty-za-ploty-git-claude-siteboss-pro-454d8e-mikeymcyo.vercel.app
 ```
+
+The application is also served at **`https://app.sitebosspro.co.uk`**, aliased
+to this branch's newest deployment.
+
+**Deployment Protection is now OFF** - verified 2026-08-31 through the Vercel
+API (`ssoProtection`, `passwordProtection` and `trustedIps` all disabled) and
+by fetching all three URLs unauthenticated. The statements later in this file
+that it blocks automated testing are out of date.
 
 Stable for the life of the branch; always points at the newest successful build.
 Per-deployment URLs (`...-dyte4gktb-...`) change every push and 404 once
@@ -1414,6 +1473,7 @@ npm run test:dictation       transcript accumulation and restart policy
 npm run test:regeneration    what a regeneration may and may not overwrite
 npm run test:viewer          which PDF the full-screen reader is pointed at
 npm run test:timing          the created/issued line on a report in a list
+npm run test:photo-order     plate order, and what reordering must not touch
 ```
 
 These three need neither Supabase nor a dev server, so they run anywhere.
@@ -1463,6 +1523,15 @@ Supabase-backed test. `test:lifecycle` covers the rules, not the round trip.
 
 ### NOT verified
 
+- **Nothing in this batch has been run against a database.** The photo
+  reorder was driven by a real Chromium at 393x852: the mode appears only on a
+  report with more than one photograph, plate numbers read P01-P05, the first
+  and last arrows are disabled, the pair note appears on P02 and P04, and
+  moving P03 earlier reordered the tiles with every caption still attached.
+  The write itself - `reorderReportPhotos` against RLS - has not run. Nor has a
+  standalone Completion Report been created, nor a Progress Report with no
+  period. The rules are covered by `test:photo-order`, `test:standalone` and
+  `test:survey`; the round trips are not.
 - **The company rename has never been run against a database.** The rules,
   the ownership check and the fact that the action reaches no stored PDF are
   covered by `test:settings`, but the write itself - and the

@@ -53,11 +53,11 @@ check(
   canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 3, sectionCount: 4 }).ok,
 );
 check(
-  // The kind now matters: only a Completion Report must have something to
-  // consolidate. A Progress Report can be written directly and a survey always
-  // could - see e2e/standalone-progress-smoke.mjs.
-  "a completion report without evidence cannot",
-  !canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 0, sectionCount: 4 }).ok,
+  // No kind requires a source any more. A completion report written directly
+  // says so on its own screen, prints no source record and is forbidden by
+  // its prompt to claim one - see e2e/standalone-progress-smoke.mjs.
+  "a completion report written directly can too",
+  canFinaliseSummary({ status: "draft", kind: "completion", sourceCount: 0, sectionCount: 4 }).ok,
 );
 check(
   "a report without written sections cannot",

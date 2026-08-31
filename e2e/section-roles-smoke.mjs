@@ -10,6 +10,7 @@
  */
 import { SYSTEM_PROMPT } from "../lib/ai/prompt.ts";
 import { SUMMARY_SYSTEM_PROMPT } from "../lib/ai/summary-prompt.ts";
+import { CLEANUP_SECTIONS } from "../lib/ai/cleanup-prompt.ts";
 import { REPORT_SECTIONS } from "../lib/report-sections.ts";
 import { partitionDraft } from "../lib/reports/regeneration.ts";
 import { COMPLETION_SECTIONS, PROGRESS_SECTIONS } from "../lib/summary-reports/sections.ts";
@@ -20,6 +21,8 @@ function check(label, ok, detail = "") {
   console.log(`  [${ok ? "PASS" : "FAIL"}] ${label}${!ok && detail ? ` - ${detail}` : ""}`);
 }
 const briefOf = (sections, type) => sections.find((s) => s.type === type)?.brief ?? "";
+const CLEANUP_DAILY_OUTSTANDING = briefOf(CLEANUP_SECTIONS.daily, "outstanding_items");
+const CLEANUP_DAILY_PLANNED = briefOf(CLEANUP_SECTIONS.daily, "planned_works");
 
 console.log("\n1. Daily Summary and Works completed are given different jobs");
 const summary = briefOf(REPORT_SECTIONS, "executive_summary");
@@ -166,6 +169,59 @@ check(
 check(
   "and editing none means all are rewritten",
   partitionDraft(drafted, []).write.length === 3,
+);
+
+console.log("\n7. Outstanding items and Planned works are not two chances to say one thing");
+const outstanding = briefOf(REPORT_SECTIONS, "outstanding_items");
+const planned = briefOf(REPORT_SECTIONS, "planned_works");
+check("both briefs exist", Boolean(outstanding) && Boolean(planned));
+check("they are not the same text", outstanding !== planned);
+check(
+  "outstanding is what the works wait on somebody else for",
+  /awaiting/i.test(outstanding) && /(another party|decision|instruction)/i.test(outstanding),
+);
+check(
+  "planned is what we intend to do, and says it is not the waiting one",
+  /intend/i.test(planned) && /(not waiting|waiting on)/i.test(planned),
+);
+check(
+  "an item that is both is told to appear once, under outstanding",
+  /do not repeat it under Planned works/i.test(outstanding) &&
+    /belongs there/i.test(planned),
+);
+check(
+  "and its timing is kept rather than dropped to avoid the repeat",
+  /with its timing/i.test(outstanding) || /timing/i.test(outstanding),
+);
+check(
+  "the system prompt carries the rule as well as the briefs",
+  /EACH FACT BELONGS IN ONE SECTION ONLY/.test(SYSTEM_PROMPT),
+);
+check(
+  "it names the two sections it is about",
+  /Outstanding items and Planned\s+works/.test(SYSTEM_PROMPT),
+);
+check(
+  "it draws the line by who the work is waiting on",
+  /WAITING ON/.test(SYSTEM_PROMPT) && /ours to schedule/.test(SYSTEM_PROMPT),
+);
+check(
+  "it shows the one-sentence form rather than only forbidding the repeat",
+  /remains outstanding pending/.test(SYSTEM_PROMPT) && /programmed for/.test(SYSTEM_PROMPT),
+);
+check(
+  "and refuses the two cheap ways out: dropping the timing, or hedging it",
+  /Losing the timing is not an acceptable way/.test(SYSTEM_PROMPT) &&
+    /at the certainty the notes give it/.test(SYSTEM_PROMPT),
+);
+check(
+  "the cleanup pass draws the same line",
+  /belongs under Outstanding items with its timing/.test(CLEANUP_DAILY_PLANNED) &&
+    /does not become a planned work as well/.test(CLEANUP_DAILY_OUTSTANDING),
+);
+check(
+  "and none of it turns into a nil return",
+  /Leave this empty rather than stating that nothing is outstanding/.test(outstanding),
 );
 
 console.log("\n=== Result ===");
