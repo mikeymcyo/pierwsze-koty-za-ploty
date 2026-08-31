@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
+import type { SelectableDaily } from "@/lib/summary-reports/daily-selection";
 import { createClient } from "@/lib/supabase/server";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import type { SummaryReportKind } from "@/types/database";
@@ -33,6 +34,13 @@ export default async function NewSummaryReportPage({
   const projects = data ?? [];
   const defaultKind: SummaryReportKind = kind === "completion" ? "completion" : "progress";
 
+  // The issued Daily Reports of the chosen project, so a Progress Report can be
+  // built from the ones somebody actually means. Loaded here rather than
+  // fetched from the browser: the project select navigates, and the server that
+  // already knows about RLS is the only thing that should decide what this
+  // person may consolidate.
+  const dailies = project ? await selectableDailies(supabase, project) : [];
+
   return (
     <div className="flex flex-col gap-6">
       <Button asChild variant="ghost" size="sm" className="-ml-3 self-start">
@@ -47,8 +55,72 @@ export default async function NewSummaryReportPage({
       ) : projects.length === 0 ? (
         <EmptyState icon={FileText} title="You need a project first" description="Progress and Completion Reports always belong to a project." />
       ) : (
-        <SummaryCreateForm projects={projects} defaultProjectId={project} defaultKind={defaultKind} />
+        <SummaryCreateForm
+          projects={projects}
+          defaultProjectId={project}
+          defaultKind={defaultKind}
+          dailies={dailies}
+        />
       )}
     </div>
   );
+}
+
+/**
+ * Every issued Daily Report on a project, and whether an issued Progress Report
+ * already carries it.
+ *
+ * "Already used" is shown rather than hidden. A daily may honestly appear in
+ * two Progress Reports - a fortnightly and a monthly, say - and removing it
+ * from the list would leave somebody unable to build the document they meant.
+ */
+async function selectableDailies(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  projectId: string,
+): Promise<SelectableDaily[]> {
+  const { data: reports } = await withClockSkewRetry(() =>
+    supabase
+      .from("reports")
+      .select("id, report_number, report_date, finalised_at")
+      .eq("project_id", projectId)
+      .eq("status", "final")
+      .order("report_date", { ascending: false })
+      .order("report_number", { ascending: false }),
+  );
+  if (!reports?.length) return [];
+
+  // Which of them an issued Progress Report already consolidates. Two reads
+  // rather than a join, because PostgREST cannot express the filter across the
+  // link table and the report it points at in one.
+  const { data: issuedProgress } = await supabase
+    .from("summary_reports")
+    .select("id, number")
+    .eq("project_id", projectId)
+    .eq("kind", "progress")
+    .eq("status", "final");
+
+  const numberById = new Map((issuedProgress ?? []).map((row) => [row.id, row.number]));
+  const usedIn = new Map<string, number>();
+  if (numberById.size > 0) {
+    const { data: links } = await supabase
+      .from("summary_report_sources")
+      .select("summary_report_id, report_id")
+      .in("summary_report_id", Array.from(numberById.keys()))
+      .not("report_id", "is", null);
+    for (const link of links ?? []) {
+      const number = numberById.get(link.summary_report_id);
+      if (!link.report_id || number === undefined) continue;
+      // The earliest one that took it, so the note names where it first went.
+      const existing = usedIn.get(link.report_id);
+      if (existing === undefined || number < existing) usedIn.set(link.report_id, number);
+    }
+  }
+
+  return reports.map((report) => ({
+    id: report.id,
+    number: report.report_number,
+    date: report.report_date,
+    issuedAt: report.finalised_at,
+    usedIn: usedIn.get(report.id) ?? null,
+  }));
 }

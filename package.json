@@ -33,6 +33,7 @@
     "test:survey": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/site-survey-smoke.mjs",
     "test:issues-pdf": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/issues-pdf-smoke.mjs",
     "test:summary-reports": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/summary-reports-smoke.mjs",
+    "test:progress-sources": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/progress-sources-smoke.mjs",
     "test:lifecycle": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/lifecycle-smoke.mjs",
     "test:photo-captions": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/photo-captions-smoke.mjs",
     "test:section-roles": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/section-roles-smoke.mjs",

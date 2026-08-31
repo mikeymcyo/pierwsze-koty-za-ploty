@@ -34,6 +34,66 @@ The current implementation completes the core workflow:
 
 
 
+### A Progress Report is built from the Dailies somebody chose
+
+**No migration.** `summary_report_sources` has held one row per source since
+`20260828000005`, and that is still all this needs. `npm run
+test:progress-sources` covers the batch.
+
+**The gap was source selection, and only source selection.** Everything else
+the consolidation layer needs was already built: the cleanup-then-draft-then-
+review pipeline, the two writing areas, photograph curation and reorder, the
+document register, the issue snapshot, the printed source record, finalise and
+share. What was missing is that a Progress Report took **every** issued Daily
+Report inside a date range. A range is a guess dressed as a decision: it could
+not express "the three days that mattered", it swept in reports another
+Progress Report had already consolidated, and the period it printed was the
+range asked for rather than the evidence used.
+
+**The picker.** `/summary-reports/new?kind=progress&project=…` now lists that
+project's issued Daily Reports one per row - number, the day the work was done,
+the time it was issued - each a checkbox. Rows are `min-h-(--ui-control-min)`
+because this is chosen standing up. Select all and Clear are offered and the
+count is announced. Choosing a different project **navigates** rather than
+fetching: the server, which is the only thing that should decide what this
+person may consolidate, re-renders with that project's reports under the same
+RLS as everything else.
+
+**What is ticked by default** is everything not already inside an issued
+Progress Report - the sensible reading of "what has happened since the last one
+went out". A report that has gone out stays on the list, unticked, with its
+Progress Report named; hiding it would be its own kind of lie, and a daily may
+honestly appear in both a fortnightly and a monthly. Where every daily has
+already been consolidated, nothing is preselected: repeating a period should be
+a decision somebody makes on purpose.
+
+**The write treats the form as a request, not an authority.**
+`lib/summary-reports/daily-selection.ts` is pure and holds the rules;
+`startSummaryReport` deduplicates the posted ids into a `Set` before validation
+and then intersects them with the issued Daily Reports of that project that RLS
+actually let it read. So an id belonging to another company, to a draft, or to
+nothing at all cannot become a source row, and a duplicated id cannot either -
+"no duplicate source rows" is a property of the write.
+
+**The stated period follows the evidence.** Where the author typed dates, those
+are what the report says. Where they left them blank, the period is the span of
+what was selected: a report headed "1 to 14 August" that consolidated three
+days of that fortnight tells the reader something untrue about its own
+coverage. Photographs and the issue window follow the same resolved set.
+
+**A Completion Report is untouched.** It still prefers issued Progress Reports,
+keeps every underlying Daily Report as `via` provenance, and takes its
+remaining dailies by period. Only Progress gained the picker.
+
+**One prompt change.** The consolidator is now told that its evidence is a set
+of one-day diaries and that the report it writes is not one: consolidate by
+activity rather than by date, the same wall plastered across four days is one
+statement at the position it had reached, work started early in the period and
+finished later in it is completed rather than in progress, resources are never
+totalled across days, an issue raised and later resolved is one issue, and
+procurement is not completed work. Every existing safeguard is asserted still
+present.
+
 ### The Daily says one thing once, and calls itself a Daily
 
 **No migration.** `npm run test:daily-output` covers this batch.

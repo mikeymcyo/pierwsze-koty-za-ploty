@@ -11,6 +11,11 @@ import { canDelete } from "@/lib/reports/lifecycle";
 import { SUMMARY_REPORT_IS_FINAL } from "@/lib/summary-reports/finalisation";
 import { noSourcesMessage, sourceModeOf } from "@/lib/summary-reports/provenance";
 import { summarySectionsFor } from "@/lib/summary-reports/sections";
+import {
+  resolveDailySelection,
+  selectedPeriod,
+  type SelectableDaily,
+} from "@/lib/summary-reports/daily-selection";
 import { completionSourcePlan } from "@/lib/summary-reports/source-plan";
 import { createClient } from "@/lib/supabase/server";
 import type { SummaryReportKind } from "@/types/database";
@@ -47,6 +52,12 @@ const createSchema = z
      * having been filed. See lib/summary-reports/provenance.ts.
      */
     sourceMode: z.enum(["sources", "standalone"]),
+    /**
+     * The Daily Reports a Progress Report was told to consolidate. Empty on a
+     * Completion Report, which consolidates issued Progress Reports and keeps
+     * its own flow, and on a standalone report, which consolidates nothing.
+     */
+    reportIds: z.array(z.uuid()),
   })
   .superRefine((value, context) => {
     if ((value.periodStart === null) !== (value.periodEnd === null)) {
@@ -99,6 +110,9 @@ export async function startSummaryReport(
     periodStart: stringOf(formData, "periodStart"),
     periodEnd: stringOf(formData, "periodEnd"),
     sourceMode: sourceModeOf(stringOf(formData, "sourceMode")),
+    // Deduplicated before it is even validated. A form can post the same value
+    // twice; a report must never carry the same source row twice.
+    reportIds: Array.from(new Set(formData.getAll("reportIds").map(String).filter(Boolean))),
   });
   if (!parsed.success) return { fieldErrors: errorsOf(parsed.error) };
 
@@ -123,17 +137,69 @@ export async function startSummaryReport(
     ? { data: [], error: null }
     : await supabase
         .from("reports")
-        .select("id, report_date")
+        .select("id, report_number, report_date, finalised_at")
         .eq("project_id", input.projectId)
         .eq("status", "final")
-        .order("report_date", { ascending: true });
+        .order("report_date", { ascending: true })
+        .order("report_number", { ascending: true });
   if (dailyError) return { error: `Could not read the Daily Reports: ${dailyError.message}` };
 
-  const daily = (allDaily ?? []).filter(
-    (report) =>
-      (!input.periodStart || report.report_date >= input.periodStart) &&
-      (!input.periodEnd || report.report_date <= input.periodEnd),
-  );
+  const available: SelectableDaily[] = (allDaily ?? []).map((report) => ({
+    id: report.id,
+    number: report.report_number,
+    date: report.report_date,
+    issuedAt: report.finalised_at,
+    usedIn: null,
+  }));
+
+  /**
+   * A Progress Report consolidates the reports it was told to consolidate.
+   *
+   * The list from the form is a request, not an authority: it is intersected
+   * with the issued Daily Reports this project actually has, which are the
+   * only ones row-level security let us read. A posted id belonging to another
+   * company's project, to a draft, or to nothing at all therefore cannot
+   * become a source row - and the intersection is over a Set, so a duplicated
+   * id cannot either.
+   *
+   * A Completion Report is unchanged: it prefers issued Progress Reports and
+   * takes the remaining dailies in its period, which is its own established
+   * flow.
+   */
+  const daily =
+    input.kind === "progress" && !standalone
+      ? resolveDailySelection(input.reportIds, available)
+      : available.filter(
+          (report) =>
+            (!input.periodStart || report.date >= input.periodStart) &&
+            (!input.periodEnd || report.date <= input.periodEnd),
+        );
+
+  // Told to consolidate, told nothing to consolidate. Saying so beats building
+  // a Progress Report that quietly claims no evidence at all.
+  if (input.kind === "progress" && !standalone && daily.length === 0) {
+    return {
+      error:
+        input.reportIds.length > 0
+          ? "None of the reports you chose are still issued Daily Reports on this project."
+          : "Choose at least one Daily Report to consolidate, or write the report directly.",
+    };
+  }
+
+  /**
+   * The period the document states.
+   *
+   * Where the author typed dates, those are what the report says. Where they
+   * left them blank, the span of what was actually selected is the honest
+   * answer - a report headed "1 to 14 August" that consolidated three days of
+   * that fortnight tells the reader something untrue about its own coverage.
+   */
+  const span =
+    input.kind === "progress" && !standalone && !input.periodStart && !input.periodEnd
+      ? selectedPeriod(daily)
+      : null;
+  const periodStart = input.periodStart ?? span?.start ?? null;
+  const periodEnd = input.periodEnd ?? span?.end ?? null;
 
   const sources: {
     company_id: string;
@@ -201,8 +267,8 @@ export async function startSummaryReport(
       project_id: input.projectId,
       kind: input.kind,
       title: input.title,
-      period_start: input.periodStart,
-      period_end: input.periodEnd,
+      period_start: periodStart,
+      period_end: periodEnd,
       created_by: session.userId,
     })
     .select("id")
@@ -299,8 +365,8 @@ export async function startSummaryReport(
     .order("created_at", { ascending: true });
   const relevantIssues = (projectIssues ?? []).filter(
     (issue) =>
-      (!input.periodEnd || issue.created_at.slice(0, 10) <= input.periodEnd) &&
-      (!input.periodStart || !issue.closed_at || issue.closed_at.slice(0, 10) >= input.periodStart),
+      (!periodEnd || issue.created_at.slice(0, 10) <= periodEnd) &&
+      (!periodStart || !issue.closed_at || issue.closed_at.slice(0, 10) >= periodStart),
   );
   if (relevantIssues.length) {
     await supabase.from("summary_report_issues").insert(
