@@ -43,6 +43,7 @@
     "test:lifecycle": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/lifecycle-smoke.mjs",
     "test:photo-captions": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/photo-captions-smoke.mjs",
     "test:section-roles": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/section-roles-smoke.mjs",
+    "test:document-intelligence": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/document-intelligence-smoke.mjs",
     "test:document-extraction": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/document-extraction-smoke.mjs",
     "test:documents": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/documents-smoke.mjs",
     "test:document-upload": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/document-upload-smoke.mjs",

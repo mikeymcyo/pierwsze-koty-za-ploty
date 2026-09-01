@@ -18,6 +18,7 @@ import { ProjectStatusBadge, isEnquiry } from "@/components/projects/status-badg
 import { ReportRow } from "@/components/reports/report-row";
 import { SummaryRow } from "@/components/summary-reports/summary-row";
 import { JobBrief, type BriefDocument } from "@/components/projects/job-brief";
+import { currentExtractions } from "@/lib/documents/extractions";
 import { LinkedStoreCard, UnknownStoreCard } from "@/components/stores/linked-store-card";
 import { BackLink } from "@/components/ui/back-link";
 import { isProjectTab, type ProjectTab } from "@/lib/project-tabs";
@@ -199,14 +200,61 @@ export default async function ProjectPage({
 
   // A document is job scope because somebody said so, never because it was
   // uploaded - so the picker shows which ones already are.
-  const scopeIds = new Set(briefDocumentIds(project.description));
-  const briefDocuments: BriefDocument[] = documentRows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    filename: row.original_filename,
-    docType: row.doc_type,
-    inScope: scopeIds.has(row.id),
-  }));
+  //
+  // Scope comes from job_context_documents, which is the standing fact, with
+  // the brief's own `(doc:...)` markers folded in behind it: a project marked
+  // before that table existed still reads as scope rather than silently losing
+  // it. The brief entries themselves are untouched history either way.
+  // Skipped outright with no documents: `in` with an empty list is a query
+  // Postgres rejects, and a project with no paperwork has no marks to read.
+  const { data: contextRows } = documentRows.length
+    ? await supabase
+        .from("job_context_documents")
+        .select("document_id")
+        .in(
+          "document_id",
+          documentRows.map((row) => row.id),
+        )
+        .is("removed_at", null)
+    : { data: [] as { document_id: string }[] };
+  const scopeIds = new Set([
+    ...briefDocumentIds(project.description),
+    ...(contextRows ?? []).map((row) => row.document_id),
+  ]);
+
+  // What the AI made of each document, where somebody has asked it to read one.
+  const extractionState = await currentExtractions(
+    supabase,
+    documentRows.map((row) => row.id),
+  );
+
+  const briefDocuments: BriefDocument[] = documentRows.map((row) => {
+    const reading = extractionState.get(row.id);
+    const content = reading?.content ?? null;
+    return {
+      id: row.id,
+      title: row.title,
+      filename: row.original_filename,
+      docType: row.doc_type,
+      inScope: scopeIds.has(row.id),
+      extraction: reading
+        ? {
+            status: reading.status,
+            summary: reading.summary,
+            error: reading.error,
+            counts: reading.counts,
+            // Only the two that change what may be written. "Described" is
+            // real and useful to the model, and noise on a card.
+            instructed: (content?.scope_items ?? [])
+              .filter((item) => item.commitment === "instructed")
+              .map((item) => item.text),
+            proposed: (content?.scope_items ?? [])
+              .filter((item) => item.commitment === "proposed")
+              .map((item) => item.text),
+          }
+        : null,
+    };
+  });
 
   // Built from the rows already fetched above plus that one extra query, so
   // the whole history costs no more round trips than the tab it sits beside.

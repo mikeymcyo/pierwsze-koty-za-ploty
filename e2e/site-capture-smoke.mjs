@@ -333,18 +333,26 @@ check(
 // repository is still the photograph rotation column, and none of them
 // mentions a capture table.
 const migrationFiles = readdirSync(new URL("../supabase/migrations/", import.meta.url)).sort();
+// Asserted by what the migrations DO rather than by which one is newest.
+// Pinning the newest file made this break every time an unrelated feature
+// added one, which says nothing at all about Site Capture.
+//
+// Comments are stripped first: several migrations use the word "captured" in
+// prose about photographs and snapshots, and prose is not schema.
+const migrationCode = (name) =>
+  readFileSync(new URL(`../supabase/migrations/${name}`, import.meta.url), "utf8")
+    .split("\n")
+    .filter((line) => !line.trim().startsWith("--"))
+    .join("\n");
+
 check(
-  "no migration was added for Site Capture",
-  migrationFiles[migrationFiles.length - 1] === "20260901000009_photo_rotation.sql",
+  "no migration declares anything named for a capture",
+  !migrationFiles.some((name) => /capture/i.test(migrationCode(name))),
   migrationFiles.join(", "),
 );
 check(
   "and no migration creates a table to hold captures",
-  !migrationFiles.some((name) =>
-    /create table[^\n;]*capture/i.test(
-      readFileSync(new URL(`../supabase/migrations/${name}`, import.meta.url), "utf8"),
-    ),
-  ),
+  !migrationFiles.some((name) => /create table[^\n;]*capture/i.test(migrationCode(name))),
 );
 
 console.log("\n=== Result ===");

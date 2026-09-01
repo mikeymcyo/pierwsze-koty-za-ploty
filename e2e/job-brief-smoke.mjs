@@ -175,10 +175,21 @@ const dailyActions = read("../app/(app)/reports/ai-actions.ts");
 const summaryActions = read("../app/(app)/summary-reports/ai-actions.ts");
 const photoActions = read("../app/(app)/reports/photo-actions.ts");
 check("the daily cleanup pass gets it", /label: JOB_BRIEF_LABEL, text: jobBrief/.test(dailyActions));
-check("the daily drafting pass gets it", /jobBrief: jobContextBlock\(jobBrief\)/.test(dailyActions));
+check(
+  "the daily drafting pass gets it",
+  /jobBrief: jobContextBlock\(jobBrief, jobDocuments\)/.test(dailyActions),
+);
 check("progress and completion get it", /label: JOB_BRIEF_LABEL, text: jobBrief/.test(summaryActions));
-check("their writer too", /jobBrief: jobContextBlock\(jobBrief\)/.test(summaryActions));
-check("the photograph describer too", /jobBrief: jobContextBlock\(briefForPrompt\(project\?\.description\)\)/.test(photoActions));
+check(
+  "their writer too",
+  /jobBrief: jobContextBlock\(jobBrief, jobDocuments\)/.test(summaryActions),
+);
+check(
+  "the photograph describer too",
+  /jobBrief: jobContextBlock\(briefForPrompt\(project\?\.description\), jobDocuments\)/.test(
+    photoActions,
+  ),
+);
 check(
   "and every one of them reads it from the project",
   /projects\(name, client, site_address, description\)/.test(dailyActions) &&
@@ -249,7 +260,7 @@ check(
 );
 check(
   "the screen says so in words",
-  /does not put it in a report or attach it to a PDF/.test(briefCopy),
+  /Neither puts it in a report or attaches it to a PDF/.test(briefCopy),
 );
 check("a document from another project is refused", /\.eq\("project_id", projectId\)/.test(briefActions));
 check("and adding one twice is not a second event", /briefHasDocument\(project\.description, document\.id\)/.test(briefActions));
@@ -421,13 +432,12 @@ check(
 );
 check(
   "uploading is still not the same act as saying it is scope",
-  /<Button type="submit" variant="secondary" size="sm"[\s\S]{0,80}Use as job context/.test(briefUi) &&
-    /addJobBriefDocument/.test(briefUi),
+  /<ActionButton label="Use as job context"/.test(briefCopy) && /addJobBriefDocument/.test(briefUi),
   "an upload must land unmarked; a person marks it",
 );
 check(
   "and job context is still neither a report reference nor a PDF attachment",
-  /does not put it in a report or attach it to a PDF/.test(briefCopy),
+  /Neither puts it in a report or attaches it to a PDF/.test(briefCopy),
 );
 check(
   "no migration was needed for any of it",
@@ -435,9 +445,9 @@ check(
 );
 
 check(
-  "on a phone the row stacks and the button is full width",
+  "on a phone the row stacks and the buttons are full width",
   /flex flex-col gap-3 sm:flex-row sm:items-center/.test(briefUi) &&
-    /className="w-full sm:w-auto"[\s\S]{0,60}Use as job context/.test(briefUi),
+    /className="w-full sm:w-auto"/.test(briefUi),
 );
 check(
   "the uploader still opens Files rather than forcing the camera",

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireSessionContext } from "@/lib/auth/session";
+import { runExtraction } from "@/lib/documents/extractions";
 import {
   appendBriefEntry,
   briefAlreadyEnds,
@@ -148,7 +149,7 @@ export async function addJobBriefDocument(
   const parsed = documentSchema.safeParse({ documentId: String(formData.get("documentId") ?? "") });
   if (!parsed.success) return { error: "That document could not be found." };
 
-  await requireSessionContext();
+  const session = await requireSessionContext();
   const supabase = await createClient();
 
   // Read through the project, so a document from another project - or another
@@ -169,6 +170,23 @@ export async function addJobBriefDocument(
     .maybeSingle();
   if (!project) return { error: "That project could not be found." };
 
+  // The mark that decides what the AI reads. The brief entry below is the
+  // history of somebody saying so; this row is the standing fact, and it is
+  // what lib/documents/job-context.ts reads. Written first, because a brief
+  // that records a decision the app then failed to act on is the worse of the
+  // two half-states.
+  //
+  // 23505 is the one-active index: it is already job context, which is not an
+  // error and not a second event.
+  const { error: markError } = await supabase.from("job_context_documents").insert({
+    company_id: session.companyId,
+    document_id: document.id,
+    added_by: session.userId,
+  });
+  if (markError && markError.code !== "23505" && markError.code !== "42P01") {
+    return { error: `Could not add the document to the job scope: ${markError.message}` };
+  }
+
   // Already scope. Saying so twice would put the same document in the history
   // twice, which is not a second event.
   if (briefHasDocument(project.description, document.id)) return { saved: true };
@@ -186,4 +204,101 @@ export async function addJobBriefDocument(
 
   revalidatePath(`/projects/${projectId}`);
   return { saved: true };
+}
+
+/**
+ * Takes a document back out of the AI's reading.
+ *
+ * A stamp, never a deletion. "This purchase order stopped being scope on
+ * Tuesday" is a fact about the job, and a report drafted on Monday was drafted
+ * while it still was - so the row stays with removed_at and removed_by on it,
+ * and the brief entry recording its arrival stays exactly where it was. The
+ * document itself, and any report that references it, are untouched.
+ */
+export async function removeJobBriefDocument(
+  projectId: string,
+  _previous: JobBriefState,
+  formData: FormData,
+): Promise<JobBriefState> {
+  const parsed = documentSchema.safeParse({ documentId: String(formData.get("documentId") ?? "") });
+  if (!parsed.success) return { error: "That document could not be found." };
+
+  const session = await requireSessionContext();
+  const supabase = await createClient();
+
+  const { data: document } = await supabase
+    .from("documents")
+    .select("id")
+    .eq("id", parsed.data.documentId)
+    .eq("project_id", projectId)
+    .maybeSingle();
+  if (!document) return { error: "That document is not on this project." };
+
+  const { error } = await supabase
+    .from("job_context_documents")
+    .update({ removed_at: new Date().toISOString(), removed_by: session.userId })
+    .eq("document_id", document.id)
+    .is("removed_at", null);
+  if (error && error.code !== "42P01") {
+    return { error: `Could not take the document out of the job scope: ${error.message}` };
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  return { saved: true };
+}
+
+/**
+ * Reads a job document, so the AI knows what the paperwork says.
+ *
+ * A separate act again, and deliberately a button rather than something that
+ * happens on upload: reading costs a model call, and a drawing register nobody
+ * will use as context should not spend one. Re-reading an already-read
+ * document is the same action - the old reading is superseded and kept.
+ *
+ * Everything it stores was quoted from the document and checked back against
+ * the document's own text; see lib/documents/extraction-schema.ts. Nothing it
+ * stores is attached to any report or appended to any PDF.
+ */
+export async function extractJobDocument(
+  projectId: string,
+  _previous: JobBriefState,
+  formData: FormData,
+): Promise<JobBriefState> {
+  const parsed = documentSchema.safeParse({ documentId: String(formData.get("documentId") ?? "") });
+  if (!parsed.success) return { error: "That document could not be found." };
+
+  const session = await requireSessionContext();
+  const supabase = await createClient();
+
+  // Read through the project so a document on another job cannot be named, and
+  // so the project's name can be given to the model as context.
+  const [{ data: document }, { data: project }] = await Promise.all([
+    supabase
+      .from("documents")
+      .select("id, title, doc_type, storage_path")
+      .eq("id", parsed.data.documentId)
+      .eq("project_id", projectId)
+      .maybeSingle(),
+    supabase.from("projects").select("id, name").eq("id", projectId).maybeSingle(),
+  ]);
+  if (!document) return { error: "That document is not on this project." };
+  if (!project) return { error: "That project could not be found." };
+
+  const result = await runExtraction(
+    supabase,
+    {
+      id: document.id,
+      companyId: session.companyId,
+      projectName: project.name,
+      title: document.title,
+      docType: document.doc_type,
+      storagePath: document.storage_path,
+    },
+    session.userId,
+  );
+
+  // The row already records the failure and why; the screen shows it from
+  // there on the next render, so a reload does not lose it.
+  revalidatePath(`/projects/${projectId}`);
+  return result.ok ? { saved: true } : { error: result.error };
 }

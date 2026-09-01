@@ -1,6 +1,9 @@
 import "server-only";
 
+import { jobContextBlock } from "@/lib/ai/job-context";
 import type { MasterReviewInput, ReviewableSection } from "@/lib/ai/master-review-prompt";
+import { documentContextForProject } from "@/lib/documents/job-context";
+import { briefForPrompt } from "@/lib/projects/job-brief";
 import { resolveDocument } from "@/lib/documents/metadata";
 import { loadReferencedDocuments } from "@/lib/documents/snapshot";
 import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS } from "@/lib/issues/metadata";
@@ -107,6 +110,24 @@ export function dailySections(
   }).filter((section) => (section.content ?? "").trim().length > 0);
 }
 
+/**
+ * What the job was sent out to do, for a reviewer reading the finished report.
+ *
+ * The same block the drafting passes were given, so the reviewer judges the
+ * report against the same scope it was written from. It is never handed over
+ * as evidence: see MasterReviewInput.jobContext.
+ */
+async function jobContextFor(
+  supabase: Client,
+  projectId: string,
+  description: string | null | undefined,
+): Promise<string | null> {
+  return jobContextBlock(
+    briefForPrompt(description),
+    await documentContextForProject(supabase, projectId),
+  );
+}
+
 export async function buildDailyReviewContext(
   supabase: Client,
   reportId: string,
@@ -114,7 +135,7 @@ export async function buildDailyReviewContext(
   const { data: report } = await supabase
     .from("reports")
     .select(
-      "id, project_id, report_number, report_date, weather, author_name, raw_notes, projects(name, client, site_address, project_reference)",
+      "id, project_id, report_number, report_date, weather, author_name, raw_notes, projects(name, client, site_address, project_reference, description)",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -145,11 +166,13 @@ export async function buildDailyReviewContext(
 
   const sections = dailySections(sectionRows ?? []);
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
+  const jobContext = await jobContextFor(supabase, report.project_id, project?.description);
 
   return {
     sections,
     input: {
       documentKind: "DAILY SITE REPORT",
+      jobContext,
       projectName: project?.name ?? "Project",
       client: project?.client ?? null,
       siteAddress: project?.site_address ?? null,
@@ -213,7 +236,7 @@ export async function buildSummaryReviewContext(
   const { data: report } = await supabase
     .from("summary_reports")
     .select(
-      "id, project_id, kind, number, title, period_start, period_end, projects(name, client, site_address, project_reference)",
+      "id, project_id, kind, number, title, period_start, period_end, projects(name, client, site_address, project_reference, description)",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -290,11 +313,13 @@ export async function buildSummaryReviewContext(
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const kindLabel = SUMMARY_KIND_LABELS[report.kind];
+  const jobContext = await jobContextFor(supabase, report.project_id, project?.description);
 
   return {
     sections,
     input: {
       documentKind: kindLabel.toUpperCase(),
+      jobContext,
       projectName: project?.name ?? "Project",
       client: project?.client ?? null,
       siteAddress: project?.site_address ?? null,

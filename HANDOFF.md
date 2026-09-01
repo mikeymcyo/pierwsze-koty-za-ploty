@@ -7,7 +7,7 @@ it says so explicitly - treat that distinction as load-bearing.
 **Written:** 2026-08-26 · **Last updated:** 2026-08-31 (end of day)
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-**Head:** `85b7286` - End-of-day handoff, 2026-08-31
+**Head:** Document Intelligence, 2026-09-01 - see the section below
 **Recovery head:** `fe6bf7f` - AI photo descriptions and supporting documents
 
 ## Stopping point, 2026-08-31
@@ -112,6 +112,108 @@ queue, a second mapping system, or more report sections until the chain has been
 seen working on a device.**
 
 ## Current state - read this before the historical sections below
+
+## Document Intelligence, 2026-09-01
+
+**Applied to the hosted database.** Migration
+`20260901000010_document_intelligence.sql`, recorded remotely as
+`20260901165706_document_intelligence`. Applied by explicit migration
+execution, never `db push` - the repository's first five migration files are
+not in the remote migration history (they went in through
+`apply-all-migrations.sql`), so `db push` would try to re-apply
+`initial_schema` against live data. **Do not run it.**
+
+Three objects, all additive, nothing backfilled:
+
+- `job_context_documents` - "use as AI context". A table rather than a boolean
+  on `documents` because the useful part is who decided and when. Removal is a
+  stamp (`removed_at`, `removed_by`), never a delete: a report drafted while a
+  document was scope has to stay explainable. Active context is
+  `removed_at is null`, enforced by a partial unique index, so a document can
+  be context, removed, and context again with both episodes on the record.
+  There is no `project_id` - `documents.project_id` is NOT NULL, so a second
+  copy could only ever agree or contradict.
+- `extraction_status` - `pending`, `running`, `succeeded`, `failed`,
+  `superseded`. Five values on purpose: PostgreSQL cannot remove one, and
+  adding later is a one-line `ALTER TYPE` as `site_surveys` shows.
+- `document_extractions` - one row per *reading*, never overwritten. Two
+  partial unique indexes do the arguing: one current reading per document, one
+  call in flight (so a double tap on a bad signal cannot spend the model call
+  twice). A failed row must record why.
+
+### What the parser does
+
+`Extract job context` on the Job brief card reads the PDF and stores what it
+says. The chain is:
+
+1. `lib/documents/pdf-text.ts` - pdfjs (already a dependency, used by the
+   viewer) pulls the text layer out page by page under Node. No text layer
+   means a scan, and that is reported as such rather than guessed at.
+2. `lib/ai/extraction-prompt.ts` - the instruction, versioned `extract-v1`.
+3. `lib/ai/document-extraction.ts` - the OpenAI call, JSON-schema constrained.
+4. `lib/documents/extraction-schema.ts` - **the part that matters.** Every
+   field, scope item and requirement must carry a page and a verbatim quote,
+   and each quote is checked against the text the model was given. A quote
+   found nowhere is dropped as a fabrication. A quote found on a different page
+   keeps its content and has its page corrected, and the correction is
+   reported. An extraction with nothing left standing fails.
+5. `lib/documents/extractions.ts` - the lifecycle, and what is stored: source
+   path, SHA-256, bytes, page count, the exact source text the model saw, the
+   model, the prompt version, and the structured content.
+
+The check is mechanical. It does not need the model to be honest, and it does
+not need anybody to read the document to find out.
+
+### Where it reaches
+
+`lib/documents/job-context.ts` gates on three things - somebody marked it as
+context and has not removed it, its reading succeeded, and the stored content
+still parses. Only then does it reach a prompt, through
+`jobContextBlock(brief, documents)` in `lib/ai/job-context.ts`, which carries
+`DOCUMENT_CONTEXT_RULES` with it. Wired into the Daily cleanup pass, the Daily
+writer, the photograph describer, Progress, Completion, Survey, and Master
+Review. Master Review gets it as its own block and **never** as evidence -
+evidence is what happened; this is what was asked for.
+
+Scope items carry `instructed` / `proposed` / `described`, rendered in capitals
+first on every line, because a priced option nobody ordered sitting in a list
+headed "scope" is how quoted work gets done.
+
+### Proved, not assumed
+
+`npm run test:document-intelligence` builds a real two-page Store 1848 PO with
+pdf-lib, extracts its real text layer, feeds a deliberately imperfect model
+reply through the check, and asserts on the Daily prompt that comes out:
+
+- an invented "hot works permit" requirement is dropped and never reaches the
+  writer;
+- a page number that was wrong is corrected rather than the field discarded;
+- the quoted floor covering stays PROPOSED and is never promoted;
+- the spoken brief stays first with its own timestamp;
+- nothing in the prompt claims the doors were rectified.
+
+`npm run test:document-extraction` covers the contract in isolation.
+`supabase/tests/06_document_intelligence_test.sql` covers the schema against a
+real PostgreSQL. All suites, lint, typecheck and `next build` pass.
+
+### Unverified
+
+Nothing has been run against a real OpenAI key or on a device. The extraction
+path has never made an actual model call - the reply in the test is synthetic.
+`e2e/*-smoke.mjs` browser assertions still need a Supabase, and starting Docker
+still costs the session its push (F15).
+
+### Known gaps
+
+- A scanned PDF fails with "no text layer" rather than being read by vision.
+  Honest, but a drawing photographed on a phone is a real case and gets
+  nothing.
+- Extraction runs inside the server action, so a long PDF holds the request. It
+  is capped at 40 pages / 120k characters, dropping whole pages rather than
+  truncating one mid-sentence.
+- `documents.updated_at` still has no trigger to maintain it - a pre-existing
+  gap in migration `000006`, deliberately not fixed in this batch.
+
 
 This block supersedes the old statements later in this file that Phase 6 has
 not started, that an issued report cannot be edited, and that migration

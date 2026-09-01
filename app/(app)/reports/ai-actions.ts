@@ -8,7 +8,13 @@ import { createClient } from "@/lib/supabase/server";
 import { cleanedSectionsFor } from "@/lib/ai/cleanup";
 import { documentMedia, photoMedia } from "@/lib/ai/cleanup-context";
 import { generateSections, type GenerationInput } from "@/lib/ai/report-generation";
-import { JOB_BRIEF_LABEL, jobContextBlock } from "@/lib/ai/job-context";
+import {
+  JOB_BRIEF_LABEL,
+  JOB_DOCUMENT_LABEL,
+  documentContextBlock,
+  jobContextBlock,
+} from "@/lib/ai/job-context";
+import { documentContextForProject } from "@/lib/documents/job-context";
 import { briefForPrompt } from "@/lib/projects/job-brief";
 import { REPORT_SECTION_LABELS, sortOrderOf } from "@/lib/report-sections";
 import { reportStructure } from "@/lib/report-structure";
@@ -92,6 +98,12 @@ export async function generateReport(
   // What this job was sent out to do. Context for reading the notes - never
   // evidence that any of it happened. See lib/ai/job-context.ts.
   const jobBrief = briefForPrompt(project?.description);
+  // What the paperwork on this job says, read once and given to both passes.
+  // Only documents somebody marked as context AND whose reading succeeded are
+  // in here, and every line of it was quoted from the document and checked
+  // against it - see lib/documents/job-context.ts.
+  const jobDocuments = await documentContextForProject(supabase, report.project_id);
+  const documentBlock = documentContextBlock(jobDocuments);
 
   // Pass one, the Cleanup AI. What it may call a photograph and what it may
   // call a drawing is decided here, from stored metadata only - see
@@ -110,6 +122,7 @@ export async function generateReport(
         authorName: report.author_name,
         context: [
           ...(jobBrief ? [{ label: JOB_BRIEF_LABEL, text: jobBrief }] : []),
+          ...(documentBlock ? [{ label: JOB_DOCUMENT_LABEL, text: documentBlock }] : []),
           {
             label: "WORKFORCE ON SITE",
             text: (workforce ?? []).length
@@ -151,7 +164,7 @@ export async function generateReport(
     plant: plant ?? [],
     photos: photos ?? [],
     rawNotes,
-    jobBrief: jobContextBlock(jobBrief),
+    jobBrief: jobContextBlock(jobBrief, jobDocuments),
     cleanedSections,
   };
 

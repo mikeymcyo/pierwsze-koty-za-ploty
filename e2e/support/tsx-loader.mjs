@@ -46,7 +46,21 @@ function resolveFile(base) {
   return null;
 }
 
+/**
+ * `server-only` is a build-time guard, and under Node there is nothing to guard.
+ *
+ * The package exists so the Next bundler refuses to pull a server module into a
+ * client bundle; imported by a plain Node test it simply throws. Stubbing it
+ * here lets a test import the module the application actually ships rather than
+ * asserting on its source as text, which is the difference between checking
+ * that a PDF parser parses a PDF and checking that it is spelled correctly.
+ */
+const BUNDLER_GUARDS = new Set(["server-only", "client-only"]);
+
 export async function resolve(specifier, context, next) {
+  if (BUNDLER_GUARDS.has(specifier)) {
+    return { url: "data:text/javascript,export{}", shortCircuit: true };
+  }
   if (specifier.startsWith("@/")) {
     const file = resolveFile(path.join(ROOT, specifier.slice(2)));
     if (file) return { url: pathToFileURL(file).href, shortCircuit: true };

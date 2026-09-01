@@ -52,6 +52,19 @@ export type DocumentType =
   | "delivery_note"
   | "client_instruction"
   | "other";
+
+/**
+ * How a reading of a document is going.
+ *
+ * "superseded" is a reading that worked and was later replaced. It is kept,
+ * not deleted: a report drafted from it has to stay explainable.
+ */
+export type ExtractionStatus =
+  | "pending"
+  | "running"
+  | "succeeded"
+  | "failed"
+  | "superseded";
 export type PhotoPairRole = "before" | "after";
 export type IssuePriority = "low" | "medium" | "high" | "critical";
 export type IssueStatus = "open" | "in_progress" | "closed";
@@ -812,6 +825,108 @@ export type Database = {
           },
         ];
       };
+      job_context_documents: {
+        Row: {
+          id: string;
+          company_id: string;
+          document_id: string;
+          sort_order: number;
+          note: string | null;
+          added_by: string | null;
+          created_at: string;
+          removed_at: string | null;
+          removed_by: string | null;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          document_id: string;
+          sort_order?: number;
+          note?: string | null;
+          added_by?: string | null;
+          created_at?: string;
+          removed_at?: string | null;
+          removed_by?: string | null;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          document_id?: string;
+          sort_order?: number;
+          note?: string | null;
+          added_by?: string | null;
+          created_at?: string;
+          removed_at?: string | null;
+          removed_by?: string | null;
+        };
+        Relationships: [];
+      };
+      document_extractions: {
+        Row: {
+          id: string;
+          company_id: string;
+          document_id: string;
+          status: ExtractionStatus;
+          source_storage_path: string;
+          source_sha256: string | null;
+          source_bytes: number | null;
+          source_page_count: number | null;
+          source_text: string | null;
+          content: Json;
+          summary: string | null;
+          model: string | null;
+          prompt_version: string | null;
+          error: string | null;
+          requested_by: string | null;
+          started_at: string | null;
+          completed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          document_id: string;
+          status?: ExtractionStatus;
+          source_storage_path: string;
+          source_sha256?: string | null;
+          source_bytes?: number | null;
+          source_page_count?: number | null;
+          source_text?: string | null;
+          content?: Json;
+          summary?: string | null;
+          model?: string | null;
+          prompt_version?: string | null;
+          error?: string | null;
+          requested_by?: string | null;
+          started_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          document_id?: string;
+          status?: ExtractionStatus;
+          source_storage_path?: string;
+          source_sha256?: string | null;
+          source_bytes?: number | null;
+          source_page_count?: number | null;
+          source_text?: string | null;
+          content?: Json;
+          summary?: string | null;
+          model?: string | null;
+          prompt_version?: string | null;
+          error?: string | null;
+          requested_by?: string | null;
+          started_at?: string | null;
+          completed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
       issues: {
         Row: Timestamps & {
           id: string;
@@ -901,6 +1016,7 @@ export type Database = {
     Enums: {
       company_role: CompanyRole;
       document_type: DocumentType;
+      extraction_status: ExtractionStatus;
       issue_priority: IssuePriority;
       issue_status: IssueStatus;
       photo_category: PhotoCategory;
@@ -936,6 +1052,8 @@ export type Photo = Tables<"photos">;
 export type Document = Tables<"documents">;
 export type ReportDocument = Tables<"report_documents">;
 export type SummaryReportDocument = Tables<"summary_report_documents">;
+export type JobContextDocument = Tables<"job_context_documents">;
+export type DocumentExtraction = Tables<"document_extractions">;
 export type Issue = Tables<"issues">;
 export type IssueEvent = Tables<"issue_events">;
 export type SummaryReport = Tables<"summary_reports">;

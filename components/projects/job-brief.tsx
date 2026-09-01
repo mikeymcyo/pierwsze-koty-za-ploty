@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { ClipboardList, FileText, Plus } from "lucide-react";
+import { BookOpenCheck, ClipboardList, FileText, Plus, Sparkles } from "lucide-react";
 
 import {
   addJobBriefDocument,
   addJobBriefEntry,
+  extractJobDocument,
+  removeJobBriefDocument,
   type JobBriefState,
 } from "@/app/(app)/projects/brief-actions";
 import { DocumentUpload } from "@/components/documents/document-upload";
@@ -111,6 +113,17 @@ function BriefEntryForm({
   );
 }
 
+/** What the AI made of one document, in the few lines a card has room for. */
+export type BriefExtraction = {
+  status: "pending" | "running" | "succeeded" | "failed" | "superseded";
+  summary: string | null;
+  error: string | null;
+  counts: { fields: number; scopeItems: number; requirements: number };
+  /** The instructed and proposed work, so the split is visible without a tap. */
+  instructed: string[];
+  proposed: string[];
+};
+
 export type BriefDocument = {
   id: string;
   title: string;
@@ -119,7 +132,111 @@ export type BriefDocument = {
   docType: string;
   /** True where this document is already part of the job scope. */
   inScope: boolean;
+  /** The current reading, or null where nobody has asked for one. */
+  extraction: BriefExtraction | null;
 };
+
+function ActionButton({
+  label,
+  pendingLabel,
+  icon,
+}: {
+  label: string;
+  pendingLabel: string;
+  icon: React.ReactNode;
+}) {
+  const { pending } = useFormStatus();
+  return (
+    <Button
+      type="submit"
+      variant="secondary"
+      size="sm"
+      className="w-full sm:w-auto"
+      loading={pending}
+      disabled={pending}
+    >
+      {pending ? null : icon}
+      {pending ? pendingLabel : label}
+    </Button>
+  );
+}
+
+/**
+ * What the AI understood, in the space a card has.
+ *
+ * Every line here was quoted out of the document and the quote was checked
+ * against the document before it was stored, so this is the paperwork's own
+ * words rather than a machine's impression of them. The instructed and quoted
+ * work are separated on the face of it, because that is the distinction a site
+ * manager needs to see without opening anything: a priced option nobody
+ * ordered sitting in a list headed "scope" is how quoted work gets done.
+ */
+function UnderstoodPanel({ extraction }: { extraction: BriefExtraction }) {
+  const { counts } = extraction;
+  return (
+    <div className="mt-3 flex flex-col gap-2 rounded-xl border border-line bg-surface-muted p-3">
+      <p className="flex items-center gap-1.5 text-xs font-bold tracking-wide text-ink-muted uppercase">
+        <BookOpenCheck aria-hidden className="size-3.5" />
+        AI understood this job
+      </p>
+
+      {extraction.summary ? <p className="text-sm text-ink">{extraction.summary}</p> : null}
+
+      {extraction.instructed.length > 0 ? (
+        <div>
+          <p className="text-xs font-semibold text-ink">Instructed</p>
+          <ul className="list-disc pl-5 text-sm text-ink-muted">
+            {extraction.instructed.map((item, index) => (
+              <li key={index}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {extraction.proposed.length > 0 ? (
+        <div>
+          {/* Named as what it is. "Quoted, not instructed" is the whole point:
+              this work has not been ordered and must never be reported as
+              though it had. */}
+          <p className="text-xs font-semibold text-ink">Quoted only - not instructed</p>
+          <ul className="list-disc pl-5 text-sm text-ink-muted">
+            {extraction.proposed.map((item, index) => (
+              <li key={index}>{item}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <p className="text-xs text-ink-subtle">
+        {counts.scopeItems} scope item{counts.scopeItems === 1 ? "" : "s"} · {counts.requirements}{" "}
+        condition{counts.requirements === 1 ? "" : "s"} · {counts.fields} particular
+        {counts.fields === 1 ? "" : "s"}. Every line was quoted from the document and checked
+        against it. This is what the document asks for, not a record of work done.
+      </p>
+    </div>
+  );
+}
+
+/** The one line that says where this document's reading has got to. */
+function ExtractionBadge({ extraction }: { extraction: BriefExtraction | null }) {
+  if (!extraction) return <Badge tone="neutral">Not read</Badge>;
+  if (extraction.status === "running" || extraction.status === "pending") {
+    return (
+      <Badge tone="info" dot>
+        Reading…
+      </Badge>
+    );
+  }
+  if (extraction.status === "failed") return <Badge tone="danger">Could not read</Badge>;
+  if (extraction.status === "succeeded") {
+    return (
+      <Badge tone="success" dot>
+        Read
+      </Badge>
+    );
+  }
+  return <Badge tone="neutral">Not read</Badge>;
+}
 
 /**
  * One document on the job, and whether the AI is allowed to read it.
@@ -131,11 +248,18 @@ export type BriefDocument = {
  */
 function JobDocumentRow({
   document,
-  action,
+  addAction,
+  removeAction,
+  extractAction,
 }: {
   document: BriefDocument;
-  action: (formData: FormData) => void;
+  addAction: (formData: FormData) => void;
+  removeAction: (formData: FormData) => void;
+  extractAction: (formData: FormData) => void;
 }) {
+  const extraction = document.extraction;
+  const read = extraction?.status === "succeeded";
+
   return (
     <li className="rounded-xl border border-line p-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -146,19 +270,58 @@ function JobDocumentRow({
             {documentTypeLabel(document.docType)} · {document.filename}
           </p>
         </div>
+        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+          <ExtractionBadge extraction={extraction} />
+          {document.inScope ? (
+            <Badge tone="success" dot>
+              Job context
+            </Badge>
+          ) : null}
+        </div>
+      </div>
+
+      {/* Two acts, never one button. Marking a document as job context is
+          somebody's decision about scope; reading it is a model call against
+          the file. A document can be context and unread, or read and not
+          context, and both are ordinary states. */}
+      <div className="mt-3 flex flex-col gap-2 sm:flex-row">
         {document.inScope ? (
-          <Badge tone="success" dot>
-            Job context
-          </Badge>
-        ) : (
-          <form action={action} className="sm:shrink-0">
+          <form action={removeAction} className="sm:shrink-0">
             <input type="hidden" name="documentId" value={document.id} />
-            <Button type="submit" variant="secondary" size="sm" className="w-full sm:w-auto">
-              Use as job context
-            </Button>
+            <ActionButton
+              label="Remove from job context"
+              pendingLabel="Removing…"
+              icon={null}
+            />
+          </form>
+        ) : (
+          <form action={addAction} className="sm:shrink-0">
+            <input type="hidden" name="documentId" value={document.id} />
+            <ActionButton label="Use as job context" pendingLabel="Adding…" icon={null} />
           </form>
         )}
+
+        <form action={extractAction} className="sm:shrink-0">
+          <input type="hidden" name="documentId" value={document.id} />
+          <ActionButton
+            label={read ? "Read again" : "Extract job context"}
+            pendingLabel="Reading the document…"
+            icon={<Sparkles aria-hidden />}
+          />
+        </form>
       </div>
+
+      {extraction?.status === "failed" && extraction.error ? (
+        <p className="mt-2 text-sm text-danger">{extraction.error}</p>
+      ) : null}
+
+      {read && extraction ? <UnderstoodPanel extraction={extraction} /> : null}
+
+      {read && !document.inScope ? (
+        <p className="mt-2 text-xs text-ink-subtle">
+          Read, but not job context yet - the AI will not use it until you say so.
+        </p>
+      ) : null}
     </li>
   );
 }
@@ -207,6 +370,14 @@ export function JobBrief({
   );
   const [documentState, documentAction] = useActionState<JobBriefState, FormData>(
     addJobBriefDocument.bind(null, projectId),
+    {},
+  );
+  const [removeState, removeAction] = useActionState<JobBriefState, FormData>(
+    removeJobBriefDocument.bind(null, projectId),
+    {},
+  );
+  const [extractState, extractAction] = useActionState<JobBriefState, FormData>(
+    extractJobDocument.bind(null, projectId),
     {},
   );
   const entries = parseJobBrief(description);
@@ -304,6 +475,10 @@ export function JobBrief({
           </p>
         ) : null}
         {documentState.error ? <Alert tone="danger">{documentState.error}</Alert> : null}
+        {removeState.error ? <Alert tone="danger">{removeState.error}</Alert> : null}
+        {/* A failed reading is also written onto the document's own row, so a
+            reload still shows it. This is the immediate answer to the tap. */}
+        {extractState.error ? <Alert tone="danger">{extractState.error}</Alert> : null}
 
         <BriefEntryForm key={entries.length} action={action} additive={hasBrief} rows={4} />
 
@@ -327,7 +502,7 @@ export function JobBrief({
             <p className="text-sm font-semibold text-ink">Job documents</p>
             <p className="text-xs text-ink-subtle">
               A purchase order, specification or drawing. Uploading one does not make it job
-              context - say so with the button beside it.
+              context, and marking it does not read it - both are a tap of their own.
             </p>
           </div>
 
@@ -337,7 +512,9 @@ export function JobBrief({
                 <JobDocumentRow
                   key={document.id}
                   document={document}
-                  action={documentAction}
+                  addAction={documentAction}
+                  removeAction={removeAction}
+                  extractAction={extractAction}
                 />
               ))}
             </ul>
@@ -361,8 +538,9 @@ export function JobBrief({
           )}
 
           <p className="text-xs text-ink-subtle">
-            &ldquo;Use as job context&rdquo; lets the AI read the document as scope. It does not
-            put it in a report or attach it to a PDF - those are chosen on the report itself.
+            &ldquo;Use as job context&rdquo; lets the AI read the document as scope, and
+            &ldquo;Extract job context&rdquo; is what actually reads it. Neither puts it in a
+            report or attaches it to a PDF - those are chosen on the report itself.
           </p>
         </div>
       </CardContent>

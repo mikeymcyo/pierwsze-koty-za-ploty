@@ -35,6 +35,15 @@ export type MasterReviewInput = {
   sections: readonly ReviewableSection[];
   /** Everything recorded alongside the prose, already flattened to lines. */
   evidence: readonly { heading: string; lines: readonly string[] }[];
+  /**
+   * What the job was sent out to do, and what its paperwork says.
+   *
+   * Deliberately NOT one of the evidence blocks. Evidence is what happened;
+   * this is what was asked for, and a reviewer that reads a scope item as a
+   * recorded fact would add works to a report that nobody did. The block
+   * carries its own rules saying so - see lib/ai/job-context.ts.
+   */
+  jobContext?: string | null;
 };
 
 export const MASTER_REVIEW_SYSTEM_PROMPT = [
@@ -326,6 +335,9 @@ export function buildMasterReviewPrompt(input: MasterReviewInput): string {
     input.siteAddress ? `SITE: ${input.siteAddress}` : null,
     `PERIOD: ${input.periodLabel}`,
     "",
+    // Before the sections, because it is how the sections are to be read - and
+    // under its own heading, never under EVIDENCE.
+    input.jobContext ? `${input.jobContext}\n` : null,
     "WRITTEN SECTIONS",
     "",
     sections.length ? sections.join("\n\n") : "(no sections have been written yet)",

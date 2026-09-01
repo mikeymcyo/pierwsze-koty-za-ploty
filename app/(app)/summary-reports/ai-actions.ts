@@ -6,7 +6,13 @@ import { z } from "zod";
 import { cleanedSectionsFor } from "@/lib/ai/cleanup";
 import { documentMedia, photoMedia } from "@/lib/ai/cleanup-context";
 import { generateSummarySections } from "@/lib/ai/summary-generation";
-import { JOB_BRIEF_LABEL, jobContextBlock } from "@/lib/ai/job-context";
+import {
+  JOB_BRIEF_LABEL,
+  JOB_DOCUMENT_LABEL,
+  documentContextBlock,
+  jobContextBlock,
+} from "@/lib/ai/job-context";
+import { documentContextForProject } from "@/lib/documents/job-context";
 import { briefForPrompt } from "@/lib/projects/job-brief";
 import { requireSessionContext } from "@/lib/auth/session";
 import { partitionDraft } from "@/lib/reports/regeneration";
@@ -49,7 +55,9 @@ export async function generateSummaryReport(
 
   const { data: report, error } = await supabase
     .from("summary_reports")
-    .select("id, kind, status, period_start, period_end, projects(name, client, site_address, description)")
+    .select(
+      "id, kind, status, period_start, period_end, project_id, projects(name, client, site_address, description)",
+    )
     .eq("id", reportId)
     .maybeSingle();
   if (error) return { error: `Could not read the report: ${error.message}` };
@@ -272,6 +280,10 @@ export async function generateSummaryReport(
   // The same job brief the Daily Reports were read against, so a consolidated
   // document reads the period the same way. Scope, never evidence.
   const jobBrief = briefForPrompt(project?.description);
+  // The same documents the Daily Reports were read against, so a consolidated
+  // document reads the paperwork the same way it read the days.
+  const jobDocuments = await documentContextForProject(supabase, report.project_id);
+  const documentBlock = documentContextBlock(jobDocuments);
 
   const built = buildEvidence({
     progress: progressEvidence,
@@ -315,6 +327,7 @@ export async function generateSummaryReport(
         authorName: null,
         context: [
           ...(jobBrief ? [{ label: JOB_BRIEF_LABEL, text: jobBrief }] : []),
+          ...(documentBlock ? [{ label: JOB_DOCUMENT_LABEL, text: documentBlock }] : []),
           {
             label: "ISSUE RECORD",
             text: issueEvidence || "No issue rows were selected. Do not claim that no issues occurred.",
@@ -356,7 +369,7 @@ export async function generateSummaryReport(
     issues: issueEvidence,
     standalone,
     cleanedSections,
-    jobBrief: jobContextBlock(jobBrief),
+    jobBrief: jobContextBlock(jobBrief, jobDocuments),
   });
   if (!result.ok) return { error: result.error };
 
