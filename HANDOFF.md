@@ -202,6 +202,54 @@ a paragraph would never find that out.
 `supabase/tests/06_document_intelligence_test.sql` covers the schema against a
 real PostgreSQL. All suites, lint, typecheck and `next build` pass.
 
+### Why the PDF reader failed on Vercel, and what fixed it
+
+The first real Preview run stopped before the model was called: "The PDF
+reader is not available on this deployment." The logs had the cause:
+
+    Warning: Cannot load "@napi-rs/canvas" package: Cannot find module
+    ReferenceError: DOMMatrix is not defined
+
+pdfjs 5 is one module for rendering and reading alike. Under Node it borrows
+`DOMMatrix`, `ImageData` and `Path2D` from the optional native package
+`@napi-rs/canvas`, and when that is absent it warns and carries on - until
+`pdf.mjs` line 17006, where the display layer does
+`const SCALE_MATRIX = new DOMMatrix()` at module top level and the whole
+import throws. Locally the optional package is installed, so nothing showed.
+On Vercel a function ships only the files the tracer can follow, the native
+package is loaded through a computed require it cannot follow, and every
+extraction died before OpenAI was reached. Reproduce it any time by hiding
+`node_modules/@napi-rs` and running `npm run test:document-intelligence`.
+
+Three changes, all in `lib/documents/pdf-text.ts` and `next.config.ts`:
+
+1. Three inert stand-ins on `globalThis` before pdfjs is imported - a
+   constructible identity `DOMMatrix`, and an `ImageData` and `Path2D` that
+   throw a message naming the file if anything ever tries to draw. Reading a
+   text layer never draws. Shipping a 20 MB native canvas so a text reader can
+   construct an identity matrix it never uses was the wrong trade.
+2. `serverExternalPackages: ["pdfjs-dist"]`, so Node loads the genuine file
+   from node_modules. This was a second, separate landmine waiting behind the
+   first: with no Worker under Node, pdfjs loads its fallback with
+   `import("./pdf.worker.mjs")` relative to itself, and inside a Turbopack
+   chunk "itself" is a directory with no such file in it.
+3. `outputFileTracingIncludes` for `pdf.worker.mjs` on every route, because the
+   tracer cannot follow that dynamic import either, and without it the file is
+   simply absent from the deployment.
+
+Proved before pushing by building, hiding `@napi-rs/canvas`, running the built
+server with `next start`, and hitting the extraction through a throwaway
+route: 200, both pages read, the stub model called, the check applied. The
+build prints "The package seems invalid. require() resolves to a EcmaScript
+module" for the externalised package - that is Turbopack noting the package
+is ESM-only; it is loaded with a dynamic `import()`, and the built server
+proved it loads.
+
+Still open, deliberately: pdfjs warns `Ensure that the standardFontDataUrl API
+parameter is provided` on every read. Text still comes out correctly for the
+standard fourteen fonts, and a PDF with an embedded font never asks. Wiring
+the package's `standard_fonts/` in would silence it and is not needed yet.
+
 ### Unverified - and the one command that fixes it
 
 **The extraction has still never made a real model call.** The reply in every

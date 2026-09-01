@@ -16,7 +16,76 @@ import { comparable, type DocumentPage } from "@/lib/documents/extraction-schema
  * viewer. The legacy build is the one that runs under Node, and it is imported
  * dynamically so it never reaches a client bundle and costs nothing on the
  * requests that do not extract anything.
+ *
+ * ## Why it runs on Vercel at all
+ *
+ * pdfjs 5 is one module for rendering and reading alike, and its rendering
+ * half needs a canvas. Under Node it tries to borrow `DOMMatrix`, `ImageData`
+ * and `Path2D` from the optional native package `@napi-rs/canvas`, and when
+ * that is absent it warns and carries on - until line 17006, where the display
+ * layer does `const SCALE_MATRIX = new DOMMatrix()` at module top level and
+ * the whole import throws `ReferenceError: DOMMatrix is not defined`.
+ *
+ * Locally the optional package is installed, so nobody sees this. On Vercel a
+ * function ships only the files the tracer can follow, the native package is
+ * loaded through a computed require it cannot follow, and every extraction
+ * failed before the model was ever called. That is the bug this block exists
+ * to explain: the reproduction is hiding node_modules/@napi-rs and running
+ * npm run test:document-intelligence.
+ *
+ * Reading a text layer never draws anything. So the three globals are given
+ * stand-ins that exist - which is all the top-level line needs - and refuse to
+ * do anything else. If a future pdfjs code path on this side ever tries to
+ * draw, it fails loudly with a message naming this file rather than producing
+ * garbage nobody can trace; shipping a 20 MB native canvas so that a text
+ * reader can construct an identity matrix it never uses would be the wrong
+ * trade.
+ *
+ * The package is also listed in next.config.ts under serverExternalPackages,
+ * so Node loads the genuine file from node_modules rather than a bundled copy.
+ * That matters for the second half of the same problem: with no Worker under
+ * Node, pdfjs loads its fallback via `import("./pdf.worker.mjs")` relative to
+ * itself, and inside a bundled chunk "itself" is a directory with no such
+ * file in it.
  */
+
+const CANVAS_STAND_IN =
+  "pdfjs tried to draw while reading a text layer - see lib/documents/pdf-text.ts";
+
+/** Constructible, because pdfjs constructs one at import time. Inert otherwise. */
+class InertDOMMatrix {
+  a = 1;
+  b = 0;
+  c = 0;
+  d = 1;
+  e = 0;
+  f = 0;
+  is2D = true;
+  isIdentity = true;
+}
+
+class RefusedImageData {
+  constructor() {
+    throw new Error(CANVAS_STAND_IN);
+  }
+}
+
+class RefusedPath2D {
+  constructor() {
+    throw new Error(CANVAS_STAND_IN);
+  }
+}
+
+/**
+ * Installed once, before pdfjs is first imported, and never over a real one:
+ * a runtime that has these already keeps them.
+ */
+function installCanvasStandIns(): void {
+  const g = globalThis as Record<string, unknown>;
+  g.DOMMatrix ??= InertDOMMatrix;
+  g.ImageData ??= RefusedImageData;
+  g.Path2D ??= RefusedPath2D;
+}
 
 /** Beyond this a job's paperwork is a drawing set, not a document to read. */
 export const MAX_EXTRACT_PAGES = 40;
@@ -68,6 +137,7 @@ function joinItems(items: (TextItem | TextMarkedContent)[]): string {
 export async function extractPdfText(data: Uint8Array): Promise<PdfTextResult> {
   let pdfjs: typeof import("pdfjs-dist/legacy/build/pdf.mjs");
   try {
+    installCanvasStandIns();
     pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   } catch (cause) {
     console.error("[siteboss] pdfjs could not be loaded:", cause);
