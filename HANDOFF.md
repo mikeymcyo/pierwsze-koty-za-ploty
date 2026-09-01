@@ -230,6 +230,26 @@ The harness was dry-run against a local stub returning a realistic reply, which
 exercised the whole shipping path including the OpenAI SDK request and
 response handling. That proves the harness, not the model.
 
+**Because the key is only in Vercel, the same check also runs where the key
+is.** `app/(app)/dev/extraction-check/page.tsx` is a TEMPORARY page that runs
+`runExtractionCheck()` - the identical function the CLI harness calls - and
+renders the report. Open it while signed in on the Preview deployment:
+
+    <preview-url>/dev/extraction-check
+
+It is protected two ways: it sits under `(app)`, whose layout calls
+`requireSessionContext`, so an anonymous request is redirected to the login
+before the file runs; and it calls `notFound()` when `VERCEL_ENV` is
+`production`, so it cannot be reached on the live deployment at all. It carries
+`maxDuration = 60`, because Vercel's default function timeout is shorter than
+the model call and a platform timeout would look exactly like the model
+hanging.
+
+It touches nothing: the purchase order is built in memory, the reading is
+rendered and thrown away, and no project, document, extraction row or storage
+object is read or written. **DELETE THIS PAGE once the validation is done** -
+it is a diagnostic, not a feature.
+
 `e2e/*-smoke.mjs` browser assertions still need a Supabase, and starting Docker
 still costs the session its push (F15).
 

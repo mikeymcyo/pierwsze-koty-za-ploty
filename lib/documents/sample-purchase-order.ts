@@ -2,9 +2,13 @@
  * A synthetic Store 1848 purchase order, built at test time.
  *
  * Deliberately not a fixture file: the extraction check compares the model's
- * quotes against what pdfjs reads out of a real PDF, so the test has to run
+ * quotes against what pdfjs reads out of a real PDF, so a check has to run
  * against real PDF bytes or it is testing nothing. pdf-lib already ships with
  * the app for the document package, so building one costs no new dependency.
+ *
+ * It lives in lib rather than beside the tests because the live validation
+ * runs it too, and two copies of the document being validated against would
+ * be worse than useless.
  *
  * The content is the shape that matters to this product and to nobody's live
  * data: a brief spoken first, a purchase order arriving later, instructed work

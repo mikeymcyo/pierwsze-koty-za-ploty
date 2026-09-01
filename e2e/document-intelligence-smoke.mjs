@@ -14,7 +14,7 @@
  *   npm run test:document-intelligence
  */
 
-import { buildSamplePurchaseOrder } from "./support/sample-po.mjs";
+import { buildSamplePurchaseOrder } from "../lib/documents/sample-purchase-order.ts";
 import { extractPdfText, pagesForPrompt } from "../lib/documents/pdf-text.ts";
 import { parseExtraction } from "../lib/documents/extraction-schema.ts";
 import {
