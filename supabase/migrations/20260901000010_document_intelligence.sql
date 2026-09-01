@@ -55,6 +55,21 @@
 -- table; a row carries the person, the moment and their reason, and adding it
 -- touches nothing that exists.
 --
+-- Why removal is a stamp and not a DELETE.
+--
+-- The same reason. "This purchase order stopped being scope on Tuesday" is a
+-- fact about the job, and a report drafted on Monday was drafted while it
+-- still was. Deleting the row would leave that report reading as though the
+-- document had never been context at all, which is not what happened. So a
+-- removal writes removed_at and removed_by and the row stays: the history is
+-- the point, not a side effect of keeping it.
+--
+-- Everything that asks "is this document context now" therefore asks
+-- `removed_at is null`, and the partial unique index below is what makes that
+-- question have exactly one answer. The application must mark the row, never
+-- delete it - which is a rule the index cannot enforce, so it is written here
+-- and asserted in the tests.
+--
 -- Why there is no project_id here.
 --
 -- documents.project_id is NOT NULL, so a document already belongs to exactly
@@ -77,19 +92,35 @@ create table public.job_context_documents (
   note text,
   added_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
+  -- When somebody took it back out of the AI's reading, and who. Null while it
+  -- is still context, which is what "active" means everywhere below.
+  removed_at timestamptz,
+  removed_by uuid references auth.users (id) on delete set null,
   foreign key (document_id, company_id)
     references public.documents (id, company_id) on delete cascade,
-  -- A document is job context or it is not. Twice is a mistake, not a fact.
-  unique (document_id)
+  -- A removal is a removal, not a half-filled row.
+  constraint job_context_documents_removal_is_complete
+    check (removed_at is not null or removed_by is null),
+  -- Nothing can be taken out before it was put in.
+  constraint job_context_documents_removed_after_added
+    check (removed_at is null or removed_at >= created_at)
 );
+
+-- A document is job context once at a time. Twice at once is a mistake, not a
+-- fact - but twice over a job's life is an ordinary thing that happened, and
+-- the second row must be allowed to say so.
+create unique index job_context_documents_one_active
+  on public.job_context_documents (document_id)
+  where removed_at is null;
 
 create index job_context_documents_company_idx
   on public.job_context_documents (company_id);
 create index job_context_documents_order_idx
-  on public.job_context_documents (sort_order, created_at);
+  on public.job_context_documents (sort_order, created_at)
+  where removed_at is null;
 
 comment on table public.job_context_documents is
-  'Documents somebody has marked "use as AI context" for their project. Not the same as referencing a document in a report, and not the same as appending it to the PDF package.';
+  'Documents somebody has marked "use as AI context" for their project. Not the same as referencing a document in a report, and not the same as appending it to the PDF package. Active context is removed_at is null; removal stamps the row rather than deleting it, so when a document became context and when it stopped are both kept.';
 
 -- ---------------------------------------------------------------------------
 -- 2. How an extraction is going
