@@ -192,14 +192,44 @@ reply through the check, and asserts on the Daily prompt that comes out:
 - the spoken brief stays first with its own timestamp;
 - nothing in the prompt claims the doors were rectified.
 
+The sample order also carries one paragraph about an unrelated November signage
+programme that the order explicitly does not cover. A model that reports it as
+scope has failed even though the paragraph is genuinely quotable - being in the
+document is not the same as being this job's scope, and a document without such
+a paragraph would never find that out.
+
 `npm run test:document-extraction` covers the contract in isolation.
 `supabase/tests/06_document_intelligence_test.sql` covers the schema against a
 real PostgreSQL. All suites, lint, typecheck and `next build` pass.
 
-### Unverified
+### Unverified - and the one command that fixes it
 
-Nothing has been run against a real OpenAI key or on a device. The extraction
-path has never made an actual model call - the reply in the test is synthetic.
+**The extraction has still never made a real model call.** The reply in every
+test is synthetic, so the single open question is whether the model quotes
+verbatim well enough to survive the check. If it paraphrases, good items will
+be dropped and extractions will read as empty.
+
+The harness for answering that is written and waiting:
+
+    OPENAI_API_KEY=sk-... npm run check:live-extraction
+
+It touches no database, no storage and no project - it builds a disposable
+two-page purchase order in memory, reads it with the shipping PDF text layer,
+calls the shipping extraction with the shipping prompt and schema, and prints
+the fields, the kept and dropped items, the page corrections, the elapsed time,
+the model, and the AI context block the Daily writer would be handed. It also
+prints what the document actually says, so a person can judge what was wrongly
+dropped - a test cannot decide that for itself. With no key it exits 2 and
+calls nothing.
+
+`api.openai.com` is reachable from a Claude Code container (verified: 401
+unauthenticated), so only the key is missing there. It is set in Vercel under
+Settings -> Environments -> Preview, not in the container.
+
+The harness was dry-run against a local stub returning a realistic reply, which
+exercised the whole shipping path including the OpenAI SDK request and
+response handling. That proves the harness, not the model.
+
 `e2e/*-smoke.mjs` browser assertions still need a Supabase, and starting Docker
 still costs the session its push (F15).
 

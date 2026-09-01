@@ -8,7 +8,10 @@
  *
  * The content is the shape that matters to this product and to nobody's live
  * data: a brief spoken first, a purchase order arriving later, instructed work
- * beside quoted work, and requirements that must not be embellished.
+ * beside quoted work, requirements that must not be embellished, and one
+ * paragraph about an unrelated programme that belongs to nothing here - a
+ * model that reports the signage refresh as scope has failed, and a document
+ * with no such paragraph would never find that out.
  */
 
 import { PDFDocument, StandardFonts } from "pdf-lib";
@@ -43,6 +46,13 @@ export const PO_PAGE_TWO = [
   "All operatives to hold a valid CSCS card.",
   "Works to be carried out outside trading hours.",
   "The store must be left clean and trading safe each night.",
+  "",
+  "SEPARATE PROGRAMME - FOR INFORMATION ONLY",
+  "",
+  "Store 1848 is scheduled for a customer-facing signage refresh in",
+  "November under a separate capital programme managed by Estates.",
+  "This order does not cover any part of that work and no attendance",
+  "on it is required.",
 ];
 
 /** The bytes of the order, as if somebody had uploaded it. */

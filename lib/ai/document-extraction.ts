@@ -34,8 +34,23 @@ export function hasExtractionConfig(): boolean {
 }
 
 export type ExtractionCallResult =
-  | { ok: true; extraction: VerifiedExtraction; model: string; promptVersion: string }
-  | { ok: false; error: string };
+  | {
+      ok: true;
+      extraction: VerifiedExtraction;
+      model: string;
+      promptVersion: string;
+      /**
+       * What the model actually returned, before the check.
+       *
+       * Carried so a failure can be diagnosed against the reply that caused
+       * it rather than guessed at: "which item was dropped, and was it right
+       * to drop it" is unanswerable from the verified content alone. Nothing
+       * stores it - the caller keeps the checked content and the source text,
+       * which is what a person needs to see.
+       */
+      raw: unknown;
+    }
+  | { ok: false; error: string; raw?: unknown };
 
 export async function extractFromDocument(
   input: ExtractionPromptInput,
@@ -74,13 +89,14 @@ export async function extractFromDocument(
 
     // The check, not a formality. Everything downstream trusts this.
     const checked = parseExtraction(raw, pages);
-    if (!checked.ok) return { ok: false, error: checked.error };
+    if (!checked.ok) return { ok: false, error: checked.error, raw };
 
     return {
       ok: true,
       extraction: checked.extraction,
       model: EXTRACTION_MODEL,
       promptVersion: EXTRACTION_PROMPT_VERSION,
+      raw,
     };
   } catch (cause) {
     console.error("[siteboss] document extraction failed:", cause);
