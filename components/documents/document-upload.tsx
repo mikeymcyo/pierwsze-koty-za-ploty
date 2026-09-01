@@ -41,16 +41,30 @@ export function DocumentUpload({
   reportId = null,
   summaryReportId = null,
   label = "Upload a PDF",
+  onAttached,
+  attachedLabel = "Working…",
 }: {
   companyId: string;
   projectId: string;
   reportId?: string | null;
   summaryReportId?: string | null;
   label?: string;
+  /**
+   * What happens to a document once it is stored and recorded.
+   *
+   * Site Capture passes a server action that makes it job context and reads
+   * it, so adding a purchase order there is one tap. The Documents tab passes
+   * nothing, and an upload there implies nothing. Awaited per file, so the
+   * button keeps saying what is happening until it has happened.
+   */
+  onAttached?: (documentId: string) => Promise<{ error?: string } | void>;
+  /** What the button says while onAttached runs. */
+  attachedLabel?: string;
 }) {
   const input = useRef<HTMLInputElement | null>(null);
   const [docType, setDocType] = useState<DocumentType>("drawing");
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
+  const [afterUpload, setAfterUpload] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /**
@@ -115,7 +129,18 @@ export function DocumentUpload({
             mimeType: PDF_CONTENT_TYPE,
           });
           if (result?.error) failures.push(result.error);
-          else uploaded += 1;
+          else {
+            uploaded += 1;
+            if (onAttached && result.documentId) {
+              setAfterUpload(true);
+              try {
+                const followed = await onAttached(result.documentId);
+                if (followed?.error) failures.push(followed.error);
+              } finally {
+                setAfterUpload(false);
+              }
+            }
+          }
         }
       } catch (cause) {
         failures.push(cause instanceof Error ? cause.message : `${file.name} could not be uploaded.`);
@@ -160,7 +185,7 @@ export function DocumentUpload({
           onClick={() => input.current?.click()}
         >
           <FilePlus2 aria-hidden />
-          {busy ? `Uploading ${busy.done}/${busy.total}…` : label}
+          {afterUpload ? attachedLabel : busy ? `Uploading ${busy.done}/${busy.total}…` : label}
         </Button>
       </div>
 

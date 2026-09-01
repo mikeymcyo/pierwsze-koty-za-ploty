@@ -15,6 +15,25 @@ import {
 import { workingDay } from "@/lib/reports/working-day";
 import { createClient } from "@/lib/supabase/server";
 
+/**
+ * The page an action was used from, so it re-renders with the result.
+ *
+ * The same forms sit on Site Capture and on the project overview. Each action
+ * always revalidates the project; this adds the screen the form was actually
+ * on. Only a path on this app is accepted - anything else is ignored rather
+ * than passed to the router.
+ */
+function returnPath(formData: FormData): string | null {
+  const value = String(formData.get("return_to") ?? "").trim();
+  return value.startsWith("/") && !value.startsWith("//") ? value : null;
+}
+
+function revalidateFrom(projectId: string, formData: FormData): void {
+  revalidatePath(`/projects/${projectId}`);
+  const back = returnPath(formData);
+  if (back && back !== `/projects/${projectId}`) revalidatePath(back);
+}
+
 export type JobBriefState = {
   error?: string;
   saved?: boolean;
@@ -117,7 +136,7 @@ export async function addJobBriefEntry(
 
     if (writeError) return { error: `Could not save the job brief: ${writeError.message}` };
     if (saved) {
-      revalidatePath(`/projects/${projectId}`);
+      revalidateFrom(projectId, formData);
       return { saved: true };
     }
   }
@@ -202,7 +221,7 @@ export async function addJobBriefDocument(
     .eq("id", projectId);
   if (error) return { error: `Could not add the document to the job scope: ${error.message}` };
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidateFrom(projectId, formData);
   return { saved: true };
 }
 
@@ -243,7 +262,7 @@ export async function removeJobBriefDocument(
     return { error: `Could not take the document out of the job scope: ${error.message}` };
   }
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidateFrom(projectId, formData);
   return { saved: true };
 }
 
@@ -299,6 +318,80 @@ export async function extractJobDocument(
 
   // The row already records the failure and why; the screen shows it from
   // there on the next render, so a reload does not lose it.
-  revalidatePath(`/projects/${projectId}`);
+  revalidateFrom(projectId, formData);
   return result.ok ? { saved: true } : { error: result.error };
+}
+
+
+/**
+ * A document added on Site Capture: context, and read, in one go.
+ *
+ * Somebody adding a purchase order from the van is adding it because it
+ * describes the job. Making them say so a second time, and then a third time
+ * to have it read, is the walk between screens this strip exists to remove.
+ * So the uploader on Site Capture calls this once the file is stored, and
+ * both follow - the mark first, because a reading of a document nobody has
+ * called scope is the less useful of the two half-states.
+ *
+ * The three writes are still three writes to three tables. Nothing here is a
+ * report reference or a PDF attachment, and the Documents tab still uploads
+ * without implying either.
+ */
+export async function adoptJobDocument(
+  projectId: string,
+  returnTo: string,
+  documentId: string,
+): Promise<{ error?: string }> {
+  const parsed = documentSchema.safeParse({ documentId });
+  if (!parsed.success) return { error: "That document could not be found." };
+
+  const session = await requireSessionContext();
+  const supabase = await createClient();
+
+  const [{ data: document }, { data: project }] = await Promise.all([
+    supabase
+      .from("documents")
+      .select("id, title, doc_type, storage_path")
+      .eq("id", parsed.data.documentId)
+      .eq("project_id", projectId)
+      .maybeSingle(),
+    supabase.from("projects").select("id, name, description").eq("id", projectId).maybeSingle(),
+  ]);
+  if (!document) return { error: "That document is not on this project." };
+  if (!project) return { error: "That project could not be found." };
+
+  const { error: markError } = await supabase.from("job_context_documents").insert({
+    company_id: session.companyId,
+    document_id: document.id,
+    added_by: session.userId,
+  });
+  if (markError && markError.code !== "23505" && markError.code !== "42P01") {
+    return { error: `Could not add the document to the job context: ${markError.message}` };
+  }
+
+  if (!briefHasDocument(project.description, document.id)) {
+    const next = appendBriefEntry(
+      project.description,
+      documentEntryText(document.title, document.id),
+      stampNow(),
+    );
+    await supabase.from("projects").update({ description: next }).eq("id", projectId);
+  }
+
+  const result = await runExtraction(
+    supabase,
+    {
+      id: document.id,
+      companyId: session.companyId,
+      projectName: project.name,
+      title: document.title,
+      docType: document.doc_type,
+      storagePath: document.storage_path,
+    },
+    session.userId,
+  );
+
+  revalidatePath(`/projects/${projectId}`);
+  if (returnTo.startsWith("/") && !returnTo.startsWith("//")) revalidatePath(returnTo);
+  return result.ok ? {} : { error: result.error };
 }

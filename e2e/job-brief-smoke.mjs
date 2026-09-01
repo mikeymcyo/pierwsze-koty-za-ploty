@@ -243,7 +243,7 @@ check(
 console.log("\n6. Document control: three separate acts");
 
 const briefActions = read("../app/(app)/projects/brief-actions.ts");
-const briefUi = read("../components/projects/job-brief.tsx");
+const briefUi = read("../components/projects/job-context.tsx");
 /**
  * A screen's prose with its line wrapping flattened.
  *
@@ -260,7 +260,7 @@ check(
 );
 check(
   "the screen says so in words",
-  /Neither puts it in a report or attaches it to a PDF/.test(briefCopy),
+  /It does not put a document in a report or attach it to a PDF/.test(briefCopy),
 );
 check("a document from another project is refused", /\.eq\("project_id", projectId\)/.test(briefActions));
 check("and adding one twice is not a second event", /briefHasDocument\(project\.description, document\.id\)/.test(briefActions));
@@ -274,14 +274,15 @@ console.log("\n7. Where it appears");
 
 const capturePage = read("../app/(app)/reports/[id]/capture/page.tsx");
 const projectPage = read("../app/(app)/projects/[id]/page.tsx");
-check("Site Capture leads with the brief", /<JobBrief/.test(capturePage));
+const contextView = read("../lib/documents/job-context-view.ts");
+check("Site Capture leads with the job context", /<JobContext/.test(capturePage));
 check(
   "above the capture box",
-  capturePage.indexOf("<JobBrief") < capturePage.indexOf("<SiteCaptureForm"),
+  capturePage.indexOf("<JobContext") < capturePage.indexOf("<SiteCaptureForm"),
 );
-check("the project page carries the full one", /<JobBrief/.test(projectPage));
-check("with its documents", /documents=\{briefDocuments\}/.test(projectPage));
-check("marked with which are already scope", /inScope: scopeIds\.has\(row\.id\)/.test(projectPage));
+check("the project overview carries the same strip, read-only", /variant="overview"/.test(projectPage));
+check("both screens load it through the one loader", /loadJobContextDocuments/.test(capturePage) && /loadJobContextDocuments/.test(projectPage));
+check("which marks which documents are already scope", /inScope: scopeIds\.has\(row\.id\)/.test(contextView));
 check("an enquiry has no job to brief yet", /!enquiry \?/.test(projectPage));
 check("the box empties only when an entry landed", /key=\{entries\.length\}/.test(briefUi));
 check("and the same dictation component is used", /DictationField/.test(briefUi));
@@ -339,18 +340,19 @@ check(
 
 check(
   "the screen colours a missing brief red and an empty box not at all",
-  /const nothingAdded = Boolean\(state\.empty\) && !state\.error/.test(briefUi) &&
+  /const nothingAdded = Boolean\(entryState\.empty\) && !entryState\.error/.test(briefUi) &&
     /nothingAdded \? \(\s*<p className="text-sm text-ink-subtle">/.test(briefUi),
 );
 check(
-  "the only danger Alert for an entry is a real error",
-  /\{state\.error \? <Alert tone="danger">\{state\.error\}<\/Alert> : null\}/.test(briefUi),
+  "the only danger Alerts are real errors",
+  /\[entryState\.error, addState\.error, removeState\.error, extractState\.error\]/.test(briefUi) &&
+    /<Alert key=\{error\} tone="danger">/.test(briefUi),
 );
 check(
   "the box says it is for another entry once one exists",
-  /Add another scope update or instruction/.test(briefUi),
+  /Anything further you have been asked to do, or a change to the scope/.test(briefUi),
 );
-check("and its button says so too", /additive \? "Add to the brief" : "Save job brief"/.test(briefUi));
+check("and its button says so too", /additive \? "Add to the brief" : "Save the brief"/.test(briefUi));
 check(
   "an empty box simply has nothing to add, rather than being refused afterwards",
   /const nothingToAdd = text\.trim\(\)\.length === 0/.test(briefUi) &&
@@ -363,100 +365,101 @@ check(
   "Save appends, it never replaces",
 );
 
-console.log("\n10. Site Capture is a microphone, not a reading screen");
+console.log("\n10. One working screen: context, talk, photos, Prepare Daily");
 
-check("the brief is summarised there rather than printed in full", /if \(compact\)/.test(briefUi));
-check("in the words somebody recorded", /briefSummary\(description\)/.test(briefUi));
-check("kept to two lines", /line-clamp-2/.test(briefUi));
-check("with the history and the add box behind a disclosure", /<details/.test(briefUi));
-check("still above the capture box", capturePage.indexOf("<JobBrief") < capturePage.indexOf("<SiteCaptureForm"));
-check("and asked for compactly", /<JobBrief[\s\S]{0,200}compact/.test(capturePage));
+check("the capture page has no back-and-forth to a brief page", !/job-brief"/.test(capturePage) && !/Add a job document/.test(capturePage));
 check(
-  "the full history is still on the project page",
-  /<JobBrief/.test(projectPage) && !/compact/.test(projectPage),
+  "context, then the microphone, then photographs, then Prepare Daily, in that order",
+  capturePage.indexOf("<JobContext") < capturePage.indexOf("<SiteCaptureForm") &&
+    capturePage.indexOf("<SiteCaptureForm") < capturePage.indexOf("<PhotoUpload") &&
+    // The button, not the comment at the top of the file that describes it.
+    capturePage.indexOf("Prepare Daily\n", capturePage.indexOf("<PhotoUpload")) > 0,
+);
+check("nothing on the screen is called finished", !/Finish the report/.test(capturePage));
+check("the project header offers one action for a live job", /capturingToday \? "Continue Site Capture" : "Start Site Capture"/.test(projectPage));
+check(
+  "and says which of the two it will do from today's draft",
+  /report\.status === "draft" && report\.report_date === today/.test(projectPage),
 );
 check(
-  "and both screens render the same history component",
-  (briefUi.match(/<BriefHistory entries=\{entries\} \/>/g) ?? []).length === 2,
+  "Progress, Completion and the survey moved off the header onto Reports",
+  (() => {
+    const header = projectPage.slice(projectPage.indexOf("<header"), projectPage.indexOf("</header>"));
+    const reportsTab = projectPage.slice(projectPage.indexOf('activeTab === "reports"'), projectPage.indexOf('activeTab === "documents"'));
+    return (
+      !/kind=progress/.test(header) && !/kind=completion/.test(header) &&
+      /kind=progress/.test(reportsTab) && /kind=completion/.test(reportsTab) && /surveys\/new/.test(reportsTab)
+    );
+  })(),
+);
+check("the overview strip is read-only and says where editing happens", /Added to and updated on Site Capture/.test(briefCopy));
+
+console.log("\n11. The collapsed strip is four things, and the detail is behind one control");
+
+// The strip is the JSX between `const strip = (` and the overview return.
+// Everything else in the file is only ever rendered inside the <details>:
+// DocumentDetails, BriefHistory and BriefEntryForm are defined above the
+// strip and used below it, so "outside the strip" is the honest test for
+// "behind the control" - together with a check that the one place they are
+// rendered really is inside the details element.
+const stripStart = briefUi.indexOf("const strip = (");
+const stripEnd = briefUi.indexOf('if (variant === "overview")');
+const strip = briefUi.slice(stripStart, stripEnd);
+const details = briefUi.slice(0, stripStart) + briefUi.slice(stripEnd);
+const detailsElement = briefUi.slice(briefUi.indexOf("<details"), briefUi.indexOf("</details>"));
+check(
+  "the document, history and entry pieces are rendered inside the details element and nowhere else",
+  ["<DocumentDetails", "<BriefHistory", "<BriefEntryForm", "<DocumentUpload"].every(
+    (tag) => (briefUi.match(new RegExp(tag, "g")) ?? []).length === 1 && detailsElement.includes(tag),
+  ),
 );
 
-console.log("\n11. Add job document: the card offers what its own words promise");
+check("the strip shows the brief in the words somebody recorded", /briefSummary\(description\)/.test(briefUi) && /summary\.text/.test(strip));
+check("kept to two lines", /line-clamp-2/.test(strip));
+check("each document by name with one word of read status", /document\.title/.test(strip) && /readStatus\(document\.reading\)/.test(strip));
+check(
+  "the read status is one plain word",
+  /"Read"|"Reading…"|"Not read"|"Could not read"/.test(briefUi) && !/superseded|succeeded|pending|running/.test(strip),
+);
+check("one AI-understood line, instructed work only", /AI understood:/.test(strip) && /understoodLine\(documents\)/.test(briefUi) && /instructed \?\? \[\]/.test(briefUi));
+check("and one control", /<summary className="cursor-pointer/.test(briefUi) && /Add or update context/.test(briefUi));
+
+check("quoted-only work is not on the strip", !/proposed|Quoted only/.test(strip) && /Quoted only - not instructed/.test(details));
+check("page references are not on the strip", !/\[p|page/.test(strip));
+check("counts and validation language are not on the strip", !/counts|checked against|quoted from/.test(strip) && /checked against it/.test(details));
+check("extraction state transitions are not on the strip", !/pending|running|superseded|Reading the document/.test(strip));
+check("the full history is behind the control", !/BriefHistory/.test(strip) && /<BriefHistory entries=\{entries\} \/>/.test(details));
+check("and so is the box for the next entry", !/BriefEntryForm/.test(strip) && /<BriefEntryForm/.test(details));
+check("and the uploader", !/DocumentUpload/.test(strip) && /<DocumentUpload/.test(details));
+
+console.log("\n12. Add job document is one tap on Site Capture");
 
 check(
-  "the card no longer sends anybody to an uploader that is not there",
-  !/Upload a purchase order, specification or drawing below/.test(briefCopy),
-  "the old copy said 'below' and there was nothing below it",
-);
-check(
-  "the uploader is in the Job brief card itself",
-  /<DocumentUpload/.test(briefUi) && /label="Add job document"/.test(briefUi),
-);
-check(
-  "and it is the project's own uploader, not a second one",
+  "the uploader is the project's own, not a second one",
   /import \{ DocumentUpload \} from "@\/components\/documents\/document-upload"/.test(briefUi),
-  "a second storage flow is a second place for a file to go missing",
 );
+check("which still writes to the one documents table through the one action", /attachDocument\(/.test(uploadUi) && /from\("documents"\)\s*\n?\s*\.insert/.test(documentActions));
+check("after the file is stored, one action makes it context and reads it", /onAttached=\{adoptJobDocument\.bind\(null, projectId, returnTo\)\}/.test(briefUi));
 check(
-  "which still writes to the one documents table through the one action",
-  /attachDocument\(/.test(uploadUi) && /from\("documents"\)\s*\n?\s*\.insert/.test(documentActions),
+  "in that order - the mark first, then the reading",
+  briefActions.indexOf("export async function adoptJobDocument") > 0 &&
+    briefActions.indexOf('from("job_context_documents").insert', briefActions.indexOf("export async function adoptJobDocument")) <
+      briefActions.indexOf("runExtraction(", briefActions.indexOf("export async function adoptJobDocument")),
 );
-check(
-  "so an uploaded job document is an ordinary project document",
-  /DOCUMENT_BUCKET/.test(uploadUi) && !/create table|storage\.buckets/i.test(briefUi),
-);
-check(
-  "the page hands it the company folder to upload into",
-  /<JobBrief[\s\S]{0,220}companyId=\{session\.companyId\}/.test(projectPage),
-);
-check(
-  "the upload lands the user back on this page with the document showing",
-  /revalidatePath\(`\/projects\/\$\{value\.projectId\}`\)/.test(documentActions),
-);
+check("and the brief records the arrival as history, never as a rewrite", /appendBriefEntry\(\s*project\.description,\s*documentEntryText/.test(briefActions.slice(briefActions.indexOf("export async function adoptJobDocument"))));
+check("the button says what is happening while it happens", /attachedLabel="Reading the document…"/.test(briefUi) && /afterUpload \? attachedLabel/.test(uploadUi));
+check("the Documents tab still uploads without implying anything", !/onAttached/.test(projectPage.slice(projectPage.indexOf('activeTab === "documents"'))));
+check("the capture page hands over the company folder", /<JobContext[\s\S]{0,120}companyId=\{session\.companyId\}/.test(capturePage));
+check("and every action comes back to the screen it was used on", /return_to/.test(briefUi) && /revalidateFrom\(projectId, formData\)/.test(briefActions));
+check("only a path on this app is accepted as a return", /value\.startsWith\("\/"\) && !value\.startsWith\("\/\/"\)/.test(briefActions));
+check("job context is still neither a report reference nor a PDF attachment", /It does not put a document in a report or attach it to a PDF/.test(briefCopy) && !/report_documents|summary_report_documents/.test(briefActions));
+check("no migration was needed for any of it", !/alter table|create table/i.test(briefUi) && !/alter table|create table/i.test(projectPage) && !/alter table|create table/i.test(briefActions));
 
-check(
-  "every job document is listed, not only the ones not yet in scope",
-  /documents\.map\(\(document\) => \(\s*<JobDocumentRow/.test(briefUi) &&
-    !/const available = documents\.filter/.test(briefUi),
-);
-check(
-  "each one shows its filename and its type",
-  /\{documentTypeLabel\(document\.docType\)\} · \{document\.filename\}/.test(briefUi),
-);
-check(
-  "and its status, so 'is the AI reading this' is answerable at a glance",
-  /document\.inScope \? \(\s*<Badge tone="success" dot>\s*Job context/.test(briefUi),
-);
-check(
-  "the page supplies the filename to show",
-  /filename: row\.original_filename/.test(projectPage),
-);
-check(
-  "uploading is still not the same act as saying it is scope",
-  /<ActionButton label="Use as job context"/.test(briefCopy) && /addJobBriefDocument/.test(briefUi),
-  "an upload must land unmarked; a person marks it",
-);
-check(
-  "and job context is still neither a report reference nor a PDF attachment",
-  /Neither puts it in a report or attaches it to a PDF/.test(briefCopy),
-);
-check(
-  "no migration was needed for any of it",
-  !/alter table|create table/i.test(briefUi) && !/alter table|create table/i.test(projectPage),
-);
+console.log("\n13. At iPhone width");
 
-check(
-  "on a phone the row stacks and the buttons are full width",
-  /flex flex-col gap-3 sm:flex-row sm:items-center/.test(briefUi) &&
-    /className="w-full sm:w-auto"/.test(briefUi),
-);
-check(
-  "the uploader still opens Files rather than forcing the camera",
-  !/capture=/.test(uploadUi) && /type="file"/.test(uploadUi),
-);
-check(
-  "Site Capture still links here rather than carrying a second uploader",
-  /<JobBrief[\s\S]{0,200}compact/.test(capturePage) && !/<DocumentUpload/.test(capturePage),
-);
+check("document names truncate rather than wrap the strip", /truncate text-ink/.test(strip));
+check("rows in the details stack and buttons go full width", /flex flex-col gap-2 sm:flex-row/.test(details) && /className="w-full sm:w-auto"/.test(briefUi));
+check("the uploader still opens Files rather than forcing the camera", !/capture=/.test(uploadUi) && /type="file"/.test(uploadUi));
 
 console.log("\n=== Result ===");
 if (failures.length === 0) {

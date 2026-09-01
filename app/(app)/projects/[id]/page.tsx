@@ -17,8 +17,9 @@ import { AwardProject } from "@/components/projects/award-project";
 import { ProjectStatusBadge, isEnquiry } from "@/components/projects/status-badge";
 import { ReportRow } from "@/components/reports/report-row";
 import { SummaryRow } from "@/components/summary-reports/summary-row";
-import { JobBrief, type BriefDocument } from "@/components/projects/job-brief";
-import { currentExtractions } from "@/lib/documents/extractions";
+import { JobContext } from "@/components/projects/job-context";
+import { loadJobContextDocuments } from "@/lib/documents/job-context-view";
+import { workingDay } from "@/lib/reports/working-day";
 import { LinkedStoreCard, UnknownStoreCard } from "@/components/stores/linked-store-card";
 import { BackLink } from "@/components/ui/back-link";
 import { isProjectTab, type ProjectTab } from "@/lib/project-tabs";
@@ -42,7 +43,6 @@ import { storeFor } from "@/lib/stores/catalogue";
 import { storeLinkOf } from "@/lib/stores/project-link";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
-import { briefDocumentIds } from "@/lib/projects/job-brief";
 import { formatDate } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Project" };
@@ -198,63 +198,13 @@ export default async function ProjectPage({
     url: documentUrls.get(row.storage_path) ?? null,
   }));
 
-  // A document is job scope because somebody said so, never because it was
-  // uploaded - so the picker shows which ones already are.
-  //
-  // Scope comes from job_context_documents, which is the standing fact, with
-  // the brief's own `(doc:...)` markers folded in behind it: a project marked
-  // before that table existed still reads as scope rather than silently losing
-  // it. The brief entries themselves are untouched history either way.
-  // Skipped outright with no documents: `in` with an empty list is a query
-  // Postgres rejects, and a project with no paperwork has no marks to read.
-  const { data: contextRows } = documentRows.length
-    ? await supabase
-        .from("job_context_documents")
-        .select("document_id")
-        .in(
-          "document_id",
-          documentRows.map((row) => row.id),
-        )
-        .is("removed_at", null)
-    : { data: [] as { document_id: string }[] };
-  const scopeIds = new Set([
-    ...briefDocumentIds(project.description),
-    ...(contextRows ?? []).map((row) => row.document_id),
-  ]);
-
-  // What the AI made of each document, where somebody has asked it to read one.
-  const extractionState = await currentExtractions(
-    supabase,
-    documentRows.map((row) => row.id),
+  // The job context strip, from the one loader Site Capture uses too.
+  const jobDocuments = await loadJobContextDocuments(supabase, project.id, project.description);
+  // Today's Daily is open or it is not, and the button says which.
+  const today = workingDay();
+  const capturingToday = reports.some(
+    (report) => report.status === "draft" && report.report_date === today,
   );
-
-  const briefDocuments: BriefDocument[] = documentRows.map((row) => {
-    const reading = extractionState.get(row.id);
-    const content = reading?.content ?? null;
-    return {
-      id: row.id,
-      title: row.title,
-      filename: row.original_filename,
-      docType: row.doc_type,
-      inScope: scopeIds.has(row.id),
-      extraction: reading
-        ? {
-            status: reading.status,
-            summary: reading.summary,
-            error: reading.error,
-            counts: reading.counts,
-            // Only the two that change what may be written. "Described" is
-            // real and useful to the model, and noise on a card.
-            instructed: (content?.scope_items ?? [])
-              .filter((item) => item.commitment === "instructed")
-              .map((item) => item.text),
-            proposed: (content?.scope_items ?? [])
-              .filter((item) => item.commitment === "proposed")
-              .map((item) => item.text),
-          }
-        : null,
-    };
-  });
 
   // Built from the rows already fetched above plus that one extra query, so
   // the whole history costs no more round trips than the tab it sits beside.
@@ -296,40 +246,29 @@ export default async function ProjectPage({
               survey and nothing else. Daily, Progress and Completion Reports
               appear the moment the work is awarded. */}
           {enquiry ? null : (
-            <>
-              {/* The one action somebody standing on site needs. It opens
-                  today's Daily Report if there is one and starts it if there is
-                  not, so tapping it at eight, at half ten and at two lands on
-                  the same report every time. Posts rather than links: it may
-                  insert a row and let the database assign its number, which a
-                  GET must not do. */}
-              <form action={openSiteCapture}>
-                <input type="hidden" name="projectId" value={project.id} />
-                <Button type="submit">
-                  <Mic aria-hidden />
-                  Site Capture
-                </Button>
-              </form>
-              <Button asChild variant="secondary">
-                <Link href={`/summary-reports/new?kind=progress&project=${project.id}`}>
-                  <Plus aria-hidden />
-                  Progress Report
-                </Link>
+            /* The one action somebody standing on site needs. It opens today's
+               Daily Report if there is one and starts it if there is not, so
+               tapping it at eight, at half ten and at two lands on the same
+               report every time - and the label says which of the two it will
+               do. Posts rather than links: it may insert a row and let the
+               database assign its number, which a GET must not do. Progress,
+               Completion and the survey live on the Reports tab. */
+            <form action={openSiteCapture}>
+              <input type="hidden" name="projectId" value={project.id} />
+              <Button type="submit">
+                <Mic aria-hidden />
+                {capturingToday ? "Continue Site Capture" : "Start Site Capture"}
               </Button>
-              <Button asChild variant="secondary">
-                <Link href={`/summary-reports/new?kind=completion&project=${project.id}`}>
-                  <Plus aria-hidden />
-                  Completion Report
-                </Link>
-              </Button>
-            </>
+            </form>
           )}
-          <Button asChild variant={enquiry ? "primary" : "secondary"}>
-            <Link href={`/surveys/new?project=${project.id}`}>
-              <ClipboardList aria-hidden />
-              Site survey
-            </Link>
-          </Button>
+          {enquiry ? (
+            <Button asChild>
+              <Link href={`/surveys/new?project=${project.id}`}>
+                <ClipboardList aria-hidden />
+                Site survey
+              </Link>
+            </Button>
+          ) : null}
           <Button asChild variant="secondary">
             <Link href={`/projects/${project.id}/edit`}>
               <Pencil aria-hidden />
@@ -373,16 +312,16 @@ export default async function ProjectPage({
         )
       ) : null}
 
-      {/* What the job is supposed to be, before anything about what happened.
-          A brief spoken in the van at seven is valid scope on its own; a
-          purchase order that arrives at half past two is added to it and never
-          replaces it. See lib/projects/job-brief.ts. */}
+      {/* What the job is, in four lines. Read-only here: it is added to and
+          updated on Site Capture, which is where somebody is when a purchase
+          order arrives. See components/projects/job-context.tsx. */}
       {!loadError && activeTab === "overview" && !enquiry ? (
-        <JobBrief
+        <JobContext
           projectId={project.id}
-          companyId={session.companyId}
           description={project.description}
-          documents={briefDocuments}
+          documents={jobDocuments}
+          variant="overview"
+          returnTo={`/projects/${project.id}`}
         />
       ) : null}
 
@@ -413,11 +352,36 @@ export default async function ProjectPage({
       ) : null}
 
       {!loadError && activeTab === "reports" ? (
-        reports.length === 0 && summaryReports.length === 0 ? (
+        <section className="flex flex-col gap-4">
+          {/* Starting a document other than today's Daily. Off the header,
+              because the header has one job: getting back to Site Capture. */}
+          {enquiry ? null : (
+            <div className="flex flex-wrap gap-3">
+              <Button asChild variant="secondary">
+                <Link href={`/summary-reports/new?kind=progress&project=${project.id}`}>
+                  <Plus aria-hidden />
+                  Progress Report
+                </Link>
+              </Button>
+              <Button asChild variant="secondary">
+                <Link href={`/summary-reports/new?kind=completion&project=${project.id}`}>
+                  <Plus aria-hidden />
+                  Completion Report
+                </Link>
+              </Button>
+              <Button asChild variant="secondary">
+                <Link href={`/surveys/new?project=${project.id}`}>
+                  <ClipboardList aria-hidden />
+                  Site survey
+                </Link>
+              </Button>
+            </div>
+          )}
+        {reports.length === 0 && summaryReports.length === 0 ? (
           <EmptyState
             icon={FileText}
             title="No reports yet"
-            description="Start one with the New report button above - it fills in the date, your name and the report number for you."
+            description="Today's Daily starts from Site Capture above. Progress and Completion Reports start from the buttons here."
           />
         ) : (
           <ul className="flex flex-col gap-3">
@@ -432,7 +396,8 @@ export default async function ProjectPage({
               </li>
             ))}
           </ul>
-        )
+        )}
+        </section>
       ) : null}
 
       {!loadError && activeTab === "documents" ? (

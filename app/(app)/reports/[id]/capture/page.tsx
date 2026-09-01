@@ -6,7 +6,7 @@ import { ArrowRight, Camera, Mic } from "lucide-react";
 import { addCapture } from "@/app/(app)/reports/capture-actions";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
-import { JobBrief } from "@/components/projects/job-brief";
+import { JobContext } from "@/components/projects/job-context";
 import { SiteCaptureForm } from "@/components/reports/site-capture-form";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
@@ -14,6 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireSessionContext } from "@/lib/auth/session";
 import { hasAiConfig } from "@/lib/ai/report-generation";
+import { loadJobContextDocuments } from "@/lib/documents/job-context-view";
 import { signPhotoUrls } from "@/lib/photos-signing";
 import { capturePreview, captureSpan, parseCaptureLog } from "@/lib/reports/capture-log";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
@@ -23,13 +24,17 @@ import { formatDate, formatReportNumber } from "@/lib/utils";
 export const metadata: Metadata = { title: "Site Capture" };
 
 /**
- * Site Capture: the screen somebody actually stands on site holding.
+ * Site Capture: the one working screen for a job.
  *
- * Four things and nothing else - speak, add photographs, see what has gone in
- * already, and leave. Everything a Daily Report also needs - the weather, the
- * workforce, the drafting, the review, the issue list, the PDF - is one tap
- * away on the report itself and stays there. This screen is for the hour you
- * are on site, not the ten minutes at the end of the day.
+ * Context, then talk or type, then photographs, then Prepare Daily. The job
+ * context at the top - the brief, the paperwork, what the AI made of it - is
+ * added to and updated here and nowhere else, so a purchase order that turns
+ * up at half past two is added on the screen somebody is already holding.
+ *
+ * Everything a Daily Report also needs - the weather, the workforce, the
+ * drafting, the review, the issue list, the PDF - is one tap away on the
+ * report itself and stays there. This screen is for the hour you are on site,
+ * not the ten minutes at the end of the day.
  */
 export default async function SiteCapturePage({
   params,
@@ -75,6 +80,13 @@ export default async function SiteCapturePage({
   const span = captureSpan(entries);
   const reportHref = `/reports/${report.id}`;
   const projectHref = `/projects/${report.project_id}`;
+  const captureHref = `/reports/${report.id}/capture`;
+
+  const jobDocuments = await loadJobContextDocuments(
+    supabase,
+    report.project_id,
+    project?.description ?? null,
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -96,22 +108,23 @@ export default async function SiteCapturePage({
         <Badge tone="neutral">Draft</Badge>
       </header>
 
+      {/* Context first: what this visit was sent out to do, before a word is
+          said about what happened. The brief, the paperwork and what the AI
+          understood of it, added to and updated right here. */}
+      <JobContext
+        projectId={report.project_id}
+        companyId={session.companyId}
+        description={project?.description ?? null}
+        documents={jobDocuments}
+        variant="capture"
+        returnTo={captureHref}
+      />
+
       <p className="text-sm text-ink-muted">
         Speak whenever you have a minute. Everything you add goes onto{" "}
         <strong className="font-semibold text-ink">the same report for today</strong> - come
         back as often as you like, nothing is replaced.
       </p>
-
-      {/* Job brief first: what this visit was sent out to do, before a word is
-          said about what happened. It is valid scope on its own - no purchase
-          order needed - and anything added here is read by the AI when the
-          notes are cleaned and the report is written. */}
-      <JobBrief
-        projectId={report.project_id}
-        description={project?.description ?? null}
-        documents={[]}
-        compact
-      />
 
       <Card>
         <CardContent className="flex flex-col gap-4">
@@ -172,17 +185,19 @@ export default async function SiteCapturePage({
         <Button asChild variant="secondary" size="lg" className="w-full sm:w-auto">
           <Link href={projectHref}>Continue later</Link>
         </Button>
+        {/* "Prepare", not "finish": nothing on this screen is finished, and
+            the report is where the day gets written up, reviewed and issued. */}
         <Button asChild size="lg" className="w-full sm:w-auto">
           <Link href={reportHref}>
-            Finish the report
+            Prepare Daily
             <ArrowRight aria-hidden />
           </Link>
         </Button>
       </div>
 
       <p className="text-sm text-ink-muted">
-        At the end of the day, open the report to have the AI tidy every note into the
-        write-up, review it, and issue the PDF.
+        Prepare Daily has the AI tidy every note into the write-up, then you review it and
+        issue the PDF.
       </p>
     </div>
   );

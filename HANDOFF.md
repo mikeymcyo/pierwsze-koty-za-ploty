@@ -113,6 +113,53 @@ seen working on a device.**
 
 ## Current state - read this before the historical sections below
 
+## One working screen, 2026-09-01 (evening)
+
+**PROJECT = THE JOB. SITE CAPTURE = THE MAIN WORKING SCREEN.** The Job Brief
+stopped being its own concept with its own card, uploader and buttons on the
+project overview. Site Capture is now one flow, top to bottom:
+
+    Job context  ->  dictate or type  ->  photographs  ->  Prepare Daily
+
+`components/projects/job-context.tsx` replaced `job-brief.tsx`. Collapsed it is
+four things and nothing else: the brief in the site manager's own words (two
+lines), each document that is job context with one plain word of read status
+(Read / Reading… / Not read / Could not read), one "AI understood:" line of the
+instructed work, and one control, "Add or update context". Everything else -
+the full history, the box for the next entry, the uploader, quoted-only work,
+counts, page numbers, the validation language - is behind that control. The
+suite asserts this structurally (section 11 of `test:job-brief`): the strip
+slice must not contain any of it, and the pieces that carry it must be
+rendered inside the details element and nowhere else.
+
+**Add job document on Site Capture is one tap.** `DocumentUpload` gained an
+`onAttached` hook; Site Capture passes `adoptJobDocument`, which marks the
+document as job context, appends the arrival to the brief as history, and runs
+the reading - in that order, mark first. The Documents tab passes nothing and
+an upload there still implies nothing. The three writes are still three tables.
+
+**The project overview** shows the same strip read-only ("Added to and updated
+on Site Capture"). The header carries one action for a live job, **Continue
+Site Capture** when today's Daily is open and **Start Site Capture** when it is
+not, decided from the reports already loaded. Progress Report, Completion
+Report and Site survey moved to the Reports tab. An enquiry still leads with
+the survey.
+
+Every context action carries a `return_to` hidden field, so a form used on
+Site Capture re-renders Site Capture; only a path on this app is accepted.
+"Finish the report" is now "Prepare Daily" - nothing on the capture screen is
+finished.
+
+No schema change, no report logic change, no prompt change. The data model is
+untouched: `projects.description`, `job_context_documents` and
+`document_extractions` are exactly what they were.
+
+**iPhone width is asserted at source, not rendered.** Names truncate, the
+strip clamps to two lines, rows in the details stack with full-width buttons
+below `sm`. Nobody has loaded it on a phone yet - the browser-level check
+still needs a Supabase, and Docker still costs the session its push (F15).
+That is the first thing to do on a device.
+
 ## Document Intelligence, 2026-09-01
 
 **Applied to the hosted database.** Migration

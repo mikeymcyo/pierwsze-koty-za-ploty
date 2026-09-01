@@ -276,7 +276,14 @@ check(
 check("photographs can be added here", /PhotoUpload/.test(page));
 check("and the ones already taken are shown", /PhotoGrid/.test(page));
 check("Continue later is offered", /Continue later/.test(page));
-check("and so is finishing the report", /Finish the report/.test(page));
+check("and so is Prepare Daily", /Prepare Daily/.test(page));
+check("nothing here is called finished", !/Finish the report/.test(page));
+check(
+  "the job context sits at the top, on this screen, not on another",
+  /<JobContext/.test(page) && page.indexOf("<JobContext") < page.indexOf("<SiteCaptureForm"),
+);
+check("with the uploader for a document that arrives mid-day", /companyId=\{session\.companyId\}/.test(page));
+check("and every context action returns to this screen", /returnTo=\{captureHref\}/.test(page));
 check("the day so far is available but not in the way", /<details/.test(page));
 check("an issued report is sent to the document instead", /redirect\(`\/reports\/\$\{id\}`\)/.test(page));
 check("the screen says nothing is replaced", /nothing is replaced/.test(page));
@@ -289,6 +296,10 @@ const dashboard = read("../app/(app)/dashboard/page.tsx");
 const report = read("../app/(app)/reports/[id]/page.tsx");
 
 check("the project offers it", /action=\{openSiteCapture\}/.test(project) && /Site Capture/.test(project));
+check(
+  "as Continue or Start, depending on whether today's Daily is open",
+  /capturingToday \? "Continue Site Capture" : "Start Site Capture"/.test(project),
+);
 check("and no longer offers a second way to start today's report", !/startReport/.test(project));
 check("picking a site opens today's report", /action=\{openSiteCapture\}/.test(chooser));
 check("the dashboard leads with it", /label="Site Capture"/.test(dashboard));
