@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { ClipboardList, FileText, Plus } from "lucide-react";
 
@@ -14,14 +14,97 @@ import { DictationField } from "@/components/reports/dictation-field";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { parseJobBrief } from "@/lib/projects/job-brief";
+import { briefSummary, parseJobBrief, type BriefEntry } from "@/lib/projects/job-brief";
 
-function AddButton({ label }: { label: string }) {
+function AddButton({ label, disabled }: { label: string; disabled: boolean }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="lg" className="w-full sm:w-auto" loading={pending} disabled={pending}>
+    <Button
+      type="submit"
+      size="lg"
+      className="w-full sm:w-auto"
+      loading={pending}
+      disabled={pending || disabled}
+    >
       {pending ? "Adding…" : label}
     </Button>
+  );
+}
+
+/** Every entry, oldest first, with the time it was recorded on it. */
+function BriefHistory({ entries }: { entries: BriefEntry[] }) {
+  return (
+    <ul className="flex flex-col gap-2 rounded-xl border border-line bg-surface-muted p-3">
+      {entries.map((entry, index) => (
+        <li key={index} className="flex gap-3 text-sm">
+          <span className="w-28 shrink-0 font-mono text-xs text-ink-subtle">
+            {entry.at ?? "—"}
+          </span>
+          <span className="min-w-0 text-ink-muted">
+            {entry.documentId ? (
+              <span className="flex items-center gap-1.5">
+                <FileText aria-hidden className="size-3.5 shrink-0" />
+                {entry.text.replace(/\s*\(doc:[0-9a-f-]{36}\)/i, "")}
+              </span>
+            ) : (
+              entry.text
+            )}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/**
+ * The box for the NEXT entry, and only ever the next one.
+ *
+ * Where a brief already exists this box is additive and says so - in its
+ * heading, in its placeholder and on its button. An empty box under a recorded
+ * brief means "nothing to add yet", never "this job has no brief", and the
+ * button is simply unavailable until there is something to add rather than
+ * refusing the tap afterwards with a warning that says the wrong thing.
+ *
+ * Remounted by the entry list growing (`key={entries.length}` at the call
+ * site), which is the server confirming the append - only then is it safe to
+ * empty the box.
+ */
+function BriefEntryForm({
+  action,
+  additive,
+  rows,
+}: {
+  action: (formData: FormData) => void;
+  additive: boolean;
+  rows: number;
+}) {
+  const [text, setText] = useState("");
+  const nothingToAdd = text.trim().length === 0;
+  const label = additive ? "Add another scope update or instruction" : "Job brief";
+
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      <label htmlFor="brief_text" className="text-sm font-semibold text-ink">
+        {label}
+      </label>
+      <DictationField
+        name="brief_text"
+        label={label}
+        value={text}
+        onValueChange={setText}
+        rows={rows}
+        placeholder={
+          additive
+            ? "Anything further you have been asked to do, or a change to the scope. What is already recorded stays exactly as it is."
+            : "What have you been asked to do here? Include anything that affects access or working hours."
+        }
+      />
+      <input type="hidden" name="brief_at" value="" />
+      <AddButton
+        disabled={nothingToAdd}
+        label={additive ? "Add to the brief" : "Save job brief"}
+      />
+    </form>
   );
 }
 
@@ -47,12 +130,17 @@ export type BriefDocument = {
  * formally instructed. Nothing here writes to a report, references a document
  * in one, or appends anything to a PDF - those are three other acts on three
  * other screens.
+ *
+ * One brief already recorded means the job HAS a brief - a sentence dictated
+ * in the van, a document brought into the scope, or a plain description
+ * written before any of this existed. Nothing on this screen may suggest
+ * otherwise while one is showing directly above it.
  */
 export function JobBrief({
   projectId,
   description,
   documents,
-  /** Fewer words and no document picker, for the Site Capture screen. */
+  /** A summary and a disclosure, for the Site Capture screen. */
   compact = false,
 }: {
   projectId: string;
@@ -69,7 +157,69 @@ export function JobBrief({
     {},
   );
   const entries = parseJobBrief(description);
+  const hasBrief = entries.length > 0;
+  const summary = briefSummary(description);
   const available = documents.filter((document) => !document.inScope);
+
+  // An empty box is only ever a missing brief where there is genuinely no
+  // brief. The server decides that, having read the project; here it is just
+  // not coloured as a fault when it was not one.
+  const nothingAdded = Boolean(state.empty) && !state.error;
+
+  if (compact) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col gap-3">
+          <div className="flex items-start gap-3">
+            {/* No gold plate here. Site Capture has one primary action - the
+                microphone below - and a second brand-coloured chip above it
+                would compete with it. */}
+            <ClipboardList className="mt-0.5 size-4 shrink-0 text-ink-subtle" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xs font-bold tracking-wide text-ink-muted uppercase">
+                Job brief
+              </h2>
+              {summary ? (
+                // The words somebody recorded, not a paraphrase of them. Two
+                // lines at most: this screen exists for the microphone below
+                // it, and the whole history is one tap away.
+                <p className="line-clamp-2 text-sm text-ink">{summary.text}</p>
+              ) : (
+                <p className="text-sm text-ink-muted">
+                  Nothing recorded yet. Say what you have been asked to do.
+                </p>
+              )}
+            </div>
+          </div>
+
+          {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
+          {nothingAdded ? (
+            <p className="text-sm text-ink-subtle">
+              Nothing was added - the brief already recorded is unchanged.
+            </p>
+          ) : null}
+
+          <details className="rounded-xl border border-line px-3 py-2">
+            <summary className="cursor-pointer text-sm font-semibold text-ink">
+              {hasBrief
+                ? `Add to the brief · ${summary?.entries ?? entries.length} recorded`
+                : "Record the job brief"}
+            </summary>
+            <div className="mt-3 flex flex-col gap-3">
+              {hasBrief ? <BriefHistory entries={entries} /> : null}
+              <BriefEntryForm key={entries.length} action={action} additive={hasBrief} rows={3} />
+              <Button asChild variant="secondary" size="sm" className="w-full sm:w-auto">
+                <Link href={`/projects/${projectId}`}>
+                  <Plus aria-hidden />
+                  Add a job document
+                </Link>
+              </Button>
+            </div>
+          </details>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <Card>
@@ -87,26 +237,8 @@ export function JobBrief({
           </div>
         </div>
 
-        {entries.length > 0 ? (
-          <ul className="flex flex-col gap-2 rounded-xl border border-line bg-surface-muted p-3">
-            {entries.map((entry, index) => (
-              <li key={index} className="flex gap-3 text-sm">
-                <span className="w-28 shrink-0 font-mono text-xs text-ink-subtle">
-                  {entry.at ?? "—"}
-                </span>
-                <span className="min-w-0 text-ink-muted">
-                  {entry.documentId ? (
-                    <span className="flex items-center gap-1.5">
-                      <FileText aria-hidden className="size-3.5 shrink-0" />
-                      {entry.text.replace(/\s*\(doc:[0-9a-f-]{36}\)/i, "")}
-                    </span>
-                  ) : (
-                    entry.text
-                  )}
-                </span>
-              </li>
-            ))}
-          </ul>
+        {hasBrief ? (
+          <BriefHistory entries={entries} />
         ) : (
           <p className="text-sm text-ink-subtle">
             Nothing recorded yet. Say what you have been asked to do.
@@ -114,34 +246,19 @@ export function JobBrief({
         )}
 
         {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
+        {nothingAdded ? (
+          <p className="text-sm text-ink-subtle">
+            Nothing was added - the brief already recorded is unchanged.
+          </p>
+        ) : null}
         {documentState.error ? <Alert tone="danger">{documentState.error}</Alert> : null}
 
-        <form action={action} className="flex flex-col gap-3">
-          <DictationField
-            // Cleared by the entry list growing: the server confirmed it, and
-            // only then is it safe to empty the box.
-            key={entries.length}
-            name="brief_text"
-            label="Job brief"
-            defaultValue=""
-            rows={compact ? 3 : 4}
-            placeholder="What have you been asked to do here? Include anything that affects access or working hours."
-          />
-          <input type="hidden" name="brief_at" value="" />
-          <AddButton label={entries.length > 0 ? "Add to the brief" : "Save job brief"} />
-        </form>
+        <BriefEntryForm key={entries.length} action={action} additive={hasBrief} rows={4} />
 
         {/* A document is job scope because somebody said so - never because it
             was uploaded. Adding one here does not reference it in any report
             and does not append it to any PDF. */}
-        {compact ? (
-          <Button asChild variant="secondary" className="w-full sm:w-auto">
-            <Link href={`/projects/${projectId}`}>
-              <Plus aria-hidden />
-              Add a job document
-            </Link>
-          </Button>
-        ) : available.length > 0 ? (
+        {available.length > 0 ? (
           <div className="flex flex-col gap-2">
             <p className="text-sm font-semibold text-ink">Add a job document to the scope</p>
             <ul className="flex flex-col gap-2">

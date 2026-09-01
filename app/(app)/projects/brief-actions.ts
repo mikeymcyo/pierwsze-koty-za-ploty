@@ -9,11 +9,22 @@ import {
   briefAlreadyEnds,
   briefHasDocument,
   documentEntryText,
+  hasJobBrief,
 } from "@/lib/projects/job-brief";
 import { workingDay } from "@/lib/reports/working-day";
 import { createClient } from "@/lib/supabase/server";
 
-export type JobBriefState = { error?: string; saved?: boolean };
+export type JobBriefState = {
+  error?: string;
+  saved?: boolean;
+  /**
+   * Nothing was added because the box was empty.
+   *
+   * Separate from `error` on purpose: on a project that already has a brief
+   * this is not a fault at all, and the screen must not colour it as one.
+   */
+  empty?: boolean;
+};
 
 /** `2026-09-01 14:38`, on the British clock the rest of the app keeps. */
 function stampNow(at?: string | null): string {
@@ -27,9 +38,24 @@ function stampNow(at?: string | null): string {
 }
 
 const entrySchema = z.object({
-  text: z.string().trim().min(1, "Say or type the job brief first"),
+  text: z.string().trim(),
   at: z.string().trim(),
 });
+
+/**
+ * What to say when somebody adds nothing.
+ *
+ * It depends entirely on whether the job already has a brief, and getting that
+ * wrong is what this fix is for: a project with a scope recorded that morning
+ * was shown "Say or type the job brief first" in red, which says the job has no
+ * brief. It has one. The empty box is for adding another entry, not for
+ * supplying a missing first one.
+ */
+function nothingToAdd(hasBrief: boolean): JobBriefState {
+  return hasBrief
+    ? { empty: true }
+    : { error: "Say or type the job brief first", empty: true };
+}
 
 /** How many times an append re-reads and tries again when another device got there first. */
 const APPEND_ATTEMPTS = 3;
@@ -54,9 +80,7 @@ export async function addJobBriefEntry(
     text: formData.get("brief_text") ?? "",
     at: formData.get("brief_at") ?? "",
   });
-  if (!parsed.success) {
-    return { error: parsed.error.issues[0]?.message ?? "Say or type the job brief first" };
-  }
+  if (!parsed.success) return { error: "That could not be saved - please try again." };
 
   await requireSessionContext();
   const supabase = await createClient();
@@ -70,6 +94,12 @@ export async function addJobBriefEntry(
       .maybeSingle();
     if (readError) return { error: `Could not read the project: ${readError.message}` };
     if (!project) return { error: "That project could not be found." };
+
+    // Read first, then decide what an empty box means. A brief already
+    // recorded - including a plain description written before any of this
+    // existed - means the job has a brief, and adding nothing to it is not a
+    // missing brief.
+    if (!parsed.data.text) return nothingToAdd(hasJobBrief(project.description));
 
     // A tap that looked like it did nothing gets tapped again. The second one
     // is answered rather than written.

@@ -187,3 +187,16 @@ export function briefForPrompt(description: string | null | undefined): string |
     .join("\n");
 }
 
+
+/**
+ * Whether this job has a brief at all.
+ *
+ * The one question the screen and the action both have to answer the same way.
+ * Any recorded entry counts - a sentence dictated in the van, a document added
+ * to the scope, or a plain description written before any of this existed. The
+ * empty box under an existing brief is for adding another entry, and must never
+ * make the job look as though it has none.
+ */
+export function hasJobBrief(description: string | null | undefined): boolean {
+  return parseJobBrief(description).length > 0;
+}

@@ -26,6 +26,7 @@ import {
   briefHasDocument,
   briefSummary,
   documentEntryText,
+  hasJobBrief,
   isBriefStamp,
   parseJobBrief,
 } from "../lib/projects/job-brief.ts";
@@ -270,6 +271,91 @@ check("an issued report still takes no redraft", /REPORT_IS_FINAL/.test(dailyAct
 check("the cleanup pass still runs first", dailyActions.indexOf("cleanedSectionsFor") < dailyActions.indexOf("generateSections"));
 check("photographs are still described but never written", /return result\.ok \? \{ description: result\.description \}/.test(photoActions));
 check("and no migration was needed", !/alter table|create table/i.test(briefActions));
+
+console.log("\n9. A brief already recorded is a brief");
+
+// The bug this section exists for: a project with a scope dictated that
+// morning, an empty new-entry box, one tap - and SiteBoss answered in red with
+// "Say or type the job brief first". That sentence says the job has no brief.
+// It has one, showing on the same screen. The empty box is for adding ANOTHER
+// entry, and adding nothing to a brief is not a missing brief.
+
+check("a dictated brief means the job has one", hasJobBrief(morning));
+check("so does one with a document in it", hasJobBrief(afternoon));
+check("a plain description written before any of this counts too", hasJobBrief(legacy));
+check("a document entry on its own still counts", hasJobBrief(`[2026-09-01 14:38] ${documentEntryText("Lidl PO 4501234567", PO_ID)}`));
+check("and nothing recorded is genuinely nothing", !hasJobBrief(null) && !hasJobBrief("") && !hasJobBrief("   "));
+check(
+  "the screen and the action ask the same question of the same text",
+  hasJobBrief(afternoon) === (parseJobBrief(afternoon).length > 0),
+);
+
+check(
+  "the box is no longer required to be filled before the project is read",
+  !/min\(1,\s*"Say or type the job brief first"\)/.test(briefActions),
+  "returning that from the schema answered before knowing whether a brief exists",
+);
+check(
+  "the project is read first, then an empty box is interpreted",
+  briefActions.indexOf('.select("id, description")') <
+    briefActions.indexOf("nothingToAdd(hasJobBrief(project.description))"),
+);
+check(
+  "empty box + existing brief = nothing added, and no error at all",
+  /hasBrief\s*\?\s*\{ empty: true \}/.test(briefActions),
+);
+check(
+  "empty box + genuinely no brief = the warning, still",
+  /:\s*\{ error: "Say or type the job brief first", empty: true \}/.test(briefActions),
+);
+check(
+  "the exact case: one saved brief, empty box, NO warning",
+  hasJobBrief(morning) && /hasBrief\s*\?\s*\{ empty: true \}/.test(briefActions),
+  "one entry recorded + an empty new-entry box must produce no missing-brief warning",
+);
+
+check(
+  "the screen colours a missing brief red and an empty box not at all",
+  /const nothingAdded = Boolean\(state\.empty\) && !state\.error/.test(briefUi) &&
+    /nothingAdded \? \(\s*<p className="text-sm text-ink-subtle">/.test(briefUi),
+);
+check(
+  "the only danger Alert for an entry is a real error",
+  /\{state\.error \? <Alert tone="danger">\{state\.error\}<\/Alert> : null\}/.test(briefUi),
+);
+check(
+  "the box says it is for another entry once one exists",
+  /Add another scope update or instruction/.test(briefUi),
+);
+check("and its button says so too", /additive \? "Add to the brief" : "Save job brief"/.test(briefUi));
+check(
+  "an empty box simply has nothing to add, rather than being refused afterwards",
+  /const nothingToAdd = text\.trim\(\)\.length === 0/.test(briefUi) &&
+    /disabled=\{nothingToAdd\}/.test(briefUi),
+);
+check(
+  "and the append rules underneath are untouched",
+  /appendBriefEntry\(project\.description, parsed\.data\.text, stamp\)/.test(briefActions) &&
+    !/\.update\(\{ description: parsed\.data\.text \}\)/.test(briefActions),
+  "Save appends, it never replaces",
+);
+
+console.log("\n10. Site Capture is a microphone, not a reading screen");
+
+check("the brief is summarised there rather than printed in full", /if \(compact\)/.test(briefUi));
+check("in the words somebody recorded", /briefSummary\(description\)/.test(briefUi));
+check("kept to two lines", /line-clamp-2/.test(briefUi));
+check("with the history and the add box behind a disclosure", /<details/.test(briefUi));
+check("still above the capture box", capturePage.indexOf("<JobBrief") < capturePage.indexOf("<SiteCaptureForm"));
+check("and asked for compactly", /<JobBrief[\s\S]{0,200}compact/.test(capturePage));
+check(
+  "the full history is still on the project page",
+  /<JobBrief/.test(projectPage) && !/compact/.test(projectPage),
+);
+check(
+  "and both screens render the same history component",
+  (briefUi.match(/<BriefHistory entries=\{entries\} \/>/g) ?? []).length === 2,
+);
 
 console.log("\n=== Result ===");
 if (failures.length === 0) {
