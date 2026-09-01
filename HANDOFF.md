@@ -7,12 +7,12 @@ it says so explicitly - treat that distinction as load-bearing.
 **Written:** 2026-08-26 · **Last updated:** 2026-08-31 (end of day)
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-**Head:** `3452443` - Waze, beside Google Maps
+**Head:** `85b7286` - End-of-day handoff, 2026-08-31
 **Recovery head:** `fe6bf7f` - AI photo descriptions and supporting documents
 
 ## Stopping point, 2026-08-31
 
-Working tree clean, local and `origin` both on `3452443`. **Tomorrow's session
+Working tree clean, local and `origin` both on `85b7286`. **Tomorrow's session
 may be on a different machine**, so start by cloning or pulling this branch -
 everything below is in the repository and nothing of value is only in a
 container:
@@ -135,6 +135,48 @@ The current implementation completes the core workflow:
 - Reports, Project detail and Dashboard list all three document types.
 
 
+
+### Store 1848: the work already here comes first
+
+**No migration.** `npm run test:store-continuity` covers it.
+
+A site manager dictated into a Daily Report against Store 1848 one morning.
+Searching the store again later, SiteBoss offered him **Create project here** -
+so he took it. The live database shows both halves of that: project **"Po"**,
+correctly linked to `lidl-gb` / `1848`, carrying Daily Report 001 with 772
+characters of his own capture entries; and a second project created two hours
+later with **no store link and no reports**.
+
+**Nothing was lost and nothing was broken.** The store-to-project link was
+written, the query that reads it was correct, and the Daily Report was there the
+whole time. Two things were wrong:
+
+1. **Nothing looked for an open Daily.** The store page read the projects and
+   stopped there. There was no query for a draft Daily on any of them, no notion
+   of a capture in progress, and no route that continued one.
+2. **The order of the screen was backwards.** The projects list sat last, below
+   the store details, below Directions and Waze, below a primary **Create
+   project here** and below Start a site survey, under a grey heading. On a
+   phone you meet the button that starts something new long before the work you
+   already started.
+
+**`lib/reports/continuity.ts`** now decides what to offer: today's open Daily
+first, else the most recently touched, with the project split into work in hand
+(active or survey) and earlier work. **`components/reports/capture-in-progress.tsx`**
+is the one card both screens use - "Site Capture in progress", the project and
+store, the report and its day, how many notes are in it, when it was last
+touched, then **Continue Site Capture** and **Open project**.
+
+**Continue links at the report's own id**, `/reports/{id}/capture`, never
+through `openSiteCapture` - a route that could create is a route that will. And
+the store page offers **Start Site Capture** only on a project that has no
+capture open, so one screen never has two ways into the same report.
+
+The store page now reads, top to bottom: the capture in progress, the live
+projects with Open project and Start Site Capture, the store's own details,
+Directions and Waze, then site survey and **"Create another project here"** as
+secondary, then earlier work. The dashboard shows the same card **above** the
+quick actions rather than below them, and no longer lists that draft twice.
 
 ### Waze, beside Google Maps
 

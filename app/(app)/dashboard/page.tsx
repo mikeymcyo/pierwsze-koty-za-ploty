@@ -12,7 +12,11 @@ import {
   Store,
 } from "lucide-react";
 
+import { CaptureInProgress } from "@/components/reports/capture-in-progress";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
+import { captureCount } from "@/lib/reports/capture-log";
+import { captureInProgress, type DraftDaily } from "@/lib/reports/continuity";
+import { workingDay } from "@/lib/reports/working-day";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -62,7 +66,7 @@ export default async function DashboardPage() {
     withClockSkewRetry(() =>
       supabase
         .from("reports")
-        .select("id, report_number, report_date, updated_at, projects(name)")
+        .select("id, project_id, report_number, report_date, updated_at, raw_notes, projects(name)")
         .eq("status", "draft")
         .order("updated_at", { ascending: false })
         .limit(3),
@@ -89,6 +93,28 @@ export default async function DashboardPage() {
   // query fails the section is simply not shown, which is honest, instead of
   // taking the dashboard down with it.
   const drafts = draftsResult.data ?? [];
+
+  /**
+   * The Daily somebody is part-way through, lifted above the quick actions.
+   *
+   * It used to sit below them, linking at the report rather than at the
+   * microphone, saying nothing about how much had been captured or when. The
+   * first thing a site manager opens the app for is the thing he did not
+   * finish, and Site Capture is where he finishes it.
+   */
+  const openDrafts: DraftDaily[] = drafts.map((draft) => {
+    const project = Array.isArray(draft.projects) ? draft.projects[0] : draft.projects;
+    return {
+      id: draft.id,
+      projectId: draft.project_id,
+      projectName: project?.name ?? "Unknown project",
+      reportNumber: draft.report_number,
+      reportDate: draft.report_date,
+      updatedAt: draft.updated_at,
+      captureCount: captureCount(draft.raw_notes),
+    };
+  });
+  const inProgress = captureInProgress(openDrafts, workingDay());
   const openIssues = issuesResult.data ?? [];
 
   const greeting = (
@@ -123,19 +149,26 @@ export default async function DashboardPage() {
 
       {/* The three things somebody opens this app to do, one tap from the top
           of the screen rather than found through a menu. */}
+      {/* Before the quick actions, not after them. Starting a new capture is
+          one tap away below; finishing the one already open is what somebody
+          opened the app for. */}
+      {inProgress ? <CaptureInProgress draft={inProgress} /> : null}
+
       <div className="grid grid-cols-3 gap-3">
         <QuickAction href="/reports/new" icon={<Mic aria-hidden />} label="Site Capture" primary />
         <QuickAction href="/projects/new" icon={<Plus aria-hidden />} label="New project" />
         <QuickAction href="/stores" icon={<Store aria-hidden />} label="Store locator" />
       </div>
 
-      {drafts.length > 0 ? (
+      {drafts.filter((draft) => draft.id !== inProgress?.id).length > 0 ? (
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
             Finish what you started
           </h2>
           <ul className="flex flex-col gap-3">
-            {drafts.map((draft) => {
+            {drafts
+              .filter((draft) => draft.id !== inProgress?.id)
+              .map((draft) => {
               const project = Array.isArray(draft.projects) ? draft.projects[0] : draft.projects;
               return (
                 <li key={draft.id}>

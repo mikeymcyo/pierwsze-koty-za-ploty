@@ -1,13 +1,31 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, ClipboardList, MapPin, Moon, Navigation, Plus } from "lucide-react";
+import {
+  ChevronRight,
+  ClipboardList,
+  FolderOpen,
+  MapPin,
+  Mic,
+  Moon,
+  Navigation,
+  Plus,
+} from "lucide-react";
 
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Button } from "@/components/ui/button";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardContent } from "@/components/ui/card";
+import { openSiteCapture } from "@/app/(app)/reports/capture-actions";
+import { CaptureInProgress } from "@/components/reports/capture-in-progress";
 import { requireSessionContext } from "@/lib/auth/session";
+import {
+  captureInProgress,
+  splitProjects,
+  type DraftDaily,
+} from "@/lib/reports/continuity";
+import { captureCount } from "@/lib/reports/capture-log";
+import { workingDay } from "@/lib/reports/working-day";
 import { findStoreAnywhere } from "@/lib/stores/catalogue";
 import { directionsUrl, wazeUrl } from "@/lib/stores/directions";
 import { newProjectHref } from "@/lib/stores/project-link";
@@ -60,6 +78,50 @@ export default async function StorePage({
   );
   const here = projects ?? [];
 
+  /**
+   * The Daily Reports still open on this store's projects.
+   *
+   * This is the query the page was missing. The store-to-project link was
+   * always written and always read; what nothing looked for was whether one of
+   * those projects had a Daily somebody was part-way through - so a site
+   * manager who had dictated into one that morning was shown "Create project
+   * here" and took it, because it was the only thing on the screen that looked
+   * like an answer.
+   */
+  const { data: draftRows } = here.length
+    ? await withClockSkewRetry(() =>
+        supabase
+          .from("reports")
+          .select("id, project_id, report_number, report_date, updated_at, raw_notes")
+          .in(
+            "project_id",
+            here.map((project) => project.id),
+          )
+          .eq("status", "draft")
+          .order("updated_at", { ascending: false }),
+      )
+    : { data: [] };
+
+  const nameById = new Map(here.map((project) => [project.id, project.name]));
+  const drafts: DraftDaily[] = (draftRows ?? []).map((row) => ({
+    id: row.id,
+    projectId: row.project_id,
+    projectName: nameById.get(row.project_id) ?? "This project",
+    reportNumber: row.report_number,
+    reportDate: row.report_date,
+    updatedAt: row.updated_at,
+    captureCount: captureCount(row.raw_notes),
+  }));
+  const inProgress = captureInProgress(drafts, workingDay());
+  const { current, historical } = splitProjects(
+    here.map((project) => ({
+      id: project.id,
+      name: project.name,
+      reference: project.project_reference,
+      status: project.status,
+    })),
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <BackLink href="/stores">Store locator</BackLink>
@@ -73,6 +135,60 @@ export default async function StorePage({
           Store {store.displayCode}
         </p>
       </header>
+
+      {/* What is already happening here, before anything that starts something
+          new. A site manager standing at this store is far more likely to be
+          continuing work than beginning it, and the screen used to say the
+          opposite by putting Create project here above the fold and the
+          project he already had below it. */}
+      {inProgress ? <CaptureInProgress draft={inProgress} where={`Store ${store.displayCode}`} /> : null}
+
+      {current.length > 0 ? (
+        <section className="flex flex-col gap-3">
+          <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+            {current.length === 1 ? "Project here" : "Projects here"}
+          </h2>
+          <ul className="flex flex-col gap-3">
+            {current.map((project) => (
+              <li key={project.id}>
+                <Card>
+                  <CardContent className="flex flex-col gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold text-ink">{project.name}</p>
+                        {project.reference ? (
+                          <p className="truncate text-sm text-ink-muted">Ref {project.reference}</p>
+                        ) : null}
+                      </div>
+                      <ProjectStatusBadge status={project.status} />
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <Button asChild variant="secondary" className="sm:flex-1">
+                        <Link href={`/projects/${project.id}`}>
+                          <FolderOpen aria-hidden />
+                          Open project
+                        </Link>
+                      </Button>
+                      {/* Opens today's Daily Report if there is one and starts
+                          it if there is not - never a second one for the same
+                          project and day. See openSiteCapture. */}
+                      {inProgress?.projectId === project.id ? null : (
+                        <form action={openSiteCapture} className="sm:flex-1">
+                          <input type="hidden" name="projectId" value={project.id} />
+                          <Button type="submit" className="w-full">
+                            <Mic aria-hidden />
+                            Start Site Capture
+                          </Button>
+                        </form>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <Card>
         <CardContent className="flex flex-col gap-4">
@@ -121,27 +237,32 @@ export default async function StorePage({
             </a>
           </Button>
         ) : null}
-        <Button asChild size="lg" className="sm:flex-1">
-          <Link href={newProjectHref(store)}>
-            <Plus aria-hidden />
-            Create project here
-          </Link>
-        </Button>
       </div>
 
       {/* The visit that happens before there is a job. Starting one from here
           creates the enquiry it needs to keep its photographs and documents,
           so nothing has to be set up first. */}
-      <Button asChild size="lg" variant="secondary">
-        <Link href={`/surveys/new?directory=${store.directoryId}&store=${store.code}`}>
-          <ClipboardList aria-hidden />
-          Start a site survey
-        </Link>
-      </Button>
+      {/* Starting something new. Secondary, and below the work already here:
+          a store that already carries a job almost never needs a second one,
+          and offering it first is how a duplicate project gets created. */}
+      <div className="flex flex-col gap-3 sm:flex-row">
+        <Button asChild size="lg" variant="secondary" className="sm:flex-1">
+          <Link href={`/surveys/new?directory=${store.directoryId}&store=${store.code}`}>
+            <ClipboardList aria-hidden />
+            Start a site survey
+          </Link>
+        </Button>
+        <Button asChild size="lg" variant="secondary" className="sm:flex-1">
+          <Link href={newProjectHref(store)}>
+            <Plus aria-hidden />
+            {current.length > 0 ? "Create another project here" : "Create project here"}
+          </Link>
+        </Button>
+      </div>
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-bold uppercase tracking-wide text-ink-muted">
-          Projects at this store
+          {historical.length > 0 ? "Earlier work here" : "Projects at this store"}
         </h2>
         {projectsError ? (
           <p className="text-sm text-ink-muted">
@@ -153,9 +274,13 @@ export default async function StorePage({
             same store can carry several over the years - each with its own reports, issues
             and photographs.
           </p>
+        ) : historical.length === 0 ? (
+          <p className="text-sm text-ink-muted">
+            Everything at this store is live, and listed above.
+          </p>
         ) : (
           <ul className="flex flex-col gap-3">
-            {here.map((project) => (
+            {historical.map((project) => (
               <li key={project.id}>
                 <Card className="transition-colors hover:border-line-strong">
                   <Link
@@ -164,10 +289,8 @@ export default async function StorePage({
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-ink">{project.name}</p>
-                      {project.project_reference ? (
-                        <p className="truncate text-sm text-ink-muted">
-                          Ref {project.project_reference}
-                        </p>
+                      {project.reference ? (
+                        <p className="truncate text-sm text-ink-muted">Ref {project.reference}</p>
                       ) : null}
                     </div>
                     <ProjectStatusBadge status={project.status} />
