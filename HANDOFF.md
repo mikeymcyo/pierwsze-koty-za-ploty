@@ -136,6 +136,57 @@ The current implementation completes the core workflow:
 
 
 
+### The job brief: what the work was sent out to do
+
+**No migration.** `npm run test:job-brief` covers it.
+
+**What already existed.** `projects.description` has been a free-text column
+since the first schema, edited on the project form and shown on the project
+page. `documents` already holds a purchase order perfectly well - `doc_type`
+includes `client_instruction` and `specification`, with `reference`,
+`revision`, `document_date` and a private bucket behind it. And the AI layers
+already took labelled context blocks. What was missing was chronology, and a
+way to say that a document is scope.
+
+**What the brief is.** An append-only log in `projects.description`, the same
+grammar Site Capture uses on `raw_notes` but stamped with the day as well as
+the time, because a job spans days:
+
+    [2026-09-01 07:12] Attending to repair a leaking bakery sink and rectify
+    the warehouse doors. Access may be difficult due to deliveries.
+
+    [2026-09-01 14:38] Job document added: Lidl PO 4501234567 (doc:8c5de434-…)
+
+A spoken or typed brief is valid scope **on its own** - no purchase order
+needed, and none is ever waited for. A document that arrives later is another
+entry, so the record shows the works were described at seven and formalised at
+half past two rather than pretending the second was always the first. Writes
+are conditional on the description being unchanged and retried, so two people
+cannot overwrite one another. A project written before this reads as one undated
+entry.
+
+**A document is scope because somebody said so.** `lib/projects/job-brief.ts`
+marks it with `(doc:<uuid>)` in the entry, and `briefDocumentIds` reads them
+back. That is deliberately **not** the same act as referencing a document in a
+report (`report_documents`) or appending it to a PDF (`documentsAppended`) -
+three concepts, three tables, and the screen says so in those words. Nothing in
+`brief-actions.ts` touches either of the other two.
+
+**Where it reaches.** `lib/ai/job-context.ts` holds one set of rules, shared by
+the Daily cleanup, the Daily writer, the consolidated cleanup and writer, and
+the photograph describer: a scope item is never work completed, nothing is
+invented from the brief, quoted or proposed work is never instructed work, and
+a formal document outranks a remembered conversation without erasing the entry
+before it. The photograph describer gets a tighter rule of its own -
+`PHOTO_SCOPE_BLOCK`, asserted identical to `PHOTO_SCOPE_RULES` - which permits
+"the warehouse door mechanism referenced in the job scope" only where the
+photograph plainly shows it, and says nothing where it is unsure.
+
+**On screen.** Site Capture leads with a compact Job brief / scope card above
+the microphone; the project page carries the full one, with each uploaded
+document offered as **Use as job context** and the ones already in scope marked.
+An enquiry has no job to brief yet and shows none.
+
 ### Store 1848: the work already here comes first
 
 **No migration.** `npm run test:store-continuity` covers it.

@@ -17,6 +17,7 @@ import { AwardProject } from "@/components/projects/award-project";
 import { ProjectStatusBadge, isEnquiry } from "@/components/projects/status-badge";
 import { ReportRow } from "@/components/reports/report-row";
 import { SummaryRow } from "@/components/summary-reports/summary-row";
+import { JobBrief, type BriefDocument } from "@/components/projects/job-brief";
 import { LinkedStoreCard, UnknownStoreCard } from "@/components/stores/linked-store-card";
 import { BackLink } from "@/components/ui/back-link";
 import { isProjectTab, type ProjectTab } from "@/lib/project-tabs";
@@ -40,6 +41,7 @@ import { storeFor } from "@/lib/stores/catalogue";
 import { storeLinkOf } from "@/lib/stores/project-link";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
+import { briefDocumentIds } from "@/lib/projects/job-brief";
 import { formatDate } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Project" };
@@ -195,6 +197,16 @@ export default async function ProjectPage({
     url: documentUrls.get(row.storage_path) ?? null,
   }));
 
+  // A document is job scope because somebody said so, never because it was
+  // uploaded - so the picker shows which ones already are.
+  const scopeIds = new Set(briefDocumentIds(project.description));
+  const briefDocuments: BriefDocument[] = documentRows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    docType: row.doc_type,
+    inScope: scopeIds.has(row.id),
+  }));
+
   // Built from the rows already fetched above plus that one extra query, so
   // the whole history costs no more round trips than the tab it sits beside.
   // A source that failed is simply absent and named on the tab; it does not
@@ -310,6 +322,18 @@ export default async function ProjectPage({
         ) : (
           <UnknownStoreCard link={storeLink} />
         )
+      ) : null}
+
+      {/* What the job is supposed to be, before anything about what happened.
+          A brief spoken in the van at seven is valid scope on its own; a
+          purchase order that arrives at half past two is added to it and never
+          replaces it. See lib/projects/job-brief.ts. */}
+      {!loadError && activeTab === "overview" && !enquiry ? (
+        <JobBrief
+          projectId={project.id}
+          description={project.description}
+          documents={briefDocuments}
+        />
       ) : null}
 
       {!loadError && activeTab === "overview" ? (

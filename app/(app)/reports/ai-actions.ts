@@ -8,6 +8,8 @@ import { createClient } from "@/lib/supabase/server";
 import { cleanedSectionsFor } from "@/lib/ai/cleanup";
 import { documentMedia, photoMedia } from "@/lib/ai/cleanup-context";
 import { generateSections, type GenerationInput } from "@/lib/ai/report-generation";
+import { JOB_BRIEF_LABEL, jobContextBlock } from "@/lib/ai/job-context";
+import { briefForPrompt } from "@/lib/projects/job-brief";
 import { REPORT_SECTION_LABELS, sortOrderOf } from "@/lib/report-sections";
 import { reportStructure } from "@/lib/report-structure";
 import { changedSections, readGroupFields } from "@/lib/reports/group-text";
@@ -59,7 +61,7 @@ export async function generateReport(
   const { data: report, error } = await supabase
     .from("reports")
     .select(
-      "id, report_date, weather, raw_notes, author_name, project_id, status, projects(name, client, site_address)",
+      "id, report_date, weather, raw_notes, author_name, project_id, status, projects(name, client, site_address, description)",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -87,6 +89,9 @@ export async function generateReport(
 
   const projectName = project?.name ?? "Unnamed project";
   const rawNotes = report.raw_notes ?? "";
+  // What this job was sent out to do. Context for reading the notes - never
+  // evidence that any of it happened. See lib/ai/job-context.ts.
+  const jobBrief = briefForPrompt(project?.description);
 
   // Pass one, the Cleanup AI. What it may call a photograph and what it may
   // call a drawing is decided here, from stored metadata only - see
@@ -104,6 +109,7 @@ export async function generateReport(
         weather: report.weather,
         authorName: report.author_name,
         context: [
+          ...(jobBrief ? [{ label: JOB_BRIEF_LABEL, text: jobBrief }] : []),
           {
             label: "WORKFORCE ON SITE",
             text: (workforce ?? []).length
@@ -145,6 +151,7 @@ export async function generateReport(
     plant: plant ?? [],
     photos: photos ?? [],
     rawNotes,
+    jobBrief: jobContextBlock(jobBrief),
     cleanedSections,
   };
 

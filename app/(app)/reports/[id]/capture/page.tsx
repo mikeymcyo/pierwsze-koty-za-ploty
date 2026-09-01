@@ -6,6 +6,7 @@ import { ArrowRight, Camera, Mic } from "lucide-react";
 import { addCapture } from "@/app/(app)/reports/capture-actions";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
+import { JobBrief } from "@/components/projects/job-brief";
 import { SiteCaptureForm } from "@/components/reports/site-capture-form";
 import { BackLink } from "@/components/ui/back-link";
 import { Badge } from "@/components/ui/badge";
@@ -42,7 +43,7 @@ export default async function SiteCapturePage({
   const { data: report } = await withClockSkewRetry(() =>
     supabase
       .from("reports")
-      .select("id, project_id, report_number, report_date, raw_notes, status, projects(name)")
+      .select("id, project_id, report_number, report_date, raw_notes, status, projects(name, description)")
       .eq("id", id)
       .maybeSingle(),
   );
@@ -100,6 +101,17 @@ export default async function SiteCapturePage({
         <strong className="font-semibold text-ink">the same report for today</strong> - come
         back as often as you like, nothing is replaced.
       </p>
+
+      {/* Job brief first: what this visit was sent out to do, before a word is
+          said about what happened. It is valid scope on its own - no purchase
+          order needed - and anything added here is read by the AI when the
+          notes are cleaned and the report is written. */}
+      <JobBrief
+        projectId={report.project_id}
+        description={project?.description ?? null}
+        documents={[]}
+        compact
+      />
 
       <Card>
         <CardContent className="flex flex-col gap-4">

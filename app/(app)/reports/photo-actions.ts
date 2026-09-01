@@ -10,6 +10,8 @@ import { rotateBy } from "@/lib/photos-rotation";
 import { createClient } from "@/lib/supabase/server";
 import { isSameSet, sortOrderValues } from "@/lib/photos-order";
 import { PHOTO_BUCKET, photoPathPrefix } from "@/lib/photos";
+import { jobContextBlock } from "@/lib/ai/job-context";
+import { briefForPrompt } from "@/lib/projects/job-brief";
 import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
 
 /**
@@ -404,7 +406,7 @@ export async function describePhotoAction(
   const { data: photo } = await supabase
     .from("photos")
     .select(
-      "id, caption, category, storage_path, report_id, projects(name, client, site_address), reports(report_date, raw_notes)",
+      "id, caption, category, storage_path, report_id, projects(name, client, site_address, description), reports(report_date, raw_notes)",
     )
     .eq("id", photoId)
     .maybeSingle();
@@ -451,6 +453,9 @@ export async function describePhotoAction(
       existingCaption: photo.caption,
       reportContext: report?.raw_notes?.trim() || null,
       writtenSections: writtenSections || null,
+      // Which door, which sink. Never licence to claim this photograph is of a
+      // scope item - see PHOTO_SCOPE_BLOCK.
+      jobBrief: jobContextBlock(briefForPrompt(project?.description)),
     },
   );
 

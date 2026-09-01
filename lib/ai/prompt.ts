@@ -20,6 +20,11 @@ export type GenerationInput = {
   photos: { category: string; caption: string | null }[];
   rawNotes: string;
   /**
+   * The job brief and the rules for reading it, already assembled - see
+   * jobContextBlock in lib/ai/job-context.ts. Absent where the job has none.
+   */
+  jobBrief?: string | null;
+  /**
    * The Cleanup AI's output, already labelled and in section order.
    *
    * Optional on purpose. A cleanup that could not run leaves this empty and
@@ -263,6 +268,10 @@ export function buildPrompt(input: GenerationInput): string {
             .join("\n"),
         ]
       : []),
+    // The finished block, assembled by the caller in lib/ai/job-context.ts:
+    // this module carries no runtime imports, which is what lets a test load
+    // it into Node.
+    ...(input.jobBrief ? ["", input.jobBrief] : []),
     "",
     RAW_NOTES_LABEL,
     // Verbatim. The model is told to rewrite these; nothing here may alter

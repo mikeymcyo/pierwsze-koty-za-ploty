@@ -34,6 +34,11 @@ export type SummaryGenerationInput = {
    * what it was before that layer existed. See lib/ai/cleanup.ts.
    */
   cleanedSections?: { label: string; text: string }[];
+  /**
+   * The job brief and the rules for reading it, already assembled - see
+   * jobContextBlock in lib/ai/job-context.ts. Absent where the job has none.
+   */
+  jobBrief?: string | null;
 };
 
 export type SummaryGenerationResult =
@@ -93,6 +98,9 @@ export async function generateSummarySections(
           input.cleanedSections.map((section) => `${section.label}: ${section.text}`).join("\n"),
         ]
       : []),
+    // Before the evidence: it says how to read what follows, and the last
+    // thing the model reads should be the record itself.
+    ...(input.jobBrief ? ["", input.jobBrief] : []),
     "",
     // Labelled for what it is. A block headed "issued source evidence" is how
     // a model comes to write "as recorded in the daily reports" about a report

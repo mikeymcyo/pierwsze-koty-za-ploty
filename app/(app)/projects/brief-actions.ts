@@ -1,0 +1,159 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+import { requireSessionContext } from "@/lib/auth/session";
+import {
+  appendBriefEntry,
+  briefAlreadyEnds,
+  briefHasDocument,
+  documentEntryText,
+} from "@/lib/projects/job-brief";
+import { workingDay } from "@/lib/reports/working-day";
+import { createClient } from "@/lib/supabase/server";
+
+export type JobBriefState = { error?: string; saved?: boolean };
+
+/** `2026-09-01 14:38`, on the British clock the rest of the app keeps. */
+function stampNow(at?: string | null): string {
+  if (typeof at === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(at)) {
+    return `${workingDay()} ${at}`;
+  }
+  const now = new Date();
+  return `${workingDay()} ${String(now.getUTCHours()).padStart(2, "0")}:${String(
+    now.getUTCMinutes(),
+  ).padStart(2, "0")}`;
+}
+
+const entrySchema = z.object({
+  text: z.string().trim().min(1, "Say or type the job brief first"),
+  at: z.string().trim(),
+});
+
+/** How many times an append re-reads and tries again when another device got there first. */
+const APPEND_ATTEMPTS = 3;
+
+/**
+ * Adds one entry to a project's job brief.
+ *
+ * Append-only, like Site Capture and for the same reason: what was said first
+ * has to stay first. The write is conditional on the description still being
+ * what was just read, so two people adding to the brief at once cannot
+ * overwrite one another - see addCapture, which this mirrors.
+ *
+ * Nothing here writes to a report, references a document in one, or appends
+ * anything to a PDF. The job brief is context; those are three other acts.
+ */
+export async function addJobBriefEntry(
+  projectId: string,
+  _previous: JobBriefState,
+  formData: FormData,
+): Promise<JobBriefState> {
+  const parsed = entrySchema.safeParse({
+    text: formData.get("brief_text") ?? "",
+    at: formData.get("brief_at") ?? "",
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Say or type the job brief first" };
+  }
+
+  await requireSessionContext();
+  const supabase = await createClient();
+  const stamp = stampNow(parsed.data.at);
+
+  for (let attempt = 0; attempt < APPEND_ATTEMPTS; attempt += 1) {
+    const { data: project, error: readError } = await supabase
+      .from("projects")
+      .select("id, description")
+      .eq("id", projectId)
+      .maybeSingle();
+    if (readError) return { error: `Could not read the project: ${readError.message}` };
+    if (!project) return { error: "That project could not be found." };
+
+    // A tap that looked like it did nothing gets tapped again. The second one
+    // is answered rather than written.
+    if (briefAlreadyEnds(project.description, parsed.data.text, stamp)) return { saved: true };
+
+    const next = appendBriefEntry(project.description, parsed.data.text, stamp);
+    const write = supabase.from("projects").update({ description: next }).eq("id", projectId);
+    const { data: saved, error: writeError } = await (project.description === null
+      ? write.is("description", null)
+      : write.eq("description", project.description)
+    )
+      .select("id")
+      .maybeSingle();
+
+    if (writeError) return { error: `Could not save the job brief: ${writeError.message}` };
+    if (saved) {
+      revalidatePath(`/projects/${projectId}`);
+      return { saved: true };
+    }
+  }
+
+  return {
+    error: "Somebody else is editing the job brief right now. Your words are still here - try again.",
+  };
+}
+
+const documentSchema = z.object({ documentId: z.uuid() });
+
+/**
+ * Brings an uploaded document into the job scope.
+ *
+ * The document itself is already stored - this is the separate act of saying
+ * the AI may read it as scope. It is recorded as a brief entry with the time on
+ * it, so a purchase order that arrived at half past two is on the record as
+ * having arrived at half past two, after the spoken brief rather than instead
+ * of it.
+ *
+ * It does NOT reference the document in any report and does NOT append it to
+ * any PDF. Those remain separate choices on separate screens.
+ */
+export async function addJobBriefDocument(
+  projectId: string,
+  _previous: JobBriefState,
+  formData: FormData,
+): Promise<JobBriefState> {
+  const parsed = documentSchema.safeParse({ documentId: String(formData.get("documentId") ?? "") });
+  if (!parsed.success) return { error: "That document could not be found." };
+
+  await requireSessionContext();
+  const supabase = await createClient();
+
+  // Read through the project, so a document from another project - or another
+  // company, which row-level security already refuses - cannot be named as
+  // this job's scope.
+  const { data: document } = await supabase
+    .from("documents")
+    .select("id, title, project_id")
+    .eq("id", parsed.data.documentId)
+    .eq("project_id", projectId)
+    .maybeSingle();
+  if (!document) return { error: "That document is not on this project." };
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, description")
+    .eq("id", projectId)
+    .maybeSingle();
+  if (!project) return { error: "That project could not be found." };
+
+  // Already scope. Saying so twice would put the same document in the history
+  // twice, which is not a second event.
+  if (briefHasDocument(project.description, document.id)) return { saved: true };
+
+  const next = appendBriefEntry(
+    project.description,
+    documentEntryText(document.title, document.id),
+    stampNow(),
+  );
+  const { error } = await supabase
+    .from("projects")
+    .update({ description: next })
+    .eq("id", projectId);
+  if (error) return { error: `Could not add the document to the job scope: ${error.message}` };
+
+  revalidatePath(`/projects/${projectId}`);
+  return { saved: true };
+}

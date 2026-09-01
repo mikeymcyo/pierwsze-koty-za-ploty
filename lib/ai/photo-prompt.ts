@@ -45,12 +45,47 @@ export type PhotoDescriptionInput = {
    * any particular part of it.
    */
   writtenSections?: string | null;
+  /**
+   * The job brief and the rules for reading it, already assembled - see
+   * jobContextBlock in lib/ai/job-context.ts.
+   *
+   * The most useful thing a caption can know and the easiest to misuse: it
+   * tells the model which door and which sink, and it must never let a caption
+   * claim this photograph is of a scope item unless the photograph plainly
+   * shows it. The rules travel with it.
+   */
+  jobBrief?: string | null;
 };
+
+/**
+ * What a caption may say about the job scope.
+ *
+ * The same words as PHOTO_SCOPE_RULES in lib/ai/job-context.ts, inlined because
+ * this module carries no runtime imports - e2e/job-brief-smoke.mjs asserts the
+ * two have not drifted apart.
+ */
+export const PHOTO_SCOPE_BLOCK = [
+  "RELATING A PHOTOGRAPH TO THE JOB SCOPE",
+  "",
+  "Where the job brief names an item and this photograph plainly shows it, you",
+  "may say so: \"the warehouse door mechanism referenced in the job scope\".",
+  "That is useful, and it is what the scope is for.",
+  "",
+  "Where you are not sure, say nothing about the scope. A photograph tied to the",
+  "wrong item is worse than one tied to none, because it is read as a fact and",
+  "nobody checks it. Do not guess from the order of the list, from how many",
+  "items there are, or from the fact that a photograph exists at all.",
+  "",
+  "Never say a photograph shows work completed, approved, tested or signed off.",
+  "It shows what it shows.",
+].join("\n");
 
 export const PHOTO_DESCRIPTION_SYSTEM_PROMPT = [
   "You write one-sentence captions for photographs in UK construction site",
   "reports. You are an experienced site manager captioning the record, not",
   "somebody describing a picture.",
+  "",
+  PHOTO_SCOPE_BLOCK,
   "",
   "SAY WHY THE PHOTOGRAPH WAS TAKEN, NOT WHAT IS IN THE FRAME",
   "",
@@ -154,6 +189,7 @@ export function buildPhotoDescriptionPrompt(input: PhotoDescriptionInput): strin
     input.siteAddress ? `SITE: ${input.siteAddress}` : null,
     input.reportDate ? `DATE RECORDED: ${input.reportDate}` : null,
     input.statusLabel ? `PHOTOGRAPH STATUS (chosen on site): ${input.statusLabel}` : null,
+    ...(input.jobBrief ? ["", input.jobBrief] : []),
     "",
     input.existingCaption
       ? `THE SITE MANAGER'S OWN CAPTION (his words - build on this, never contradict it): ${input.existingCaption}`

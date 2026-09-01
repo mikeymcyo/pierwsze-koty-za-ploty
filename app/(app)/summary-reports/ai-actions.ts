@@ -6,6 +6,8 @@ import { z } from "zod";
 import { cleanedSectionsFor } from "@/lib/ai/cleanup";
 import { documentMedia, photoMedia } from "@/lib/ai/cleanup-context";
 import { generateSummarySections } from "@/lib/ai/summary-generation";
+import { JOB_BRIEF_LABEL, jobContextBlock } from "@/lib/ai/job-context";
+import { briefForPrompt } from "@/lib/projects/job-brief";
 import { requireSessionContext } from "@/lib/auth/session";
 import { partitionDraft } from "@/lib/reports/regeneration";
 import { SUMMARY_REPORT_IS_FINAL } from "@/lib/summary-reports/finalisation";
@@ -47,7 +49,7 @@ export async function generateSummaryReport(
 
   const { data: report, error } = await supabase
     .from("summary_reports")
-    .select("id, kind, status, period_start, period_end, projects(name, client, site_address)")
+    .select("id, kind, status, period_start, period_end, projects(name, client, site_address, description)")
     .eq("id", reportId)
     .maybeSingle();
   if (error) return { error: `Could not read the report: ${error.message}` };
@@ -267,6 +269,9 @@ export async function generateSummaryReport(
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
   const projectName = project?.name ?? "Project";
+  // The same job brief the Daily Reports were read against, so a consolidated
+  // document reads the period the same way. Scope, never evidence.
+  const jobBrief = briefForPrompt(project?.description);
 
   const built = buildEvidence({
     progress: progressEvidence,
@@ -309,6 +314,7 @@ export async function generateSummaryReport(
         weather: null,
         authorName: null,
         context: [
+          ...(jobBrief ? [{ label: JOB_BRIEF_LABEL, text: jobBrief }] : []),
           {
             label: "ISSUE RECORD",
             text: issueEvidence || "No issue rows were selected. Do not claim that no issues occurred.",
@@ -350,6 +356,7 @@ export async function generateSummaryReport(
     issues: issueEvidence,
     standalone,
     cleanedSections,
+    jobBrief: jobContextBlock(jobBrief),
   });
   if (!result.ok) return { error: result.error };
 
