@@ -113,6 +113,71 @@ seen working on a device.**
 
 ## Current state - read this before the historical sections below
 
+## Product reset: simplicity, 2026-09-01 (late)
+
+**A site operative should understand Site Capture in ten seconds with no
+training.** That is the rule every screen on the worker path is now held to,
+and the reason the Job Context strip built earlier the same evening is gone
+again. The backend intelligence stays; the user-facing complexity went.
+
+Site Capture (`app/(app)/reports/[id]/capture/page.tsx`) is four things:
+
+    What happened on site?   [ Speak ] [ Add note ]
+    [ Add photos ]           thumbnails
+    [ Add document ]         optional
+    Today so far: N notes · N photos · N documents
+    [ PREPARE DAILY ]
+
+Nothing on it mentions the AI, the brief, a reading, a status, a report number
+or a draft. There is no Continue later: everything saves as it is added and the
+back link is the way out.
+
+- **Add photos** is one button (`PhotoUpload simple`). Its input carries no
+  `capture`, which is exactly what makes iOS show its own sheet - Take Photo,
+  Photo Library, Choose File - so all three sources are still one tap away;
+  the app just stops naming them. The three named buttons (`1d9474e`) remain
+  on the report and the project Photos tab.
+- **Add document** is one button (`DocumentUpload simple`), no type menu
+  (stored as Other for the office to set). After upload, `adoptJobDocument`
+  marks it as job context, records its arrival in the brief as history, and
+  schedules the reading with `after()` from `next/server` so it runs once the
+  response has gone back. The button says "Adding…" and never "Reading".
+  `maxDuration = 60` on the page so the platform lets that background work
+  finish.
+- **PREPARE DAILY** (`app/(app)/reports/prepare-actions.ts`) is the one AI
+  action. It reads any job document the background did not get to (best
+  effort; a document that cannot be read is said so once, here, and the draft
+  goes ahead without it), weighs the evidence, then runs the same two-pass
+  writer as before and opens the report.
+
+**The evidence gate** (`lib/reports/prepare-gate.ts`, pure, `test:prepare-gate`)
+asks at most two questions and only where the answer decides whether the
+report is true: nothing said at all (one question, worded differently when
+photos are in), or notes that touch none of the instructed work (one question
+naming the items and offering "if not, say so and the report will say so").
+Workforce and plant are never asked for. "Prepare Daily anyway" is always
+offered. With enough said, it drafts immediately.
+
+**Only documents added through Site Capture reach the AI.** That was already
+true - `lib/documents/job-context.ts` reads active `job_context_documents`
+only - and the Documents tab upload still marks nothing. The Prepare Daily
+catch-up reads only those rows too, never the whole Documents tab.
+
+**"What is this job?"** lives on the project: the creation form's optional
+field is relabelled, and the overview has `components/projects/job-description.tsx`,
+a read-out of the brief with an optional "Add to it" box. Site Capture does
+not show or manage it. Prepare Daily reads it as what was requested.
+
+**Off the worker path, not deleted:** Write with AI and Master Review sit
+behind a collapsed "More tools" on the report. Photo AI captions are off on
+Site Capture (`aiConfigured={false}`). The three context-management actions
+(use as / remove / read again) and their UI are deleted; `job-context.tsx`
+and `job-context-view.ts` are gone.
+
+**iPhone width is asserted at source, not rendered**: single full-width
+buttons, `text-base`, stacked layout. Nobody has loaded it on a phone yet. The
+first device check is the one-button photo sheet on iOS.
+
 ## One working screen, 2026-09-01 (evening)
 
 **PROJECT = THE JOB. SITE CAPTURE = THE MAIN WORKING SCREEN.** The Job Brief

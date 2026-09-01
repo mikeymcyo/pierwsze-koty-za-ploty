@@ -179,7 +179,7 @@ export function ProjectForm({
           </Select>
         </Field>
 
-        <Field label="Description" htmlFor="description" optional error={errors.description}>
+        <Field label="What is this job?" htmlFor="description" optional error={errors.description}>
           <Textarea
             id="description"
             name="description"

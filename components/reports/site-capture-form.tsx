@@ -37,7 +37,7 @@ function SaveButton({ retry }: { retry: boolean }) {
           Try again
         </>
       ) : (
-        "Add to today's report"
+        "Add note"
       )}
     </Button>
   );
@@ -145,12 +145,14 @@ export function SiteCaptureForm({
         // lands. A failed save changes neither, so every word stays put.
         key={`${entryCount}:${restored.length}`}
         name="capture_text"
-        label="What has happened on site"
+        label="What happened on site?"
         defaultValue={restored}
         onValueChange={(value) => writeCaptureDraft(reportId, value)}
         rows={8}
         prominent
-        placeholder="Say what has happened since you were last here. Trades on site, what got done, deliveries, hold-ups, anything the client should know."
+        startLabel="Speak"
+        stopLabel="Stop"
+        placeholder="Tap the mic and talk, or type here. What got done, who was here, deliveries, hold-ups."
       />
 
       <SaveButton retry={Boolean(state.error)} />

@@ -275,18 +275,25 @@ check(
 );
 check("photographs can be added here", /PhotoUpload/.test(page));
 check("and the ones already taken are shown", /PhotoGrid/.test(page));
-check("Continue later is offered", /Continue later/.test(page));
-check("and so is Prepare Daily", /Prepare Daily/.test(page));
-check("nothing here is called finished", !/Finish the report/.test(page));
+check("Prepare Daily is the one button at the end", /<PrepareDaily/.test(page) && page.lastIndexOf("<PrepareDaily") > page.lastIndexOf("<DocumentUpload"));
+check("nothing here is called finished, and there is no Continue later to wonder about", !/Finish the report|Continue later/.test(page), "everything is saved as it is added; the back link is the way out");
 check(
-  "the job context sits at the top, on this screen, not on another",
-  /<JobContext/.test(page) && page.indexOf("<JobContext") < page.indexOf("<SiteCaptureForm"),
+  "the four things, in the order a new operative would guess them",
+  page.indexOf("<SiteCaptureForm") < page.indexOf("<PhotoUpload") &&
+    page.indexOf("<PhotoUpload") < page.indexOf("<DocumentUpload") &&
+    page.indexOf("<DocumentUpload") < page.indexOf("<PrepareDaily"),
 );
-check("with the uploader for a document that arrives mid-day", /companyId=\{session\.companyId\}/.test(page));
-check("and every context action returns to this screen", /returnTo=\{captureHref\}/.test(page));
+check("the microphone says Speak", /startLabel="Speak"/.test(form));
+check("the save button says Add note", /"Add note"/.test(form));
+check("one Add photos button that leaves the choice to the phone", /simple/.test(page) && /data-photo-source-button="simple"/.test(read("../components/reports/photo-upload.tsx")));
+check("one Add document button, marked optional", /label="Add document"/.test(page) && /Optional\. An order, drawing, survey or instruction/.test(read("../components/documents/document-upload.tsx")));
+check("adding a document makes it job context with no second question", /onAttached=\{adoptJobDocument\.bind/.test(page));
+check("Today so far counts notes, photos and documents", /Today so far: \{plural\(entries\.length, "note"\)\} · \{plural\(photos\.length, "photo"\)\}/.test(page) && /plural\(documents, "document"\)/.test(page));
 check("the day so far is available but not in the way", /<details/.test(page));
+// What the operative can read, not what the file's comments say about it.
+const shown = page.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+check("no job context, brief, status, report number or AI wording on the screen", !/JobContext|JobBrief|formatReportNumber|>Draft<|Read again|Extract|\bAI\b/.test(shown));
 check("an issued report is sent to the document instead", /redirect\(`\/reports\/\$\{id\}`\)/.test(page));
-check("the screen says nothing is replaced", /nothing is replaced/.test(page));
 
 console.log("\n9. Where Site Capture is reached from");
 

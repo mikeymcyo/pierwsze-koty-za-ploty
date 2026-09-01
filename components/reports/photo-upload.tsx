@@ -112,11 +112,22 @@ export function PhotoUpload({
   reportId,
   summaryReportId = null,
   defaultCategory = UNSET_PHOTO_STATUS,
+  simple = false,
 }: {
   companyId: string;
   projectId: string;
   reportId: string | null;
   summaryReportId?: string | null;
+  /**
+   * One button, "Add photos", and nothing else.
+   *
+   * For Site Capture, where a new operative has to know what to press with no
+   * explanation. The single input carries no `capture`, which is exactly what
+   * makes iOS show its own sheet - Take Photo, Photo Library, Choose File -
+   * so every source is still one tap away; the app just stops naming them.
+   * No status menu either: a status is chosen on the report, if at all.
+   */
+  simple?: boolean;
   /**
    * What the menu starts on. No status, unless the caller has a reason - a
    * survey documents what is there now, so it starts on Before. Twenty-five
@@ -271,8 +282,42 @@ export function PhotoUpload({
     if (input) input.value = "";
   }
 
+  const simpleSource = PHOTO_SOURCES.find((source) => source.id === "files")!;
+
   return (
     <div className="flex flex-col gap-3">
+      {simple ? (
+        <>
+          <Button
+            type="button"
+            size="lg"
+            variant="secondary"
+            className="w-full text-base"
+            onClick={() => inputRefs.current.get("files")?.click()}
+            disabled={busy !== null}
+            data-photo-source-button="simple"
+          >
+            <Camera aria-hidden />
+            Add photos
+          </Button>
+          <input
+            ref={(node) => {
+              inputRefs.current.set("files", node);
+            }}
+            type="file"
+            accept={simpleSource.accept}
+            multiple={simpleSource.multiple}
+            data-photo-source="simple"
+            className="sr-only"
+            tabIndex={-1}
+            aria-hidden
+            onChange={(event) => {
+              if (event.target.files) void handleFiles("files", event.target.files);
+            }}
+          />
+        </>
+      ) : null}
+      {simple ? null : (
       <div className="flex min-w-40 max-w-xs flex-col gap-2">
         <Label htmlFor="photo-category">Status (optional)</Label>
         <Select
@@ -287,12 +332,15 @@ export function PhotoUpload({
           ))}
         </Select>
       </div>
+      )}
 
       {/*
         Three buttons rather than one: on a phone the choice between the camera
         and the library is the whole interaction, and it is made before the
-        picker opens rather than inside someone else's sheet.
+        picker opens rather than inside someone else's sheet. (Site Capture is
+        the exception, above.)
       */}
+      {simple ? null : (
       <div className="grid gap-2 sm:grid-cols-3">
         {PHOTO_SOURCES.map((source) => {
           const Icon = SOURCE_ICONS[source.id];
@@ -338,6 +386,7 @@ export function PhotoUpload({
           );
         })}
       </div>
+      )}
 
       {busy ? (
         <p role="status" className="flex items-center gap-2 text-sm font-semibold text-ink-muted">

@@ -43,6 +43,7 @@ export function DocumentUpload({
   label = "Upload a PDF",
   onAttached,
   attachedLabel = "Working…",
+  simple = false,
 }: {
   companyId: string;
   projectId: string;
@@ -60,9 +61,15 @@ export function DocumentUpload({
   onAttached?: (documentId: string) => Promise<{ error?: string } | void>;
   /** What the button says while onAttached runs. */
   attachedLabel?: string;
+  /**
+   * One button and one line, for Site Capture. No "Upload as" menu: the type
+   * is left as Other for the office to set, and SiteBoss reads the document
+   * itself to find out what it is.
+   */
+  simple?: boolean;
 }) {
   const input = useRef<HTMLInputElement | null>(null);
-  const [docType, setDocType] = useState<DocumentType>("drawing");
+  const [docType, setDocType] = useState<DocumentType>(simple ? "other" : "drawing");
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
   const [afterUpload, setAfterUpload] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -159,6 +166,7 @@ export function DocumentUpload({
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
       <div className="flex flex-wrap items-end gap-3">
+        {simple ? null : (
         <div className="flex flex-col gap-1">
           <label htmlFor={`doc-type-${projectId}`} className="text-sm font-medium text-ink">
             Upload as
@@ -176,11 +184,13 @@ export function DocumentUpload({
             ))}
           </select>
         </div>
+        )}
 
         <Button
           type="button"
           size="lg"
           variant="secondary"
+          className={simple ? "w-full text-base" : undefined}
           loading={busy !== null}
           onClick={() => input.current?.click()}
         >
@@ -200,10 +210,14 @@ export function DocumentUpload({
           if (event.target.files) void handleFiles(event.target.files);
         }}
       />
-      <p className="text-xs text-ink-subtle">
-        PDFs up to 25 MB, from Files, iCloud Drive or anywhere else on the device. You can rename it
-        and add a reference, revision or date afterwards.
-      </p>
+      {simple ? (
+        <p className="text-xs text-ink-subtle">Optional. An order, drawing, survey or instruction.</p>
+      ) : (
+        <p className="text-xs text-ink-subtle">
+          PDFs up to 25 MB, from Files, iCloud Drive or anywhere else on the device. You can rename
+          it and add a reference, revision or date afterwards.
+        </p>
+      )}
     </div>
   );
 }

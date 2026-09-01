@@ -17,8 +17,7 @@ import { AwardProject } from "@/components/projects/award-project";
 import { ProjectStatusBadge, isEnquiry } from "@/components/projects/status-badge";
 import { ReportRow } from "@/components/reports/report-row";
 import { SummaryRow } from "@/components/summary-reports/summary-row";
-import { JobContext } from "@/components/projects/job-context";
-import { loadJobContextDocuments } from "@/lib/documents/job-context-view";
+import { JobDescription } from "@/components/projects/job-description";
 import { workingDay } from "@/lib/reports/working-day";
 import { LinkedStoreCard, UnknownStoreCard } from "@/components/stores/linked-store-card";
 import { BackLink } from "@/components/ui/back-link";
@@ -198,8 +197,6 @@ export default async function ProjectPage({
     url: documentUrls.get(row.storage_path) ?? null,
   }));
 
-  // The job context strip, from the one loader Site Capture uses too.
-  const jobDocuments = await loadJobContextDocuments(supabase, project.id, project.description);
   // Today's Daily is open or it is not, and the button says which.
   const today = workingDay();
   const capturingToday = reports.some(
@@ -312,17 +309,10 @@ export default async function ProjectPage({
         )
       ) : null}
 
-      {/* What the job is, in four lines. Read-only here: it is added to and
-          updated on Site Capture, which is where somebody is when a purchase
-          order arrives. See components/projects/job-context.tsx. */}
+      {/* What the job is, optional, in the site manager's own words. Site
+          Capture never shows or manages this; Prepare Daily reads it. */}
       {!loadError && activeTab === "overview" && !enquiry ? (
-        <JobContext
-          projectId={project.id}
-          description={project.description}
-          documents={jobDocuments}
-          variant="overview"
-          returnTo={`/projects/${project.id}`}
-        />
+        <JobDescription projectId={project.id} description={project.description} />
       ) : null}
 
       {!loadError && activeTab === "overview" ? (

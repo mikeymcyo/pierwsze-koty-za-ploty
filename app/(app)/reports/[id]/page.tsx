@@ -338,15 +338,6 @@ export default async function ReportCapturePage({
             />
           )}
 
-          {isFinal ? null : (
-            <ReportWriter
-              reportId={report.id}
-              hasDraft={(sectionsResult.data ?? []).length > 0}
-              rawNotes={report.raw_notes}
-              configured={hasAiConfig()}
-            />
-          )}
-
           <SectionProse entry={groupFor("summary")} />
 
           {isFinal || !offerEditor("summary") ? null : (
@@ -482,12 +473,26 @@ export default async function ReportCapturePage({
         </ReportSectionCard>
       )}
 
+      {/* Off the worker's path. Prepare Daily on Site Capture is the one AI
+          action; these are the tools behind it, kept for the office and for
+          the day something needs redrafting by hand. */}
       {loadError || isFinal ? null : (
-        <MasterReviewPanel
-          reviewAction={reviewDailyReport.bind(null, report.id)}
-          applyAction={applyDailyReview.bind(null, report.id)}
-          configured={hasAiConfig()}
-        />
+        <details className="rounded-2xl border border-line px-4 py-3">
+          <summary className="cursor-pointer text-sm font-semibold text-ink-muted">More tools</summary>
+          <div className="mt-4 flex flex-col gap-6">
+            <ReportWriter
+              reportId={report.id}
+              hasDraft={(sectionsResult.data ?? []).length > 0}
+              rawNotes={report.raw_notes}
+              configured={hasAiConfig()}
+            />
+            <MasterReviewPanel
+              reviewAction={reviewDailyReport.bind(null, report.id)}
+              applyAction={applyDailyReview.bind(null, report.id)}
+              configured={hasAiConfig()}
+            />
+          </div>
+        </details>
       )}
 
       {loadError ? null : (

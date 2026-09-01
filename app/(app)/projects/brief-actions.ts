@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { z } from "zod";
 
 import { requireSessionContext } from "@/lib/auth/session";
@@ -149,189 +150,14 @@ export async function addJobBriefEntry(
 const documentSchema = z.object({ documentId: z.uuid() });
 
 /**
- * Brings an uploaded document into the job scope.
- *
- * The document itself is already stored - this is the separate act of saying
- * the AI may read it as scope. It is recorded as a brief entry with the time on
- * it, so a purchase order that arrived at half past two is on the record as
- * having arrived at half past two, after the spoken brief rather than instead
- * of it.
- *
- * It does NOT reference the document in any report and does NOT append it to
- * any PDF. Those remain separate choices on separate screens.
- */
-export async function addJobBriefDocument(
-  projectId: string,
-  _previous: JobBriefState,
-  formData: FormData,
-): Promise<JobBriefState> {
-  const parsed = documentSchema.safeParse({ documentId: String(formData.get("documentId") ?? "") });
-  if (!parsed.success) return { error: "That document could not be found." };
-
-  const session = await requireSessionContext();
-  const supabase = await createClient();
-
-  // Read through the project, so a document from another project - or another
-  // company, which row-level security already refuses - cannot be named as
-  // this job's scope.
-  const { data: document } = await supabase
-    .from("documents")
-    .select("id, title, project_id")
-    .eq("id", parsed.data.documentId)
-    .eq("project_id", projectId)
-    .maybeSingle();
-  if (!document) return { error: "That document is not on this project." };
-
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id, description")
-    .eq("id", projectId)
-    .maybeSingle();
-  if (!project) return { error: "That project could not be found." };
-
-  // The mark that decides what the AI reads. The brief entry below is the
-  // history of somebody saying so; this row is the standing fact, and it is
-  // what lib/documents/job-context.ts reads. Written first, because a brief
-  // that records a decision the app then failed to act on is the worse of the
-  // two half-states.
-  //
-  // 23505 is the one-active index: it is already job context, which is not an
-  // error and not a second event.
-  const { error: markError } = await supabase.from("job_context_documents").insert({
-    company_id: session.companyId,
-    document_id: document.id,
-    added_by: session.userId,
-  });
-  if (markError && markError.code !== "23505" && markError.code !== "42P01") {
-    return { error: `Could not add the document to the job scope: ${markError.message}` };
-  }
-
-  // Already scope. Saying so twice would put the same document in the history
-  // twice, which is not a second event.
-  if (briefHasDocument(project.description, document.id)) return { saved: true };
-
-  const next = appendBriefEntry(
-    project.description,
-    documentEntryText(document.title, document.id),
-    stampNow(),
-  );
-  const { error } = await supabase
-    .from("projects")
-    .update({ description: next })
-    .eq("id", projectId);
-  if (error) return { error: `Could not add the document to the job scope: ${error.message}` };
-
-  revalidateFrom(projectId, formData);
-  return { saved: true };
-}
-
-/**
- * Takes a document back out of the AI's reading.
- *
- * A stamp, never a deletion. "This purchase order stopped being scope on
- * Tuesday" is a fact about the job, and a report drafted on Monday was drafted
- * while it still was - so the row stays with removed_at and removed_by on it,
- * and the brief entry recording its arrival stays exactly where it was. The
- * document itself, and any report that references it, are untouched.
- */
-export async function removeJobBriefDocument(
-  projectId: string,
-  _previous: JobBriefState,
-  formData: FormData,
-): Promise<JobBriefState> {
-  const parsed = documentSchema.safeParse({ documentId: String(formData.get("documentId") ?? "") });
-  if (!parsed.success) return { error: "That document could not be found." };
-
-  const session = await requireSessionContext();
-  const supabase = await createClient();
-
-  const { data: document } = await supabase
-    .from("documents")
-    .select("id")
-    .eq("id", parsed.data.documentId)
-    .eq("project_id", projectId)
-    .maybeSingle();
-  if (!document) return { error: "That document is not on this project." };
-
-  const { error } = await supabase
-    .from("job_context_documents")
-    .update({ removed_at: new Date().toISOString(), removed_by: session.userId })
-    .eq("document_id", document.id)
-    .is("removed_at", null);
-  if (error && error.code !== "42P01") {
-    return { error: `Could not take the document out of the job scope: ${error.message}` };
-  }
-
-  revalidateFrom(projectId, formData);
-  return { saved: true };
-}
-
-/**
- * Reads a job document, so the AI knows what the paperwork says.
- *
- * A separate act again, and deliberately a button rather than something that
- * happens on upload: reading costs a model call, and a drawing register nobody
- * will use as context should not spend one. Re-reading an already-read
- * document is the same action - the old reading is superseded and kept.
- *
- * Everything it stores was quoted from the document and checked back against
- * the document's own text; see lib/documents/extraction-schema.ts. Nothing it
- * stores is attached to any report or appended to any PDF.
- */
-export async function extractJobDocument(
-  projectId: string,
-  _previous: JobBriefState,
-  formData: FormData,
-): Promise<JobBriefState> {
-  const parsed = documentSchema.safeParse({ documentId: String(formData.get("documentId") ?? "") });
-  if (!parsed.success) return { error: "That document could not be found." };
-
-  const session = await requireSessionContext();
-  const supabase = await createClient();
-
-  // Read through the project so a document on another job cannot be named, and
-  // so the project's name can be given to the model as context.
-  const [{ data: document }, { data: project }] = await Promise.all([
-    supabase
-      .from("documents")
-      .select("id, title, doc_type, storage_path")
-      .eq("id", parsed.data.documentId)
-      .eq("project_id", projectId)
-      .maybeSingle(),
-    supabase.from("projects").select("id, name").eq("id", projectId).maybeSingle(),
-  ]);
-  if (!document) return { error: "That document is not on this project." };
-  if (!project) return { error: "That project could not be found." };
-
-  const result = await runExtraction(
-    supabase,
-    {
-      id: document.id,
-      companyId: session.companyId,
-      projectName: project.name,
-      title: document.title,
-      docType: document.doc_type,
-      storagePath: document.storage_path,
-    },
-    session.userId,
-  );
-
-  // The row already records the failure and why; the screen shows it from
-  // there on the next render, so a reload does not lose it.
-  revalidateFrom(projectId, formData);
-  return result.ok ? { saved: true } : { error: result.error };
-}
-
-
-/**
- * A document added on Site Capture: context, and read, in one go.
+ * A document added on Site Capture: context now, read in the background.
  *
  * Somebody adding a purchase order from the van is adding it because it
- * describes the job. Making them say so a second time, and then a third time
- * to have it read, is the walk between screens this strip exists to remove.
- * So the uploader on Site Capture calls this once the file is stored, and
- * both follow - the mark first, because a reading of a document nobody has
- * called scope is the less useful of the two half-states.
+ * describes the job. There is no second question. The uploader on Site
+ * Capture calls this once the file is stored: the document is marked as job
+ * context at once, its arrival goes into the brief as history, and the
+ * reading is scheduled to run after the response has gone back - so the
+ * button says "added" in a second and never says anything about reading.
  *
  * The three writes are still three writes to three tables. Nothing here is a
  * report reference or a PDF attachment, and the Documents tab still uploads
@@ -378,20 +204,23 @@ export async function adoptJobDocument(
     await supabase.from("projects").update({ description: next }).eq("id", projectId);
   }
 
-  const result = await runExtraction(
-    supabase,
-    {
-      id: document.id,
-      companyId: session.companyId,
-      projectName: project.name,
-      title: document.title,
-      docType: document.doc_type,
-      storagePath: document.storage_path,
-    },
-    session.userId,
-  );
+  // Read in the background, after this response has gone back. The worker
+  // sees "added" at once and nothing about reading; Prepare Daily catches up
+  // any document this did not get to read, and says so once if one cannot be.
+  const target = {
+    id: document.id,
+    companyId: session.companyId,
+    projectName: project.name,
+    title: document.title,
+    docType: document.doc_type,
+    storagePath: document.storage_path,
+  };
+  after(async () => {
+    const result = await runExtraction(supabase, target, session.userId);
+    if (!result.ok) console.warn(`[siteboss] background read of ${document.title} failed: ${result.error}`);
+  });
 
   revalidatePath(`/projects/${projectId}`);
   if (returnTo.startsWith("/") && !returnTo.startsWith("//")) revalidatePath(returnTo);
-  return result.ok ? {} : { error: result.error };
+  return {};
 }

@@ -28,6 +28,8 @@ export function DictationField({
   prominent = false,
   value,
   onValueChange,
+  startLabel = "Dictate",
+  stopLabel = "Stop dictating",
 }: {
   name: string;
   label: string;
@@ -42,6 +44,9 @@ export function DictationField({
    */
   value?: string;
   onValueChange?: (value: string) => void;
+  /** What the microphone button says. Site Capture says Speak. */
+  startLabel?: string;
+  stopLabel?: string;
   /** Shorter where the box is one of several on a screen. */
   rows?: number;
   placeholder?: string;
@@ -107,7 +112,7 @@ export function DictationField({
             className={prominent ? "h-16 w-full text-base" : undefined}
           >
             {listening ? <Square aria-hidden /> : <Mic aria-hidden />}
-            {listening ? "Stop dictating" : "Dictate"}
+            {listening ? stopLabel : startLabel}
           </Button>
 
           {listening ? (
