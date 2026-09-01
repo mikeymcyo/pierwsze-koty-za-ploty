@@ -203,6 +203,7 @@ export default async function ProjectPage({
   const briefDocuments: BriefDocument[] = documentRows.map((row) => ({
     id: row.id,
     title: row.title,
+    filename: row.original_filename,
     docType: row.doc_type,
     inScope: scopeIds.has(row.id),
   }));
@@ -331,6 +332,7 @@ export default async function ProjectPage({
       {!loadError && activeTab === "overview" && !enquiry ? (
         <JobBrief
           projectId={project.id}
+          companyId={session.companyId}
           description={project.description}
           documents={briefDocuments}
         />

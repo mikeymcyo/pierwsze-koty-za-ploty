@@ -10,10 +10,13 @@ import {
   addJobBriefEntry,
   type JobBriefState,
 } from "@/app/(app)/projects/brief-actions";
+import { DocumentUpload } from "@/components/documents/document-upload";
 import { DictationField } from "@/components/reports/dictation-field";
 import { Alert } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { documentTypeLabel } from "@/lib/documents/metadata";
 import { briefSummary, parseJobBrief, type BriefEntry } from "@/lib/projects/job-brief";
 
 function AddButton({ label, disabled }: { label: string; disabled: boolean }) {
@@ -111,10 +114,54 @@ function BriefEntryForm({
 export type BriefDocument = {
   id: string;
   title: string;
+  /** As it was named on the device, which is how somebody recognises it. */
+  filename: string;
   docType: string;
   /** True where this document is already part of the job scope. */
   inScope: boolean;
 };
+
+/**
+ * One document on the job, and whether the AI is allowed to read it.
+ *
+ * Uploading a document does not make it scope, so a document that is not job
+ * context is not shown as a problem - it is shown as what it is, with the one
+ * button that would change it. The two acts this button is NOT are named
+ * underneath the list, because on a phone the button is all anybody reads.
+ */
+function JobDocumentRow({
+  document,
+  action,
+}: {
+  document: BriefDocument;
+  action: (formData: FormData) => void;
+}) {
+  return (
+    <li className="rounded-xl border border-line p-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <FileText aria-hidden className="size-4 shrink-0 text-ink-subtle" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-medium text-ink">{document.title}</p>
+          <p className="truncate text-xs text-ink-subtle">
+            {documentTypeLabel(document.docType)} · {document.filename}
+          </p>
+        </div>
+        {document.inScope ? (
+          <Badge tone="success" dot>
+            Job context
+          </Badge>
+        ) : (
+          <form action={action} className="sm:shrink-0">
+            <input type="hidden" name="documentId" value={document.id} />
+            <Button type="submit" variant="secondary" size="sm" className="w-full sm:w-auto">
+              Use as job context
+            </Button>
+          </form>
+        )}
+      </div>
+    </li>
+  );
+}
 
 /**
  * What the job is supposed to be, said before or during the work.
@@ -138,12 +185,18 @@ export type BriefDocument = {
  */
 export function JobBrief({
   projectId,
+  companyId,
   description,
   documents,
   /** A summary and a disclosure, for the Site Capture screen. */
   compact = false,
 }: {
   projectId: string;
+  /**
+   * The company folder uploads go into. Absent on Site Capture, which links
+   * to this card rather than carrying a second uploader of its own.
+   */
+  companyId?: string;
   description: string | null;
   documents: BriefDocument[];
   compact?: boolean;
@@ -159,7 +212,6 @@ export function JobBrief({
   const entries = parseJobBrief(description);
   const hasBrief = entries.length > 0;
   const summary = briefSummary(description);
-  const available = documents.filter((document) => !document.inScope);
 
   // An empty box is only ever a missing brief where there is genuinely no
   // brief. The server decides that, having read the project; here it is just
@@ -255,46 +307,64 @@ export function JobBrief({
 
         <BriefEntryForm key={entries.length} action={action} additive={hasBrief} rows={4} />
 
-        {/* A document is job scope because somebody said so - never because it
-            was uploaded. Adding one here does not reference it in any report
-            and does not append it to any PDF. */}
-        {available.length > 0 ? (
-          <div className="flex flex-col gap-2">
-            <p className="text-sm font-semibold text-ink">Add a job document to the scope</p>
-            <ul className="flex flex-col gap-2">
-              {available.map((document) => (
-                <li key={document.id}>
-                  <form
-                    action={documentAction}
-                    className="flex items-center gap-3 rounded-xl border border-line p-3"
-                  >
-                    <input type="hidden" name="documentId" value={document.id} />
-                    <FileText aria-hidden className="size-4 shrink-0 text-ink-subtle" />
-                    <span className="min-w-0 flex-1 truncate text-sm text-ink">
-                      {document.title}
-                    </span>
-                    <Button type="submit" variant="secondary" size="sm">
-                      Use as job context
-                    </Button>
-                  </form>
-                </li>
-              ))}
-            </ul>
+        {/* The paperwork, where the card that talks about it is.
+            
+            This used to tell somebody to "upload a purchase order below" and
+            then offer them nothing to do it with - the uploader was on another
+            tab. The upload is here now, and it is the SAME uploader the
+            Documents tab uses, writing to the same bucket and the same table:
+            a job document is an ordinary project document, and a second
+            storage flow for it would be a second place for a file to go
+            missing.
+
+            A document is job scope because somebody said so - never because it
+            was uploaded. So an upload lands in the list below unmarked, and
+            "Use as job context" is a separate tap. It does not reference the
+            document in any report and does not append it to any PDF; those are
+            chosen on the report itself. */}
+        <div className="flex flex-col gap-3 border-t border-line pt-4">
+          <div>
+            <p className="text-sm font-semibold text-ink">Job documents</p>
             <p className="text-xs text-ink-subtle">
-              This lets the AI read the document as scope. It does not put it in a report or
-              attach it to a PDF - those are chosen on the report itself.
+              A purchase order, specification or drawing. Uploading one does not make it job
+              context - say so with the button beside it.
             </p>
           </div>
-        ) : documents.length > 0 ? (
+
+          {documents.length > 0 ? (
+            <ul className="flex flex-col gap-2">
+              {documents.map((document) => (
+                <JobDocumentRow
+                  key={document.id}
+                  document={document}
+                  action={documentAction}
+                />
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-ink-subtle">No documents on this job yet.</p>
+          )}
+
+          {companyId ? (
+            <DocumentUpload
+              companyId={companyId}
+              projectId={projectId}
+              label="Add job document"
+            />
+          ) : (
+            <Button asChild variant="secondary" size="lg" className="w-full sm:w-auto">
+              <Link href={`/projects/${projectId}`}>
+                <Plus aria-hidden />
+                Add a job document
+              </Link>
+            </Button>
+          )}
+
           <p className="text-xs text-ink-subtle">
-            Every document on this project is already part of the job scope.
+            &ldquo;Use as job context&rdquo; lets the AI read the document as scope. It does not
+            put it in a report or attach it to a PDF - those are chosen on the report itself.
           </p>
-        ) : (
-          <p className="text-xs text-ink-subtle">
-            Upload a purchase order, specification or drawing below and it can be added to the
-            scope here.
-          </p>
-        )}
+        </div>
       </CardContent>
     </Card>
   );

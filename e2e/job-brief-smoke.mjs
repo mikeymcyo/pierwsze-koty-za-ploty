@@ -41,6 +41,9 @@ import { PHOTO_DESCRIPTION_SYSTEM_PROMPT, PHOTO_SCOPE_BLOCK, buildPhotoDescripti
 import { buildPrompt } from "../lib/ai/prompt.ts";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+const uploadUi = read("../components/documents/document-upload.tsx");
+const documentActions = read("../app/(app)/documents/actions.ts");
+
 
 const failures = [];
 function check(label, ok, detail = "") {
@@ -230,6 +233,15 @@ console.log("\n6. Document control: three separate acts");
 
 const briefActions = read("../app/(app)/projects/brief-actions.ts");
 const briefUi = read("../components/projects/job-brief.tsx");
+/**
+ * A screen's prose with its line wrapping flattened.
+ *
+ * What matters is the sentence the site manager reads, not where Prettier put
+ * the newline. Asserting on the wrapped source makes an unrelated edit break a
+ * check about wording, which teaches everybody to loosen the check.
+ */
+const flat = (source) => source.replace(/\s+/g, " ");
+const briefCopy = flat(briefUi);
 check("adding a document to the scope writes the brief", /appendBriefEntry\(\s*\n?\s*project\.description,\s*\n?\s*documentEntryText/.test(briefActions));
 check(
   "and nothing else - no report reference, no PDF append",
@@ -237,7 +249,7 @@ check(
 );
 check(
   "the screen says so in words",
-  /does not put it in a report or\s+attach it to a PDF/.test(briefUi),
+  /does not put it in a report or attach it to a PDF/.test(briefCopy),
 );
 check("a document from another project is refused", /\.eq\("project_id", projectId\)/.test(briefActions));
 check("and adding one twice is not a second event", /briefHasDocument\(project\.description, document\.id\)/.test(briefActions));
@@ -355,6 +367,85 @@ check(
 check(
   "and both screens render the same history component",
   (briefUi.match(/<BriefHistory entries=\{entries\} \/>/g) ?? []).length === 2,
+);
+
+console.log("\n11. Add job document: the card offers what its own words promise");
+
+check(
+  "the card no longer sends anybody to an uploader that is not there",
+  !/Upload a purchase order, specification or drawing below/.test(briefCopy),
+  "the old copy said 'below' and there was nothing below it",
+);
+check(
+  "the uploader is in the Job brief card itself",
+  /<DocumentUpload/.test(briefUi) && /label="Add job document"/.test(briefUi),
+);
+check(
+  "and it is the project's own uploader, not a second one",
+  /import \{ DocumentUpload \} from "@\/components\/documents\/document-upload"/.test(briefUi),
+  "a second storage flow is a second place for a file to go missing",
+);
+check(
+  "which still writes to the one documents table through the one action",
+  /attachDocument\(/.test(uploadUi) && /from\("documents"\)\s*\n?\s*\.insert/.test(documentActions),
+);
+check(
+  "so an uploaded job document is an ordinary project document",
+  /DOCUMENT_BUCKET/.test(uploadUi) && !/create table|storage\.buckets/i.test(briefUi),
+);
+check(
+  "the page hands it the company folder to upload into",
+  /<JobBrief[\s\S]{0,220}companyId=\{session\.companyId\}/.test(projectPage),
+);
+check(
+  "the upload lands the user back on this page with the document showing",
+  /revalidatePath\(`\/projects\/\$\{value\.projectId\}`\)/.test(documentActions),
+);
+
+check(
+  "every job document is listed, not only the ones not yet in scope",
+  /documents\.map\(\(document\) => \(\s*<JobDocumentRow/.test(briefUi) &&
+    !/const available = documents\.filter/.test(briefUi),
+);
+check(
+  "each one shows its filename and its type",
+  /\{documentTypeLabel\(document\.docType\)\} · \{document\.filename\}/.test(briefUi),
+);
+check(
+  "and its status, so 'is the AI reading this' is answerable at a glance",
+  /document\.inScope \? \(\s*<Badge tone="success" dot>\s*Job context/.test(briefUi),
+);
+check(
+  "the page supplies the filename to show",
+  /filename: row\.original_filename/.test(projectPage),
+);
+check(
+  "uploading is still not the same act as saying it is scope",
+  /<Button type="submit" variant="secondary" size="sm"[\s\S]{0,80}Use as job context/.test(briefUi) &&
+    /addJobBriefDocument/.test(briefUi),
+  "an upload must land unmarked; a person marks it",
+);
+check(
+  "and job context is still neither a report reference nor a PDF attachment",
+  /does not put it in a report or attach it to a PDF/.test(briefCopy),
+);
+check(
+  "no migration was needed for any of it",
+  !/alter table|create table/i.test(briefUi) && !/alter table|create table/i.test(projectPage),
+);
+
+check(
+  "on a phone the row stacks and the button is full width",
+  /flex flex-col gap-3 sm:flex-row sm:items-center/.test(briefUi) &&
+    /className="w-full sm:w-auto"[\s\S]{0,60}Use as job context/.test(briefUi),
+);
+check(
+  "the uploader still opens Files rather than forcing the camera",
+  !/capture=/.test(uploadUi) && /type="file"/.test(uploadUi),
+);
+check(
+  "Site Capture still links here rather than carrying a second uploader",
+  /<JobBrief[\s\S]{0,200}compact/.test(capturePage) && !/<DocumentUpload/.test(capturePage),
 );
 
 console.log("\n=== Result ===");
