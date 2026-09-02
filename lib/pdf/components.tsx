@@ -25,7 +25,12 @@ import {
 } from "@/lib/documents/metadata";
 import { fitBox, imageSize, photoBoxHeight, photoBoxSize } from "@/lib/pdf/image-size";
 import { photoEvidence, type PhotoEvidenceItem } from "@/lib/pdf/photo-evidence";
-import { plateCell, type InstructedWorkRow } from "@/lib/summary-reports/instructed-works";
+import {
+  plateCell,
+  type InstructedWorkRow,
+  type Material,
+  type Workstream,
+} from "@/lib/summary-reports/instructed-works";
 import { isQuarterTurn, normaliseRotation, rotatedSize } from "@/lib/photos-rotation";
 import { runInLabel, type ReportGroup } from "@/lib/report-structure";
 import type { PdfStyles } from "@/lib/pdf/theme";
@@ -810,6 +815,88 @@ export function InstructedWorksTable({ s, rows }: { s: PdfStyles; rows: Instruct
         </Text>
       ) : null}
     </>
+  );
+}
+
+/**
+ * What the job was built from, where the record names enough of it.
+ *
+ * Printed only when the gates in lib/summary-reports/instructed-works.ts pass,
+ * so a job that used one bag of mortar does not get a table about it.
+ */
+export function MaterialsTable({ s, materials }: { s: PdfStyles; materials: Material[] }) {
+  return (
+    <DataTable
+      s={s}
+      columns={[
+        { key: "material", label: "Material", width: "42%" },
+        { key: "use", label: "Use", width: "58%" },
+      ]}
+      rows={materials.map((entry, index) => ({
+        key: `${entry.material}-${index}`,
+        cells: [entry.material, entry.use],
+      }))}
+    />
+  );
+}
+
+/**
+ * How the substantial pieces of work were carried out.
+ *
+ * The table says what was asked for and what was done; this says how, for the
+ * jobs complex enough to need it. On a simple job the list is empty and none
+ * of this prints - a forced heading over two lines of method is what makes a
+ * patch repair read like a manual.
+ */
+export function Workstreams({ s, workstreams }: { s: PdfStyles; workstreams: Workstream[] }) {
+  return (
+    <>
+      {workstreams.map((stream, index) => (
+        <Fragment key={`${stream.heading}-${index}`}>
+          <Text style={s.paragraph} minPresenceAhead={40}>
+            <Text style={s.runIn}>{`${stream.heading}${/[.:]$/.test(stream.heading) ? "" : "."}`}</Text>
+            {` ${stream.body}`}
+            {stream.plateRefs.length > 0 ? ` (${stream.plateRefs.join(", ")})` : ""}
+          </Text>
+        </Fragment>
+      ))}
+    </>
+  );
+}
+
+/**
+ * The client's acknowledgement, beneath the preparer's signature.
+ *
+ * Worded carefully and once: acknowledging receipt is not accepting the works.
+ * A completion report is the document a job is remembered by, and a signature
+ * block that could be read as practical completion is the one piece of
+ * wording on it that could cost somebody money.
+ */
+export function ClientAcknowledgement({ s, client }: { s: PdfStyles; client: string | null }) {
+  return (
+    <View style={s.signOff} wrap={false}>
+      <Text style={s.recordLabel}>
+        {client ? `Client acknowledgement (${client})` : "Client acknowledgement"}
+      </Text>
+      <View style={s.signOffRow}>
+        <View style={s.signOffCell}>
+          <Text style={s.signOffLabel}>Name and position</Text>
+          <View style={s.signOffLine} />
+        </View>
+        <View style={s.signOffCell}>
+          <Text style={s.signOffLabel}>Signature</Text>
+          <View style={s.signOffLine} />
+        </View>
+        <View style={s.signOffCell}>
+          <Text style={s.signOffLabel}>Date</Text>
+          <View style={s.signOffLine} />
+        </View>
+      </View>
+      <Text style={s.signOffNote}>
+        Acknowledgement confirms receipt of this report only. It is not acceptance of the works
+        and not a certificate of practical completion.
+      </Text>
+    </View>
   );
 }
 

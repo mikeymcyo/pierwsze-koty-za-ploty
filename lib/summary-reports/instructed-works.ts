@@ -26,6 +26,8 @@
 
 import { z } from "zod";
 
+import { significantWords } from "../reports/prepare-gate";
+
 export const INSTRUCTED_WORK_STATUSES = [
   "Complete",
   "Partially complete",
@@ -55,9 +57,70 @@ export const instructedWorkRowSchema = z.object({
 
 export type InstructedWorkRow = z.infer<typeof instructedWorkRowSchema>;
 
+/**
+ * A material the record names, and what it was used for.
+ *
+ * Only worth a table when the job actually used several. One row saying
+ * "concrete - the repair" is a sentence pretending to be a table, so the gate
+ * below drops it and the works column keeps the fact.
+ */
+export const materialSchema = z.object({
+  material: z.string().trim().min(1).max(120),
+  use: z.string().trim().min(1).max(200),
+});
+
+/**
+ * One piece of work described in its own right: how it was done, not that it
+ * was done. The table already says what was asked for and what was carried
+ * out; this is the method, the sequence and the make-up, and it earns its
+ * place only on a job with enough going on to need it.
+ */
+export const workstreamSchema = z.object({
+  heading: z.string().trim().min(1).max(120),
+  body: z.string().trim().min(1).max(1200),
+  plateRefs: z.array(z.string().trim().regex(/^P\d{2,3}$/)).max(12),
+});
+
 export const instructedWorksSchema = z.object({
   rows: z.array(instructedWorkRowSchema).max(40),
+  // Optional so a payload written before these existed still parses. An older
+  // report reads back as a table with no materials and no workstreams, which
+  // is exactly what it was.
+  materials: z.array(materialSchema).max(20).optional(),
+  workstreams: z.array(workstreamSchema).max(8).optional(),
 });
+
+export type Material = z.infer<typeof materialSchema>;
+export type Workstream = z.infer<typeof workstreamSchema>;
+
+export type InstructedWorks = {
+  rows: InstructedWorkRow[];
+  materials: Material[];
+  workstreams: Workstream[];
+};
+
+/**
+ * Whether a materials table is worth printing.
+ *
+ * Two or more distinct materials, or nothing. A table with a single row tells
+ * a client less than the sentence it came from, and a heading over it is the
+ * kind of forced section that makes a simple job read like a manual.
+ */
+export function materialsWorthPrinting(materials: Material[]): boolean {
+  const distinct = new Set(materials.map((entry) => entry.material.trim().toLowerCase()));
+  return distinct.size >= 2;
+}
+
+/**
+ * Whether the job is complex enough for written workstreams.
+ *
+ * Two or more of them AND three or more instructed items. A two-item job
+ * described in two headed passages is the table again with more words round
+ * it, and that is the duplication this product keeps having to remove.
+ */
+export function workstreamsWorthPrinting(workstreams: Workstream[], rowCount: number): boolean {
+  return workstreams.length >= 2 && rowCount >= 3;
+}
 
 /**
  * Whether a status is one the record can actually support.
@@ -103,6 +166,52 @@ export function sanitiseRows(rows: InstructedWorkRow[], plateCount: number): Ins
 }
 
 /**
+ * Whether something raised on site is part of what was instructed.
+ *
+ * Crude word matching on purpose, and it decides only which heading an issue
+ * prints under - never whether it was done, and never whether it is anybody's
+ * fault. A defect that shares no words with any instructed item is reported as
+ * found outside the instruction, which is the commercially important
+ * distinction: it evidences new work without implying it was included.
+ *
+ * Where nothing was instructed, nothing can be outside it, so everything reads
+ * as ordinary and the split does not appear at all.
+ */
+export function withinInstructedScope(text: string, rows: InstructedWorkRow[]): boolean {
+  if (rows.length === 0) return true;
+  const said = significantWords(text);
+  const flat = flatten(text);
+  if (said.size === 0 && !flat) return true;
+
+  return rows.some((row) => {
+    // The location first, and as a phrase. Site defects are identified by
+    // where they are - "Bay 39", "L2", "Plot 7" - and every one of those is
+    // too short or too numeric to survive word matching. Filing an in-scope
+    // defect as newly found is worse than the reverse: it tells a client that
+    // work was discovered when it was always part of the instruction.
+    if (locationMentioned(flat, row.location)) return true;
+    for (const word of significantWords(`${row.instruction} ${row.location ?? ""}`)) {
+      if (said.has(word)) return true;
+    }
+    return false;
+  });
+}
+
+/** Lower case, with everything but letters and digits reduced to single spaces. */
+function flatten(text: string): string {
+  return ` ${text.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+}
+
+/** Whether a location reads as a phrase inside the text. */
+function locationMentioned(flatText: string, location: string | null): boolean {
+  if (!location) return false;
+  const needle = flatten(location).trim();
+  // One short token on its own - "bay", "roof" - is not an identification.
+  if (!needle || !/\d/.test(needle) ? needle.length < 6 : false) return false;
+  return flatText.includes(` ${needle} `);
+}
+
+/**
  * How the table is stored.
  *
  * JSON in the section's `content`, which is a text column. The alternative -
@@ -110,8 +219,23 @@ export function sanitiseRows(rows: InstructedWorkRow[], plateCount: number): Ins
  * one report's prose record, versioned with it, frozen with it when the report
  * is issued, and meaningless apart from it.
  */
-export function serialiseInstructedWorks(rows: InstructedWorkRow[]): string {
-  return JSON.stringify({ rows }, null, 0);
+export function serialiseInstructedWorks(
+  rows: InstructedWorkRow[],
+  materials: Material[] = [],
+  workstreams: Workstream[] = [],
+): string {
+  // The gates are applied here rather than at the call site, so nothing can
+  // store a one-row materials table or a pair of workstreams on a two-item
+  // job by forgetting to ask.
+  return JSON.stringify(
+    {
+      rows,
+      ...(materialsWorthPrinting(materials) ? { materials } : {}),
+      ...(workstreamsWorthPrinting(workstreams, rows.length) ? { workstreams } : {}),
+    },
+    null,
+    0,
+  );
 }
 
 /**
@@ -120,12 +244,24 @@ export function serialiseInstructedWorks(rows: InstructedWorkRow[]): string {
  * Total: a section written before this existed, or edited by hand into prose,
  * reads as null and the document prints nothing rather than throwing.
  */
-export function parseInstructedWorks(content: string | null | undefined): InstructedWorkRow[] | null {
+export function parseInstructedWorks(content: string | null | undefined): InstructedWorks | null {
   const text = typeof content === "string" ? content.trim() : "";
   if (!text.startsWith("{")) return null;
   try {
     const parsed = instructedWorksSchema.safeParse(JSON.parse(text));
-    return parsed.success && parsed.data.rows.length > 0 ? parsed.data.rows : null;
+    if (!parsed.success || parsed.data.rows.length === 0) return null;
+    const materials = parsed.data.materials ?? [];
+    const workstreams = parsed.data.workstreams ?? [];
+    return {
+      rows: parsed.data.rows,
+      // Checked again on the way out: a payload written by an older version,
+      // or edited by hand, must not print a table the rules would not have
+      // stored.
+      materials: materialsWorthPrinting(materials) ? materials : [],
+      workstreams: workstreamsWorthPrinting(workstreams, parsed.data.rows.length)
+        ? workstreams
+        : [],
+    };
   } catch {
     return null;
   }

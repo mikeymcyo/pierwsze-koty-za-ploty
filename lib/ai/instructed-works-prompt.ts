@@ -13,7 +13,7 @@
 
 import { SITE_MANAGER_TONE } from "./tone";
 
-export const INSTRUCTED_WORKS_PROMPT_VERSION = "instructed-works-v1";
+export const INSTRUCTED_WORKS_PROMPT_VERSION = "instructed-works-v2";
 
 export const INSTRUCTED_WORKS_SYSTEM_PROMPT = [
   "You are an experienced UK construction site manager completing the instructed",
@@ -60,6 +60,30 @@ export const INSTRUCTED_WORKS_SYSTEM_PROMPT = [
   "Nothing you write may state or imply that work happened, was inspected,",
   "approved, tested or signed off unless the record says so in those terms.",
   "",
+  "MATERIALS - USUALLY AN EMPTY LIST",
+  "",
+  "List a material only where the record names it and says what it was used",
+  "for. Return an EMPTY list unless the job used several distinct named",
+  "materials: a list with one entry is a sentence pretending to be a table,",
+  "and it will be discarded. Never infer a material from the kind of work -",
+  "a concrete repair does not tell you the mix.",
+  "",
+  "WORKSTREAMS - USUALLY AN EMPTY LIST",
+  "",
+  "A workstream describes HOW one substantial piece of work was carried out:",
+  "the sequence, the make-up, the dimensions. It is for a job with enough",
+  "going on to need it - a chamber taken down to base and rebuilt in courses",
+  "earns one; a patch repair does not.",
+  "",
+  "Return an EMPTY list unless BOTH are true: the instruction has three or",
+  "more items, and at least two of them involved work worth describing in its",
+  "own right. On a simple job an empty list is the correct answer and the",
+  "report is better for it.",
+  "",
+  "A workstream must NEVER restate the table. The table says what was asked",
+  "for and what was carried out; a workstream says how. If all you can write",
+  "is the works column again in longer words, do not write it.",
+  "",
   SITE_MANAGER_TONE,
 ].join("\n");
 
@@ -98,7 +122,7 @@ export function buildInstructedWorksPrompt(input: InstructedWorksPromptInput): s
 export const INSTRUCTED_WORKS_JSON_SCHEMA = {
   type: "object",
   additionalProperties: false,
-  required: ["rows"],
+  required: ["rows", "materials", "workstreams"],
   properties: {
     rows: {
       type: "array",
@@ -126,6 +150,35 @@ export const INSTRUCTED_WORKS_JSON_SCHEMA = {
             description:
               "Not confirmed whenever the record is silent. Not carried out only where the record explicitly says the work was not done.",
           },
+        },
+      },
+    },
+    materials: {
+      type: "array",
+      description:
+        "Named materials the record states, with what each was used for. Empty unless the job used several distinct ones.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["material", "use"],
+        properties: {
+          material: { type: "string", description: "As the record names it." },
+          use: { type: "string", description: "What it was used for, from the record." },
+        },
+      },
+    },
+    workstreams: {
+      type: "array",
+      description:
+        "How a substantial piece of work was carried out - sequence, make-up, dimensions. Empty on a simple job. Never a restatement of the table.",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["heading", "body", "plateRefs"],
+        properties: {
+          heading: { type: "string", description: "What the work was, e.g. Drainage chamber rebuild - Bay 39." },
+          body: { type: "string", description: "How it was done, from the record only." },
+          plateRefs: { type: "array", items: { type: "string" } },
         },
       },
     },

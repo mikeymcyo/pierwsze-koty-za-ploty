@@ -82,6 +82,30 @@ const summaryBase = {
   sourceLabels: ["Daily Report 009 · 1 September 2026"],
 };
 
+/** One defect that matches an instructed item, one that plainly does not. */
+const ISSUES = [
+  {
+    id: "in",
+    title: "Bay 39 chamber surround still settling",
+    description: null,
+    responsible: "Empire Interiors",
+    priority: "medium",
+    priorityLabel: "Medium",
+    statusLabel: "Open",
+    resolution: null,
+  },
+  {
+    id: "out",
+    title: "Signage bracket corroded at the entrance canopy",
+    description: null,
+    responsible: null,
+    priority: "low",
+    priorityLabel: "Low",
+    statusLabel: "Open",
+    resolution: null,
+  },
+];
+
 const progress = {
   ...summaryBase,
   kind: "progress",
@@ -99,12 +123,15 @@ const completion = {
   kind: "completion",
   number: "001",
   periodLabel: "Whole project record",
+  instruction: "Lidl External Walk, 21 July 2026",
+  issues: ISSUES,
   sections: [
     { type: "project_overview", label: "Completion summary", content: "All eight instructed items complete." },
     {
       type: "instructed_works",
       label: "Instructed works and status",
-      content: serialiseInstructedWorks([
+      content: serialiseInstructedWorks(
+        [
         {
           instruction: "Repair damaged concrete around drain",
           location: "Bay 39",
@@ -119,7 +146,31 @@ const completion = {
           plateRefs: [],
           status: "Not confirmed",
         },
-      ]),
+        {
+          instruction: "Repair concrete around drain",
+          location: "Bay 33",
+          worksCarriedOut: "Localised break out and reinstatement around the gully.",
+          plateRefs: [],
+          status: "Complete",
+        },
+      ],
+        [
+          { material: "UltraCrete QC6", use: "Slab patches and chamber top 100 mm" },
+          { material: "Class B engineering bricks", use: "Chamber wall rebuild" },
+        ],
+        [
+          {
+            heading: "Drainage chamber rebuild - Bay 39",
+            body: "Dismantled to sound base, rebuilt in engineering bricks, C40 surround poured to 100 mm below finished level.",
+            plateRefs: [],
+          },
+          {
+            heading: "Slab patch repairs",
+            body: "Broken out to sound material, edges squared, reinstated flush in QC6.",
+            plateRefs: [],
+          },
+        ],
+      ),
     },
     { type: "sign_off", label: "Outstanding and sign-off", content: "Nothing outstanding." },
     { type: "completed_works", label: "Completed works", content: LEGACY },
@@ -165,6 +216,60 @@ check(
   "COMPLETION: and says what that means",
   /not a statement that the work was not carried out/i.test(completionText),
 );
+check("COMPLETION: the cover names what instructed the works", /Lidl External Walk, 21 July 2026/.test(completionText));
+check("COMPLETION: the materials table prints", /UltraCrete QC6/.test(completionText) && /engineering bricks/i.test(completionText));
+check("COMPLETION: the workstreams print", /Drainage chamber rebuild/.test(completionText) && /rebuilt in engineering bricks/.test(completionText));
+check(
+  "COMPLETION: defects outside the instruction are separated",
+  /outside the instructed scope/i.test(completionText) && /Signage bracket corroded/.test(completionText),
+);
+check(
+  "COMPLETION: and the commercial position is stated once",
+  /not been repaired under it\. A proposal will follow separately/i.test(completionText),
+);
+check(
+  "COMPLETION: the client acknowledges receipt only",
+  /Acknowledgement confirms receipt of this report only/i.test(completionText),
+);
+
+// The simple job: same layout, none of the Phase 2 extras forced onto it.
+const simple = {
+  ...completion,
+  instruction: null,
+  issues: [],
+  sections: [
+    { type: "project_overview", label: "Completion summary", content: "The bakery sink was renewed and tested." },
+    {
+      type: "instructed_works",
+      label: "Instructed works and status",
+      content: serialiseInstructedWorks(
+        [
+          {
+            instruction: "Repair the leaking bakery sink",
+            location: "Bakery",
+            worksCarriedOut: "Trap and waste renewed, tested, no leaks.",
+            plateRefs: [],
+            status: "Complete",
+          },
+        ],
+        [{ material: "Compression waste fittings", use: "Sink waste" }],
+        [
+          { heading: "Sink repair", body: "Trap renewed.", plateRefs: [] },
+          { heading: "Testing", body: "Run and checked.", plateRefs: [] },
+        ],
+      ),
+    },
+  ],
+};
+const simpleText = (await textOf(createElement(SummaryReportDocument, { data: simple }))).text.replace(/\s+/g, " ");
+console.log(`\n${"=".repeat(70)}\nCOMPLETION (SIMPLE JOB) - nothing forced onto it\n${"=".repeat(70)}`);
+console.log(simpleText.trim());
+check("SIMPLE: the table still prints", /bakery sink/i.test(simpleText));
+check("SIMPLE: no materials table on a one-material job", !/Materials/.test(simpleText));
+check("SIMPLE: no workstreams on a one-item job", !/How the works were carried out/.test(simpleText));
+check("SIMPLE: no Instruction field when nothing instructed it", !/Instruction/.test(simpleText));
+check("SIMPLE: no out-of-scope heading when there are no defects", !/outside the instructed scope/i.test(simpleText));
+check("SIMPLE: the client acknowledgement is still there", /Acknowledgement confirms receipt/i.test(simpleText));
 
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("EXPORT PARITY: what you see is what you get");

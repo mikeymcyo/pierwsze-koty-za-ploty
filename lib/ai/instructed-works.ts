@@ -13,6 +13,8 @@ import {
   instructedWorksSchema,
   sanitiseRows,
   type InstructedWorkRow,
+  type Material,
+  type Workstream,
 } from "@/lib/summary-reports/instructed-works";
 
 /**
@@ -26,7 +28,14 @@ import {
  * Writes nothing. The caller owns the section row.
  */
 export type InstructedWorksResult =
-  | { ok: true; rows: InstructedWorkRow[]; promptVersion: string }
+  | {
+      ok: true;
+      rows: InstructedWorkRow[];
+      /** Kept or dropped by the gates in serialiseInstructedWorks, not here. */
+      materials: Material[];
+      workstreams: Workstream[];
+      promptVersion: string;
+    }
   | { ok: false; error: string };
 
 export async function generateInstructedWorks(
@@ -62,9 +71,21 @@ export async function generateInstructedWorks(
       return { ok: false, error: "The model's reply did not match the instructed works shape." };
     }
 
+    const known = new Set<string>();
+    for (let index = 0; index < plateCount; index += 1) {
+      const n = index + 1;
+      known.add(`P${n < 10 ? `0${n}` : String(n)}`);
+    }
+
     return {
       ok: true,
       rows: sanitiseRows(parsed.data.rows, plateCount),
+      materials: parsed.data.materials ?? [],
+      // Same rule as the table: a workstream may only cite a plate that exists.
+      workstreams: (parsed.data.workstreams ?? []).map((stream) => ({
+        ...stream,
+        plateRefs: [...new Set(stream.plateRefs.filter((ref) => known.has(ref)))].sort(),
+      })),
       promptVersion: INSTRUCTED_WORKS_PROMPT_VERSION,
     };
   } catch (cause) {

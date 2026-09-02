@@ -184,6 +184,33 @@ export async function loadSummaryPdfData(
       content: section.content?.trim() ?? "",
     }));
 
+  /**
+   * What instructed the works, as the client would name it.
+   *
+   * The documents somebody marked as job context, newest first, with the date
+   * the document itself carries. Null where the job has no paperwork behind
+   * it - a brief spoken in a van instructs the works perfectly well, and the
+   * cover simply does not print the field.
+   */
+  const { data: contextRows } = await supabase
+    .from("job_context_documents")
+    .select("document_id, documents!inner(title, document_date, project_id)")
+    .is("removed_at", null)
+    .eq("documents.project_id", report.project_id);
+  const instructingDocuments = (contextRows ?? [])
+    .map((row) => (Array.isArray(row.documents) ? row.documents[0] : row.documents))
+    .filter((document): document is { title: string; document_date: string | null; project_id: string } =>
+      Boolean(document),
+    );
+  const instruction =
+    instructingDocuments.length > 0
+      ? instructingDocuments
+          .map((document) =>
+            [document.title, formatDate(document.document_date)].filter(Boolean).join(", "),
+          )
+          .join(" · ")
+      : null;
+
   // A survey is a visit, not a span - see summaryPeriodLabel.
   const periodLabel = summaryPeriodLabel(
     report.kind,
@@ -211,6 +238,7 @@ export async function loadSummaryPdfData(
       issuedAt: identity.issuedAt,
       issuedBy: identity.issuedBy,
       sections,
+      instruction,
       issues: issueLinks.flatMap((link) => {
         const issue = issueById.get(link.issue_id);
         if (!issue) return [];

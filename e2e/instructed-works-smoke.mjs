@@ -16,11 +16,14 @@ import { readFileSync } from "node:fs";
 import {
   DEFAULT_STATUS,
   INSTRUCTED_WORK_STATUSES,
+  materialsWorthPrinting,
   parseInstructedWorks,
   plateCell,
   sanitiseRows,
   serialiseInstructedWorks,
   supportedStatus,
+  withinInstructedScope,
+  workstreamsWorthPrinting,
 } from "../lib/summary-reports/instructed-works.ts";
 import {
   knownPlates,
@@ -67,7 +70,8 @@ const NORTHFLEET = [
 console.log("\n1. The shape carries the gold standard");
 
 const stored = serialiseInstructedWorks(sanitiseRows(NORTHFLEET, 21));
-const back = parseInstructedWorks(stored);
+const parsedBack = parseInstructedWorks(stored);
+const back = parsedBack?.rows;
 check("all eight instructed items survive a round trip", back?.length === 8);
 check("in the instruction's own order", back?.[0].location === "Bay 15 (goods-in driver door)" && back?.[7].location === "Bay 37");
 check("the works column keeps its materials and method", /UltraCrete HAPAS tarmac/.test(back?.[7].worksCarriedOut ?? ""));
@@ -192,9 +196,115 @@ check("and renders the rest as prose", /<GroupedProse s=\{s\} group=\{group\} en
 check("the table has the five agreed columns", /Instruction/.test(components) && /Works carried out/.test(components) && /"Photo"/.test(components) && /"Status"/.test(components) && /"Location"/.test(components));
 check("it reuses the one table primitive", /<DataTable/.test(components.slice(components.indexOf("InstructedWorksTable"))));
 check("an unparseable section prints nothing rather than braces", parseInstructedWorks("Some prose somebody typed") === null && parseInstructedWorks(null) === null && parseInstructedWorks("{}") === null);
+check(
+  "and it is shown on screen as a table, never as a paragraph of JSON",
+  /section\.section_type !== "instructed_works"/.test(read("../app/(app)/summary-reports/[id]/page.tsx")) &&
+    /<InstructedWorksPanel works=\{instructedWorks\}/.test(read("../app/(app)/summary-reports/[id]/page.tsx")),
+);
 check("Not confirmed carries its meaning under the table", /This is not a statement that the work was\s*\n?\s*not carried out/.test(components));
 
-console.log("\n7. Tone: a site manager, not an academic paper");
+console.log("\n7. Materials and workstreams: only where the job earned them");
+
+const MATERIALS = [
+  { material: "UltraCrete QC6", use: "Slab patches" },
+  { material: "Class B engineering bricks", use: "Chamber wall rebuild" },
+];
+const STREAMS = [
+  { heading: "Chamber rebuild - Bay 39", body: "Taken down to sound base and rebuilt in courses.", plateRefs: ["P01"] },
+  { heading: "Slab patch repairs", body: "Broken out to sound material and reinstated flush.", plateRefs: [] },
+];
+
+check("two distinct materials are worth a table", materialsWorthPrinting(MATERIALS));
+check("one is not", !materialsWorthPrinting([MATERIALS[0]]), "a sentence pretending to be a table");
+check("nor is the same material twice", !materialsWorthPrinting([MATERIALS[0], { ...MATERIALS[0], use: "Something else" }]));
+check("none is not", !materialsWorthPrinting([]));
+
+check("two workstreams on an eight-item job are worth printing", workstreamsWorthPrinting(STREAMS, 8));
+check("but not on a two-item job", !workstreamsWorthPrinting(STREAMS, 2), "a simple job described in headed passages is the table again");
+check("and one is never enough", !workstreamsWorthPrinting([STREAMS[0]], 8));
+
+const rich = parseInstructedWorks(serialiseInstructedWorks(sanitiseRows(NORTHFLEET, 21), MATERIALS, STREAMS));
+check("a complex job stores both", rich?.materials.length === 2 && rich?.workstreams.length === 2);
+const simple = parseInstructedWorks(
+  serialiseInstructedWorks(sanitiseRows(NORTHFLEET.slice(0, 2), 21), [MATERIALS[0]], STREAMS),
+);
+check("a simple job stores neither", simple?.materials.length === 0 && simple?.workstreams.length === 0);
+check("and its table is still there", simple?.rows.length === 2);
+check(
+  "a payload written before either existed still reads",
+  parseInstructedWorks(JSON.stringify({ rows: NORTHFLEET }))?.rows.length === 8,
+);
+check(
+  "the gates are applied on the way out too, not only on the way in",
+  parseInstructedWorks(JSON.stringify({ rows: NORTHFLEET.slice(0, 2), materials: MATERIALS, workstreams: STREAMS }))
+    ?.workstreams.length === 0,
+  "a payload edited by hand must not print what the rules would not have stored",
+);
+check("the prompt says an empty list is the correct answer on a simple job", /On a simple job an empty list is the correct answer/.test(promptText));
+check("and that a workstream may never restate the table", /A workstream must NEVER restate the table/.test(promptText));
+check("and that a material is never inferred from the kind of work", /Never infer a material from the kind of work/.test(promptText));
+
+console.log("\n8. Defects found outside the instruction");
+
+check(
+  "a defect sharing words with an instructed item reads as part of the works",
+  withinInstructedScope("Bakery sink trap still weeping", [
+    { instruction: "Repair the leaking bakery sink", location: "Bakery", worksCarriedOut: "", plateRefs: [], status: "Not confirmed" },
+  ]),
+);
+check(
+  "one that shares nothing is outside it",
+  !withinInstructedScope("Signage bracket corroded at the entrance", [
+    { instruction: "Repair the leaking bakery sink", location: "Bakery", worksCarriedOut: "", plateRefs: [], status: "Not confirmed" },
+  ]),
+);
+check(
+  "with nothing instructed, nothing is outside it",
+  withinInstructedScope("Anything at all", []),
+  "the split must not appear on a job with no paperwork",
+);
+// The bug the first rendered PDF caught: "Bay 39 chamber surround still
+// settling" was filed as newly found, because "bay" is too short and "39" too
+// numeric to survive word matching. Telling a client that work was discovered
+// when it was always instructed is the worse of the two errors.
+const BAYS = [
+  { instruction: "Repair damaged concrete around drain", location: "Bay 39", worksCarriedOut: "", plateRefs: [], status: "Not confirmed" },
+  { instruction: "Replace damaged tarmac", location: "Bay 37", worksCarriedOut: "", plateRefs: [], status: "Not confirmed" },
+];
+check("a defect named by its location is within scope", withinInstructedScope("Bay 39 chamber surround still settling", BAYS));
+check("even where it shares no other word", withinInstructedScope("Bay 37 edge breaking up", BAYS));
+check("and something genuinely elsewhere is still outside", !withinInstructedScope("Fire door closer faulty", BAYS));
+check(
+  "a bare short word is not an identification",
+  !withinInstructedScope("The bay was busy all day", [
+    { instruction: "Repair the roof", location: "Bay", worksCarriedOut: "", plateRefs: [], status: "Not confirmed" },
+  ]),
+  "'Bay' on its own would match half a site record",
+);
+const pdfSource = read("../lib/pdf/summary-document.tsx");
+check("the document only splits the list when something really is outside", /if \(outside\.length === 0\) return issues\.map\(record\)/.test(pdfSource));
+check("and names the two headings plainly", /Arising from the instructed works/.test(pdfSource) && /outside the instructed scope/.test(pdfSource));
+check(
+  "the commercial position is written by the document, not the model",
+  /not been\s*\n?\s*repaired under it\. A proposal will follow separately/.test(pdfSource),
+);
+
+console.log("\n9. The cover, and who signs");
+
+check("a Completion Report names what instructed it", /label: "Instruction", value: data\.instruction/.test(pdfSource));
+check("only where there is one", /completion && data\.instruction/.test(pdfSource));
+check("built from the documents somebody marked as job context", /from\("job_context_documents"\)/.test(read("../lib/summary-reports/pdf-data.ts")));
+const pdfComponents = read("../lib/pdf/components.tsx");
+check("the client acknowledges receipt", /export function ClientAcknowledgement/.test(pdfComponents));
+check(
+  "and the wording says that is all it is",
+  /Acknowledgement confirms receipt of this report only\. It is not acceptance of the works and not a certificate of practical completion/.test(
+    flat(pdfComponents),
+  ),
+);
+check("on the Completion Report only", /\{completion \? <ClientAcknowledgement/.test(pdfSource));
+
+console.log("\n10. Tone: a site manager, not an academic paper");
 
 // The assembled text the model reads, not the source that builds it.
 const tone = flat(SITE_MANAGER_TONE);

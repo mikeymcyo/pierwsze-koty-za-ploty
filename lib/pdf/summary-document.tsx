@@ -12,8 +12,11 @@ import {
   DocumentTitle,
   GroupedProse,
   IssueRecord,
+  ClientAcknowledgement,
   InstructedWorksTable,
+  MaterialsTable,
   PhotoGrid,
+  Workstreams,
   RunningFooter,
   RunningHeader,
   SectionHeading,
@@ -23,7 +26,7 @@ import {
   priorityColour,
 } from "@/lib/pdf/components";
 import { photoReference } from "@/lib/pdf/photo-evidence";
-import { parseInstructedWorks } from "@/lib/summary-reports/instructed-works";
+import { parseInstructedWorks, withinInstructedScope } from "@/lib/summary-reports/instructed-works";
 import {
   COMPLETION_STATUS_LABEL,
   completionStatusLine,
@@ -86,6 +89,12 @@ export type SummaryPdfData = {
     /** Quarter turns applied while drawing. Absent means as uploaded. */
     rotation?: number;
   }[];
+  /**
+   * The document that instructed the works, as the client would name it -
+   * "External Walk, 21 July 2026". Null where the job has no paperwork behind
+   * it, and the field simply does not print.
+   */
+  instruction?: string | null;
   sourceLabels: string[];
   supportingDocuments: ResolvedDocument[];
   /** Whether the listed documents follow as appendices, so the register says so. */
@@ -122,6 +131,11 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
   const c = theme.colors;
   const cover = pickCoverPhoto(data.photos, data.coverPhotoId);
   const groups = groupSections(data.kind, data.sections);
+  // Read once for the whole document: the issue split below needs to know what
+  // was instructed, and it is rendered in a different group from the table.
+  const instructedWorks = parseInstructedWorks(
+    data.sections.find((section) => section.type === "instructed_works")?.content,
+  );
   const hasAppendix = data.supportingDocuments.length > 0 || data.sourceLabels.length > 0;
 
   const completion = data.kind === "completion";
@@ -190,6 +204,12 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
                   )
                 : null,
             },
+            // What the works were instructed by. On a Completion Report this
+            // is what defines the scope, so it reads beside the status rather
+            // than in an appendix.
+            ...(completion && data.instruction
+              ? [{ label: "Instruction", value: data.instruction }]
+              : []),
             { label: summaryPeriodFieldLabel(data.kind), value: data.periodLabel },
             { label: "Store", value: storeLine(data.store) },
             { label: "Project reference", value: data.projectReference },
@@ -217,18 +237,13 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
           // or edited by hand into a paragraph - reads as null and prints
           // nothing rather than a wall of braces.
           const instructedEntry = entries.find((entry) => entry.type === "instructed_works");
-          const instructedRows = parseInstructedWorks(instructedEntry?.content);
+          const instructed = parseInstructedWorks(instructedEntry?.content);
           const prose = entries.filter((entry) => entry.type !== "instructed_works");
-          if (
-            prose.length === 0 &&
-            !instructedRows &&
-            photos.length === 0 &&
-            issues.length === 0
-          )
+          if (prose.length === 0 && !instructed && photos.length === 0 && issues.length === 0)
             return null;
 
           const reserve =
-            prose.length > 0 || instructedRows
+            prose.length > 0 || instructed
               ? 48
               : photos.length > 0
                 ? plateReserve(photos[0].data, theme.plate, photos[0].rotation)
@@ -248,17 +263,70 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
 
               <GroupedProse s={s} group={group} entries={prose} />
 
-              {instructedRows ? <InstructedWorksTable s={s} rows={instructedRows} /> : null}
+              {instructed ? <InstructedWorksTable s={s} rows={instructed.rows} /> : null}
 
-              {issues.map((issue) => (
-                <IssueRecord
-                  key={issue.id}
-                  s={s}
-                  issue={issue}
-                  colour={priorityColour(issue.priority, c.charcoal)}
-                  inverse={c.inverse}
-                />
-              ))}
+              {/* How the substantial pieces of work were done, and what they
+                  were built from. Both print only where the job was complex
+                  enough to have earned them - see instructed-works.ts. */}
+              {instructed && instructed.workstreams.length > 0 ? (
+                <>
+                  <Text style={s.recordLabel}>How the works were carried out</Text>
+                  <Workstreams s={s} workstreams={instructed.workstreams} />
+                </>
+              ) : null}
+
+              {instructed && instructed.materials.length > 0 ? (
+                <>
+                  <Text style={s.recordLabel}>Materials</Text>
+                  <MaterialsTable s={s} materials={instructed.materials} />
+                </>
+              ) : null}
+
+              {/* Two headings only where the split is real. A defect that
+                  shares no words with anything instructed is reported as found
+                  outside the instruction - which evidences new work without
+                  implying it was ever included. Where nothing was instructed,
+                  nothing can be outside it and the issues print as one list. */}
+              {(() => {
+                const rows = instructedWorks?.rows ?? [];
+                const within = issues.filter((issue) =>
+                  withinInstructedScope(`${issue.title} ${issue.description ?? ""}`, rows),
+                );
+                const outside = issues.filter((issue) => !within.includes(issue));
+                const record = (issue: (typeof issues)[number]) => (
+                  <IssueRecord
+                    key={issue.id}
+                    s={s}
+                    issue={issue}
+                    colour={priorityColour(issue.priority, c.charcoal)}
+                    inverse={c.inverse}
+                  />
+                );
+                if (outside.length === 0) return issues.map(record);
+                return (
+                  <>
+                    {within.length > 0 ? (
+                      <>
+                        <Text style={s.recordLabel}>Arising from the instructed works</Text>
+                        {within.map(record)}
+                      </>
+                    ) : null}
+                    <Text style={s.recordLabel}>
+                      Identified during the works - outside the instructed scope
+                    </Text>
+                    {outside.map(record)}
+                    {/* Written by the document, never by the model: this is the
+                        commercial position, and it must read the same way on
+                        every report. */}
+                    <Text style={s.note}>
+                      {outside.length === 1 ? "This item was" : "These items were"} found while on
+                      site and {outside.length === 1 ? "is" : "are"} not covered by the
+                      instruction. {outside.length === 1 ? "It has" : "They have"} not been
+                      repaired under it. A proposal will follow separately.
+                    </Text>
+                  </>
+                );
+              })()}
 
               {photos.length > 0 ? (
                 // No page break - see report-document.tsx. It stranded short
@@ -322,6 +390,10 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
         ) : null}
 
         <SignOff s={s} preparedBy={data.issuedBy} />
+
+        {/* Only on the document a job is remembered by. A Progress Report is
+            an interim account and has nothing for a client to acknowledge. */}
+        {completion ? <ClientAcknowledgement s={s} client={data.client} /> : null}
 
         <RunningFooter
           s={s}

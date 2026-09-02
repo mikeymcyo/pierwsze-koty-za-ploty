@@ -113,6 +113,58 @@ seen working on a device.**
 
 ## Current state - read this before the historical sections below
 
+## Completion Reports, Phase 2
+
+Everything here is gated. A simple job gets a Completion Summary, the
+instructed works table and its evidence, and none of the rest - the whole
+point of Phase 2 is that a patch repair must not read like a manual.
+
+**A Phase 1 defect fixed first.** The instructed works table is stored as JSON
+in its own section, and the report screen had been rendering that JSON as a
+paragraph while the PDF drew a table. `components/summary-reports/
+instructed-works-panel.tsx` now shows the rows, the workstreams and the
+materials on screen as cards, and `SectionProse` skips the section so no braces
+reach a person. Everything the PDF prints from that payload is on the screen.
+
+**No migration.** Materials and workstreams are extra keys on the existing
+`instructed_works` payload, not new section types. `parseInstructedWorks`
+returns `{ rows, materials, workstreams }` and a payload written before they
+existed still reads.
+
+1. **INSTRUCTION on the cover** - built in `pdf-data.ts` from the documents
+   somebody marked as job context, with the date the document carries:
+   "Lidl External Walk, 21 July 2026". Completion only, and absent where the
+   job has no paperwork - a brief spoken in a van instructs works perfectly
+   well.
+2. **Defects outside the instruction** - `withinInstructedScope` splits the
+   issue list into "Arising from the instructed works" and "Identified during
+   the works - outside the instructed scope", and the document (never the
+   model) writes the commercial position: not covered, not repaired under it,
+   a proposal will follow. The split appears only when something really is
+   outside; with nothing instructed, nothing can be.
+3. **Client acknowledgement** - a second signature block, Completion only,
+   worded so acknowledgement is receipt and nothing else.
+4. **Materials table** - two or more distinct named materials, or nothing.
+5. **Workstreams** - two or more, and three or more instructed items, or
+   nothing. They say HOW work was done; the prompt forbids restating the table.
+
+The gates live in `serialiseInstructedWorks` and again in
+`parseInstructedWorks`, so a payload edited by hand cannot print what the rules
+would not have stored. The prompt (now `instructed-works-v2`) tells the model an
+empty list is the correct answer on a simple job.
+
+**A bug the first rendered PDF caught.** "Bay 39 chamber surround still
+settling" was filed as newly found, because "bay" is too short and "39" too
+numeric to survive word matching. Site defects are identified by where they
+are, so `withinInstructedScope` now matches the location as a phrase first.
+Filing an in-scope defect as newly discovered is the worse error: it tells a
+client work was found when it was always instructed.
+
+`npm run check:export-parity` now renders four documents - Daily, Progress,
+Completion, and a deliberately simple Completion - and asserts the simple one
+gets no materials table, no workstreams, no Instruction field and no
+out-of-scope heading.
+
 ## No hidden narrative: what you see is what exports
 
 **The rule, across Daily, Progress and Completion: if text can reach the

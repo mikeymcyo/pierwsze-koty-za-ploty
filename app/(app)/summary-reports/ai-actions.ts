@@ -417,7 +417,11 @@ export async function generateSummaryReport(
     // A table that could not be written must not cost the client the rest of
     // the report: the prose is already drafted and is the larger part of it.
     if (table.ok && table.rows.length > 0) {
-      sections.instructed_works = serialiseInstructedWorks(table.rows);
+      sections.instructed_works = serialiseInstructedWorks(
+        table.rows,
+        table.materials,
+        table.workstreams,
+      );
     } else if (!table.ok) {
       console.error("[siteboss] instructed works table skipped:", table.error);
     }

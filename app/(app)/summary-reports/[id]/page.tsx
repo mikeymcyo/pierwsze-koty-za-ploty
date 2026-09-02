@@ -10,6 +10,8 @@ import { SummaryCuration, type CuratedIssueChoice, type CuratedPhotoChoice } fro
 import { ReportPhotos, type ReportPhoto } from "@/components/summary-reports/report-photos";
 import { SummaryDetails } from "@/components/summary-reports/summary-details";
 import { SummaryWriter } from "@/components/summary-reports/summary-draft";
+import { InstructedWorksPanel } from "@/components/summary-reports/instructed-works-panel";
+import { parseInstructedWorks } from "@/lib/summary-reports/instructed-works";
 import { GroupEditor } from "@/components/reports/group-editor";
 import {
   ReadOnlySection,
@@ -62,7 +64,12 @@ function SectionProse({
 }: {
   entry: { group: ReportGroup; entries: { id: string; section_type: string; content: string | null }[] } | undefined;
 }) {
-  const written = (entry?.entries ?? []).filter((section) => section.content?.trim());
+  // The instructed works table is JSON, not prose. It is rendered by
+  // InstructedWorksPanel below; printing it here would show a paragraph of
+  // braces to the person signing the report off.
+  const written = (entry?.entries ?? []).filter(
+    (section) => section.content?.trim() && section.section_type !== "instructed_works",
+  );
   if (!entry || written.length === 0) return null;
 
   return (
@@ -307,6 +314,13 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
   }));
   const grouped = groupSections(report.kind, sectionRows);
   const groupFor = (key: string) => grouped.find((entry) => entry.group.key === key);
+  // Everything the PDF prints from this payload is shown on the screen too:
+  // the rows, the workstreams and the materials. See the panel component.
+  const instructedWorks = parseInstructedWorks(
+    (grouped.flatMap((entry) => entry.entries).find(
+      (section) => section.section_type === "instructed_works",
+    ))?.content,
+  );
   /** Whether the summary group has anything in it yet, drafted or written. */
   const hasWrittenSummary = (groupFor("summary")?.entries ?? []).some((entry) =>
     entry.content?.trim(),
@@ -420,7 +434,10 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
           ) : null}
 
           {isFinal ? (
-            <SectionProse entry={groupFor("summary")} />
+            <>
+              <SectionProse entry={groupFor("summary")} />
+              {instructedWorks ? <InstructedWorksPanel works={instructedWorks} /> : null}
+            </>
           ) : consolidating && !hasWrittenSummary ? (
             /* Sources ticked and nothing written yet. The box says it is
                optional rather than being folded away: anything typed here
