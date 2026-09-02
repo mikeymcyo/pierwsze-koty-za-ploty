@@ -137,6 +137,9 @@ export const REPORT_STRUCTURES: Record<ReportDocumentKind, ReportStructure> = {
       hint: "What the job was, how it ran, and what was completed.",
       sections: [
         "project_overview",
+        // Directly after the executive account and before the prose about the
+        // work: a client who sent a numbered list looks for that list first.
+        "instructed_works",
         "scope_of_works",
         "stages_of_works",
         "key_technical_activities",

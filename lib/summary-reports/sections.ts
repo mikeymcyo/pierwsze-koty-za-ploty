@@ -67,6 +67,12 @@ export const COMPLETION_SECTIONS: SummarySectionDefinition[] = [
     brief: "Methods, materials, systems and fixings of substance, only where the evidence explicitly names them.",
   },
   {
+    type: "instructed_works",
+    label: "Instructed works and status",
+    brief:
+      "A table, not prose: one row per instructed item, with what the record says was done to it, the plates that show it, and its status. Written by its own pass and stored as JSON - see lib/summary-reports/instructed-works.ts. Never drafted as text.",
+  },
+  {
     type: "completed_works",
     label: "Completed works",
     brief: "The specific activities the evidence records as finished, with their locations, materials and quantities - what was actually done and to what. Nothing that is planned, programmed, awaited or still to be carried out belongs here; that is Outstanding and sign-off. Do not restate the scope as though all of it were delivered, do not repeat the completion summary, and do not certify quality or compliance. Where the job had several distinct workstreams, write them as short lines each beginning \"- \", one workstream per line, rather than one dense paragraph; a single workstream stays as prose. A blanket sentence such as 'all works were completed successfully' is not a completed activity and does not belong in this section at all.",

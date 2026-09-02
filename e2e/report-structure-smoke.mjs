@@ -131,7 +131,11 @@ console.log("\n4. The stored sections themselves are untouched");
 // grouping had been done in the database instead, these would have shrunk.
 check("a daily still stores eight sections", REPORT_SECTIONS.length === 8, String(REPORT_SECTIONS.length));
 check("a progress report still stores seven", PROGRESS_SECTIONS.length === 7, String(PROGRESS_SECTIONS.length));
-check("a completion report still stores eight", COMPLETION_SECTIONS.length === 8, String(COMPLETION_SECTIONS.length));
+check(
+  "a completion report stores nine - eight prose sections plus the instructed works table",
+  COMPLETION_SECTIONS.length === 9,
+  String(COMPLETION_SECTIONS.length),
+);
 check("a survey still stores seven", SURVEY_SECTIONS.length === 7, String(SURVEY_SECTIONS.length));
 
 for (const kind of KINDS) {

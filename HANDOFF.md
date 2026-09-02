@@ -113,6 +113,75 @@ seen working on a device.**
 
 ## Current state - read this before the historical sections below
 
+## Completion Reports, Phase 1: plates and the instructed works table
+
+Measured against a real Fable-polished completion report for Lidl GB RDC
+Northfleet (eight instructed items, 21 plates, works/status against each).
+What made that document good was structure and citation discipline, not
+eloquence - so Phase 1 buys exactly those two things.
+
+**Applied to the hosted database.** Migration
+`20260901000011_instructed_works.sql`, recorded remotely as
+`instructed_works`: one enum value, `summary_section_type` now 22. Nothing
+else. `db push` is still never used - see the Document Intelligence section.
+
+**Plate numbers already printed** (`photoReference`, `P01…Pnn`), but the AI was
+given `[category] caption` with no numbers, so it could not cite anything.
+`photoManifest()` in `lib/pdf/photo-evidence.ts` now builds the model's list
+with the same function, from the same array, in the same order the PDF prints -
+two numbering schemes would be worse than none.
+
+**Citations are checked, not trusted.** `stripUnknownPlates()` removes any
+reference that points at no photograph, keeping the surrounding sentence: the
+citation was wrong, but the fact may still be sound. Applied to every drafted
+prose section and to every row of the table.
+
+**The instructed works table** is a new section, `instructed_works`, stored as
+JSON in the existing text column and rendered by `InstructedWorksTable` through
+the existing `DataTable`. Columns: instruction, location, works carried out,
+photo, status. It has **its own model call** (`lib/ai/instructed-works.ts`) -
+one response that must be both a careful table and four paragraphs of prose
+degrades both. It runs only for Completion Reports, and only where the job's
+documents actually instruct something.
+
+**The status vocabulary is the point.** Complete · Partially complete · Not
+confirmed · Not carried out. `Not confirmed` is the default whenever the record
+is silent, and `supportedStatus()` enforces it in code: a Complete or Partially
+complete with an empty works column falls back. **Missing evidence is never
+"Not carried out"** - that word is reserved for a record that explicitly says
+the work was not done, and it survives an empty works column because "we did
+not do this" is itself the answer. The PDF prints a note under the table saying
+Not confirmed is not a statement that the work was not carried out.
+
+**Stage is never invented.** The manifest prints a chosen status or an em dash;
+there is no derived BEFORE/DURING/AFTER anywhere.
+
+**Tone.** `lib/ai/tone.ts` holds `SITE_MANAGER_TONE` - plain British
+construction English, short sentences, no legalese or corporate filler, with
+"plain does not mean vague" spelled out. Shared by the daily writer, the
+summary writer and the instructed works pass, so one wording rather than three
+that drift. Imported relatively (`./tone`) to keep those modules' "no path
+aliases" contract literally true.
+
+**Daily Reports are untouched** and asserted to be: no instructed-works
+anything in the daily prompt, action or document.
+
+`npm run test:instructed-works` (60 checks) round-trips the eight Northfleet
+rows through the stored shape and asserts the two failure modes cannot happen:
+a citation to a plate that does not exist, and a completion claimed from
+silence. Four suites that pinned "a completion report stores eight sections"
+now say nine and say why.
+
+**Not yet done, deliberately** (Phase 2 and beyond): materials table,
+out-of-scope defects appendix with its own `S01…` plate series, client
+acknowledgement sign-off block, `INSTRUCTION` field in the cover block, and
+re-enabling `key_technical_activities` as sub-headed workstreams.
+
+**Unverified:** no real model call has been made against this prompt. The table
+depends on `documentContextForProject` returning clean instructed items, which
+depends on the extraction quote check working against a real model - still the
+open question from the Document Intelligence section.
+
 ## Product reset: simplicity, 2026-09-01 (late)
 
 **A site operative should understand Site Capture in ten seconds with no

@@ -17,7 +17,7 @@ function check(label, ok, detail = "") {
 
 console.log("\n1. Each document has the right sections");
 check("Progress has seven sections", PROGRESS_SECTIONS.length === 7);
-check("Completion has eight sections", COMPLETION_SECTIONS.length === 8);
+check("Completion has nine sections, the ninth being the instructed works table", COMPLETION_SECTIONS.length === 9);
 check(
   "both carry issues and resolutions",
   PROGRESS_SECTIONS.some((section) => section.type === "issues_and_resolutions") &&

@@ -66,7 +66,10 @@ export const CLEANED_SECTIONS_LABEL =
 export const PHOTO_TAGS_LABEL =
   "PHOTOGRAPHS TAKEN (tags only - evidence that a photo exists, not evidence that an event occurred):";
 
+import { SITE_MANAGER_TONE } from "./tone";
+
 export const SYSTEM_PROMPT = [
+  SITE_MANAGER_TONE,
   "You are an experienced UK construction site manager writing the daily",
   "progress report that goes to the client and the main contractor.",
   "",

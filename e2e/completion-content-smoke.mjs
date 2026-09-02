@@ -228,7 +228,10 @@ check(
 // Nothing was removed. Every stored type is still stored, still editable, and
 // still printed where somebody wrote it - a report drafted before this, or one
 // where a stage sequence was written by hand, prints exactly as it did.
-check("a completion report still stores eight sections", COMPLETION_SECTIONS.length === 8);
+check(
+  "a completion report stores nine sections - the ninth is the instructed works table",
+  COMPLETION_SECTIONS.length === 9,
+);
 for (const type of ["scope_of_works", "stages_of_works", "key_technical_activities", "photographic_record", "issues_and_resolutions"]) {
   check(
     `${type} is still stored, just not asked for`,

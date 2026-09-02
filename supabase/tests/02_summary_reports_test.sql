@@ -29,7 +29,8 @@ begin
     join pg_type t on t.oid = e.enumtypid
    where t.typname = 'summary_section_type';
   -- 14 for progress and completion, plus 7 for the site survey.
-  if n <> 21 then raise exception 'FAIL enum: summary_section_type has % values, expected 21', n; end if;
+  -- 21, plus 'instructed_works' from 20260901000011.
+  if n <> 22 then raise exception 'FAIL enum: summary_section_type has % values, expected 22', n; end if;
 
   select count(*) into n from information_schema.columns
    where table_schema = 'public' and table_name = 'issues' and column_name = 'resolution';

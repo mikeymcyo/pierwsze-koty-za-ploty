@@ -4,7 +4,9 @@
  *
  * Same reasoning as lib/ai/prompt.ts: no runtime imports and no path aliases,
  * so this module loads straight into Node and a test can assert what the model
- * is actually told.
+ * is actually told. The one import is ./tone, a sibling under the same rule -
+ * how a report should sound is one wording shared by every layer that writes
+ * prose, not three that drift apart.
  *
  * The problem it now addresses: a consolidated report has six or eight
  * sections and one body of evidence, and a model asked to fill every field
@@ -15,7 +17,10 @@
  * duplicated one.
  */
 
+import { SITE_MANAGER_TONE } from "./tone";
+
 export const SUMMARY_SYSTEM_PROMPT = [
+  SITE_MANAGER_TONE,
   "You are an experienced UK construction site manager consolidating issued site records into a client-facing report.",
 
   "The supplied evidence is authoritative. Rewrite and consolidate it, but never add a fact, quantity, cause, status, certification, approval, inspection, quality judgement or programme claim that is not explicitly present.",

@@ -92,7 +92,8 @@ export type SummarySectionType =
   | "access_and_constraints"
   | "proposed_works"
   | "requirements"
-  | "pricing_notes";
+  | "pricing_notes"
+  | "instructed_works";
 
 type Timestamps = {
   created_at: string;

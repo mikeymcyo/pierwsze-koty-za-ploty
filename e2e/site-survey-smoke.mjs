@@ -100,7 +100,7 @@ check(
 );
 check(
   "the progress and completion sections are untouched",
-  summarySectionsFor("progress").length === 7 && summarySectionsFor("completion").length === 8,
+  summarySectionsFor("progress").length === 7 && summarySectionsFor("completion").length === 9,
 );
 
 console.log("\n4. A visit is a day, not a period");

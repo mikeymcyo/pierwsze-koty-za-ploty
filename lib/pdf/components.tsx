@@ -25,6 +25,7 @@ import {
 } from "@/lib/documents/metadata";
 import { fitBox, imageSize, photoBoxHeight, photoBoxSize } from "@/lib/pdf/image-size";
 import { photoEvidence, type PhotoEvidenceItem } from "@/lib/pdf/photo-evidence";
+import { plateCell, type InstructedWorkRow } from "@/lib/summary-reports/instructed-works";
 import { isQuarterTurn, normaliseRotation, rotatedSize } from "@/lib/photos-rotation";
 import { runInLabel, type ReportGroup } from "@/lib/report-structure";
 import type { PdfStyles } from "@/lib/pdf/theme";
@@ -761,6 +762,57 @@ export function PhotoGrid({
  * link: a signed URL stops working within the hour and would be dead by the
  * time a client opened the file.
  */
+/**
+ * The instructed works table: the spine of a completion report.
+ *
+ * A client who sent a numbered list of defects wants that list back, in order,
+ * with the answer against each item. Prose cannot do that job, and this is the
+ * one place in these documents where a table is worth more than any paragraph.
+ *
+ * The status column is deliberately plain words rather than colour: this is
+ * printed, photocopied and read on a phone, and "Not confirmed" has to survive
+ * all three. It means the record does not say - never that the work was
+ * skipped. See lib/summary-reports/instructed-works.ts.
+ */
+export function InstructedWorksTable({ s, rows }: { s: PdfStyles; rows: InstructedWorkRow[] }) {
+  const columns: Column[] = [
+    { key: "instruction", label: "Instruction", width: "26%" },
+    { key: "location", label: "Location", width: "16%" },
+    { key: "works", label: "Works carried out", width: "34%" },
+    { key: "plates", label: "Photo", width: "10%" },
+    { key: "status", label: "Status", width: "14%" },
+  ];
+  const unconfirmed = rows.filter((row) => row.status === "Not confirmed").length;
+
+  return (
+    <>
+      <DataTable
+        s={s}
+        columns={columns}
+        rows={rows.map((row, index) => ({
+          key: `${row.instruction}-${index}`,
+          cells: [
+            row.instruction,
+            row.location ?? "—",
+            // An em dash, not a sentence: the record says nothing about this
+            // item, and filling the cell would be the table inventing one.
+            row.worksCarriedOut.trim() || "—",
+            plateCell(row.plateRefs),
+            row.status,
+          ],
+        }))}
+      />
+      {unconfirmed > 0 ? (
+        <Text style={s.note}>
+          {unconfirmed === 1 ? "One item is" : `${unconfirmed} items are`} shown as Not confirmed:
+          the site record does not say what was done. This is not a statement that the work was
+          not carried out.
+        </Text>
+      ) : null}
+    </>
+  );
+}
+
 export function DocumentRegister({
   s,
   rows,

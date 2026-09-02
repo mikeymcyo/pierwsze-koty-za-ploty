@@ -12,6 +12,7 @@ import {
   DocumentTitle,
   GroupedProse,
   IssueRecord,
+  InstructedWorksTable,
   PhotoGrid,
   RunningFooter,
   RunningHeader,
@@ -22,6 +23,7 @@ import {
   priorityColour,
 } from "@/lib/pdf/components";
 import { photoReference } from "@/lib/pdf/photo-evidence";
+import { parseInstructedWorks } from "@/lib/summary-reports/instructed-works";
 import {
   COMPLETION_STATUS_LABEL,
   completionStatusLine,
@@ -209,10 +211,24 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
         {groups.map(({ group, entries }) => {
           const photos = group.key === "evidence" ? data.photos : [];
           const issues = group.key === "outstanding" ? data.issues : [];
-          if (entries.length === 0 && photos.length === 0 && issues.length === 0) return null;
+          // The instructed works table is stored as JSON in its own section, so
+          // it is pulled out of the prose here and rendered as a table. A
+          // section that does not parse - one written before the table existed,
+          // or edited by hand into a paragraph - reads as null and prints
+          // nothing rather than a wall of braces.
+          const instructedEntry = entries.find((entry) => entry.type === "instructed_works");
+          const instructedRows = parseInstructedWorks(instructedEntry?.content);
+          const prose = entries.filter((entry) => entry.type !== "instructed_works");
+          if (
+            prose.length === 0 &&
+            !instructedRows &&
+            photos.length === 0 &&
+            issues.length === 0
+          )
+            return null;
 
           const reserve =
-            entries.length > 0
+            prose.length > 0 || instructedRows
               ? 48
               : photos.length > 0
                 ? plateReserve(photos[0].data, theme.plate, photos[0].rotation)
@@ -230,7 +246,9 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
                 {group.label}
               </SectionHeading>
 
-              <GroupedProse s={s} group={group} entries={entries} />
+              <GroupedProse s={s} group={group} entries={prose} />
+
+              {instructedRows ? <InstructedWorksTable s={s} rows={instructedRows} /> : null}
 
               {issues.map((issue) => (
                 <IssueRecord

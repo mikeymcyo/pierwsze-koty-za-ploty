@@ -60,3 +60,82 @@ export function photoEvidence(
 export function photoEvidenceHeading(item: PhotoEvidenceItem): string {
   return item.status ? `${item.reference} · ${item.status.toUpperCase()}` : item.reference;
 }
+
+/**
+ * The photographs as the AI is given them, numbered exactly as they print.
+ *
+ * The same function that numbers the plates in the PDF numbers them here, from
+ * the same array in the same order, so a reference the model writes resolves
+ * to the plate the reader is looking at. Two numbering schemes would be worse
+ * than none: a citation that points at the wrong photograph is a false
+ * statement about evidence, and nobody checks it.
+ *
+ * A photograph with no caption and no status still gets a line. The model has
+ * to know P14 exists, or it will cite P13 for something P14 shows.
+ */
+export function photoManifest(
+  items: { caption: string | null; status: string | null }[],
+): string {
+  return items
+    .map((label, index) => {
+      const item = photoEvidence(label, index);
+      // The stage is printed only where somebody chose one. An invented
+      // BEFORE/AFTER is a claim about when the picture was taken.
+      const stage = item.status ? item.status.toUpperCase() : "—";
+      return `${item.reference} | ${stage} | ${item.caption ?? "no caption"}`;
+    })
+    .join("\n");
+}
+
+/** Every plate reference in a piece of text, as written. */
+export function plateReferencesIn(text: string): string[] {
+  return [...text.matchAll(/\bP\d{2,3}\b/g)].map((match) => match[0]);
+}
+
+/**
+ * The plate references that actually exist, given how many plates there are.
+ *
+ * Presentation-derived, so this is arithmetic rather than a lookup: P01 up to
+ * the count, and nothing else.
+ */
+export function knownPlates(count: number): Set<string> {
+  const plates = new Set<string>();
+  for (let index = 0; index < count; index += 1) plates.add(photoReference(index));
+  return plates;
+}
+
+/**
+ * Removes plate references that point at no photograph.
+ *
+ * The model is told to cite only real plates; this is what makes that true.
+ * A reference to P22 in a report with twenty-one photographs is not a small
+ * formatting slip - it is a claim that evidence exists when it does not, and
+ * it is exactly the kind of thing a reader takes on trust.
+ *
+ * The surrounding sentence is kept. The claim may still be sound; it is the
+ * citation that was wrong, and deleting the sentence would lose a fact the
+ * evidence might well support.
+ */
+export function stripUnknownPlates(text: string, count: number): string {
+  const known = knownPlates(count);
+  return (
+    text
+      // "(P22)" or "(P15, P22)" - drop the unknown, keep the rest.
+      .replace(/\(([^()]*\bP\d{2,3}\b[^()]*)\)/g, (whole, inner: string) => {
+        const kept = inner
+          .split(/[,;]\s*/)
+          .filter((part) => {
+            const refs = plateReferencesIn(part);
+            return refs.length === 0 || refs.every((ref) => known.has(ref));
+          })
+          .join(", ")
+          .trim();
+        return kept ? `(${kept})` : "";
+      })
+      // A bare "P22" outside brackets, and any double space it leaves behind.
+      .replace(/\bP\d{2,3}\b/g, (ref) => (known.has(ref) ? ref : ""))
+      .replace(/[ \t]{2,}/g, " ")
+      .replace(/[ \t]+([.,;:])/g, "$1")
+      .trim()
+  );
+}

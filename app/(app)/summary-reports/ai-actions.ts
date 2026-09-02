@@ -12,7 +12,11 @@ import {
   documentContextBlock,
   jobContextBlock,
 } from "@/lib/ai/job-context";
+import { generateInstructedWorks } from "@/lib/ai/instructed-works";
 import { documentContextForProject } from "@/lib/documents/job-context";
+import { photoManifest, photoReference, stripUnknownPlates } from "@/lib/pdf/photo-evidence";
+import { photoPrintLabel } from "@/lib/photo-captions";
+import { serialiseInstructedWorks } from "@/lib/summary-reports/instructed-works";
 import { briefForPrompt } from "@/lib/projects/job-brief";
 import { requireSessionContext } from "@/lib/auth/session";
 import { partitionDraft } from "@/lib/reports/regeneration";
@@ -246,11 +250,25 @@ export async function generateSummaryReport(
         .in("id", selectedPhotoIds)
     : { data: [] };
   const photoById = new Map((photos ?? []).map((photo) => [photo.id, photo]));
-  const photoCaptions = (selectedPhotos ?? []).flatMap((selected) => {
+  // The photographs in the order they will print, so a plate number the model
+  // writes resolves to the plate the reader is looking at. photoManifest and
+  // the PDF both number them with photoReference, from this same array.
+  const orderedPhotoLabels = (selectedPhotos ?? []).flatMap((selected) => {
     const photo = photoById.get(selected.photo_id);
-    return photo
-      ? [`[${photo.category}] ${selected.caption_override?.trim() || photo.caption || "uncaptioned photograph"}`]
-      : [];
+    if (!photo) return [];
+    return [
+      photoPrintLabel({
+        caption: selected.caption_override?.trim() || photo.caption,
+        category: photo.category,
+      }),
+    ];
+  });
+  const plateCount = orderedPhotoLabels.length;
+  const photoManifestBlock = plateCount > 0 ? photoManifest(orderedPhotoLabels) : null;
+  const photoCaptions = orderedPhotoLabels.map((label, index) => {
+    const reference = photoReference(index);
+    const stage = label.status ? `${label.status.toUpperCase()} · ` : "";
+    return `${reference} | ${stage}${label.caption ?? "no caption"}`;
   });
 
   // A report with no source reports is written rather than consolidated - a
@@ -373,6 +391,46 @@ export async function generateSummaryReport(
   });
   if (!result.ok) return { error: result.error };
 
+  // The instructed works table: its own pass, because a single response that
+  // must be both a careful table and four paragraphs of prose degrades both.
+  // Completion Reports only, and only where the job's paperwork actually
+  // instructs something - with no instruction there is no table to fill, and
+  // an empty one would be a heading over nothing.
+  const instructedItems = jobDocuments.flatMap((document) =>
+    document.scopeItems
+      .filter((item) => item.commitment === "instructed")
+      .map((item) => `- ${item.text}${document.title ? ` [${document.title}]` : ""}`),
+  );
+  const sections: Partial<Record<SummarySectionType, string>> = { ...result.sections };
+
+  if (report.kind === "completion" && instructedItems.length > 0) {
+    const table = await generateInstructedWorks(
+      {
+        projectName,
+        client: project?.client ?? null,
+        instruction: instructedItems.join("\n"),
+        evidence,
+        photographs: photoManifestBlock,
+      },
+      plateCount,
+    );
+    // A table that could not be written must not cost the client the rest of
+    // the report: the prose is already drafted and is the larger part of it.
+    if (table.ok && table.rows.length > 0) {
+      sections.instructed_works = serialiseInstructedWorks(table.rows);
+    } else if (!table.ok) {
+      console.error("[siteboss] instructed works table skipped:", table.error);
+    }
+  }
+
+  // A plate reference that points at no photograph is a claim that evidence
+  // exists when it does not. The model is told to cite only real plates; this
+  // is what makes it true of what gets stored.
+  for (const [type, content] of Object.entries(sections) as [SummarySectionType, string][]) {
+    if (type === "instructed_works") continue;
+    sections[type] = stripUnknownPlates(content, plateCount);
+  }
+
   const { data: edited, error: editedError } = await supabase
     .from("summary_report_sections")
     .select("section_type, content")
@@ -380,7 +438,7 @@ export async function generateSummaryReport(
     .eq("ai_generated", false);
   if (editedError) return { error: `Could not protect your edits: ${editedError.message}` };
 
-  const drafted = Object.keys(result.sections) as SummarySectionType[];
+  const drafted = Object.keys(sections) as SummarySectionType[];
   const userSections = (edited ?? [])
     .filter((section) => section.content?.trim())
     .map((section) => section.section_type);
@@ -391,7 +449,7 @@ export async function generateSummaryReport(
         company_id: session.companyId,
         summary_report_id: reportId,
         section_type: type,
-        content: result.sections[type] as string,
+        content: sections[type] as string,
         ai_generated: true,
         sort_order: summarySortOrder(report.kind, type),
       })),

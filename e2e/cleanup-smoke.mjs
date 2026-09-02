@@ -638,7 +638,10 @@ for (const [name, source] of [
   );
   check(
     `${name}: what is written comes from the review, never from the cleanup pass`,
-    /content: result\.sections\[/.test(source) && !/content: cleaned/.test(source),
+    // The summary action assembles `sections` from the review's own output and
+    // writes that; the daily writes result.sections directly. Neither may ever
+    // write the cleanup pass's text, which is the whole point of this check.
+    /content: (result\.)?sections\[/.test(source) && !/content: cleaned/.test(source),
   );
   check(`${name}: the cleanup output reaches the review prompt`, source.includes("cleanedSections,"));
   // No line may both name the cleanup output and write to the database. The
