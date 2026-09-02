@@ -277,16 +277,17 @@ check(
 
 console.log("\n6. Daily only");
 
-// The visible structure is untouched: no section type was removed, merged or
-// renamed by any of this.
+// A Daily Report is a summary and its evidence. It used to print four written
+// sections and show one, which is what this now guards against.
 const structure = reportStructure("daily");
 check("a daily still has three groups", structure.length === 3);
 check(
-  "with all eight stored sections still homed",
-  structure.flatMap((group) => group.sections).length === 8,
+  "and one written section across all of them",
+  structure.flatMap((group) => group.sections).join(",") === "executive_summary",
+  structure.flatMap((group) => group.sections).join(","),
 );
 check("the summary group is still called Daily Summary", structure[0].label === "Daily Summary");
-check("and the third is still Issues / Next Steps", structure[2].label === "Issues / Next Steps");
+check("and the third is the issues raised", structure[2].label === "Issues raised");
 
 for (const kind of ["progress", "completion", "survey"]) {
   const other = reportStructure(kind);

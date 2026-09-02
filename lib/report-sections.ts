@@ -77,6 +77,21 @@ export const REPORT_SECTION_LABELS: Record<ReportSectionType, string> = Object.f
   REPORT_SECTIONS.map((s) => [s.type, s.label]),
 ) as Record<ReportSectionType, string>;
 
+/**
+ * The sections the AI writes on a Daily Report, which is one.
+ *
+ * A Daily Report is a summary and its evidence. Asking for works completed,
+ * works in progress and deliveries as well produced four accounts of one day,
+ * and a field that must be filled will be filled - so three of them repeated
+ * the first in different words. The other stored types remain: a report
+ * written before this still holds its text, and nothing deletes it.
+ */
+export const DAILY_DRAFTED_TYPES: readonly ReportSectionType[] = ["executive_summary"];
+
+export const DAILY_DRAFTED_SECTIONS = REPORT_SECTIONS.filter((section) =>
+  DAILY_DRAFTED_TYPES.includes(section.type),
+);
+
 export function sortOrderOf(type: ReportSectionType): number {
   const index = REPORT_SECTION_ORDER.indexOf(type);
   return index === -1 ? REPORT_SECTION_ORDER.length : index;

@@ -113,6 +113,72 @@ seen working on a device.**
 
 ## Current state - read this before the historical sections below
 
+## No hidden narrative: what you see is what exports
+
+**The rule, across Daily, Progress and Completion: if text can reach the
+exported PDF, it is plainly visible on the screen the person signs off.**
+
+The fault it removes: a Daily Report drafted four written sections, showed one
+and folded three behind "Also in this section", and exported all four. Somebody
+signed off a client document they had read a quarter of.
+
+Two causes, both fixed rather than papered over.
+
+**1. Duplicate narrative was being generated.** A field that must be filled
+will be filled, so four sections about one day became one story told four
+times. Each report now drafts one prose section:
+
+| | drafted prose | plus |
+|---|---|---|
+| Daily | `executive_summary` | photos, issues raised |
+| Progress | `period_summary`, `next_period` | photos, issues |
+| Completion | `project_overview`, `sign_off` | instructed works table (own pass), photos, issues |
+
+`DAILY_DRAFTED_TYPES`, `PROGRESS_DRAFTED_TYPES` and `COMPLETION_DRAFTED_TYPES`
+are the single source; the drafting calls ask for exactly those and no more.
+`completed_works` left the Completion draft entirely - the instructed works
+table is what was asked for and what was done, item by item, and a paragraph
+saying it again was the same story twice.
+
+**2. The folds are gone.** `EditDisclosure` is deleted, not just unused, so it
+cannot come back. `GroupEditor` renders every part inline - no `<details>`, no
+"Also in this section". The Progress screen's "add your own notes" box is now
+introduced by a hint rather than folded away, because anything typed into it is
+exported.
+
+**The one disclosure left on a report screen is `advanced`** on
+`ReportSectionCard`: workforce rows, plant, the document register, the source
+record. That is recorded data a person typed themselves, not narrative, and the
+test pins it to that.
+
+### The behaviour change to be clear-eyed about
+
+`groupSections` used to append any section outside the structure to the last
+group, so a paragraph could never be lost. That is why a Daily Report's PDF
+carried a "Works completed" paragraph under "Issues / Next Steps" that nobody
+had seen. **Unmapped sections are now dropped from the document** - not shown,
+not printed, both sides agreeing.
+
+**No row is deleted.** A report drafted before the structures shrank keeps its
+text in `report_sections` / `summary_report_sections`; it is simply no longer
+part of the document. Nothing in this batch runs a `delete`. If those
+paragraphs are ever wanted back, the data is there and the fix is a structure
+change, not a recovery.
+
+Going forward nobody can write into a retained type: the editor only offers
+sections the group declares.
+
+**No schema change.** `Issues / Next Steps` became `Issues raised` and carries
+no prose - issues are records with their own status, priority and owner,
+printed from the issue table.
+
+`npm run test:what-you-see` is the guard: for every kind, the sections the
+document prints are exactly the sections the structure declares, in order;
+nothing outside it is carried through; no disclosure exists near anything that
+exports; and the drafted set contains none of the duplicated types. Eight
+existing suites that pinned the old shape were updated to the new one, each
+saying why rather than being loosened.
+
 ## Completion Reports, Phase 1: plates and the instructed works table
 
 Measured against a real Fable-polished completion report for Lidl GB RDC

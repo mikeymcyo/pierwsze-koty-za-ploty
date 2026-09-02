@@ -12,7 +12,6 @@ import { SummaryDetails } from "@/components/summary-reports/summary-details";
 import { SummaryWriter } from "@/components/summary-reports/summary-draft";
 import { GroupEditor } from "@/components/reports/group-editor";
 import {
-  EditDisclosure,
   ReadOnlySection,
   ReportSectionCard,
 } from "@/components/reports/report-section-card";
@@ -423,12 +422,17 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
           {isFinal ? (
             <SectionProse entry={groupFor("summary")} />
           ) : consolidating && !hasWrittenSummary ? (
-            /* Sources ticked and nothing written yet. The writing box is put
-               away rather than presented as the thing to do: an empty box under
-               a heading is what made a site manager think his Daily Reports had
-               gone and he had to type the job again. It is one tap away, and
-               the disclosure says it is optional. */
-            <EditDisclosure label="Add your own notes (optional)">
+            /* Sources ticked and nothing written yet. The box says it is
+               optional rather than being folded away: anything typed here
+               reaches the client's PDF, so it is on the screen the person
+               signs off. It once made a site manager think his Daily Reports
+               had gone and he had to type the job again - the hint answers
+               that, not a disclosure. */
+            <div className="flex flex-col gap-2">
+              <p className="text-sm text-ink-muted">
+                Optional. The report is written from the sources you have ticked - add your own
+                notes here only if there is something they do not cover.
+              </p>
               <GroupEditor
                 key={JSON.stringify(editorSections("summary").map((section) => section.content))}
                 groupKey="summary"
@@ -436,7 +440,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
                 sections={editorSections("summary")}
                 action={updateSummarySectionGroup.bind(null, id)}
               />
-            </EditDisclosure>
+            </div>
           ) : (
             <GroupEditor
               key={JSON.stringify(editorSections("summary").map((section) => section.content))}

@@ -110,16 +110,17 @@ function SaveButton() {
  * so there is always somewhere to start. Not every stored section, which would
  * be eight empty boxes on a daily report and the clutter this removed.
  *
- * And only the first of them is in front of you. A Progress Overview drafted
- * into five parts showed five labelled fields, which is a pile of sub-section
- * editors whatever the surface around it looks like. The rest fold away behind
- * one line naming them.
+ * Every part is in front of you, and none of them folds away. That was once a
+ * disclosure reading "Also in this section: Key activities, Works completed,
+ * ...", which meant a Progress Report exported five paragraphs a person had
+ * seen one of. **If it can reach the client's PDF it is on this screen**, and
+ * the way that rule is kept true is that each group now carries one written
+ * section - see lib/report-structure.ts - rather than that the extra ones are
+ * hidden well.
  *
- * **They stay in the form while folded**, and that is load-bearing rather than
- * incidental: a field the browser does not post reads as an empty section on
- * save, and an empty section is a section cleared. `<details>` keeps its
- * children in the document, so folding hides them from a person and from
- * nobody else. Never replace it with a conditional render.
+ * Any part that does exist is rendered, never conditionally dropped: a field
+ * the browser does not post reads as an empty section on save, and an empty
+ * section is a section cleared.
  *
  * The Save button stays. Photograph captions autosave because losing one costs
  * a caption; a report section is a contractual record, and a person should say
@@ -165,6 +166,10 @@ export function GroupEditor({
   if (parts.length === 0) return null;
 
   const [primary, ...rest] = parts;
+  // `rest` is empty on every current report: each group carries one written
+  // section. It is still rendered, in full and unfolded, because a section
+  // that can reach the client's PDF must be on the screen the person signed
+  // off - see the note above.
   const written = sections.filter((section) => section.content?.trim());
   const edited = written.some((section) => !section.aiGenerated);
 
@@ -201,30 +206,20 @@ export function GroupEditor({
           onFocus={() => setTarget(primary.type)}
         />
 
-        {/* Folded, never removed. The fields below are still posted with the
-            form - see the note above - so saving does not empty the parts a
-            person did not open. */}
-        {rest.length > 0 ? (
-          <details className="border-t border-line">
-            <summary className="cursor-pointer px-4 py-3 text-xs font-semibold text-ink-muted">
-              {`Also in this section: ${rest.map((part) => part.label).join(", ")}`}
-            </summary>
-            {rest.map((part) => (
-              <div key={part.type} className="border-t border-line">
-                <Part
-                  part={part}
-                  groupKey={groupKey}
-                  groupLabel={groupLabel}
-                  labelled
-                  value={values[part.type] ?? ""}
-                  rows={4}
-                  onChange={(next) => setValues((current) => ({ ...current, [part.type]: next }))}
-                  onFocus={() => setTarget(part.type)}
-                />
-              </div>
-            ))}
-          </details>
-        ) : null}
+        {rest.map((part) => (
+          <div key={part.type} className="border-t border-line">
+            <Part
+              part={part}
+              groupKey={groupKey}
+              groupLabel={groupLabel}
+              labelled
+              value={values[part.type] ?? ""}
+              rows={4}
+              onChange={(next) => setValues((current) => ({ ...current, [part.type]: next }))}
+              onFocus={() => setTarget(part.type)}
+            />
+          </div>
+        ))}
       </div>
 
       {supported ? (

@@ -82,28 +82,22 @@ export const REPORT_STRUCTURES: Record<ReportDocumentKind, ReportStructure> = {
     {
       key: "summary",
       label: "Daily Summary",
-      hint: "What the day amounted to, and the work itself.",
-      sections: [
-        "executive_summary",
-        "works_completed",
-        "works_in_progress",
-        "deliveries_plant",
-      ],
+      hint: "What the day amounted to.",
+      // One written section, and it is the whole of a Daily Report's prose.
+      // Works completed, works in progress and deliveries were four sections
+      // telling one story four times, and three of them were folded away on
+      // screen while all four printed. See the note on this file.
+      sections: ["executive_summary"],
     },
     evidence(),
     {
       key: "outstanding",
-      label: "Issues / Next Steps",
-      hint: "What is holding the works up, what is still open, and what happens next.",
-      // Health and safety sits here rather than under the day's work: a
-      // recorded incident, briefing or near miss is something a reader has to
-      // act on, which is what this group is for.
-      sections: [
-        "health_safety",
-        "issues_constraints",
-        "outstanding_items",
-        "planned_works",
-      ],
+      label: "Issues raised",
+      hint: "What was raised on site today.",
+      // No prose. The issues a site manager raised are records with their own
+      // status, priority and owner, printed from the issue table; four more
+      // written sections restating them is the duplication this removed.
+      sections: [],
     },
   ],
   progress: [
@@ -111,16 +105,9 @@ export const REPORT_STRUCTURES: Record<ReportDocumentKind, ReportStructure> = {
       key: "summary",
       label: "Progress Overview",
       hint: "Where the works stand at the end of the period.",
-      sections: [
-        "period_summary",
-        "key_activities",
-        "works_completed",
-        "works_in_progress",
-        // Resources are prose here, not the appendix tables: on a consolidated
-        // report this section is a written account of who and what was on
-        // site over weeks, and it belongs with the account of the works.
-        "resources_and_plant",
-      ],
+      // One written section. Five of them consolidated the same period into
+      // five overlapping accounts, and only the first was in front of anybody.
+      sections: ["period_summary"],
     },
     evidence(),
     {
@@ -135,16 +122,10 @@ export const REPORT_STRUCTURES: Record<ReportDocumentKind, ReportStructure> = {
       key: "summary",
       label: "Completion Summary",
       hint: "What the job was, how it ran, and what was completed.",
-      sections: [
-        "project_overview",
-        // Directly after the executive account and before the prose about the
-        // work: a client who sent a numbered list looks for that list first.
-        "instructed_works",
-        "scope_of_works",
-        "stages_of_works",
-        "key_technical_activities",
-        "completed_works",
-      ],
+      // The executive account, then the table. The table is what was asked
+      // for and what was done, item by item - four further prose sections
+      // saying the same thing in paragraphs is what this removed.
+      sections: ["project_overview", "instructed_works"],
     },
     // The photographic record is the written introduction to the plates, so it
     // reads directly above them rather than three headings away.
@@ -260,9 +241,13 @@ export function groupSections<T extends { type: string }>(
     return { group, entries };
   });
 
-  const orphans = sections.filter((section) => !claimed.has(section.type));
-  if (orphans.length > 0) grouped[grouped.length - 1].entries.push(...orphans);
-
+  // Anything not in the structure is not printed and not shown. It was
+  // appended to the last group, which is how a paragraph a person never saw
+  // arrived in a client's PDF under a heading it had nothing to do with.
+  //
+  // The row is not deleted - a report drafted before these structures shrank
+  // still holds its text, and nothing here touches it. It is simply no longer
+  // part of the document, on screen or in the file, and the two agree.
   return grouped;
 }
 

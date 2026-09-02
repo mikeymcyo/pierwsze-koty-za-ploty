@@ -170,7 +170,14 @@ check("but is never asked of the prose pass", !/COMPLETION_DRAFTED_TYPES[\s\S]{0
 check("it has its own pass", /generateInstructedWorks\(/.test(action));
 check("run only for Completion Reports", /report\.kind === "completion" && instructedItems\.length > 0/.test(action));
 check("and only where the paperwork actually instructs something", /commitment === "instructed"/.test(action));
-check("it prints above the prose about the work", structure.indexOf('"instructed_works"') < structure.indexOf('"completed_works"'));
+check(
+  "it prints directly after the completion summary",
+  /sections: \["project_overview", "instructed_works"\]/.test(structure),
+);
+check(
+  "and the prose section that used to say the same thing is gone from the document",
+  !/"completed_works"/.test(structure),
+);
 check("a failed table does not cost the client the prose", /table\.ok && table\.rows\.length > 0/.test(action) && /console\.error\("\[siteboss\] instructed works table skipped/.test(action));
 check("prose sections have their citations checked too", /stripUnknownPlates\(content, plateCount\)/.test(action));
 check("but the table's JSON is not run through the prose stripper", /if \(type === "instructed_works"\) continue;/.test(action));

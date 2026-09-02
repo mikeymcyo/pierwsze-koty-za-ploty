@@ -207,14 +207,14 @@ check(
 console.log("\n4. Three sections the client reads, and they are distinct");
 
 check(
-  "a completion report is drafted in three",
-  COMPLETION_DRAFTED_TYPES.join() === "project_overview,completed_works,sign_off",
+  "a completion report is drafted in two, with the table as its own pass",
+  COMPLETION_DRAFTED_TYPES.join() === "project_overview,sign_off",
   COMPLETION_DRAFTED_TYPES.join(),
 );
 check(
-  "the summary, the completed works, and what is still open",
+  "the summary and what is still open - the works are the instructed works table",
   summaryDraftedSectionsFor("completion").map((section) => section.label).join(" | ") ===
-    "Completion summary | Completed works | Outstanding and sign-off",
+    "Completion summary | Outstanding and sign-off",
   summaryDraftedSectionsFor("completion").map((section) => section.label).join(" | "),
 );
 check("and cleanup writes the same three", CLEANUP_SECTIONS.completion.length === 3);
@@ -240,13 +240,13 @@ for (const type of ["scope_of_works", "stages_of_works", "key_technical_activiti
   );
 }
 check(
-  "and a section that carries words still prints",
+  "and a retained section is neither printed nor shown",
   groupSections("completion", [
     { type: "stages_of_works", content: "Somebody wrote this by hand." },
   ])
     .flatMap((entry) => entry.entries)
-    .some((entry) => entry.type === "stages_of_works"),
-  "no paragraph anybody wrote is dropped",
+    .every((entry) => entry.type !== "stages_of_works"),
+  "the row is kept in the database; it is simply no longer part of the document, on screen or in the file",
 );
 check(
   "only an AI-written section is ever cleared on a redraft",
@@ -375,11 +375,15 @@ const withLegacy = textJoined(
     ]),
   }),
 );
+// The behaviour change to be clear-eyed about. A stored section the structure
+// no longer declares is not printed - which is the point, because it was also
+// not shown on the screen the person signed off. The row is untouched in the
+// database; nothing here deletes it.
 check(
-  "a section somebody wrote by hand still prints",
-  withLegacy.includes("Phase one, then phase two."),
+  "a retained section is not printed behind the reader's back",
+  !withLegacy.includes("Phase one, then phase two."),
 );
-check("under its own run-in label", /Stages of works/.test(withLegacy));
+check("and its run-in label does not appear either", !/Stages of works/.test(withLegacy));
 
 console.log("\n4c. The status a client reads first");
 
@@ -485,10 +489,9 @@ check("and an empty marker is not a line", proseBlocks("- ").length === 0);
 const bulleted = textJoined(
   createElement(SummaryReportDocument, {
     data: completionData([
-      { type: "project_overview", label: "Completion summary", content: "The job overall." },
       {
-        type: "completed_works",
-        label: "Completed works",
+        type: "project_overview",
+        label: "Completion summary",
         content: "- Manhole rebuilt in engineering brick.\n- C4 concrete placed to the main hall.",
       },
     ]),

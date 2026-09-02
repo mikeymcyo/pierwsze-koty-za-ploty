@@ -26,9 +26,11 @@ import {
   reportStructure,
   runInLabel,
 } from "../lib/report-structure.ts";
-import { REPORT_SECTIONS } from "../lib/report-sections.ts";
+import { DAILY_DRAFTED_TYPES, REPORT_SECTIONS } from "../lib/report-sections.ts";
 import {
+  COMPLETION_DRAFTED_TYPES,
   COMPLETION_SECTIONS,
+  PROGRESS_DRAFTED_TYPES,
   PROGRESS_SECTIONS,
   SURVEY_SECTIONS,
 } from "../lib/summary-reports/sections.ts";
@@ -78,7 +80,7 @@ for (const kind of KINDS) {
 console.log("\n2. The headings are the ones the owner asked for");
 
 const EXPECTED = {
-  daily: ["Daily Summary", "Photos & Evidence", "Issues / Next Steps"],
+  daily: ["Daily Summary", "Photos & Evidence", "Issues raised"],
   progress: ["Progress Overview", "Photos & Evidence", "Outstanding / Next Actions"],
   survey: ["Findings", "Photos & Evidence", "Recommendations"],
   completion: ["Completion Summary", "Photos & Evidence", "Outstanding / Follow-on"],
@@ -92,17 +94,43 @@ for (const [kind, labels] of Object.entries(EXPECTED)) {
   );
 }
 
-console.log("\n3. NOT ONE STORED SECTION LOSES ITS HOME");
+console.log("\n3. NOT ONE DRAFTED SECTION LOSES ITS HOME");
 
-// The check this file exists for. A section type with no group would be
-// written, saved, and then silently missing from the PDF that goes to a
-// client.
+// The check this file exists for, in its current form. A section the AI writes
+// but no group prints would be generated, saved, and then silently missing
+// from the PDF that goes to a client.
+//
+// It used to read "not one STORED section", and that is deliberately no longer
+// true. Works completed, works in progress, key activities and the rest are
+// still stored types - a report drafted before the structures shrank keeps its
+// text, and nothing deletes it - but they are not part of any document now.
+// Nothing writes them, so nothing can lose them.
+const DRAFTED = {
+  daily: DAILY_DRAFTED_TYPES,
+  progress: PROGRESS_DRAFTED_TYPES,
+  completion: [...COMPLETION_DRAFTED_TYPES, "instructed_works"],
+  survey: SURVEY_SECTIONS.map((section) => section.type),
+};
+
+for (const kind of KINDS) {
+  for (const type of DRAFTED[kind]) {
+    check(
+      `${kind}/${type} appears in a group`,
+      groupKeyOf(kind, type) !== null,
+      "unmapped - it would vanish from the issued document",
+    );
+  }
+}
+
+// The other half of the same promise: a type no group prints must be one
+// nothing writes, or it is content generated straight into a hole.
 for (const kind of KINDS) {
   for (const section of STORED[kind]) {
+    if (groupKeyOf(kind, section.type) !== null) continue;
     check(
-      `${kind}/${section.type} appears in a group`,
-      groupKeyOf(kind, section.type) !== null,
-      "unmapped - it would vanish from the issued document",
+      `${kind}/${section.type} is retained data, not something still written`,
+      !DRAFTED[kind].includes(section.type),
+      "generated but never printed",
     );
   }
 }
@@ -179,7 +207,20 @@ for (const kind of KINDS) {
   const grouped = groupSections(kind, sections);
   const flattened = grouped.flatMap((entry) => entry.entries);
 
-  check(`${kind}: every section came out the other side`, flattened.length === sections.length);
+  // Every section the structure prints comes out; a retained legacy type is
+  // deliberately left behind. Both halves matter: the first is the promise
+  // that nothing written is lost, the second is the promise that nothing a
+  // person never saw reaches the client.
+  const printed = sections.filter((section) => groupKeyOf(kind, section.type) !== null);
+  check(
+    `${kind}: every section the document prints came out the other side`,
+    flattened.length === printed.length,
+    `${flattened.length} of ${printed.length}`,
+  );
+  check(
+    `${kind}: a retained legacy type is not carried into the document`,
+    flattened.every((section) => groupKeyOf(kind, section.type) !== null),
+  );
   check(
     `${kind}: nothing was duplicated`,
     new Set(flattened.map((section) => section.type)).size === flattened.length,
@@ -197,18 +238,24 @@ for (const kind of KINDS) {
 // Empty sections are normal - the drafting prompt returns them for anything
 // the notes did not support - so a group must cope with having nothing.
 const sparse = groupSections("daily", [
-  { type: "works_completed", label: "Works completed", content: "One thing." },
+  { type: "executive_summary", label: "Summary", content: "One thing." },
 ]);
 check("a group with nothing in it comes back empty, not missing", sparse.length === 3);
 check("and the section lands in the right one", sparse[0].entries.length === 1);
 check("with the other groups left empty", sparse[1].entries.length === 0 && sparse[2].entries.length === 0);
 
-// A type nobody mapped must still print. It should never happen - check 3
-// fails first - but losing a paragraph is worse than printing it oddly.
-const orphaned = groupSections("daily", [{ type: "invented_later", label: "New", content: "Text." }]);
+// A type no group prints is not printed. This is the rule that changed: it
+// used to be appended to the last group so a paragraph could not be lost, and
+// the cost was that a Daily Report's issued PDF carried a "Works completed"
+// paragraph under "Issues / Next Steps" that nobody had seen on the screen.
+// Surprise export content is the worse of the two faults.
+const orphaned = groupSections("daily", [
+  { type: "works_completed", label: "Works completed", content: "Text nobody saw." },
+  { type: "invented_later", label: "New", content: "Text." },
+]);
 check(
-  "an unmapped section is still printed rather than dropped",
-  orphaned.flatMap((entry) => entry.entries).length === 1,
+  "a section no group prints is dropped, not appended to whichever group is last",
+  orphaned.flatMap((entry) => entry.entries).length === 0,
 );
 
 console.log("\n6. Run-in labels keep the status a dispute would turn on");
@@ -224,20 +271,25 @@ check(
 );
 check(
   "and a section named after its group never labels itself",
-  runInLabel(dailyStructure[2], "Issues / Next Steps", 3) === null,
+  runInLabel(dailyStructure[2], "Issues raised", 3) === null,
 );
 check(
   "an existing full stop is not doubled",
   runInLabel(dailyStructure[0], "Works completed.", 2) === "Works completed.",
 );
 
-// The distinctions that matter if this document is read next to the raw
-// notes months later. Each must still be visible somewhere in its group.
+// The distinctions that matter if this document is read next to the raw notes
+// months later. Each must still be visible somewhere in its group.
+//
+// Shorter than it was, and that is the point of this batch: a Daily Report no
+// longer separates works completed from works in progress from planned works,
+// because those were one day's story told three times and two of them were
+// folded away on screen while all three printed. What a Daily distinguishes
+// now is the summary from the issues raised.
 for (const [kind, labels] of [
-  ["daily", ["Works completed", "Works in progress", "Planned works"]],
-  ["progress", ["Works completed", "Works in progress", "Next period"]],
+  ["progress", ["Next period"]],
   ["survey", ["Recommended works", "Findings and existing condition"]],
-  ["completion", ["Completed works", "Outstanding and sign-off"]],
+  ["completion", ["Outstanding and sign-off"]],
 ]) {
   const sections = contentFor(kind);
   const grouped = groupSections(kind, sections);
@@ -337,8 +389,15 @@ console.log("\n9. Editing prose cannot move it into another stored section");
 // proof that no edit to prose can reclassify it.
 
 const dailySummary = reportStructure("daily")[0];
-const dailyOutstanding = reportStructure("daily")[2];
-const labelOf = (type) => REPORT_SECTIONS.find((section) => section.type === type).label;
+// A Daily Report's Issues group carries no prose at all now - the issues are
+// records, not paragraphs - so the two-section case below is taken from a
+// Progress Report, which still has one.
+const progressOutstanding = reportStructure("progress")[2];
+// Daily types have their labels here; the Progress group below carries summary
+// types, whose label is cosmetic for this proof - what is under test is that a
+// field's value cannot move to another section, not what it is called.
+const labelOf = (type) =>
+  REPORT_SECTIONS.find((section) => section.type === type)?.label ?? type;
 const sectionsOf = (group, contentFor = (type) => `Original ${type}.`) =>
   group.sections.map((type) => ({ type, label: labelOf(type), content: contentFor(type) }));
 
@@ -361,49 +420,51 @@ check("and reports nothing changed", changedSections(filled, untouched).length =
 // types the words "Works completed" into the middle of their planned works.
 // Neither can move a word out of planned works, because the section a field
 // belongs to is not written in the box.
-const planned = sectionsOf(dailyOutstanding);
+const planned = sectionsOf(progressOutstanding);
 const meddled = readGroupFields(
   formOf({
     ...Object.fromEntries(planned.map((s) => [sectionFieldName(s.type), s.content])),
-    [sectionFieldName("planned_works")]:
-      "Works completed\nOutstanding items\nScreed is programmed to start on Monday.",
+    [sectionFieldName("next_period")]:
+      "Issues and resolutions\nScreed is programmed to start on Monday.",
   }),
   planned,
 );
 check(
   "text naming another section stays in the section it was typed into",
-  meddled.planned_works.includes("Screed is programmed to start on Monday."),
-  JSON.stringify(meddled.planned_works),
+  meddled.next_period.includes("Screed is programmed to start on Monday."),
+  JSON.stringify(meddled.next_period),
 );
 check(
   "and the section it names is not touched by it",
-  meddled.works_completed === undefined && meddled.outstanding_items === "Original outstanding_items.",
+  meddled.issues_and_resolutions === "Original issues_and_resolutions.",
   JSON.stringify(meddled),
 );
 check(
   "so only the section that was actually typed in comes back as changed",
-  changedSections(planned, meddled).map((section) => section.type).join(",") === "planned_works",
+  changedSections(planned, meddled).map((section) => section.type).join(",") === "next_period",
   JSON.stringify(changedSections(planned, meddled)),
 );
 
 // Emptying one part clears that section and only that one.
+const clearable = sectionsOf(progressOutstanding);
 const emptied = readGroupFields(
   formOf({
-    ...Object.fromEntries(filled.map((s) => [sectionFieldName(s.type), s.content])),
-    [sectionFieldName("works_completed")]: "",
+    ...Object.fromEntries(clearable.map((s) => [sectionFieldName(s.type), s.content])),
+    [sectionFieldName("issues_and_resolutions")]: "",
   }),
-  filled,
+  clearable,
 );
-check("clearing one part clears that section", emptied.works_completed === "");
+check("clearing one part clears that section", emptied.issues_and_resolutions === "");
 check(
   "and leaves every other section exactly as it was",
-  filled
-    .filter((section) => section.type !== "works_completed")
+  clearable
+    .filter((section) => section.type !== "issues_and_resolutions")
     .every((section) => emptied[section.type] === section.content),
 );
 check(
   "with only that one reported as changed",
-  changedSections(filled, emptied).map((section) => section.type).join(",") === "works_completed",
+  changedSections(clearable, emptied).map((section) => section.type).join(",") ===
+    "issues_and_resolutions",
 );
 
 // A missing field is an empty section, never another section's text.
@@ -449,9 +510,11 @@ console.log("\n9b. Which parts of a group get a box");
 
 check(
   "the ones already written",
-  editableSections(sectionsOf(dailySummary, (type) => (type === "works_completed" ? "Text." : "")))
+  editableSections(
+    sectionsOf(progressOutstanding, (type) => (type === "next_period" ? "Text." : "")),
+  )
     .map((section) => section.type)
-    .join(",") === "works_completed",
+    .join(",") === "next_period",
 );
 check(
   "and where nothing is written, the first, so there is somewhere to start",
@@ -530,20 +593,30 @@ for (const kind of ["progress", "completion", "survey"]) {
   check(`a ${kind} report is authored in its sections`, authoringMode(kind) === "sections");
 }
 
-// The hurricane rule: descriptions, then photographs, then the AI, then done.
-// On a daily report the one writing window is the notes box; the drafted
-// sections are output to read, with the editor a tap away rather than in front
-// of the microphone.
+// Nothing that can reach the client's PDF is folded away on either screen.
+// This was once the opposite rule - the editors sat behind "Edit the written
+// report", and inside them all but the first section sat behind "Also in this
+// section" - which meant a report exported five paragraphs a person had seen
+// one of.
 const dailyEditors = dailyPage.match(/<GroupEditor/g) ?? [];
-const dailyDisclosed = dailyPage.match(/<EditDisclosure>\s*\n\s*<GroupEditor/g) ?? [];
+check("the daily screen has a writing surface", dailyEditors.length > 0);
 check(
-  "every editor on the daily screen is behind a disclosure",
-  dailyEditors.length > 0 && dailyEditors.length === dailyDisclosed.length,
-  `${dailyDisclosed.length} of ${dailyEditors.length}`,
+  "and no disclosure anywhere near it",
+  !/EditDisclosure/.test(dailyPage) && !/EditDisclosure/.test(summaryPage),
+);
+check(
+  "the component that folded it away is gone for good",
+  !/export function EditDisclosure/.test(read("../components/reports/report-section-card.tsx")),
+);
+check(
+  "and no section folds inside the editor",
+  // The code, not the comment above it that records why the fold went.
+  !/<details/.test(groupEditor.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "")),
+  "every part of a group is rendered, in full",
 );
 check(
   "the drafted report is shown as prose while it is still a draft",
-  /<SectionProse entry=\{groupFor\("summary"\)\} \/>\s*\n\s*\n\s*\{isFinal/.test(dailyPage),
+  /<SectionProse entry=\{groupFor\("summary"\)\} \/>/.test(dailyPage),
 );
 check(
   "the one writing window is the notes box",
@@ -553,32 +626,16 @@ check(
   "and the editor is still offered where there is no AI to draft with",
   /hasWritten\(key\) \|\| !hasAiConfig\(\)/.test(dailyPage),
 );
-
-// A consolidated document has no notes box, so its sections are the writing
-// surface and stay in front of the user - with one deliberate exception. A
-// report that consolidates issued reports and has nothing written yet puts the
-// box away and leads with Generate instead: an empty box under a heading is
-// what made a site manager think his Daily Reports had gone and he had to type
-// the job again.
-const summaryDisclosures = summaryPage.match(/<EditDisclosure/g) ?? [];
 check(
-  "a consolidated document writes in its sections",
-  summaryDisclosures.length <= 1,
-  `${summaryDisclosures.length} disclosures`,
-);
-check(
-  "and folds the box away only where the report has sources and no words yet",
-  summaryDisclosures.length === 0 ||
-    /consolidating && !hasWrittenSummary \?/.test(summaryPage),
-);
-check(
-  "under a label saying it is optional",
-  summaryDisclosures.length === 0 || /Add your own notes \(optional\)/.test(summaryPage),
+  "a consolidated report with sources and no words yet says the box is optional",
+  /consolidating && !hasWrittenSummary \?/.test(summaryPage) && /Optional\./.test(summaryPage),
+  "a hint, not a disclosure",
 );
 check(
   "and a report written directly still writes in its sections",
   /\) : \(\s*\n\s*<GroupEditor/.test(summaryPage),
 );
+
 // The real measure of "how many writing areas": one per visible group, however
 // many branches render it.
 const summaryEditors = new Set(
@@ -600,37 +657,38 @@ check(
   reportStructure("completion").filter((group) => group.sections.length > 0).length === 3,
 );
 
-console.log("\n12. One box in front, the rest folded - and still saved");
+console.log("\n12. Nothing folds, and every part is still posted");
 
-const foldStart = groupEditor.indexOf("<details");
-const foldEnd = groupEditor.indexOf("</details>");
-const folded = groupEditor.slice(foldStart, foldEnd);
-check("there is a fold", foldStart > -1 && foldEnd > foldStart);
+// This section used to prove the opposite: that all but the first part sat
+// behind "Also in this section", and that the fold still posted its fields.
+// The fold is gone. A section that can reach the client's PDF is on the screen
+// the person signs off, and the way that is kept true is that each group
+// carries one written section rather than that the extras are hidden well.
+const editorCode = groupEditor
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/^\s*\/\/.*$/gm, "");
+
+check("no disclosure of any kind in the editor", !/<details/.test(editorCode));
+check("and nothing named 'Also in this section'", !/Also in this section/.test(editorCode));
 check(
-  "only the first part is in front of you",
-  /<Part\s*\n\s*part=\{primary\}/.test(groupEditor),
+  "the first part is in front of you",
+  /<Part\s*\n\s*part=\{primary\}/.test(editorCode),
 );
-check("the others are inside the fold", /rest\.map\(\(part\)/.test(folded) && /<Part/.test(folded));
 check(
-  "the fold names what is in it rather than hiding it",
-  /Also in this section: \$\{rest\.map/.test(groupEditor),
+  "and any others are rendered beside it, not behind anything",
+  /\{rest\.map\(\(part\) => \(/.test(editorCode),
 );
 
-// THE PROPERTY THAT MATTERS. A folded field is still a field: <details> keeps
-// its children in the document, so the browser posts them. A conditional
-// render would post nothing for those sections, readGroupFields would read
-// them as empty, and saving one part would silently clear the rest.
+// THE PROPERTY THAT STILL MATTERS. Every field must be in the document, or the
+// browser posts nothing for it, readGroupFields reads it as empty, and saving
+// one part silently clears the rest.
 check(
-  "folded parts are rendered unconditionally, so the form still posts them",
-  !/\{open &&/.test(groupEditor) &&
-    !/showAll/.test(groupEditor) &&
-    // The only condition on the fold is whether there is anything to fold.
-    /\{rest\.length > 0 \? \(/.test(groupEditor),
+  "parts are rendered unconditionally, so the form still posts them",
+  !/\{open &&/.test(editorCode) && !/showAll/.test(editorCode),
 );
 check(
-  "and a field's section is still its name, folded or not",
-  (groupEditor.match(/name=\{sectionFieldName\(part\.type\)\}/g) ?? []).length === 1 &&
-    /<Part/.test(folded),
+  "and a field's section is still its name",
+  (editorCode.match(/name=\{sectionFieldName\(part\.type\)\}/g) ?? []).length === 1,
 );
 
 // Proof of the consequence, at the level the save actually works on: a form

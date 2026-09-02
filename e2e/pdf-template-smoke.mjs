@@ -80,8 +80,14 @@ function daily(overrides = {}) {
     // by type now, so a fixture using a type the app never stores would land
     // in the fallback group and prove nothing about the real document.
     sections: [
-      { type: "executive_summary", label: "Summary", content: "A steady day on the east elevation." },
-      { type: "works_completed", label: "Works completed", content: "Ducting laid to the east elevation." },
+      {
+        type: "executive_summary",
+        label: "Summary",
+        content: "A steady day on the east elevation. Ducting laid to the east elevation.",
+      },
+      // Retained data from before the structures shrank. It must not print:
+      // it is not on the screen the person signed off. See test:what-you-see.
+      { type: "works_completed", label: "Works completed", content: "Nobody saw this." },
       { type: "issues_constraints", label: "Issues and constraints", content: "Access restricted after 3pm." },
     ],
     issues: [],
@@ -252,15 +258,21 @@ for (const [what, needle] of [
 // like and what is still open - the thirteen headings this used to print were
 // a database table with a cover sheet on it. Every stored section is still in
 // there, opening its own paragraph with its own name.
-for (const heading of ["Daily Summary", "Photos & Evidence", "Issues / Next Steps"]) {
+for (const heading of ["Daily Summary", "Photos & Evidence"]) {
   check(`the daily report shows "${heading}"`, dailyText.includes(heading), heading);
 }
 for (const gone of ["Photographic evidence", "Works in progress", "Deliveries and plant"]) {
   check(`"${gone}" is no longer a heading of its own`, !sectionHeadings(dailyTree).includes(gone), gone);
 }
 check(
-  "a stored section keeps its name as a run-in label",
-  dailyText.includes("Works completed."),
+  "a retained section that no group declares does not print",
+  !dailyText.includes("Nobody saw this."),
+  "surprise export content is the fault this removed",
+);
+check(
+  "and a lone written section carries no run-in label of its own",
+  !dailyText.includes("Works completed."),
+  "the heading has already said what this is",
 );
 check("the section says which plates it holds", dailyText.includes("P01-P03"));
 check("a status that says something is printed", dailyText.includes("Before"));

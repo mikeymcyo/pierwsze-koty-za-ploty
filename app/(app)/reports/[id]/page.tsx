@@ -18,7 +18,6 @@ import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
 import { ReportCaptureForm } from "@/components/reports/report-capture-form";
 import {
-  EditDisclosure,
   ReadOnlySection,
   ReportSectionCard,
 } from "@/components/reports/report-section-card";
@@ -341,15 +340,15 @@ export default async function ReportCapturePage({
           <SectionProse entry={groupFor("summary")} />
 
           {isFinal || !offerEditor("summary") ? null : (
-            <EditDisclosure>
-              <GroupEditor
-                key={JSON.stringify(editorSections("summary").map((section) => section.content))}
-                groupKey="summary"
-                groupLabel={summaryGroup.label}
-                sections={editorSections("summary")}
-                action={updateSectionGroup.bind(null, report.id)}
-              />
-            </EditDisclosure>
+            // Not behind a disclosure. What is written here is what the client
+            // receives, so it is on the screen the person signs off.
+            <GroupEditor
+              key={JSON.stringify(editorSections("summary").map((section) => section.content))}
+              groupKey="summary"
+              groupLabel={summaryGroup.label}
+              sections={editorSections("summary")}
+              action={updateSectionGroup.bind(null, report.id)}
+            />
           )}
         </ReportSectionCard>
       )}
@@ -447,16 +446,14 @@ export default async function ReportCapturePage({
         <ReportSectionCard group={outstandingGroup}>
           <SectionProse entry={groupFor("outstanding")} />
 
-          {isFinal || !offerEditor("outstanding") ? null : (
-            <EditDisclosure>
-              <GroupEditor
-                key={JSON.stringify(editorSections("outstanding").map((section) => section.content))}
-                groupKey="outstanding"
-                groupLabel={outstandingGroup.label}
-                sections={editorSections("outstanding")}
-                action={updateSectionGroup.bind(null, report.id)}
-              />
-            </EditDisclosure>
+          {isFinal || !offerEditor("outstanding") || editorSections("outstanding").length === 0 ? null : (
+            <GroupEditor
+              key={JSON.stringify(editorSections("outstanding").map((section) => section.content))}
+              groupKey="outstanding"
+              groupLabel={outstandingGroup.label}
+              sections={editorSections("outstanding")}
+              action={updateSectionGroup.bind(null, report.id)}
+            />
           )}
 
           {isFinal ? null : (

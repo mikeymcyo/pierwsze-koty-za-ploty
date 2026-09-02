@@ -130,12 +130,13 @@ check(
   /Write each section below/.test(writer),
 );
 check(
-  "the writing box is put away until there is something to correct",
+  "the writing box is introduced rather than presented as the thing to do",
   /consolidating && !hasWrittenSummary \?/.test(page),
 );
 check(
-  "under a label that says it is optional",
-  /Add your own notes \(optional\)/.test(page),
+  "by a hint saying it is optional - not a disclosure, because anything typed there is exported",
+  /Optional\. The report is written from the sources you have ticked/.test(page) &&
+    !/EditDisclosure/.test(page),
 );
 check(
   "and a report written directly keeps its writing surface",

@@ -360,10 +360,11 @@ check(
   structure.filter((group) => group.sections.length > 0).length <= 3,
 );
 check(
-  "every completion section still has a home",
-  COMPLETION_SECTIONS.every((section) =>
-    structure.some((group) => group.sections.includes(section.type)),
-  ),
+  "every section the document declares has a home",
+  structure
+    .flatMap((group) => group.sections)
+    .every((type) => COMPLETION_SECTIONS.some((section) => section.type === type)),
+  "a group may not print a type that is not a stored section",
 );
 
 console.log("\n10. Nothing was migrated");

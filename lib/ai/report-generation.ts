@@ -4,7 +4,7 @@ import OpenAI from "openai";
 import { z } from "zod";
 
 import { SYSTEM_PROMPT, buildPrompt, type GenerationInput } from "@/lib/ai/prompt";
-import { REPORT_SECTIONS } from "@/lib/report-sections";
+import { DAILY_DRAFTED_SECTIONS } from "@/lib/report-sections";
 import type { ReportSectionType } from "@/types/database";
 
 /**
@@ -36,7 +36,7 @@ export function hasAiConfig(): boolean {
 
 const sectionsSchema = z.object(
   Object.fromEntries(
-    REPORT_SECTIONS.map((section) => [section.type, z.string()]),
+    DAILY_DRAFTED_SECTIONS.map((section) => [section.type, z.string()]),
   ) as Record<ReportSectionType, z.ZodString>,
 );
 
@@ -74,7 +74,7 @@ export async function generateSections(
   });
 
   const properties = Object.fromEntries(
-    REPORT_SECTIONS.map((section) => [
+    DAILY_DRAFTED_SECTIONS.map((section) => [
       section.type,
       { type: "string", description: section.brief },
     ]),
@@ -97,7 +97,7 @@ export async function generateSections(
             properties,
             // Every key is required, but any of them may be "" - that is how the
             // model says "the notes do not cover this" without omitting a field.
-            required: REPORT_SECTIONS.map((section) => section.type),
+            required: DAILY_DRAFTED_SECTIONS.map((section) => section.type),
             additionalProperties: false,
           },
         },

@@ -249,8 +249,22 @@ export function summarySectionsFor(kind: SummaryReportKind): SummarySectionDefin
  */
 export const COMPLETION_DRAFTED_TYPES: readonly SummarySectionType[] = [
   "project_overview",
-  "completed_works",
+  // Not completed_works: the instructed works table is what was asked for and
+  // what was done, item by item. A paragraph saying it again in prose was the
+  // same story twice, and only one of them was in front of anybody.
   "sign_off",
+];
+
+/**
+ * A Progress Report is its summary, and what is still open.
+ *
+ * Key activities, works completed, works in progress and resources were four
+ * more consolidations of one period. They stay as stored types - an existing
+ * report keeps its text - but nothing asks for them again.
+ */
+export const PROGRESS_DRAFTED_TYPES: readonly SummarySectionType[] = [
+  "period_summary",
+  "next_period",
 ];
 
 /**
@@ -261,10 +275,9 @@ export const COMPLETION_DRAFTED_TYPES: readonly SummarySectionType[] = [
  * what it stores.
  */
 export function summaryDraftedSectionsFor(kind: SummaryReportKind): SummarySectionDefinition[] {
-  if (kind !== "completion") return summarySectionsFor(kind);
-  return COMPLETION_SECTIONS.filter((section) =>
-    COMPLETION_DRAFTED_TYPES.includes(section.type),
-  );
+  if (kind === "survey") return SURVEY_SECTIONS;
+  const drafted = kind === "completion" ? COMPLETION_DRAFTED_TYPES : PROGRESS_DRAFTED_TYPES;
+  return summarySectionsFor(kind).filter((section) => drafted.includes(section.type));
 }
 
 export function summarySectionOrder(kind: SummaryReportKind): SummarySectionType[] {
