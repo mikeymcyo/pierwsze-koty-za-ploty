@@ -1,4 +1,4 @@
-import { ADVANCED_DETAILS_LABEL, type ReportGroup } from "@/lib/report-structure";
+import type { ReportGroup } from "@/lib/report-structure";
 
 /**
  * One of a report's three visible sections, on screen.
@@ -9,11 +9,16 @@ import { ADVANCED_DETAILS_LABEL, type ReportGroup } from "@/lib/report-structure
  * way and a document organised another is how somebody finishes a report
  * believing it says something it does not.
  *
- * `advanced` is the escape hatch that makes three sections possible without
- * hiding anything: the workforce and plant rows, the document register, the
- * source record. All of it is still here, one tap away, and none of it is in
- * the way of the four things somebody actually does on site - talk, photograph,
- * raise what is wrong, and send it.
+ * `records` is the recorded data that belongs to this section: the workforce
+ * and plant rows, the document register, the source record. It sits inline,
+ * under its own quiet heading, and never behind a disclosure - all of it is
+ * printed in the issued PDF, and anything that can reach the client has to be
+ * on the screen the person signed off. It used to be folded away under
+ * "Advanced details", which meant a report exported an appendix nobody had
+ * opened.
+ *
+ * Pass nothing where there is nothing: a heading over an empty list is clutter
+ * on a phone, and "No documents were referenced" is a sentence nobody needs.
  *
  * A server component: it holds no state, and everything interactive inside it
  * brings its own client boundary.
@@ -21,16 +26,16 @@ import { ADVANCED_DETAILS_LABEL, type ReportGroup } from "@/lib/report-structure
 export function ReportSectionCard({
   group,
   children,
-  advanced,
-  advancedLabel = ADVANCED_DETAILS_LABEL,
-  advancedHint,
+  records,
+  recordsLabel,
+  recordsHint,
 }: {
   group: ReportGroup;
   children: React.ReactNode;
-  /** Recorded data that belongs to this section but not in front of it. */
-  advanced?: React.ReactNode;
-  advancedLabel?: string;
-  advancedHint?: string;
+  /** Recorded data that belongs to this section. Omit when there is none. */
+  records?: React.ReactNode;
+  recordsLabel?: string;
+  recordsHint?: string;
 }) {
   return (
     <section className="flex flex-col gap-4 border-t border-line pt-6">
@@ -38,17 +43,17 @@ export function ReportSectionCard({
         <h2 className="text-base font-bold tracking-tight text-ink">{group.label}</h2>
         <p className="text-sm text-ink-muted">{group.hint}</p>
       </div>
-
       {children}
-
-      {advanced ? (
-        <details className="rounded-xl border border-line bg-surface-muted p-4">
-          <summary className="cursor-pointer text-sm font-semibold text-ink">
-            {advancedLabel}
-          </summary>
-          {advancedHint ? <p className="mt-2 text-sm text-ink-muted">{advancedHint}</p> : null}
-          <div className="mt-4 flex flex-col gap-6">{advanced}</div>
-        </details>
+      {records ? (
+        <div className="flex flex-col gap-3 border-t border-line pt-4">
+          {recordsLabel ? (
+            <h3 className="text-xs font-bold tracking-wide text-ink-muted uppercase">
+              {recordsLabel}
+            </h3>
+          ) : null}
+          {recordsHint ? <p className="text-sm text-ink-muted">{recordsHint}</p> : null}
+          <div className="flex flex-col gap-6">{records}</div>
+        </div>
       ) : null}
     </section>
   );

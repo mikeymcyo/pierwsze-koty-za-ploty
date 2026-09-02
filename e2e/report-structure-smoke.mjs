@@ -17,7 +17,6 @@
  */
 
 import {
-  ADVANCED_DETAILS_LABEL,
   APPENDIX_LABEL,
   REPORT_STRUCTURES,
   authoringMode,
@@ -310,7 +309,10 @@ for (const [kind, labels] of [
 console.log("\n7. Recorded data has somewhere to go");
 
 check("the appendix is named", /appendix/i.test(APPENDIX_LABEL), APPENDIX_LABEL);
-check("and the screens call it something a person understands", Boolean(ADVANCED_DETAILS_LABEL));
+check(
+  "and the screens show that data inline rather than naming a disclosure",
+  !/ADVANCED_DETAILS_LABEL|Advanced details/.test(read("../lib/report-structure.ts")),
+);
 check(
   "the evidence group is the same job in every document",
   KINDS.every((kind) => REPORT_STRUCTURES[kind][1].label === "Photos & Evidence"),
@@ -344,19 +346,22 @@ for (const [name, source] of [
 }
 
 // The blocks that used to be sections of their own. Each is still on the
-// screen - inside a card, or behind its "Advanced details" - and none of them
-// is a heading competing with the report any more.
+// screen, inline, and none of them is a heading competing with the report any
+// more. They were behind "Advanced details" until it turned out a report could
+// export a workforce nobody had opened the panel to look at.
 const captureForm = read("../components/reports/report-capture-form.tsx");
 check(
-  "the date, weather, workforce and plant moved behind a disclosure",
-  /<details/.test(captureForm) && /ADVANCED_DETAILS_LABEL/.test(captureForm),
+  "the date, weather, workforce and plant are inline, not folded",
+  !/<details/.test(
+    captureForm.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, ""),
+  ),
 );
 for (const kept of ["WorkforceRows", "PlantRows", "report_date", "weather"]) {
   check(`and ${kept} is still on the form`, captureForm.includes(kept));
 }
 check(
-  "the notes come before it, not after",
-  captureForm.indexOf("DictationField") < captureForm.indexOf("ADVANCED_DETAILS_LABEL"),
+  "the notes come before them, not after",
+  captureForm.indexOf("DictationField") < captureForm.indexOf("WorkforceRows"),
 );
 check(
   "dictation keeps the label the tests and screen readers find it by",
@@ -368,8 +373,8 @@ for (const [name, source] of [
   ["the consolidated screen", summaryPage],
 ]) {
   check(
-    `${name} keeps supporting documents, behind the disclosure`,
-    /advancedLabel="Supporting documents"/.test(source),
+    `${name} keeps supporting documents, inline under their own heading`,
+    /recordsLabel="Supporting documents"/.test(source) && !/advanced(Label|Hint)?=/.test(source),
   );
   check(`${name} still raises and lists what is open`, /Issue|issues/.test(source));
 }

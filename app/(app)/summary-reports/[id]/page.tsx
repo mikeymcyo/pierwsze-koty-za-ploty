@@ -366,14 +366,14 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
       {isFinal ? <Alert tone="info">This document has been issued and is no longer editable.</Alert> : null}
       {loadError ? <LoadError what="this report's contents" code={loadError.code} /> : null}
 
-      {/* One. What the document says overall. The title, the provenance and the
-          list of reports behind it are the record of how this was built, so
-          they sit behind "Advanced details" rather than in front of the words
-          a client will read. */}
+      {/* One. What the document says overall, then the record of how it was
+          built - the title, the provenance and the reports behind it. That
+          record is printed with the document, so it reads under the words
+          rather than being folded away from them. */}
       {!loadError ? (
         <ReportSectionCard
           group={summaryGroup}
-          advanced={
+          records={
             isFinal && sourceItems.length === 0 ? undefined : (
               <>
                 {!isFinal ? <SummaryDetails reportId={id} title={report.title} /> : null}
@@ -457,17 +457,17 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
       {!loadError ? (
         <ReportSectionCard
           group={evidenceGroup}
-          advancedLabel="Supporting documents"
-          advancedHint={
+          recordsLabel="Supporting documents"
+          recordsHint={
             isFinal
               ? "The drawings, RAMS and other documents this document was issued against."
               : "Drawings, RAMS, permits and anything else this should be read alongside. They are listed in the PDF."
           }
-          advanced={
-            isFinal ? (
-              referencedDocuments.length === 0 ? (
-                <p className="text-sm text-ink-muted">No documents were referenced.</p>
-              ) : (
+          records={
+            // Nothing at all where an issued report referenced no documents:
+            // a heading over "No documents were referenced" is a sentence
+            // nobody needs on a phone.
+            isFinal && referencedDocuments.length === 0 ? undefined : isFinal ? (
                 <ul className="flex flex-col gap-2">
                   {referencedDocuments.map((document) => (
                     <li
@@ -500,8 +500,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
                       )}
                     </li>
                   ))}
-                </ul>
-              )
+            </ul>
             ) : (
               <>
                 <DocumentUpload

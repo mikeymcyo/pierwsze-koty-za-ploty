@@ -33,7 +33,8 @@
  *
  * Recorded data that is not prose - workforce, plant, the document register,
  * the source record - leaves the main flow entirely. On screen it goes behind
- * "Advanced details"; in the PDF it goes to an appendix. It is never dropped.
+ * inline under its own quiet heading; in the PDF it goes to an appendix. It is
+ * never dropped, and never folded away.
  */
 
 /** The four documents, matching lib/ai/cleanup-prompt.ts. */
@@ -296,5 +297,3 @@ export function appendixNote(parts: {
     .join(" · ");
 }
 
-/** What the screens call the same thing, where it is a disclosure rather than an appendix. */
-export const ADVANCED_DETAILS_LABEL = "Advanced details";

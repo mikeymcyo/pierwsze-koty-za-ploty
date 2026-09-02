@@ -179,6 +179,30 @@ exports; and the drafted set contains none of the duplicated types. Eight
 existing suites that pinned the old shape were updated to the new one, each
 saying why rather than being loosened.
 
+### The last disclosure, and the export-parity check
+
+`ReportSectionCard`'s "Advanced details" fold held the workforce and plant
+rows, the document register and the source record - all of which print in the
+issued PDF's appendix. A report could export a workforce nobody had opened the
+panel to look at, so it is gone: the prop is `records`, it renders inline under
+a quiet heading, and `ADVANCED_DETAILS_LABEL` is deleted. The date, weather,
+workforce and plant on the capture form are inline for the same reason.
+
+Empty means absent. An issued report that referenced no documents shows
+nothing at all rather than a heading over "No documents were referenced".
+
+**What may still fold, and why:** the raw notes on the daily screen ("What you
+actually said") are the source the report was written from and are printed
+nowhere - `test:what-you-see` asserts the daily PDF contains no `rawNotes`. The
+"More tools" panel on the report holds Write with AI and Master Review, which
+are tools rather than content.
+
+`npm run check:export-parity` renders one Daily, one Progress and one
+Completion through the shipping layouts, pulls the text back out of the real
+PDF bytes with pdfjs, prints it beside the sections the screen declares, and
+asserts a retained legacy section appears in none of the three. Run it to see
+the three documents rather than infer them from a regex.
+
 ## Completion Reports, Phase 1: plates and the instructed works table
 
 Measured against a real Fable-polished completion report for Lidl GB RDC

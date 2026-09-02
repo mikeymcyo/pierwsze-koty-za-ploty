@@ -41,6 +41,7 @@ const summaryPage = read("../app/(app)/summary-reports/[id]/page.tsx");
 const dailyPdf = read("../lib/pdf/report-document.tsx");
 const summaryPdf = read("../lib/pdf/summary-document.tsx");
 const groupEditor = read("../components/reports/group-editor.tsx");
+const captureForm = read("../components/reports/report-capture-form.tsx");
 const sectionCard = read("../components/reports/report-section-card.tsx");
 
 console.log("\n1. The screen and the document group prose the same way");
@@ -86,17 +87,46 @@ check(
 );
 check("and neither screen uses it", !/EditDisclosure/.test(dailyPage) && !/EditDisclosure/.test(summaryPage));
 
-// The one disclosure left on a report screen holds recorded data a person
-// typed themselves - workforce rows, plant, the document register, the source
-// record. It is not narrative, and this check pins it to that.
-const advancedOnly = (page) =>
-  [...page.matchAll(/<ReportSectionCard[\s\S]*?>/g)].every(
-    (match) => !/children|GroupEditor/.test(match[0]),
-  );
-check("the remaining disclosure is the recorded-data one", advancedOnly(dailyPage));
+// Recorded data - workforce, plant, the document register, the source record -
+// is printed in the issued PDF's appendix, so it is inline on the screen too.
+// It was behind "Advanced details" until it turned out a report could export a
+// workforce nobody had opened the panel to look at.
 check(
-  "and it is named as advanced details, not as writing",
-  /advanced=\{/.test(dailyPage) || /advanced=\{/.test(summaryPage),
+  "the disclosure that held recorded data is gone from the card",
+  !/<details/.test(code(sectionCard)) && /records\?: React\.ReactNode/.test(sectionCard),
+);
+check(
+  "and its label with it",
+  // The code, not the comments that record why it went.
+  !/ADVANCED_DETAILS_LABEL|Advanced details/.test(
+    code(read("../lib/report-structure.ts")) + code(dailyPage) + code(summaryPage),
+  ),
+);
+check(
+  "the date, weather, workforce and plant are inline on the form",
+  !/<details/.test(code(captureForm)) &&
+    ["WorkforceRows", "PlantRows", "report_date", "weather"].every((kept) =>
+      captureForm.includes(kept),
+    ),
+);
+check(
+  "supporting documents sit inline under their own heading",
+  /recordsLabel="Supporting documents"/.test(dailyPage) &&
+    /recordsLabel="Supporting documents"/.test(summaryPage),
+);
+check(
+  "and an issued report that referenced none shows nothing at all",
+  /isFinal && referencedDocuments\.length === 0 \? undefined/.test(dailyPage) &&
+    /isFinal && referencedDocuments\.length === 0 \? undefined/.test(summaryPage),
+  "a heading over 'No documents were referenced' is a sentence nobody needs",
+);
+
+// What may still fold: things that never reach the PDF. The raw notes a
+// person dictated are the source the report was written from, shown for
+// comparison and printed nowhere; the AI tools are tools, not content.
+check(
+  "raw notes are not printed in the daily PDF, so showing them is a choice",
+  !/rawNotes|raw_notes/.test(dailyPdf),
 );
 
 console.log("\n3. One story, told once");

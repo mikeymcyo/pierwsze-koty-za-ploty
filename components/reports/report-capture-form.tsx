@@ -11,7 +11,6 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { ADVANCED_DETAILS_LABEL } from "@/lib/report-structure";
 import type { PlantEntry, Report, WorkforceEntry } from "@/types/database";
 
 type ReportCaptureFormProps = {
@@ -82,13 +81,15 @@ export function ReportCaptureForm({
         />
       </Block>
 
-      <details className="rounded-xl border border-line bg-surface-muted p-4">
-        <summary className="cursor-pointer text-sm font-semibold text-ink">
-          {ADVANCED_DETAILS_LABEL}
-        </summary>
-        <p className="mt-2 text-sm text-ink-muted">
-          The date, the weather, and who and what was on site. All of it is
-          saved with the report and printed in its appendix.
+      {/* Inline, not folded. Every field below is printed in the issued PDF's
+          appendix, and anything that reaches the client has to be on the screen
+          the person signed off. It used to sit behind "Advanced details", which
+          meant a report exported a workforce nobody had opened the panel to
+          check. */}
+      <div className="flex flex-col gap-2 border-t border-line pt-5">
+        <p className="text-sm text-ink-muted">
+          The date, the weather, and who and what was on site. All of it is saved with the
+          report and printed in its appendix.
         </p>
 
         <div className="mt-4 flex flex-col gap-8">
@@ -127,7 +128,7 @@ export function ReportCaptureForm({
             <PlantRows entries={plant} />
           </Block>
         </div>
-      </details>
+      </div>
 
       <div className="flex flex-col gap-3 sm:flex-row-reverse sm:justify-start">
         <SaveButton />

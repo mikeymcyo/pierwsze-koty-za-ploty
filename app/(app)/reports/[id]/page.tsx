@@ -321,9 +321,9 @@ export default async function ReportCapturePage({
 
       {/* One. What the day amounted to: the notes, the button that writes it
           up, and the sections that come back. The date, weather, workforce and
-          plant live behind "Advanced details" inside the form - they are a
-          record that carries over from yesterday, not what somebody came here
-          to do. */}
+          plant sit inline below them - a record that carries over from
+          yesterday rather than what somebody came here to do, but printed in
+          the issued PDF and so shown on the screen that issues it. */}
       {loadError || (isFinal && !showsWhenIssued("summary")) ? null : (
         <ReportSectionCard group={summaryGroup}>
           {isFinal ? null : (
@@ -359,17 +359,17 @@ export default async function ReportCapturePage({
       {loadError || (isFinal && !showsWhenIssued("evidence")) ? null : (
         <ReportSectionCard
           group={evidenceGroup}
-          advancedLabel="Supporting documents"
-          advancedHint={
+          recordsLabel="Supporting documents"
+          recordsHint={
             isFinal
               ? "The drawings, RAMS and other documents this report was issued against."
               : "Drawings, RAMS, permits and anything else this report should be read alongside. They are listed in the PDF."
           }
-          advanced={
-            isFinal ? (
-              referencedDocuments.length === 0 ? (
-                <p className="text-sm text-ink-muted">No documents were referenced.</p>
-              ) : (
+          records={
+            // Nothing at all where an issued report referenced no documents:
+            // a heading over "No documents were referenced" is a sentence
+            // nobody needs on a phone.
+            isFinal && referencedDocuments.length === 0 ? undefined : isFinal ? (
                 <ul className="flex flex-col gap-2">
                   {referencedDocuments.map((document) => (
                     <li
@@ -402,8 +402,7 @@ export default async function ReportCapturePage({
                       )}
                     </li>
                   ))}
-                </ul>
-              )
+            </ul>
             ) : (
               <>
                 <DocumentUpload

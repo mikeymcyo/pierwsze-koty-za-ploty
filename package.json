@@ -48,6 +48,7 @@
     "test:prepare-gate": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/prepare-gate-smoke.mjs",
     "test:instructed-works": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/instructed-works-smoke.mjs",
     "test:what-you-see": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/what-you-see-smoke.mjs",
+    "check:export-parity": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/export-parity-check.mjs",
     "test:document-extraction": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/document-extraction-smoke.mjs",
     "test:documents": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/documents-smoke.mjs",
     "test:document-upload": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/document-upload-smoke.mjs",
