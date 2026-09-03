@@ -158,21 +158,23 @@ export const CLEANUP_SECTIONS: Record<CleanupDocumentKind, readonly CleanupSecti
   ],
   completion: [
     {
-      // Three sections, matching COMPLETION_DRAFTED_TYPES in
+      // Two sections, matching COMPLETION_DRAFTED_TYPES in
       // lib/summary-reports/sections.ts. A Completion Report can still hold the
-      // scope list, the stage sequence and the key technical activities, and
-      // prints them where somebody wrote them - but asking a model for eight
-      // accounts of one job produces eight versions of the same fortnight.
+      // scope list, the stage sequence, the key technical activities and the
+      // completed works, and prints them where somebody wrote them - but asking
+      // a model for eight accounts of one job produces eight versions of the
+      // same fortnight.
+      //
+      // Completed works is the one that had to go rather than merely not be
+      // asked for. The instructed works table is already what was asked for and
+      // what was done, item by item; a paragraph restating it is the same story
+      // twice. It stayed in this list after COMPLETION_DRAFTED_TYPES dropped it,
+      // so the model was still being asked for it and the answer was still being
+      // fed back as context for this section.
       type: "project_overview",
       label: "Completion summary",
       brief:
-        "The executive account of the job, in four or five sentences, able to stand on its own: what the project was, what was achieved, and where it now stands overall. Not a list of the completed activities, which belong under completed works. Where anything is recorded as outstanding or follow-on, say the main works are complete with those items remaining - never that all works are complete. Plain site English, not legal register: never \"the completion position is limited to\", \"insofar as\", \"for the avoidance of doubt\" or \"the aforementioned\".",
-    },
-    {
-      type: "completed_works",
-      label: "Completed works",
-      brief:
-        "The completed workstreams as a concise factual account, keeping the materials, locations, quantities, components and technical detail the records give. Nothing planned, programmed, awaited or still to be carried out belongs here. Do not repeat a sentence from the completion summary. Where there were several distinct workstreams, write them as short lines each beginning \"- \", one per line; a single workstream stays as prose. A blanket sentence such as \"all works were completed successfully\" is not a completed workstream and does not belong in this section. Completion is not approval, acceptance, compliance or certification.",
+        "The executive account of the job, in four or five sentences, able to stand on its own: what the project was, what was achieved, and where it now stands overall. Not a list of the completed activities - the instructed works table already carries what was asked for and what was done, item by item. Where anything is recorded as outstanding or follow-on, say the main works are complete with those items remaining - never that all works are complete. Plain site English, not legal register: never \"the completion position is limited to\", \"insofar as\", \"for the avoidance of doubt\" or \"the aforementioned\".",
     },
     {
       type: "sign_off",

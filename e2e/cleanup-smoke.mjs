@@ -572,8 +572,12 @@ try {
     );
     check(
       `${kind}: empty sections are dropped rather than carried`,
-      Object.keys(parsed.sections).length < definitions.length &&
+      // The stub fills the first two sections and leaves the rest empty, so a
+      // kind that cleans only two - completion - has none to drop. The half
+      // that matters either way is that nothing empty came through.
+      (definitions.length <= 2 || Object.keys(parsed.sections).length < definitions.length) &&
         Object.values(parsed.sections).every((text) => text.trim().length > 0),
+      `${Object.keys(parsed.sections).length} of ${definitions.length}`,
     );
     check(
       `${kind}: the markdown heading and label the model added are gone`,

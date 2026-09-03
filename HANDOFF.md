@@ -62,50 +62,37 @@ dangerous - see the migration ledger section far below.
 - `npx tsc --noEmit`, `npx eslint .` and `npm run build`: **all pass.** The
   build prints one pre-existing warning, `Package pdfjs-dist can't be
   external`, which is unrelated to any recent change.
-- **47 of 48 dependency-free suites pass**, plus `npm run check:export-parity`.
-  The failure is `npm run test:cleanup`, on one assertion, and it is the open
-  decision below - not a broken build.
+- **All 48 dependency-free suites pass**, plus `npm run
+  check:export-parity`.
 - **Eight Playwright suites still need a dev server and a live Supabase** and
   have never been run: `auth`, `projects`, `isolation`, `reports`, `photos`,
   `photo-sources`, `ai`, `pdf`. (The 2026-08-31 handoff said six; there are
   eight.) This container has **no Supabase credentials** - only `.env.example`
   exists - and **no Docker daemon**, so they cannot be run here at all.
 
-### One decision needed before `test:cleanup` can pass
+### The completion cleanup divergence - settled 2026-09-03
 
-`CLEANUP_SECTIONS.completion` in `lib/ai/cleanup-prompt.ts` and
-`COMPLETION_DRAFTED_TYPES` in `lib/summary-reports/sections.ts` disagree, and
-the codebase has no consistent rule to settle it:
+`CLEANUP_SECTIONS.completion` asked the model for a `completed_works`
+paragraph that `COMPLETION_DRAFTED_TYPES` had stopped drafting in `71c7697`.
+It was never stored - `summaryDraftedSectionsFor` decides that - but it was
+fed back to the drafting model as context, which is duplicate-narrative
+pressure and a wasted schema field.
 
-| Kind | Stored | Drafted | Cleaned |
-| --- | --- | --- | --- |
-| Progress | 7 types | 2 | **all 7** |
-| Completion | 9 types | 2 | **3** - includes `completed_works` |
+The owner chose to remove it. Completion now cleans the same two sections it
+drafts, `project_overview` and `sign_off`, and the instructed works table is
+the only place that says what was asked for and what was done. **Progress is
+untouched** - it still cleans all seven stored sections.
 
-`71c7697` removed `completed_works` from `COMPLETION_DRAFTED_TYPES` on purpose
-("a paragraph saying it again in prose was the same story twice"), but left it
-in the cleanup list, whose own comment still claims the two match. So a
-Completion Report still asks the model for a `completed_works` paragraph. It is
-**not stored** - `summaryDraftedSectionsFor` decides that, and does not include
-it - but it is fed back to the drafting model as context, which is duplicate
-narrative pressure and a wasted schema field.
+`completed_works` remains a stored, editable, printed section, and keeps its
+brief in `COMPLETION_SECTIONS`; that brief is simply dormant, and
+`test:completion-content` still asserts its rules so they hold if it is ever
+returned to the drafted set.
 
-The test asserts completion cleanup equals the **drafted** types, while
-asserting progress cleanup equals the **stored** types. Those two encode
-opposite conventions, so either could be the bug:
-
-- **(a)** drop `completed_works` from the cleanup list, matching the test and
-  the anti-duplication rule; or
-- **(b)** the test is wrong and completion cleanup should track stored types,
-  as progress does.
-
-Either way it changes what the model is asked to produce for a Completion
-Report, so it was left alone. **The owner has to pick.**
-
-The suite had been crashing rather than failing since `d097cd0` added
-`lib/ai/tone.ts`: `test:ai-prompt`, `test:cleanup` and `test:section-roles` ran
-without the tsx loader, and that file's extensionless `./tone` import is
-unresolvable in bare Node. Fixed in package.json, which is what surfaced this.
+The suite that would have caught the divergence had been crashing rather than
+failing since `d097cd0` added `lib/ai/tone.ts`: `test:ai-prompt`,
+`test:cleanup` and `test:section-roles` ran without the tsx loader, and that
+file's extensionless `./tone` import is unresolvable in bare Node. Fixed in
+package.json.
 
 ### What changed since the last handoff
 

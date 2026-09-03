@@ -167,14 +167,16 @@ check("a survey still stores seven", SURVEY_SECTIONS.length === 7, String(SURVEY
 
 for (const kind of KINDS) {
   if (kind === "completion") {
-    // A Completion Report stores eight sections and is drafted in three: the
-    // client-facing document is a summary, the completed works and what is
-    // still open. Nothing was removed - every stored type is still stored,
-    // still editable and still printed where it carries words.
+    // A Completion Report stores nine sections and is written in two: a
+    // summary, and what is still open. Completed works is not one of them -
+    // the instructed works table already carries what was asked for and what
+    // was done, item by item, and a paragraph restating it is the same story
+    // twice. Nothing was removed: every stored type is still stored, still
+    // editable and still printed where it carries words.
     check(
-      "completion: the cleanup pass writes the three the client reads",
+      "completion: the cleanup pass writes the two the client reads",
       CLEANUP_SECTIONS.completion.map((section) => section.type).join(",") ===
-        "project_overview,completed_works,sign_off",
+        "project_overview,sign_off",
       CLEANUP_SECTIONS.completion.map((section) => section.type).join(","),
     );
     check(

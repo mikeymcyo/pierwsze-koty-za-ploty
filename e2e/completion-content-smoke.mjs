@@ -217,7 +217,12 @@ check(
     "Completion summary | Outstanding and sign-off",
   summaryDraftedSectionsFor("completion").map((section) => section.label).join(" | "),
 );
-check("and cleanup writes the same three", CLEANUP_SECTIONS.completion.length === 3);
+check(
+  "and cleanup writes the same two",
+  CLEANUP_SECTIONS.completion.map((section) => section.type).join(",") ===
+    COMPLETION_DRAFTED_TYPES.join(","),
+  CLEANUP_SECTIONS.completion.map((section) => section.type).join(","),
+);
 check(
   "the model is asked for those and nothing else",
   /const definitions = summaryDraftedSectionsFor\(input\.kind\)/.test(
@@ -267,7 +272,11 @@ for (const [where, brief] of [["drafting", drafting("project_overview")], ["clea
     brief,
   );
 }
-for (const [where, brief] of [["drafting", drafting("completed_works")], ["cleanup", cleanup("completed_works")]]) {
+// Completed works is a stored section a person may write by hand, and it keeps
+// its brief - but no pass asks a model for it any more, so only the stored
+// definition is checked. The rules below take effect again the moment it is
+// returned to COMPLETION_DRAFTED_TYPES, which is why they are still here.
+for (const [where, brief] of [["stored", drafting("completed_works")]]) {
   check(
     `${where}: completed works keeps the technical facts`,
     /materials/i.test(brief) && /locations/i.test(brief) && /quantities/i.test(brief),
@@ -291,8 +300,14 @@ for (const [where, brief] of [["drafting", drafting("completed_works")], ["clean
 }
 check(
   "the summary and the completed works are materially different briefs",
-  drafting("project_overview") !== drafting("completed_works") &&
-    cleanup("project_overview") !== cleanup("completed_works"),
+  drafting("project_overview") !== drafting("completed_works"),
+);
+// The one the cleanup pass no longer asks for. Asserted absent rather than
+// merely unused, so nothing quietly puts the duplicate paragraph back.
+check(
+  "and the cleanup pass does not ask for completed works at all",
+  cleanup("completed_works") === "",
+  cleanup("completed_works"),
 );
 const signOff = drafting("sign_off");
 check("outstanding work comes before sign-off", /Two things, in this order/.test(signOff));
@@ -459,7 +474,8 @@ check(
 for (const phrase of ["insofar as", "for the avoidance of", "the aforementioned"]) {
   check(`"${phrase}" is named as banned`, SUMMARY_SYSTEM_PROMPT.toLowerCase().includes(phrase));
 }
-for (const brief of [drafting("completed_works"), cleanup("completed_works")]) {
+// The stored brief only: no pass asks a model for completed works any more.
+for (const brief of [drafting("completed_works")]) {
   check("several workstreams may be written as lines", /one (workstream )?per line|one workstream per line/i.test(brief), brief);
   check("and a single one stays as prose", /single workstream stays as prose/i.test(brief), brief);
 }
