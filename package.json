@@ -58,6 +58,7 @@
     "test:standalone": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/standalone-progress-smoke.mjs",
     "test:export": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/pdf-export-smoke.mjs",
     "test:photo-rotation": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/photo-rotation-smoke.mjs",
+    "test:photo-quality": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/photo-quality-smoke.mjs",
     "test:site-capture": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/site-capture-smoke.mjs",
     "test:job-brief": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/job-brief-smoke.mjs",
     "test:capture-reliability": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/capture-reliability-smoke.mjs",

@@ -13,23 +13,13 @@ import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { UNSET_PHOTO_STATUS } from "@/lib/photo-captions";
 import { PHOTO_BUCKET, PHOTO_CATEGORIES, photoPathPrefix } from "@/lib/photos";
+import { JPEG_QUALITY, downscaleSteps, targetSize } from "@/lib/photo-quality";
 import {
   PHOTO_SOURCES,
   isSupportedImageFile,
   type PhotoSourceId,
 } from "@/lib/photo-sources";
 import type { PhotoCategory } from "@/types/database";
-
-/**
- * The longest edge a stored photo is allowed to have.
- *
- * A modern phone camera produces 4000px, 6 MB files. Site photos are looked at
- * on a phone and printed into a PDF at a few inches wide, so that detail is
- * never seen - it only costs upload time on a site with one bar of signal, and
- * counts against a free-tier storage quota. 1600px still prints cleanly.
- */
-const MAX_EDGE = 1600;
-const JPEG_QUALITY = 0.82;
 
 /** Kept beside the source table rather than in it, so lib/photo-sources.ts stays server-safe. */
 const SOURCE_ICONS: Record<PhotoSourceId, LucideIcon> = {
@@ -58,6 +48,15 @@ type PendingUpload = {
 /**
  * Re-encodes a photo to a sensible size before upload.
  *
+ * The sizes and the quality are decided in lib/photo-quality.ts, which is
+ * where the reasoning lives. This function is only the canvas work: step down
+ * through the chain of sizes with the browser's best resampling, then encode
+ * once at the end.
+ *
+ * The orientation is asked for explicitly. It is the default in every current
+ * browser, but a photograph whose EXIF orientation is dropped comes out on its
+ * side in the PDF, and that is not something to leave to a default.
+ *
  * Falls back to the original file when anything about the canvas path fails -
  * a large upload is much better than a lost photo, and the bucket enforces its
  * own 15 MB ceiling anyway.
@@ -68,26 +67,42 @@ async function compress(file: File): Promise<Compressed> {
   if (typeof createImageBitmap !== "function") return original;
 
   try {
-    const bitmap = await createImageBitmap(file);
-    const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
-    const width = Math.round(bitmap.width * scale);
-    const height = Math.round(bitmap.height * scale);
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const source = { width: bitmap.width, height: bitmap.height };
+    const target = targetSize(source);
 
-    const canvas = document.createElement("canvas");
-    canvas.width = width;
-    canvas.height = height;
+    let drawn: CanvasImageSource = bitmap;
+    let canvas: HTMLCanvasElement | null = null;
 
-    const context = canvas.getContext("2d");
-    if (!context) return { ...original, width: bitmap.width, height: bitmap.height };
+    for (const step of downscaleSteps(source, target)) {
+      const next = document.createElement("canvas");
+      next.width = step.width;
+      next.height = step.height;
 
-    context.drawImage(bitmap, 0, 0, width, height);
+      const context = next.getContext("2d");
+      if (!context) {
+        bitmap.close();
+        return { ...original, width: source.width, height: source.height };
+      }
+
+      // Without this a 4032px photograph is point-sampled down to 1600 and
+      // every fine detail in it is thrown away before the encoder ever runs.
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(drawn, 0, 0, step.width, step.height);
+
+      drawn = next;
+      canvas = next;
+    }
+
     bitmap.close();
+    if (!canvas) return { ...original, ...target };
 
     const blob = await new Promise<Blob | null>((resolve) =>
       canvas.toBlob(resolve, "image/jpeg", JPEG_QUALITY),
     );
 
-    return blob ? { blob, width, height } : { ...original, width, height };
+    return blob ? { blob, ...target } : { ...original, ...target };
   } catch {
     return original;
   }
