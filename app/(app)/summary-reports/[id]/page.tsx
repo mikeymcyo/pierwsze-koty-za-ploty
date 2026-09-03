@@ -595,7 +595,13 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
               carries photographs it belongs here; on a survey it is issues
               alone, and it belongs with them in the section below. */}
           {!isFinal && !direct ? (
-            <SummaryCuration reportId={id} photos={photos} issues={issues} showPhotos={true} />
+            <SummaryCuration
+              reportId={id}
+              photos={photos}
+              issues={issues}
+              showPhotos={true}
+              aiConfigured={hasAiConfig()}
+            />
           ) : null}
         </ReportSectionCard>
       ) : null}

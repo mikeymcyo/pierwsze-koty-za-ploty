@@ -76,7 +76,10 @@ check("the checkbox is controlled by it", /checked=\{inReport\}/.test(curation))
 check(
   "and the description box only exists when the photograph is in",
   /\{inReport \? \(/.test(curation) &&
-    /<PhotoDescriptionField[\s\S]{0,200}name=\{`photoCaption_\$\{photo\.id\}`\}/.test(curation),
+    // The box and its Describe with AI button are one component now, so the
+    // field's name is written once, inside it.
+    /<PhotoDescription[\s\S]{0,200}photoId=\{photo\.id\}/.test(curation) &&
+    /name=\{`photoCaption_\$\{photoId\}`\}/.test(curation),
   "a description on a photograph that will not print goes nowhere",
 );
 check(
@@ -193,7 +196,7 @@ check(
 );
 check(
   "and where a report's own caption is written",
-  /<PhotoDescriptionField/.test(curation) && /photoCaption_\$\{photo\.id\}/.test(curation),
+  /<PhotoDescriptionField/.test(curation) && /photoCaption_\$\{photoId\}/.test(curation),
 );
 check(
   "the tile is no longer a label wrapping a textarea",

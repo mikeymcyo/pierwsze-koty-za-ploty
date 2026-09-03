@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
-import { ImageOff, RotateCw } from "lucide-react";
+import { ImageOff, RotateCw, Sparkles } from "lucide-react";
 
 import { saveSummaryCuration, type SummaryFormState } from "@/app/(app)/summary-reports/actions";
+import { describePhotoAction } from "@/app/(app)/reports/photo-actions";
 import { PhotoDescriptionField } from "@/components/reports/photo-description-field";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -50,15 +51,92 @@ function SaveButton({ retry }: { retry: boolean }) {
   );
 }
 
+/**
+ * The description printed under one plate in this report, and the button that
+ * drafts it.
+ *
+ * A component of its own because the text has to be state rather than a
+ * defaultValue: the model's sentence goes straight into the box the user is
+ * looking at, so it can be corrected there and then. On a Completion Report
+ * this is the only place a plate is described, and it had no help at all -
+ * every other screen in the application offers it.
+ *
+ * Deliberately not the suggestion panel used under a photograph's own
+ * thumbnail. Nothing here is written until Save selection is pressed, so the
+ * sentence in the box is already a draft: a second Use it step would be a step
+ * that decides nothing. Pressing again redrafts, and the box is a textarea
+ * throughout - what is in it when the form saves is what prints.
+ */
+function PhotoDescription({
+  photoId,
+  value,
+  onChange,
+  aiConfigured,
+}: {
+  photoId: string;
+  value: string;
+  onChange: (value: string) => void;
+  aiConfigured: boolean;
+}) {
+  const [drafting, startDrafting] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+
+  function draft() {
+    setError(null);
+    startDrafting(async () => {
+      const result = await describePhotoAction(photoId, {}, new FormData());
+      if (result.description) onChange(result.description);
+      else setError(result.error ?? "That description could not be written.");
+    });
+  }
+
+  return (
+    <div className="flex flex-col gap-1">
+      <PhotoDescriptionField
+        id={`photoCaption_${photoId}`}
+        name={`photoCaption_${photoId}`}
+        value={value}
+        onChange={onChange}
+        label="Photo description (optional)"
+        placeholder="What does this show, in this report?"
+      />
+      {aiConfigured ? (
+        <Button
+          // A button, not a submit: this sits inside the curation form, and a
+          // form cannot be nested inside another one.
+          type="button"
+          size="sm"
+          variant="ghost"
+          loading={drafting}
+          onClick={draft}
+          // Full width, and tighter than the default small button: in a
+          // two-column tile there is no room for a label beside a left-aligned
+          // button, and a wide target is the easier one to hit with a glove
+          // on. The narrower padding is what keeps the label on one line on an
+          // iPhone SE - measured, not guessed.
+          className="w-full gap-1.5 px-2"
+        >
+          {drafting ? null : <Sparkles aria-hidden />}
+          {drafting ? "Looking…" : value.trim() ? "Describe again" : "Describe with AI"}
+        </Button>
+      ) : null}
+      {error ? <p className="text-xs text-danger">{error}</p> : null}
+    </div>
+  );
+}
+
 export function SummaryCuration({
   reportId,
   photos,
   issues,
   showPhotos = true,
+  aiConfigured = false,
 }: {
   reportId: string;
   photos: CuratedPhotoChoice[];
   issues: CuratedIssueChoice[];
+  /** Whether the AI draft is offered - hidden with no key configured. */
+  aiConfigured?: boolean;
   /**
    * False on a survey, which manages its photographs in place - taking them,
    * captioning them and removing them without leaving the document. Two photo
@@ -81,6 +159,20 @@ export function SummaryCuration({
    */
   const [included, setIncluded] = useState<Set<string>>(
     () => new Set(photos.filter((photo) => photo.selected).map((photo) => photo.id)),
+  );
+
+  /**
+   * What each ticked photograph will print under it.
+   *
+   * Held here rather than left to the DOM because the AI draft has to land in
+   * the box the user is looking at. Seeded from the report's own caption where
+   * one was written, the photograph's own otherwise - the same fallback the PDF
+   * uses, so the screen and the document start from the same words.
+   */
+  const [descriptions, setDescriptions] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      photos.map((photo) => [photo.id, photo.captionOverride ?? photo.caption ?? ""]),
+    ),
   );
 
   /**
@@ -185,13 +277,14 @@ export function SummaryCuration({
                     // The same box as the one under a photograph's own
                     // thumbnail. A one-line input scrolled a sentence sideways
                     // out of sight while it was being typed.
-                    <PhotoDescriptionField
-                      id={`photoCaption_${photo.id}`}
-                      name={`photoCaption_${photo.id}`}
-                      defaultValue={photo.captionOverride ?? photo.caption ?? ""}
-                      label="Photo description (optional)"
-                      placeholder="What does this show, in this report?"
-                      onChange={() => setDirty(true)}
+                    <PhotoDescription
+                      photoId={photo.id}
+                      value={descriptions[photo.id] ?? ""}
+                      onChange={(text) => {
+                        setDirty(true);
+                        setDescriptions((current) => ({ ...current, [photo.id]: text }));
+                      }}
+                      aiConfigured={aiConfigured}
                     />
                   ) : null}
                 </div>

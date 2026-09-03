@@ -155,6 +155,55 @@ check(
   /if \(text === savedRef\.current\.text && status === savedRef\.current\.status\) return;/.test(ui),
 );
 
+console.log("\n6. A consolidated report can describe its plates too");
+
+// A Completion or Progress Report that consolidates issued Daily Reports
+// captions its plates in the curation form - summary_report_photos.
+// caption_override - and that is the only place those words are written. It
+// was the one description box in the application with no help behind it.
+const curation = readFileSync(
+  new URL("../components/summary-reports/summary-curation.tsx", import.meta.url),
+  "utf8",
+);
+check(
+  "the button is offered under the description box",
+  /Describe with AI/.test(curation) && /describePhotoAction/.test(curation),
+);
+check(
+  "it is a button rather than a nested form, which is not legal inside the curation form",
+  /type="button"[\s\S]{0,200}?onClick=\{draft\}/.test(curation),
+);
+check(
+  "the sentence lands in the box the user is looking at",
+  /if \(result\.description\) onChange\(result\.description\);/.test(curation),
+);
+check(
+  "so it can be corrected before it is saved",
+  /<PhotoDescriptionField[\s\S]{0,220}?value=\{value\}[\s\S]{0,120}?onChange=\{onChange\}/.test(curation),
+);
+check(
+  "editing it marks the form unsaved, as typing always did",
+  /onChange=\{\(text\) => \{\s*\n\s*setDirty\(true\);/.test(curation),
+);
+check(
+  "nothing is written until Save selection is pressed",
+  /Save selection/.test(curation) && !/savePhotoDetails/.test(curation),
+);
+check(
+  "and the button is hidden with no key configured",
+  /aiConfigured \? \(/.test(curation),
+);
+// The photograph's own caption belongs to the Daily Report it came from.
+check(
+  "a description written here does not rewrite the photograph's own caption",
+  /name=\{`photoCaption_\$\{photoId\}`\}/.test(curation),
+);
+check(
+  "a failure says so in the tile rather than silently doing nothing",
+  /text-xs text-danger/.test(curation),
+);
+
+
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL PHOTO AI CHECKS PASSED");
 else {
