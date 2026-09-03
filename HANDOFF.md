@@ -4,13 +4,183 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Last updated:** 2026-08-31 (end of day)
+**Written:** 2026-08-26 · **Last updated:** 2026-09-03
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-**Head:** Document Intelligence, 2026-09-01 - see the section below
+**Head:** `acf1427` - Describe with AI, back on a consolidated report's plates
 **Recovery head:** `fe6bf7f` - AI photo descriptions and supporting documents
 
-## Stopping point, 2026-08-31
+## Stopping point, 2026-09-03
+
+Working tree clean, local and `origin` both on `acf1427`. Twenty-one commits
+since the 2026-08-31 handoff (`85b7286`). Start a new machine the same way:
+
+    git fetch origin claude/siteboss-pro-react-441-diagnosis-bhvwk8
+    git checkout claude/siteboss-pro-react-441-diagnosis-bhvwk8
+    npm ci
+
+### Commits since the last handoff, newest first
+
+| Commit | What it was |
+| --- | --- |
+| `acf1427` | Describe with AI, back on a consolidated report's plates |
+| `dea66a8` | Screens fetch a thumbnail, the PDF fetches the photograph |
+| `6c3c060` | Sharp evidence photographs |
+| `2873710` | A completion report for a job that earned one |
+| `7a94da9` | Nothing folds if it exports |
+| `71c7697` | What you see is what exports |
+| `d097cd0` | What was asked for, what was done, and how to check it |
+| `2ead24b` | Ten seconds, no training |
+| `f030d2b` | One working screen |
+| `8d6e892` | A text reader should not need a canvas |
+| `2bfee1c` | Run the live check where the key already is |
+| `0b6c777` | A harness for the one question offline testing cannot answer |
+| `44a227b` | Read the paperwork, and keep it honest |
+| `78f0818` | An extracted item is a citation, not a claim |
+| `1ba4a00` | The card said "upload below" and there was nothing below it |
+| `4dfc977` | A document that stopped being context stopped being it on a day |
+| `afe3c8c` | Propose the Document Intelligence schema, unapplied |
+| `6a44713` | A brief already recorded is a brief |
+| `9a31c13` | The job brief: what the work was sent out to do |
+| `585ae28` | Store 1848: the work already here comes first |
+| `85b7286` | End-of-day handoff, 2026-08-31 |
+
+### Migrations on the hosted project - verified 2026-09-03 via the API
+
+    20260829133924  documents
+    20260829171913  project_locations
+    20260829182817  site_surveys
+    20260831170716  photo_rotation
+    20260901165706  document_intelligence
+    20260902211657  instructed_works
+
+Both Document Intelligence migrations are applied. `db push` is still
+dangerous - see the migration ledger section far below.
+
+### Verification state, 2026-09-03
+
+- `npx tsc --noEmit`, `npx eslint .` and `npm run build`: **all pass.** The
+  build prints one pre-existing warning, `Package pdfjs-dist can't be
+  external`, which is unrelated to any recent change.
+- **47 of 48 dependency-free suites pass**, plus `npm run check:export-parity`.
+  The failure is `npm run test:cleanup`, on one assertion, and it is the open
+  decision below - not a broken build.
+- **Eight Playwright suites still need a dev server and a live Supabase** and
+  have never been run: `auth`, `projects`, `isolation`, `reports`, `photos`,
+  `photo-sources`, `ai`, `pdf`. (The 2026-08-31 handoff said six; there are
+  eight.) This container has **no Supabase credentials** - only `.env.example`
+  exists - and **no Docker daemon**, so they cannot be run here at all.
+
+### One decision needed before `test:cleanup` can pass
+
+`CLEANUP_SECTIONS.completion` in `lib/ai/cleanup-prompt.ts` and
+`COMPLETION_DRAFTED_TYPES` in `lib/summary-reports/sections.ts` disagree, and
+the codebase has no consistent rule to settle it:
+
+| Kind | Stored | Drafted | Cleaned |
+| --- | --- | --- | --- |
+| Progress | 7 types | 2 | **all 7** |
+| Completion | 9 types | 2 | **3** - includes `completed_works` |
+
+`71c7697` removed `completed_works` from `COMPLETION_DRAFTED_TYPES` on purpose
+("a paragraph saying it again in prose was the same story twice"), but left it
+in the cleanup list, whose own comment still claims the two match. So a
+Completion Report still asks the model for a `completed_works` paragraph. It is
+**not stored** - `summaryDraftedSectionsFor` decides that, and does not include
+it - but it is fed back to the drafting model as context, which is duplicate
+narrative pressure and a wasted schema field.
+
+The test asserts completion cleanup equals the **drafted** types, while
+asserting progress cleanup equals the **stored** types. Those two encode
+opposite conventions, so either could be the bug:
+
+- **(a)** drop `completed_works` from the cleanup list, matching the test and
+  the anti-duplication rule; or
+- **(b)** the test is wrong and completion cleanup should track stored types,
+  as progress does.
+
+Either way it changes what the model is asked to produce for a Completion
+Report, so it was left alone. **The owner has to pick.**
+
+The suite had been crashing rather than failing since `d097cd0` added
+`lib/ai/tone.ts`: `test:ai-prompt`, `test:cleanup` and `test:section-roles` ran
+without the tsx loader, and that file's extensionless `./tone` import is
+unresolvable in bare Node. Fixed in package.json, which is what surfaced this.
+
+### What changed since the last handoff
+
+- **Document Intelligence.** PDF text extraction (pdfjs, Node runtime, proven
+  on Vercel Preview), quote-anchored OpenAI extraction, lifecycle persistence,
+  and the extracted scope feeding every AI layer. One job document per upload
+  through Site Capture, never the whole project's paperwork.
+- **Site Capture simplified.** One working screen, one "Add photos" button, no
+  status menu, at most one or two questions when preparing a Daily.
+- **Completion Reports, Phase 1 and 2.** Plate numbering P01..Pnn, a numbered
+  manifest, plate citations that must be real, the instructed-works status
+  table, the Instruction field, out-of-scope defect handling, the client
+  acknowledgement block, and materials and technical workstreams only where the
+  evidence supports them. Everything gated: a patch repair must not read like a
+  manual.
+- **No hidden narrative.** Anything that can export is visible on screen before
+  export, guarded by `test:what-you-see` and `check:export-parity`.
+- **Photo quality.** The upload-side resample was the reason plates looked soft,
+  not resolution: `lib/photo-quality.ts` now steps down by halves at high
+  smoothing quality, worth about 11 dB against an ideal downscale, and quality
+  moved 0.82 to 0.88. Rendered PDF grew about 14%.
+- **Egress.** Screens fetch a 640px, ~28 kB thumbnail written beside the
+  original at upload, from `/photos/[id]/thumb` - our own origin, stable, and
+  `private, max-age=1y, immutable`. Previously every render minted a fresh
+  signed URL, so the cache missed every time and a 20-photo report page cost
+  ~8.5 MB on **every** view. **The PDF still reads the original object**, and
+  `test:photo-egress` holds that line.
+- **Describe with AI restored** on a consolidated report's plates, in the
+  curation form, where `caption_override` is written.
+
+### Known risks and backlog, roughly in priority order
+
+1. **Nothing has been driven in a real browser or on a phone.** Every UI change
+   since 2026-08-31 is proved by construction and source assertions, plus - for
+   the two most recent - real geometry measured in headless Chromium against
+   Tailwind-compiled CSS. That is not a device.
+2. **No real model call has ever been made against the document-extraction or
+   instructed-works prompts.** `/dev/extraction-check` on Vercel Preview exists
+   for exactly this and has not been run.
+3. **The 29 photographs already in the bucket have no thumbnail.** The route
+   falls back to the original, so they display and still gain the caching win,
+   but not the 93% size cut. A backfill needs a server-side resize.
+4. **Supabase image transformations are not available** - the org is on the
+   free plan. That is why thumbnails are made in the browser. Do not reach for
+   `transform:` on a signed URL; and `createSignedUrls` (plural) does not
+   accept it at all.
+5. **77 MB of the 117 MB in `report-pdfs` is orphaned** - superseded revisions
+   with no row pointing at them. Nothing has been deleted. A safe sequence was
+   proposed (verify against both tables, age-gate, download, quarantine under a
+   prefix, then delete) and the cause - re-finalising never removes the object
+   the row used to point at - is unfixed.
+6. **`lib/photos-signing.ts` is now unused.** Kept deliberately, with a comment
+   saying why nothing showing photographs should go back to it.
+7. **`beforeunload` is advisory on iOS Safari** and is often ignored on tab
+   switch or backgrounding. An upload interrupted that way is still lost.
+8. **A hard refresh loses typed photo descriptions** in the curation form.
+9. **A partial reorder is still possible** if some rows fail. Reported, heals on
+   retry; a transactional fix would need a migration.
+10. **No offline queue.** By design - not started.
+
+### Next recommended task
+
+**A real iPhone field test of the whole chain**, then fix only what it finds.
+
+Site Capture → issue the Daily → Progress from two Dailies → Completion from
+that Progress → preview, finalise, share. Then the eight Playwright suites on a
+machine with a dev server and Supabase env. The newest code most in need of a
+device: the thumbnail encode in the capture path (it fails soft - a thumbnail
+that will not upload never fails the photograph) and the Describe with AI button
+on a Completion Report's plates.
+
+Do not start an offline queue, a second mapping system, or more report sections
+until the chain has been seen working on a phone.
+
+## Stopping point, 2026-08-31 - superseded, kept for history
 
 Working tree clean, local and `origin` both on `85b7286`. **Tomorrow's session
 may be on a different machine**, so start by cloning or pulling this branch -

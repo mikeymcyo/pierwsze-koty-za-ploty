@@ -237,14 +237,21 @@ export function ReportPhotos({
                       />
                     ) : null}
                   </span>
-                  <span className="flex items-center gap-1.5 text-xs text-ink">
+                  {/* Three tiles to a row on a phone leaves about 110px for
+                      this line, and a caption is a sentence. Without the
+                      min-w-0 the flex item refuses to shrink below its longest
+                      word and the label draws over the tile beside it -
+                      measured at 14px past the border on an iPhone SE. */}
+                  <span className="flex items-start gap-1.5 text-xs text-ink">
                     <input
                       type="checkbox"
                       name="photoId"
                       value={photo.id}
-                      className="size-4 accent-brand"
+                      className="mt-0.5 size-4 shrink-0 accent-brand"
                     />
-                    {photoPickerLabel(photo, "Photograph")}
+                    <span className="min-w-0 break-words">
+                      {photoPickerLabel(photo, "Photograph")}
+                    </span>
                   </span>
                 </label>
               ))}

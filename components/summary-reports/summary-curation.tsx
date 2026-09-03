@@ -279,7 +279,16 @@ export function SummaryCuration({
                     // out of sight while it was being typed.
                     <PhotoDescription
                       photoId={photo.id}
-                      value={descriptions[photo.id] ?? ""}
+                      // Falls back to the photograph's own words rather than to
+                      // nothing: the state is seeded at mount, so a photograph
+                      // that arrives after one would otherwise show an empty
+                      // box over a caption that is really there.
+                      value={
+                        descriptions[photo.id] ??
+                        photo.captionOverride ??
+                        photo.caption ??
+                        ""
+                      }
                       onChange={(text) => {
                         setDirty(true);
                         setDescriptions((current) => ({ ...current, [photo.id]: text }));
