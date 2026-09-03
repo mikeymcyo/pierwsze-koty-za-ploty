@@ -11,6 +11,14 @@ import { PHOTO_BUCKET, PHOTO_URL_TTL_SECONDS } from "@/lib/photos";
  *
  * Returns a map of storage path to URL. A path that could not be signed is
  * simply absent, and callers render a placeholder rather than a broken image.
+ *
+ * Nothing calls this at the moment, and a screen showing photographs should
+ * not start. The token is minted fresh on every signing, so the URL changes on
+ * every render and the browser cache misses every time - opening a report
+ * twice used to download every photograph twice. Screens fetch their tiles
+ * from /photos/[id]/thumb instead, which is stable and cacheable; see
+ * app/(app)/photos/[id]/thumb/route.ts. Kept for the day something genuinely
+ * needs to hand a Supabase URL to a client that is not our own origin.
  */
 export async function signPhotoUrls(paths: string[]): Promise<Map<string, string>> {
   const urls = new Map<string, string>();

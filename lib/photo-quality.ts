@@ -103,3 +103,26 @@ export function downscaleSteps(source: Size, target: Size): Size[] {
   steps.push({ width: target.width, height: target.height });
   return steps;
 }
+
+/**
+ * The longest edge of the small copy the screens use.
+ *
+ * Nothing on any screen shows a photograph larger than a tile: two or three to
+ * a row on a phone, an 80pt square in the cover picker. The largest of those is
+ * about 200 CSS pixels, which on a phone at three device pixels each is 600.
+ * 640 covers it with a little to spare and no visible softness.
+ *
+ * This is a preview and never evidence. The PDF is built from the original
+ * object, which this does not touch.
+ */
+export const THUMB_EDGE = 640;
+
+/**
+ * Quality for that small copy.
+ *
+ * Lower than the stored photograph's, deliberately: at a sixth of the width, a
+ * JPEG artefact is a sixth of the size too, and nobody inspects a crack in a
+ * grid tile - they open the report. What matters here is the byte count, since
+ * this is the file every screen fetches.
+ */
+export const THUMB_QUALITY = 0.72;

@@ -35,12 +35,12 @@ import { isReopened } from "@/lib/reports/lifecycle";
 import { issuedPdfFileName } from "@/lib/pdf/presentation";
 import { photoPrintLabelText } from "@/lib/photo-captions";
 import { photoPickerLabel } from "@/lib/photo-captions";
-import { signPhotoUrls } from "@/lib/photos-signing";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 import { REPORT_SECTION_LABELS } from "@/lib/report-sections";
 import { groupSections, reportStructure, runInLabel, type ReportGroup } from "@/lib/report-structure";
 import { formatDate, formatReportNumber } from "@/lib/utils";
+import { photoThumbUrl } from "@/lib/photos";
 import type { ReportSectionType } from "@/types/database";
 
 /**
@@ -159,10 +159,9 @@ export default async function ReportCapturePage({
   ]);
 
   const photoRows = photosResult.data ?? [];
-  const photoUrls = await signPhotoUrls(photoRows.map((photo) => photo.storage_path));
   const photos: PhotoWithUrl[] = photoRows.map((photo) => ({
     ...photo,
-    url: photoUrls.get(photo.storage_path) ?? null,
+    url: photoThumbUrl(photo.id),
   }));
 
   // The report itself loaded, so the screen is still usable. Rather than blank

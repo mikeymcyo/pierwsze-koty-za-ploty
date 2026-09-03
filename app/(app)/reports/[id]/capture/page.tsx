@@ -12,11 +12,11 @@ import { SiteCaptureForm } from "@/components/reports/site-capture-form";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireSessionContext } from "@/lib/auth/session";
-import { signPhotoUrls } from "@/lib/photos-signing";
 import { capturePreview, captureSpan, parseCaptureLog } from "@/lib/reports/capture-log";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
+import { photoThumbUrl } from "@/lib/photos";
 
 export const metadata: Metadata = { title: "Site Capture" };
 
@@ -76,10 +76,9 @@ export default async function SiteCapturePage({
       .eq("documents.project_id", report.project_id),
   ]);
 
-  const urls = await signPhotoUrls((photoRows ?? []).map((photo) => photo.storage_path));
   const photos: PhotoWithUrl[] = (photoRows ?? []).map((photo) => ({
     ...photo,
-    url: urls.get(photo.storage_path) ?? null,
+    url: photoThumbUrl(photo.id),
   }));
 
   const entries = parseCaptureLog(report.raw_notes);

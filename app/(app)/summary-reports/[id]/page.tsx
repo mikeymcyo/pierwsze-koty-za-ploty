@@ -34,7 +34,6 @@ import { isReopened } from "@/lib/reports/lifecycle";
 import { requireSessionContext } from "@/lib/auth/session";
 import { issuedPdfFileName } from "@/lib/pdf/presentation";
 import { photoPrintLabelText } from "@/lib/photo-captions";
-import { signPhotoUrls } from "@/lib/photos-signing";
 import { groupSections, reportStructure, runInLabel, type ReportGroup } from "@/lib/report-structure";
 import { describeProvenance, isStandalone } from "@/lib/summary-reports/provenance";
 import {
@@ -50,6 +49,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { formatDate, formatReportNumber } from "@/lib/utils";
+import { photoThumbUrl } from "@/lib/photos";
 import type { SummarySectionType } from "@/types/database";
 
 /**
@@ -204,13 +204,12 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
   );
   const selectedIssueIds = new Set((issueLinksResult.data ?? []).map((row) => row.issue_id));
   const photoRows = photosResult.data ?? [];
-  const photoUrls = await signPhotoUrls(photoRows.map((photo) => photo.storage_path));
   const photos: CuratedPhotoChoice[] = photoRows.map((photo) => ({
     id: photo.id,
     caption: photo.caption,
     category: photo.category,
     rotation: photo.rotation,
-    url: photoUrls.get(photo.storage_path) ?? null,
+    url: photoThumbUrl(photo.id),
     selected: selectedPhotoIds.has(photo.id),
     captionOverride: captionByPhotoId.get(photo.id) ?? null,
   }));

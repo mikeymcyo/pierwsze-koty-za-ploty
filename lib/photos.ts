@@ -6,7 +6,7 @@
 
 export const PHOTO_BUCKET = "site-photos";
 
-/** Signed thumbnail URLs are re-minted on every render; this only has to outlive one page view. */
+/** Signed URLs are re-minted on every render; this only has to outlive one page view. */
 export const PHOTO_URL_TTL_SECONDS = 60 * 60;
 
 /**
@@ -15,6 +15,31 @@ export const PHOTO_URL_TTL_SECONDS = 60 * 60;
  */
 export function photoPathPrefix(companyId: string, projectId: string): string {
   return `${companyId}/${projectId}/`;
+}
+
+/**
+ * Where the small copy of a photograph lives.
+ *
+ * Beside the original rather than under a folder of its own, because the
+ * storage policies match the leading "{company_id}/" segment and nothing else:
+ * a sibling object is covered by exactly the same rules as the photograph it
+ * belongs to, with no policy to add and no way for the two to drift apart.
+ */
+export function thumbnailPath(storagePath: string): string {
+  return `${storagePath.replace(/\.[^./]+$/, "")}.thumb.jpg`;
+}
+
+/**
+ * The URL a screen uses to show a photograph.
+ *
+ * Deliberately our own origin and deliberately stable. A Supabase signed URL
+ * carries a token that changes every time it is minted, so the same photograph
+ * on the same screen was a fresh URL on every render and the browser cache
+ * never once hit - every navigation re-downloaded every photograph in full.
+ * This path never changes, and the route behind it says the bytes may be kept.
+ */
+export function photoThumbUrl(photoId: string): string {
+  return `/photos/${photoId}/thumb`;
 }
 
 /**

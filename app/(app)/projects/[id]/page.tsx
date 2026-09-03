@@ -37,12 +37,12 @@ import {
   summaryActivity,
 } from "@/lib/projects/activity";
 import { signDocumentUrls } from "@/lib/documents/signing";
-import { signPhotoUrls } from "@/lib/photos-signing";
 import { storeFor } from "@/lib/stores/catalogue";
 import { storeLinkOf } from "@/lib/stores/project-link";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
+import { photoThumbUrl } from "@/lib/photos";
 
 export const metadata: Metadata = { title: "Project" };
 
@@ -171,10 +171,9 @@ export default async function ProjectPage({
   const issues = issuesResult.data ?? [];
 
   const photoRows = photosResult.data ?? [];
-  const photoUrls = await signPhotoUrls(photoRows.map((photo) => photo.storage_path));
   const photos: PhotoWithUrl[] = photoRows.map((photo) => ({
     ...photo,
-    url: photoUrls.get(photo.storage_path) ?? null,
+    url: photoThumbUrl(photo.id),
   }));
 
   // Deliberately kept out of loadError above. If the documents migration has
