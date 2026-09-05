@@ -118,6 +118,22 @@ exactly this error; its budget was simply shorter than the skew. Raised to
 20 s - it costs nothing when the clocks agree - and `test:clock-skew` pins
 the retry's behaviour and the budget's floor.
 
+Also passed on the real build, later the same evening: sign-in from `/login`
+to the dashboard in 1.6 s; the Progress Report drafted by the real model from
+the issued Daily - a five-sentence overview and one genuine outstanding item,
+the sealant after Thursday's delivery, nothing invented; and the Progress and
+Completion forms reached from the project page's own Reports tab, which is
+the path that carries the project.
+
+One reachable defect, observed and not fixed (one fix per batch): the Reports
+page's own Progress / Completion buttons open `/summary-reports/new` with no
+project, and choosing one from that page's dropdown does nothing - no
+navigation request leaves the browser, the URL does not change, and neither
+the source list nor the "no issued Daily Reports yet" notice appears, so the
+form dead-ends on "Choose at least one Daily Report". The dropdown's handler
+calls `router.replace` with the right URL; why that is inert is not yet
+understood. Starting from the project page avoids it entirely.
+
 Not app failures, and not changed: the one PDF sentence never shown on
 screen is the fixed signature-block line in `lib/pdf/components.tsx`
 ("Not an approval, an acceptance of the works, or a certificate of
