@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { cleanedSectionsFor } from "@/lib/ai/cleanup";
+import { withoutSentencesIn } from "@/lib/summary-reports/dedupe";
 import { documentMedia, photoMedia } from "@/lib/ai/cleanup-context";
 import { generateSummarySections } from "@/lib/ai/summary-generation";
 import {
@@ -433,6 +434,15 @@ export async function generateSummaryReport(
   for (const [type, content] of Object.entries(sections) as [SummarySectionType, string][]) {
     if (type === "instructed_works") continue;
     sections[type] = stripUnknownPlates(content, plateCount);
+  }
+
+  // A fact told once. The summary is the completion position and the
+  // follow-on is only what is still to be done; the model is told so and on
+  // the real build still wrote the same sentence in both. Whatever the
+  // summary already says is dropped from the follow-on, deterministically.
+  if (report.kind === "completion" && sections.sign_off && sections.project_overview) {
+    sections.sign_off = withoutSentencesIn(sections.sign_off, sections.project_overview);
+    if (!sections.sign_off.trim()) delete sections.sign_off;
   }
 
   const { data: edited, error: editedError } = await supabase

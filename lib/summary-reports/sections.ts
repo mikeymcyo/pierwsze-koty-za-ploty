@@ -96,7 +96,7 @@ export const COMPLETION_SECTIONS: SummarySectionDefinition[] = [
     type: "sign_off",
     label: "Outstanding and sign-off",
     brief:
-      "Two things, in this order. First, anything the evidence records as genuinely outstanding or as follow-on work, with what it is waiting on where that is recorded. Then, only where the source records explicitly say so, any sign-off, handover or acceptance fact. Never write that the works were accepted, handed over, approved, tested, commissioned, certified or signed off unless a source record says it in those terms; leave the sentence out instead. An empty section is a correct answer.",
+      "Two things, in this order. First, anything the evidence records as genuinely outstanding or as follow-on work, with what it is waiting on where that is recorded. Only what is still to be done: never restate the completion position, and never repeat a sentence or a fact the completion summary already gives - an item the summary says was not carried out is not a follow-on unless something is still to happen to it. Then, only where the source records explicitly say so, any sign-off, handover or acceptance fact. Never write that the works were accepted, handed over, approved, tested, commissioned, certified or signed off unless a source record says it in those terms; leave the sentence out instead. An empty section is a correct answer.",
   },
 ];
 

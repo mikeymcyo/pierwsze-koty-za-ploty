@@ -325,8 +325,12 @@ export function SummaryCreateForm({
 
       <Field label="Project" htmlFor="projectId" error={errors.projectId}>
         {/* Navigating rather than fetching: the page reloads with that
-            project's issued Daily Reports, decided by the server under the
-            same row-level security as everything else. */}
+            project's issued reports, decided by the server under the same
+            row-level security as everything else. A full navigation, on
+            purpose: on the deployed build a router.replace to the same page
+            with new search params left the browser exactly where it was - no
+            request, no URL change - and the form dead-ended on "choose at
+            least one Daily Report". The address bar is the state here. */}
         <Select
           id="projectId"
           name="projectId"
@@ -334,7 +338,7 @@ export function SummaryCreateForm({
           onChange={(event) => {
             const next = event.target.value;
             setProjectId(next);
-            router.replace(`/summary-reports/new?kind=${kind}&project=${next}`);
+            if (next) window.location.assign(`/summary-reports/new?kind=${kind}&project=${next}`);
           }}
           required
         >

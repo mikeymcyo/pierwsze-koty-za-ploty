@@ -180,7 +180,7 @@ export const CLEANUP_SECTIONS: Record<CleanupDocumentKind, readonly CleanupSecti
       type: "sign_off",
       label: "Outstanding and sign-off",
       brief:
-        "Two things, in this order. First, anything the records show as still outstanding or as follow-on work, with what it is waiting on where that is recorded. Then any sign-off, handover or acceptance fact explicitly present in the records. Never write that the works were accepted, handed over, approved, tested, commissioned, certified or signed off unless a record says it in those terms. Leave empty if the records carry neither.",
+        "Two things, in this order. First, anything the records show as still outstanding or as follow-on work, with what it is waiting on where that is recorded. Only what is still to be done: never restate the completion position, and never repeat a sentence or a fact the completion summary already gives - an item the summary says was not carried out is not a follow-on unless something is still to happen to it. Then any sign-off, handover or acceptance fact explicitly present in the records. Never write that the works were accepted, handed over, approved, tested, commissioned, certified or signed off unless a record says it in those terms. Leave empty if the records carry neither.",
     },
   ],
   survey: [
