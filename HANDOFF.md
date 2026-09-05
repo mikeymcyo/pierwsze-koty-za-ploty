@@ -94,6 +94,40 @@ failing since `d097cd0` added `lib/ai/tone.ts`: `test:ai-prompt`,
 file's extensionless `./tone` import is unresolvable in bare Node. Fixed in
 package.json.
 
+### Real-device validation, 5 September 2026 - one proven failure, fixed
+
+The deployed Preview of `6ba9919` (also aliased to app.sitebosspro.co.uk)
+was driven at iPhone 15 size against the real Supabase and the real model,
+from a fresh throwaway tenant, through Site Capture, Prepare Daily, the
+Daily, its PDF and finalising. Passed on the real build: one Add photos
+button and no workforce prompt; three fresh uploads stored at 1600px
+(342-361 kB) with 28-32 kB thumbnails beside them, served from
+`/photos/[id]/thumb` as `private, immutable`; Prepare Daily with no
+questions; one five-sentence Daily Summary carrying the pour and the sealant
+wait, no repeated narrative, no legalese; the PDF embedding the 1600px
+originals; and - for the first time with the real model - document
+extraction: the sample purchase order read as two pages by gpt-5.5, with a
+summary that quotes its "QUOTATION ONLY - NOT INSTRUCTED" section.
+
+The one proven app failure is `Could not load your company: JWT issued at
+future` - the React #441 this branch was opened for. Vercel's error log
+shows nineteen hits across seven users in a week, all on the first screen
+after signing in, the last of them during this run at 19:03:10 with the
+six-second retry budget in force. `lib/supabase/retry.ts` already retried
+exactly this error; its budget was simply shorter than the skew. Raised to
+20 s - it costs nothing when the clocks agree - and `test:clock-skew` pins
+the retry's behaviour and the budget's floor.
+
+Not app failures, and not changed: the one PDF sentence never shown on
+screen is the fixed signature-block line in `lib/pdf/components.tsx`
+("Not an approval, an acceptance of the works, or a certificate of
+completion") - owner's call whether template text is covered by the
+what-you-see rule. `document_extractions.source_bytes` recorded 0 for a
+2,332-byte object that was read fine (two pages) - a bookkeeping oddity,
+not a read failure. Six throwaway companies named `Validation Co <stamp>`
+were created in the hosted project by these runs; nothing of Store 1848 was
+touched. They are for the owner to delete.
+
 ### What changed since the last handoff
 
 - **Document Intelligence.** PDF text extraction (pdfjs, Node runtime, proven

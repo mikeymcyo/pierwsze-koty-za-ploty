@@ -13,6 +13,14 @@ import type { PostgrestError } from "@supabase/supabase-js";
  *
  * Measured skew varies between under a second and a few seconds, so the retry
  * is bounded by a deadline rather than a fixed number of attempts.
+ *
+ * The deadline is generous on purpose. Vercel's error log carried nineteen of
+ * these across seven users in one week - every one on the first screen after
+ * signing in, every one a crashed page - and the last of them landed while a
+ * six-second budget was in force, so the skew that night was longer than that.
+ * The budget only ever costs anything in the rare moment the clocks disagree;
+ * the first successful answer ends it, and a brand-new account waiting a few
+ * seconds for its dashboard is a very different thing from one shown an error.
  */
 function isTransientClockError(error: PostgrestError | null): boolean {
   if (!error) return false;
@@ -22,7 +30,7 @@ function isTransientClockError(error: PostgrestError | null): boolean {
 
 type Query<T> = () => PromiseLike<{ data: T; error: PostgrestError | null }>;
 
-const DEFAULT_BUDGET_MS = 6_000;
+const DEFAULT_BUDGET_MS = 20_000;
 const FIRST_DELAY_MS = 200;
 const MAX_DELAY_MS = 1_000;
 
