@@ -147,9 +147,9 @@ touched. They are for the owner to delete.
 ### Real-build validation on the deployed Preview, 5 September 2026 - final
 
 Driven end to end at iPhone size (393x852, 3x, iOS Safari UA) against the
-deployment of `6ba9919` - real Supabase, real OpenAI, real PDFs. Ten
-throwaway tenants named `Validation Co <stamp>` were created to do it; see
-the cleanup note below. What passed and what did not:
+deployment of `6ba9919` - real Supabase, real OpenAI, real PDFs. Eight
+throwaway tenants named `Validation Co <stamp>` were created to do it, and
+have since been deleted; see the note below. What passed and what did not:
 
 **Passed on the real build.** Sign-up and sign-in; Start Site Capture lands
 on the capture screen; one Add photos button, no source trio, no status
@@ -199,10 +199,26 @@ signature-block text. A zero-byte purchase order in one run (Vercel error
 with an in-memory file the object landed at 2332 bytes and was read
 correctly.
 
-**Cleanup for the owner's decision - nothing deleted.** Ten companies named
-`Validation Co <stamp>` (users `validation+<stamp>@example.com`), seven
-projects, 41 storage objects, all created 5 September 2026 19:00-21:30 UTC.
-Store 1848 was not touched.
+**Cleaned up, on the owner's approval.** Eight companies named `Validation Co
+<stamp>` (not ten - the earlier count was wrong; the resumed runs reused one
+tenant), their eight users, seven projects and exactly 41 storage objects.
+The objects were removed through the storage API as each tenant's own user,
+so row-level security scoped every delete to that company's folder; the
+rows went by one guarded SQL statement that refused unless all eight ids
+were `Validation Co` companies. Verified afterwards: nothing left under
+those prefixes, Store 1848 untouched.
+
+**Both failures fixed, `dd9add2`, and verified on its deployment.** A
+draft Completion now draws the instructed works table from the same
+`parseInstructedWorks` the PDF uses, after the prose or its editor in
+every state; the editor never lists the payload, and the save leaves it
+out of its comparison so it cannot be blanked. The plate list is one
+column on a phone with captions that wrap. On the real build at 375, 393
+and 430: table on screen straight after Generate, no JSON textarea, no
+sideways scroll; AI caption saved and printed; PDF embeds the 1600 px
+originals. Still seen, not fixed: one sentence repeated between the
+Completion summary and Outstanding / Follow-on (model output), and the
+cold create-page dropdown.
 
 ### What changed since the last handoff
 
