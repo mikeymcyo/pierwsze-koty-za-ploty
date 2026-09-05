@@ -304,6 +304,16 @@ check(
   /belong to the project, not to this report/.test(actions),
 );
 
+console.log("\n9. The plate list fits a phone");
+
+// Measured on the real build, 5 September 2026: 589px of list on a 393px
+// screen, because a grid with no column count sizes to a caption that may not
+// wrap. One column, said out loud, and captions that wrap.
+check("one column on a phone, two from sm", /className="grid grid-cols-1 gap-4 sm:grid-cols-2"/.test(arrange));
+check("an item may shrink below its content", /<li key=\{photo\.id\} className="flex min-w-0 flex-col/.test(arrange));
+check("the printed caption wraps rather than truncating", /className="text-xs break-words text-ink-muted"/.test(arrange) && !/className="truncate text-xs text-ink-muted"/.test(arrange));
+check("and the photograph itself is untouched", /aspect-4\/3 overflow-hidden/.test(arrange) && /size-full object-cover/.test(arrange));
+
 console.log("\n=== Result ===");
 if (failures.length === 0) {
   console.log("ALL SUMMARY PHOTO CHECKS PASSED");

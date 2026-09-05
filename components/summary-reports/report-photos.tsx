@@ -156,9 +156,14 @@ export function ReportPhotos({
 
       {photos.length > 0 ? (
         <ul
-          className="grid gap-4 sm:grid-cols-2">
+          // One column on a phone, said explicitly. A grid with no column
+          // count sizes its implicit column to the widest content in it, and
+          // a caption that must not wrap is as wide as its longest sentence -
+          // which is how this list came to be 589px wide on a 393px screen
+          // and the whole page to scroll sideways.
+          className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           {ordered.map((photo, index) => (
-            <li key={photo.id} className="flex flex-col gap-2 rounded-xl border border-line p-3">
+            <li key={photo.id} className="flex min-w-0 flex-col gap-2 rounded-xl border border-line p-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-2">
                   <span className="rounded-md bg-surface-muted px-2 py-1 font-mono text-xs font-semibold tabular-nums text-ink">
@@ -205,7 +210,7 @@ export function ReportPhotos({
                 /* What this document will print under the plate - the report's
                    own caption where one was written, the photograph's own
                    otherwise. Same photograph, same words, both surfaces. */
-                <p className="truncate text-xs text-ink-muted">
+                <p className="text-xs break-words text-ink-muted">
                   {photo.captionOverride?.trim() || photo.caption}
                 </p>
               ) : null}

@@ -520,11 +520,18 @@ export async function updateSummarySectionGroup(
   if (readError) return { error: `Could not read the report: ${readError.message}` };
 
   const byType = new Map((rows ?? []).map((row) => [row.section_type, row.content]));
-  const sections = group.sections.map((type) => ({
-    type,
-    label: SUMMARY_SECTION_LABELS[type as SummarySectionType] ?? type,
-    content: byType.get(type as SummarySectionType) ?? "",
-  }));
+  // The same rule as the screen: the instructed works payload is not prose
+  // and is never in the editor, so it must not be in the comparison either.
+  // readGroupFields reads an absent field as empty, and an "empty" payload
+  // next to a stored one would count as a change and blank the table on the
+  // first save of the summary text.
+  const sections = group.sections
+    .filter((type) => type !== "instructed_works")
+    .map((type) => ({
+      type,
+      label: SUMMARY_SECTION_LABELS[type as SummarySectionType] ?? type,
+      content: byType.get(type as SummarySectionType) ?? "",
+    }));
 
   const submitted = readGroupFields((name) => formData.get(name)?.toString(), sections);
   const changed = changedSections(sections, submitted);

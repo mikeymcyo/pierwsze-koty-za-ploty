@@ -325,12 +325,20 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
     entry.content?.trim(),
   );
 
-  /** Every stored section of a group, written or not, for its one writing box. */
+  /**
+   * Every prose section of a group, written or not, for its one writing box.
+   *
+   * The instructed works table is not prose and is not offered for typing:
+   * it is a JSON payload the model writes and InstructedWorksPanel draws, on
+   * a draft and on an issued report alike, from the same parse the PDF uses.
+   * Listing it here put a textarea of braces on the screen the person signs
+   * off from, with the table it stood for nowhere in sight.
+   */
   const editorSections = (key: string) => {
     const entry = groupFor(key);
     if (!entry) return [];
     const byType = new Map(entry.entries.map((section) => [section.section_type, section]));
-    return entry.group.sections.map((type) => {
+    return entry.group.sections.filter((type) => type !== "instructed_works").map((type) => {
       const row = byType.get(type as SummarySectionType);
       return {
         type,
@@ -433,10 +441,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
           ) : null}
 
           {isFinal ? (
-            <>
-              <SectionProse entry={groupFor("summary")} />
-              {instructedWorks ? <InstructedWorksPanel works={instructedWorks} /> : null}
-            </>
+            <SectionProse entry={groupFor("summary")} />
           ) : consolidating && !hasWrittenSummary ? (
             /* Sources ticked and nothing written yet. The box says it is
                optional rather than being folded away: anything typed here
@@ -466,6 +471,10 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
               action={updateSummarySectionGroup.bind(null, id)}
             />
           )}
+          {/* The same table the PDF prints, from the same parsed payload, on
+              a draft as on an issued report. What the client will see is on
+              the screen before anyone presses Finalise. */}
+          {instructedWorks ? <InstructedWorksPanel works={instructedWorks} /> : null}
         </ReportSectionCard>
       ) : null}
 

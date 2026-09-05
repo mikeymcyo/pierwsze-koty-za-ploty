@@ -189,6 +189,41 @@ check(
   shape("completion"),
 );
 
+console.log("\n4b. The instructed works table is on the screen, and its JSON never is");
+
+// Found on the real build, 5 September 2026: a draft Completion showed a
+// textarea of raw JSON labelled "Instructed works and status" and no table,
+// while the PDF printed the table. The editor now skips the payload and the
+// panel is drawn in every state from the same parse the PDF uses.
+check(
+  "the group editor never lists the instructed works payload",
+  /entry\.group\.sections\.filter\(\(type\) => type !== "instructed_works"\)/.test(summaryPage),
+);
+check(
+  "the table is not gated on the report being final",
+  !/isFinal \? \(\s*<>\s*<SectionProse[\s\S]{0,200}InstructedWorksPanel/.test(summaryPage),
+);
+check(
+  "it is drawn after the prose or its editor, in every state",
+  /\)\}\s*\{\/\*[\s\S]{0,400}?\*\/\}\s*\{instructedWorks \? <InstructedWorksPanel works=\{instructedWorks\} \/> : null\}\s*<\/ReportSectionCard>/.test(summaryPage),
+);
+check(
+  "from the same parse the PDF uses",
+  /parseInstructedWorks\(/.test(summaryPage) && /parseInstructedWorks\(/.test(read("../lib/pdf/summary-document.tsx")),
+);
+check(
+  "and a save of the summary text cannot blank it",
+  // readGroupFields reads an absent field as empty; the payload is not in
+  // the form, so it must not be in the comparison the save is made from.
+  /group\.sections\s*\.filter\(\(type\) => type !== "instructed_works"\)\s*\.map\(/.test(
+    read("../app/(app)/summary-reports/ai-actions.ts"),
+  ),
+);
+check(
+  "and read-only prose still skips it, so no paragraph of braces either",
+  /section\.section_type !== "instructed_works"/.test(summaryPage),
+);
+
 console.log("\n5. A section nobody prints is retained, not exported");
 
 // The migration path. A report drafted before the structures shrank still has
