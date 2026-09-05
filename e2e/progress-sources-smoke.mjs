@@ -28,6 +28,7 @@ import { CLEANUP_SECTIONS } from "../lib/ai/cleanup-prompt.ts";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
+const createForm = read("../components/summary-reports/summary-create-form.tsx");
 const failures = [];
 function check(label, ok, detail = "") {
   if (!ok) failures.push(detail ? `${label} - ${detail}` : label);
@@ -219,7 +220,10 @@ check(
 );
 check(
   "the project select navigates so the server can answer",
-  /router\.replace\(`\/summary-reports\/new\?kind=\$\{kind\}&project=\$\{next\}`\)/.test(form),
+  // A full navigation: on the deployed build a router.replace to the same
+  // page with new search params made no request and left the address alone.
+  /window\.location\.assign\(`\/summary-reports\/new\?kind=\$\{kind\}&project=\$\{next\}`\)/.test(createForm) &&
+    !/router\.replace\(/.test(createForm) && !/useRouter/.test(createForm),
 );
 
 console.log("\n7. Structure: two writing areas, three headings");

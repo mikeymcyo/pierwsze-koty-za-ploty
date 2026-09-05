@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
 
@@ -282,7 +281,6 @@ export function SummaryCreateForm({
   /** The issued Progress Reports of the chosen project, with the days each covers. */
   progressReports: SelectableProgress[];
 }) {
-  const router = useRouter();
   const [kind, setKind] = useState<SummaryReportKind>(defaultKind);
   const [sourceMode, setSourceMode] = useState<SummarySourceMode>("sources");
   const [projectId, setProjectId] = useState(defaultProjectId ?? "");
@@ -338,6 +336,7 @@ export function SummaryCreateForm({
           onChange={(event) => {
             const next = event.target.value;
             setProjectId(next);
+            // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- a full navigation on purpose; see above
             if (next) window.location.assign(`/summary-reports/new?kind=${kind}&project=${next}`);
           }}
           required

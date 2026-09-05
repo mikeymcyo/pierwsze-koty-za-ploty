@@ -34,6 +34,7 @@ import {
 import { groupSections } from "../lib/report-structure.ts";
 import { proseBlocks } from "../lib/pdf/components.tsx";
 import { CLEANUP_SECTIONS } from "../lib/ai/cleanup-prompt.ts";
+import { withoutSentencesIn } from "../lib/summary-reports/dedupe.ts";
 import { MASTER_REVIEW_SYSTEM_PROMPT } from "../lib/ai/master-review-prompt.ts";
 import { SUMMARY_SYSTEM_PROMPT } from "../lib/ai/summary-prompt.ts";
 import { buildEvidence } from "../lib/summary-reports/evidence.ts";
@@ -644,6 +645,35 @@ check(
   /const attachedPhotos: ReportPhoto\[\] = \(photoLinksResult\.data \?\? \[\]\)/.test(
     read("../app/(app)/summary-reports/[id]/page.tsx"),
   ),
+);
+
+console.log("\n11. A fact is told once: the follow-on never repeats the summary");
+
+// On the real build, 5 September 2026: "The warehouse doors were not worked
+// on in the recorded period." in both the Completion summary and the
+// follow-on. The summary is the position; the follow-on is what is still to
+// be done. The rule is deterministic, and the model is told it as well.
+const summary = "The main works are complete. The warehouse doors were not worked on in the recorded period.";
+check(
+  "a sentence the summary carries is dropped from the follow-on",
+  withoutSentencesIn("Joint sealant to Bay 39 remains outstanding pending the Sika delivery. The warehouse doors were not worked on in the recorded period.", summary) ===
+    "Joint sealant to Bay 39 remains outstanding pending the Sika delivery.",
+);
+check("case, spacing and the full stop do not hide a repeat", withoutSentencesIn("the  warehouse doors were not worked on in the recorded period", summary) === "");
+check("a sentence that says more than the summary stays", withoutSentencesIn("The warehouse doors were not worked on in the recorded period and are programmed for next week.", summary).length > 40);
+check("a follow-on with nothing repeated is returned byte for byte", withoutSentencesIn("Sealant after Thursday's delivery.\n\nHandover to follow.", summary) === "Sealant after Thursday's delivery.\n\nHandover to follow.");
+check("a bullet line is one item", withoutSentencesIn("- Sealant after Thursday.\n- The warehouse doors were not worked on in the recorded period.", summary) === "- Sealant after Thursday.");
+check("an emptied paragraph goes with its break", withoutSentencesIn("The warehouse doors were not worked on in the recorded period.\n\nSealant after Thursday.", summary) === "Sealant after Thursday.");
+const aiActions = read("../app/(app)/summary-reports/ai-actions.ts");
+check(
+  "applied to a Completion Report where the text is decided",
+  /report\.kind === "completion" && sections\.sign_off && sections\.project_overview[\s\S]{0,120}withoutSentencesIn\(sections\.sign_off, sections\.project_overview\)/.test(aiActions),
+);
+check("after the plate references are checked", aiActions.indexOf("stripUnknownPlates(content, plateCount)") < aiActions.indexOf("withoutSentencesIn(sections.sign_off"));
+check(
+  "and the model is told the same rule, in both passes",
+  /never repeat a sentence or a fact the completion summary already gives/.test(drafting("sign_off")) &&
+    /never repeat a sentence or a fact the completion summary already gives/.test(cleanup("sign_off")),
 );
 
 console.log("\n=== Result ===");

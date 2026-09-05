@@ -32,7 +32,9 @@ function sentencesOf(text: string): string[] {
     const trimmed = line.trim();
     if (!trimmed) continue;
     if (/^[-•]\s/.test(trimmed)) {
-      out.push(trimmed);
+      // Compared without its marker: "- The doors were not worked on" is the
+      // same fact as the summary's plain sentence.
+      out.push(trimmed.replace(/^[-•]\s+/, ""));
       continue;
     }
     for (const part of trimmed.split(/(?<=[.!?])\s+(?=[A-Z0-9"'(])/)) {
@@ -60,7 +62,7 @@ export function withoutSentencesIn(secondary: string, primary: string): string {
       .split(/\n/)
       .map((line) => {
         const trimmed = line.trim();
-        if (/^[-•]\s/.test(trimmed)) return said.has(normalise(trimmed)) ? "" : line;
+        if (/^[-•]\s/.test(trimmed)) return said.has(normalise(trimmed.replace(/^[-•]\s+/, ""))) ? "" : line;
         const kept = sentencesOf(trimmed).filter((sentence) => !said.has(normalise(sentence)));
         return kept.join(" ");
       })
