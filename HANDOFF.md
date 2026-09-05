@@ -144,6 +144,66 @@ not a read failure. Six throwaway companies named `Validation Co <stamp>`
 were created in the hosted project by these runs; nothing of Store 1848 was
 touched. They are for the owner to delete.
 
+### Real-build validation on the deployed Preview, 5 September 2026 - final
+
+Driven end to end at iPhone size (393x852, 3x, iOS Safari UA) against the
+deployment of `6ba9919` - real Supabase, real OpenAI, real PDFs. Ten
+throwaway tenants named `Validation Co <stamp>` were created to do it; see
+the cleanup note below. What passed and what did not:
+
+**Passed on the real build.** Sign-up and sign-in; Start Site Capture lands
+on the capture screen; one Add photos button, no source trio, no status
+menu, no workforce prompt, no overflow. Three fresh photographs uploaded:
+345/361/342 kB originals at 1600 px with 28/32/28 kB thumbnails beside them,
+served from `/photos/<id>/thumb` as `private, max-age=31536000, immutable`.
+A document added from Site Capture and read by the real model: two pages,
+gpt-5.5, a summary that correctly quotes the order and its "QUOTATION ONLY -
+NOT INSTRUCTED" section. Prepare Daily asked no questions. Daily Summary:
+one summary, five sentences, the pour and the sealant wait, no claim about
+the doors, no legalese, nothing repeated. Daily finalised; the PDF embeds the
+1600 px originals, never the thumbnails. Progress from the project page:
+five-sentence overview, one genuine outstanding item, finalised. Completion
+from the project page: summary honest about order versus record, no
+Completed works paragraph, follow-on is the sealant, Describe with AI lands
+in the box in 4 s and is concise with no forbidden claim, the edited
+description saves and prints, the PDF embeds the originals.
+
+**Failed, observed, not fixed (one fix per batch, spent below).**
+
+1. *Draft Completion shows the instructed-works JSON and never the table.*
+   `app/(app)/summary-reports/[id]/page.tsx` renders `SectionProse` plus
+   `InstructedWorksPanel` only when `isFinal`; a draft gets `GroupEditor`
+   over `editorSections("summary")`, which lists every stored type of the
+   group - so `instructed_works` appears as an editable textarea of raw
+   JSON labelled "Instructed works and status", and the table is absent even
+   after a reload. The preview PDF prints the table. That is export content
+   not visible before export, on the screen the person signs off from.
+   Screenshots `07-completion.png` and `07b-completion-after-reload.png`.
+2. *Completion page scrolls sideways at iPhone width.* The Photographic
+   evidence plate list (`components/summary-reports/report-photos.tsx`,
+   the ordering list a consolidating report shows) renders each item 589 px
+   wide in a 393 px viewport; measured, `overflow-probe.png`.
+3. *One sentence repeated.* "The warehouse doors were not worked on in the
+   recorded period." appeared in both the Completion summary and Outstanding
+   / Follow-on. Model output; the prompts' no-repetition rule did not hold
+   on this run.
+4. *Cold create page dead-ends* - as recorded above.
+
+**Fixed this batch:** `845614d` - the clock-skew retry budget, 6 s to 20 s,
+with `npm run test:clock-skew`. Nineteen crashed first-screens across seven
+users in a week; none in the three hours since.
+
+**Not app failures.** The one PDF sentence never on screen is the fixed
+signature-block text. A zero-byte purchase order in one run (Vercel error
+20:40) was this harness, which could not forward a disk-backed file's body;
+with an in-memory file the object landed at 2332 bytes and was read
+correctly.
+
+**Cleanup for the owner's decision - nothing deleted.** Ten companies named
+`Validation Co <stamp>` (users `validation+<stamp>@example.com`), seven
+projects, 41 storage objects, all created 5 September 2026 19:00-21:30 UTC.
+Store 1848 was not touched.
+
 ### What changed since the last handoff
 
 - **Document Intelligence.** PDF text extraction (pdfjs, Node runtime, proven
