@@ -4,11 +4,80 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Last updated:** 2026-09-03
+**Written:** 2026-08-26 · **Last updated:** 2026-09-06
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-**Head:** `acf1427` - Describe with AI, back on a consolidated report's plates
+**Head:** `87733dd` - Supporting documents may be photographs; a photo becomes an A4 appendix page (plus the handoff commit on top of it)
 **Recovery head:** `fe6bf7f` - AI photo descriptions and supporting documents
+
+## SITEBOSS V1 — HURRICANE FINISH MODE
+
+**From 2026-09-06 the real Southampton shopfitting project is the acceptance
+test.** Nothing else decides whether v1 is done. Until the next field-test
+result comes back there is no new feature work, no architecture work, no
+refactoring, no cosmetic tinkering, no speculative improvement and no more
+test architecture. Anything that does not block one of the seven criteria
+below goes to v1.1.
+
+### V1 pass criteria
+
+1. Site Capture works quickly on iPhone.
+2. Daily = one concise editable summary + evidence.
+3. Progress correctly consolidates selected Dailies, remains editable and
+   produces a clean PDF.
+4. Completion correctly consolidates the job without duplication or invented
+   claims.
+5. Photos/documents remain usable and professional.
+6. Preview/PDF/share workflow works reliably on iPhone/iPad.
+7. No data loss, tenant/security issue or destructive behaviour.
+
+### What was finished and proved on the real build before stopping
+
+Head `87733dd`, Preview `dpl_BTwnmUFsn8HQmitJxvmHR1vNsX14` READY, aliased to
+`app.sitebosspro.co.uk`. All 49 offline suites, export parity, lint
+(`--max-warnings 0`), typecheck and the production build pass on it.
+
+- **Progress wording is directly editable (criterion 3).** One editable
+  Progress Overview box; the AI writes into it; the person corrects a word
+  and presses Save. Proved on the Preview at iPhone size: the exact edited
+  text came back after a full reload, the badge read "Edited by you", and the
+  preview PDF printed every sentence of the box verbatim. No UX change was
+  needed. The "Review & polish" Current/Suggested panel is optional and does
+  not block this; it stays. (A probe waiting for the "Saved" label times out
+  because the editor remounts after the page revalidates - the save has
+  already happened. Wait for the value, not the label.)
+- **Supporting documents accept JPEG and PNG (criterion 5).** The kind is
+  decided from the file's own signature, never from its name or the device's
+  MIME guess; HEIC is refused with a message to send a JPEG. In the issued or
+  previewed PDF a photo document becomes one A4 appendix page, landscape for a
+  landscape photo, scaled to fit, titled. Proved on the Preview: a JPEG
+  delivery note uploaded to the real bucket, listed under Documents, attached
+  to a draft Daily, and the preview grew from 1 page to 2 with an 842x595
+  page carrying the title, the JPEG embedded as a JPEG. Photo documents are
+  not read for job context (no text layer, no OCR); Prepare Daily skips them
+  silently.
+- **Storage change, approved and applied:** the `project-documents` bucket
+  allow-list is now `application/pdf, image/jpeg, image/png`. One row, one
+  column in `storage.buckets`; migration `20260906000012_document_images.sql`;
+  applied to the hosted project by explicit execution (recorded as
+  `document_images`), never `db push`. No table, column, policy or existing
+  object changed. `supabase/apply-all-migrations.sql` does not yet carry this
+  statement.
+- **Progress date audit (Southampton):** Progress 001 exported 5 Sep to 5 Sep
+  because both source Dailies carry `report_date` 5 Sep; both were started
+  on 5 Sep (Daily 002 at 18:25 BST, finalised the next morning). That is the
+  DB default working day at creation, editable in Report details. Not an app
+  bug; no data altered.
+- **Throwaway tenants:** the two "Validation Co" tenants created for these
+  proofs were deleted in full (storage objects as the tenant's own user, then
+  rows by SQL scoped by id and name) and verified gone. Empire Interiors Ltd
+  and every live tenant untouched.
+
+### Where to start when the field-test result arrives
+
+Read the failure as reported, reproduce it on the Preview, fix that one
+proven issue only, run the checks, push, confirm the Preview READY. Do not
+touch anything the result did not name.
 
 ## Stopping point, 2026-09-03
 
