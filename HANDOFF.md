@@ -73,6 +73,57 @@ Head `87733dd`, Preview `dpl_BTwnmUFsn8HQmitJxvmHR1vNsX14` READY, aliased to
   rows by SQL scoped by id and name) and verified gone. Empire Interiors Ltd
   and every live tenant untouched.
 
+### Visual redesign, 2026-09-06 - `61cb8a9` and `53fcaa6`
+
+Asked for after finish mode was declared, as a visual pass only. Nothing
+about the workflow, the logic or the information architecture moved: no
+screen gained or lost a step, a field, a query or a rule, and every offline
+suite, export parity, lint, typecheck and the production build pass.
+
+**Tokens (`app/globals.css`):** page `#0E1116`, card `#151A22`, raised
+`#1B212C`, chip fill `#1F2733`, hairline `#232B38` / strong `#2A3342`, ink
+`#F3F5F7` / muted `#A7B0BD`, brand `#F6B800` (hover `#FFC928`), info
+`#4DA3FF`, success `#23C16B`, warning `#FF8A3D`, danger `#F45B69`. Radii
+`rounded-card` 20px and `rounded-control` 16px; shadows `shadow-card`,
+`shadow-raised`, `shadow-glow` (gold), `shadow-nav`; `animate-rise` on page
+content and `animate-fade` on alerts, both off under reduced motion. Type is
+Inter (`--font-inter`) with Geist Mono kept for capture times. The light
+theme carries the same roles. The mark, icons, manifest and status bar use
+the same gold and ground.
+
+**Shell:** slim glass top bar (`pt-safe` clears the iPhone status bar) with
+the wordmark, the company as a chip and the gear; a floating glass bottom
+bar with the Create action raised in gold at the centre; the desktop sidebar
+matched. Cards are lit surfaces - a soft shadow and a hairline inset - not
+drawn boxes; `Card` has a `raised` prop for the one thing on a screen that
+comes forward.
+
+**Screens:** dashboard as a control centre (the day, the capture in progress
+as the hero, three quick actions, then projects and reports as cards with
+status chips); project page opening with a hub card carrying the primary
+action over a segmented tab row; Site Capture with the question as the
+heading of a raised card, a strong gold Speak, a secondary Add note, photos
+and documents as action blocks, a compact Today so far, and Prepare Daily as
+the closing hero; report screens with an editorial header and metadata
+chips, section cards, a calmer writing surface and a raised Finalise card;
+photo cards image-first with the plate number they will print as and a
+"Caption (optional)" box that asks for short, factual words. All-caps
+section labels became bold sentence case across seventeen files.
+
+**PDF:** colour, rule weight and radius only - softer greys, the brand gold
+as the mark, a hairline under section headings, a rounded control panel.
+Every spacing value the page budget is tuned to is unchanged; the template
+suite proves the page counts.
+
+**Tests that encode the palette were updated to it:** `brand-smoke`,
+`settings-smoke`, `pdf-export-smoke`, and the caption label in
+`summary-photos-smoke`. The gold-fill limit (eight files) still holds.
+
+**Proved on the Preview at iPhone size** with the validation harness: sign
+up, project, Site Capture with notes, three photos and a document, Prepare
+Daily, Daily issued, Progress consolidated and issued - every check passing
+on the redesigned screens, with no horizontal overflow on any of them.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one
