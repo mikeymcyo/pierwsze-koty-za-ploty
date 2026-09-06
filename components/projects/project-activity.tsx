@@ -84,7 +84,7 @@ export function ProjectActivity({
 
       {days.map((group) => (
         <div key={group.day} className="flex flex-col gap-3">
-          <h2 className="text-xs font-semibold tracking-wide text-ink-subtle uppercase">
+          <h2 className="text-xs font-semibold tracking-wide text-ink-subtle">
             {heading(group.day)}
           </h2>
 

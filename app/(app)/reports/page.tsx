@@ -52,7 +52,7 @@ export default async function ReportsPage() {
       ) : (
         <>
           <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">Progress and completion</h2>
+            <h2 className="text-sm font-bold tracking-tight text-ink">Progress and completion</h2>
             {summaries.length === 0 ? (
               <p className="text-sm text-ink-muted">No consolidated reports yet.</p>
             ) : (
@@ -70,7 +70,7 @@ export default async function ReportsPage() {
           </section>
 
           <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">Daily Reports</h2>
+            <h2 className="text-sm font-bold tracking-tight text-ink">Daily Reports</h2>
             {daily.length === 0 ? (
               <p className="text-sm text-ink-muted">No Daily Reports yet.</p>
             ) : (

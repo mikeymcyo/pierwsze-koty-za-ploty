@@ -58,7 +58,7 @@ export function SurveyCreateForm({
           <input type="hidden" name="directory" value={store.directoryId} />
           <input type="hidden" name="storeCode" value={store.code} />
           <div className="rounded-2xl border border-line bg-surface-muted p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+            <p className="text-xs font-semibold tracking-wide text-ink-subtle">
               Surveying
             </p>
             <p className="mt-1 font-semibold text-ink">

@@ -71,7 +71,7 @@ export function StorePicker({
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+          <p className="text-xs font-semibold tracking-wide text-ink-subtle">
             Store or location
           </p>
           {selected ? (

@@ -418,7 +418,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
 
                 {sourceItems.length > 0 ? (
                   <section className="flex flex-col gap-3">
-                    <h3 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+                    <h3 className="text-sm font-bold tracking-tight text-ink">
                       Source evidence
                     </h3>
                     <Card><CardContent>

@@ -49,7 +49,7 @@ export function JobDescription({
         <div className="flex items-start gap-3">
           <ClipboardList className="mt-0.5 size-4 shrink-0 text-ink-subtle" aria-hidden />
           <div className="min-w-0 flex-1">
-            <h2 className="text-xs font-bold tracking-wide text-ink-muted uppercase">What is this job?</h2>
+            <h2 className="text-xs font-bold tracking-wide text-ink-muted">What is this job?</h2>
             {entries.length > 0 ? (
               <ul className="mt-1 flex flex-col gap-1">
                 {entries.map((entry, index) => (

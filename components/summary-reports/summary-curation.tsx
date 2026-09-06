@@ -200,7 +200,7 @@ export function SummaryCuration({
       <div>
         {/* An h3: the report's three section headings are the h2s on this
             screen now, and this control sits under one of them. */}
-        <h3 className="text-sm font-bold tracking-wide text-ink-muted uppercase">What the client sees</h3>
+        <h3 className="text-sm font-bold tracking-tight text-ink">What the client sees</h3>
         <p className="mt-1 text-sm text-ink-muted">
           {showPhotos
             ? "Tick the photographs this document includes - those, and only those, are printed. A ticked photograph can carry a caption written for this report. Their order is set in Arrange Photos above and is not changed by saving here."

@@ -26,7 +26,7 @@ export function LinkedStoreCard({ store }: { store: ResolvedStore }) {
             <Store className="size-5" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+            <p className="text-xs font-semibold tracking-wide text-ink-subtle">
               {store.client}
             </p>
             <p className="truncate font-semibold text-ink">{store.displayName}</p>
@@ -90,7 +90,7 @@ export function UnknownStoreCard({
   return (
     <Card>
       <CardContent>
-        <p className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+        <p className="text-xs font-semibold tracking-wide text-ink-subtle">
           Store or location
         </p>
         <p className="mt-1 font-medium text-ink">

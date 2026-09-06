@@ -42,7 +42,7 @@ function Block({ title, hint, children }: { title: string; hint?: string; childr
   return (
     <section className="flex flex-col gap-3">
       <div className="flex flex-col gap-1">
-        <h3 className="text-sm font-bold tracking-wide text-ink-muted uppercase">{title}</h3>
+        <h3 className="text-sm font-bold tracking-tight text-ink">{title}</h3>
         {hint ? <p className="text-sm text-ink-muted">{hint}</p> : null}
       </div>
       {children}

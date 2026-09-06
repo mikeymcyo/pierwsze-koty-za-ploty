@@ -45,7 +45,7 @@ export default async function NewProjectPage({
         banner={
           store ? (
             <div className="rounded-2xl border border-line bg-surface-muted p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">
+              <p className="text-xs font-semibold tracking-wide text-ink-subtle">
                 From the store directory
               </p>
               <p className="mt-1 font-semibold text-ink">

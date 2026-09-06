@@ -235,7 +235,7 @@ export function MasterReviewPanel({
 
                       <div className="flex flex-col gap-3">
                         <div>
-                          <p className="text-xs font-bold tracking-wide text-ink-subtle uppercase">
+                          <p className="text-xs font-bold tracking-wide text-ink-subtle">
                             Current
                           </p>
                           <p className="mt-1 text-sm whitespace-pre-wrap text-ink-muted">
@@ -243,7 +243,7 @@ export function MasterReviewPanel({
                           </p>
                         </div>
                         <div>
-                          <p className="text-xs font-bold tracking-wide text-ink-subtle uppercase">
+                          <p className="text-xs font-bold tracking-wide text-ink-subtle">
                             Suggested
                           </p>
                           <p className="mt-1 text-sm whitespace-pre-wrap text-ink">

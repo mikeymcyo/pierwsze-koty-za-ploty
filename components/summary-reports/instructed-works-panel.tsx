@@ -29,7 +29,7 @@ export function InstructedWorksPanel({ works }: { works: InstructedWorks }) {
   return (
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-3">
-        <h3 className="text-xs font-bold tracking-wide text-ink-muted uppercase">
+        <h3 className="text-xs font-bold tracking-wide text-ink-muted">
           Instructed works and status
         </h3>
 
@@ -70,7 +70,7 @@ export function InstructedWorksPanel({ works }: { works: InstructedWorks }) {
 
       {works.workstreams.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <h3 className="text-xs font-bold tracking-wide text-ink-muted uppercase">
+          <h3 className="text-xs font-bold tracking-wide text-ink-muted">
             How the works were carried out
           </h3>
           {works.workstreams.map((stream, index) => (
@@ -87,7 +87,7 @@ export function InstructedWorksPanel({ works }: { works: InstructedWorks }) {
 
       {works.materials.length > 0 ? (
         <div className="flex flex-col gap-2">
-          <h3 className="text-xs font-bold tracking-wide text-ink-muted uppercase">Materials</h3>
+          <h3 className="text-xs font-bold tracking-wide text-ink-muted">Materials</h3>
           <ul className="flex flex-col gap-1">
             {works.materials.map((entry, index) => (
               <li key={`${entry.material}-${index}`} className="text-sm text-ink">

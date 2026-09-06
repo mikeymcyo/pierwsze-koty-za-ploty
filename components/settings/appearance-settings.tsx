@@ -154,10 +154,10 @@ function Choice<T extends string>({
                 aria-checked={selected}
                 onClick={() => onChange(option)}
                 className={cn(
-                  "flex min-h-(--ui-control-min) items-center justify-center gap-1.5 rounded-xl border px-3 text-sm font-semibold transition-colors",
+                  "flex min-h-(--ui-control-min) min-w-0 items-center justify-center gap-1 rounded-control px-2 text-sm font-semibold ring-1 ring-inset transition-[color,background-color,box-shadow] duration-200",
                   selected
-                    ? "border-brand bg-brand-soft text-ink"
-                    : "border-line-strong bg-surface text-ink-muted hover:border-brand/40 hover:text-ink",
+                    ? "bg-brand-soft text-ink ring-brand/70"
+                    : "bg-surface-raised text-ink-muted ring-line-strong/70 hover:text-ink",
                 )}
               >
                 {selected ? <Check className="size-4 text-brand-ink" aria-hidden /> : null}

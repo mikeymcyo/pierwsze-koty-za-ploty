@@ -145,7 +145,7 @@ export default async function StorePage({
 
       {current.length > 0 ? (
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+          <h2 className="text-sm font-bold tracking-tight text-ink">
             {current.length === 1 ? "Project here" : "Projects here"}
           </h2>
           <ul className="flex flex-col gap-3">
@@ -261,7 +261,7 @@ export default async function StorePage({
       </div>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-ink-muted">
+        <h2 className="text-sm font-bold tracking-tight text-ink">
           {historical.length > 0 ? "Earlier work here" : "Projects at this store"}
         </h2>
         {projectsError ? (
@@ -319,7 +319,7 @@ function Detail({
 }) {
   return (
     <div>
-      <p className="text-xs font-semibold uppercase tracking-wide text-ink-subtle">{label}</p>
+      <p className="text-xs font-semibold tracking-wide text-ink-subtle">{label}</p>
       <p
         className={
           muted

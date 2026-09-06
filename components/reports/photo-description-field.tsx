@@ -28,7 +28,7 @@ export function PhotoDescriptionField({
   value,
   onChange,
   onBlur,
-  label = "Photo description (optional)",
+  label = "Caption (optional)",
   placeholder = "What does this show?",
   maxLength = 300,
   defaultValue,

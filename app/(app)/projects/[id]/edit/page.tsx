@@ -80,7 +80,7 @@ export default async function EditProjectPage({
       />
 
       <section className="flex flex-col gap-3 border-t border-line pt-6">
-        <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">Danger zone</h2>
+        <h2 className="text-sm font-bold tracking-tight text-ink">Danger zone</h2>
         <DeleteProject
           projectId={project.id}
           projectName={project.name}

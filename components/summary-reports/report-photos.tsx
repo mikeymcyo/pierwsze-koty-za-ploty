@@ -114,7 +114,7 @@ export function ReportPhotos({
       <div>
         {/* An h3: this sits inside the document's "Photos & Evidence" section
             rather than beside it. */}
-        <h3 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+        <h3 className="text-sm font-bold tracking-tight text-ink">
           Photographic evidence
         </h3>
         <p className="mt-1 text-sm text-ink-muted">

@@ -27,7 +27,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 
 function SectionTitle({ children }: { children: string }) {
   return (
-    <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">{children}</h2>
+    <h2 className="text-sm font-bold tracking-tight text-ink">{children}</h2>
   );
 }
 

@@ -188,7 +188,7 @@ check("it wraps", /wrap="soft"/.test(field) && /whitespace-pre-wrap/.test(field)
 check("and cannot be dragged out of shape", /resize-none/.test(field));
 check(
   "the label says what it is and that it is optional",
-  /Photo description \(optional\)/.test(field),
+  /Caption \(optional\)/.test(field),
 );
 check(
   "the same box is used under a photograph's own thumbnail",
