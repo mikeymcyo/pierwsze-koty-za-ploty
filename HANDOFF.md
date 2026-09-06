@@ -220,6 +220,33 @@ originals. Still seen, not fixed: one sentence repeated between the
 Completion summary and Outstanding / Follow-on (model output), and the
 cold create-page dropdown.
 
+### The last two v1 workflow fixes, 6 September 2026 - verified on the real build
+
+`49853d9` and `57a0ed7`. The Completion follow-on no longer repeats the
+summary: both briefs say the follow-on is only what is still to be done, and
+`lib/summary-reports/dedupe.ts` makes it the rule - any sentence the summary
+already carries is dropped from the follow-on where the text is decided,
+compared with case, spacing, the full stop and a bullet marker set aside.
+And the create page's project dropdown is a full navigation carrying the kind
+and the project, because `router.replace` to the same page with new search
+params was inert on the deployed build.
+
+Driven end to end on the deployment of `57a0ed7` at iPhone size: 62 checks,
+none failing - Site Capture, Daily, Progress, Completion with the table on
+screen straight after Generate, the AI caption saved and printed, export
+parity, the 1600 px originals in the PDF, and a follow-on that reads "Joint
+sealant to Bay 39 remains to be completed, pending the Sika delivery now due
+Thursday" while the summary keeps the doors sentence. Then the cold path:
+the Reports tab's Progress button, no project in the address, a project
+chosen from the dropdown - the page navigated to that project's flow and
+offered its issued Daily. The one tenant made for this was deleted
+afterwards, storage first as its own user, then the rows.
+
+Nothing is known to be blocking v1. Still open, not blocking: `source_bytes`
+on a document extraction records 0 (a bookkeeping field; the read itself
+works), and the fixed signature-block sentence is the only PDF text never
+shown on a screen.
+
 ### What changed since the last handoff
 
 - **Document Intelligence.** PDF text extraction (pdfjs, Node runtime, proven
