@@ -389,7 +389,10 @@ export function createPdfStyles(theme: PdfTheme) {
     // plates came out two to a page with two thirds of each page empty. A row
     // at a time paginates like any other stack of blocks.
     photoRow: { flexDirection: "row", marginTop: 2 },
-    photoCell: { width: "50%", paddingRight: 12, paddingBottom: 10 },
+    // Fourteen points below a row rather than ten: with the caption box a
+    // fixed two lines the rows are the same shape, and the extra air is what
+    // separates one plate's caption from the reference line of the next.
+    photoCell: { width: "50%", paddingRight: 12, paddingBottom: 14 },
     photoRef: {
       fontSize: 8,
       fontFamily: "Helvetica-Bold",
@@ -425,6 +428,11 @@ export function createPdfStyles(theme: PdfTheme) {
      * second page.
      */
     photoCaption: { fontSize: 8.75, color: c.muted, lineHeight: 1.3 },
+    // Two lines of the caption above, reserved whether they are used or not -
+    // the printed caption is kept to about two lines, and a third, where one
+    // happens, grows the box rather than the page budget for every plate.
+    // PLATE_CAPTION_HEIGHT in lib/pdf/components.tsx is this number.
+    photoCaptionBox: { minHeight: 23, marginTop: 1 },
     photoNoCaption: { fontSize: 8.5, color: c.faint, fontStyle: "italic" },
 
     // ---- source record ----------------------------------------------------

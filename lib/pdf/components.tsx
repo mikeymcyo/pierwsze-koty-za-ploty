@@ -24,7 +24,7 @@ import {
   type ResolvedDocument,
 } from "@/lib/documents/metadata";
 import { fitBox, imageSize, photoBoxHeight, photoBoxSize } from "@/lib/pdf/image-size";
-import { photoEvidence, type PhotoEvidenceItem } from "@/lib/pdf/photo-evidence";
+import { photoEvidence, printCaption, type PhotoEvidenceItem } from "@/lib/pdf/photo-evidence";
 import {
   plateCell,
   type InstructedWorkRow,
@@ -606,6 +606,17 @@ export function IssueRecord({
 }
 
 /**
+ * What a plate adds around its photograph: the reference line, the frame's
+ * own border and padding, the caption box and the room below the row.
+ *
+ * The caption box is a fixed two lines whether the caption is one word or
+ * two lines, so every plate is the same shape and a long caption never sits
+ * on the plate beneath it. Kept in step with the styles in lib/pdf/theme.ts.
+ */
+export const PLATE_CAPTION_HEIGHT = 23;
+export const PLATE_CHROME = 12 + 9 + PLATE_CAPTION_HEIGHT + 14;
+
+/**
  * The room the Photographic evidence heading needs below it.
  *
  * Exactly the height of the plate that follows it, plus its reference line and
@@ -617,7 +628,7 @@ export function plateReserve(data: Buffer, bounds?: PlateBounds, rotation = 0): 
   // Measured on the photograph as it will appear: a turned portrait reserves
   // the room a landscape plate needs, not the room it needed before the turn.
   return (
-    photoBoxHeight(rotatedSize(imageSize(data), rotation), PHOTO_COLUMN_WIDTH, bounds) + 34
+    photoBoxHeight(rotatedSize(imageSize(data), rotation), PHOTO_COLUMN_WIDTH, bounds) + PLATE_CHROME
   );
 }
 
@@ -700,7 +711,16 @@ export function PhotoPlate({
           src={data}
         />
       </View>
-      {item.caption ? <Text style={s.photoCaption}>{item.caption}</Text> : null}
+      {/* A fixed box, so every plate is the same height for the same
+          photograph and a long caption cannot sit on the plate below. The
+          full caption stays in the app; this is the printed form of it. */}
+      <View style={s.photoCaptionBox}>
+        {item.caption ? (
+          <Text style={s.photoCaption} maxLines={3}>
+            {printCaption(item.caption)}
+          </Text>
+        ) : null}
+      </View>
     </View>
   );
 }

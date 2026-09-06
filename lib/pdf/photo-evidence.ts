@@ -139,3 +139,40 @@ export function stripUnknownPlates(text: string, count: number): string {
       .trim()
   );
 }
+
+/**
+ * About two lines of caption under a plate - the width of the column at the
+ * caption's size is roughly fifty-five characters a line.
+ */
+export const PRINT_CAPTION_MAX_CHARS = 120;
+
+const CAPTION_PREAMBLE =
+  /^(?:this|the)\s+(?:photograph|photo|image|picture)\s+(?:shows|showing|depicts|captures|of)\s+|^(?:photograph|photo|image|picture)\s+(?:showing|of)\s+/i;
+
+/**
+ * The caption as it is printed under the plate.
+ *
+ * Presentation only: what is stored, shown and edited in the app is the full
+ * caption. On the page a caption that runs to four lines sits on the plate
+ * below it and makes every evidence page a different shape, so the printed
+ * one is kept to about two lines. A preamble that says only that this is a
+ * photograph goes; then, where the caption is still too long, the first
+ * sentence is kept whole if it fits - a caption that leads with the location
+ * and the item keeps its key fact - and otherwise the text is cut at a word
+ * with an ellipsis. A caption that already fits is returned as it is.
+ */
+export function printCaption(caption: string | null | undefined): string | null {
+  const text = (caption ?? "").replace(/\s+/g, " ").trim();
+  if (!text) return null;
+
+  let cleaned = text.replace(CAPTION_PREAMBLE, "");
+  if (cleaned !== text && cleaned.length > 0) cleaned = cleaned[0].toUpperCase() + cleaned.slice(1);
+  if (cleaned.length <= PRINT_CAPTION_MAX_CHARS) return cleaned;
+
+  const first = cleaned.split(/(?<=[.!?])\s+/)[0];
+  if (first.length >= 25 && first.length <= PRINT_CAPTION_MAX_CHARS) return first;
+
+  const cut = cleaned.slice(0, PRINT_CAPTION_MAX_CHARS - 1);
+  const atWord = cut.lastIndexOf(" ");
+  return `${(atWord > 40 ? cut.slice(0, atWord) : cut).replace(/[\s,;:-]+$/, "")}…`;
+}

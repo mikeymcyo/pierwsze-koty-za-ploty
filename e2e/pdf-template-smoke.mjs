@@ -34,6 +34,8 @@ import {
   photoEvidence,
   photoEvidenceHeading,
   photoReference,
+  printCaption,
+  PRINT_CAPTION_MAX_CHARS,
 } from "../lib/pdf/photo-evidence.ts";
 import { ReportDocument } from "../lib/pdf/report-document.tsx";
 import { SummaryReportDocument } from "../lib/pdf/summary-document.tsx";
@@ -502,6 +504,40 @@ check("a full daily report stays short", counts.dailyMixed <= 2, String(counts.d
 check("twelve photographs stay within a daily report's budget", counts.dailyManyPhotos <= 3, String(counts.dailyManyPhotos));
 check("a progress report with one plate is one page", counts.progress === 1, String(counts.progress));
 check("a completion report with six plates stays compact", counts.completion <= 3, String(counts.completion));
+
+console.log("\n10b. The printed caption is about two lines, and the plate reserves them");
+const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+
+// A real Progress PDF had a four-line caption sitting on the plate below it.
+// The full caption stays in the app; what is printed is kept to about two
+// lines, and every plate reserves the same box for it.
+const SHORT_CAP = "Bay 33 - gully surround reinstated in QC6.";
+const TWO_LINE_CAP = "Self-checkout area - metal channels installed along the full run, fixings at 600 centres.";
+const LONG_CAP = "This photograph shows the newly formed concrete surround to the Bay 39 chamber after the pour, with the shuttering still in place and the surface finished level with the surrounding slab, taken from the loading bay side looking towards the warehouse doors.";
+check("a short caption prints as written", printCaption(SHORT_CAP) === SHORT_CAP);
+check("a two-line caption prints as written", printCaption(TWO_LINE_CAP) === TWO_LINE_CAP);
+const printedLong = printCaption(LONG_CAP);
+check("a long caption is kept to about two lines", printedLong.length <= PRINT_CAPTION_MAX_CHARS, `${printedLong.length}: ${printedLong}`);
+check("the preamble that says only that this is a photograph goes", !/^This photograph shows/i.test(printedLong) && /^The newly formed concrete surround/.test(printedLong), printedLong);
+check("and it ends at a word, with an ellipsis, rather than mid-word", /\S…$/.test(printedLong) && !/ …$/.test(printedLong), printedLong);
+check(
+  "a long caption that leads with a sentence keeps that sentence whole",
+  printCaption("Bay 39 - chamber surround reinstated in C35 concrete. The shuttering was left in place overnight and the surface finished level with the surrounding slab before the area was cordoned off.") ===
+    "Bay 39 - chamber surround reinstated in C35 concrete.",
+);
+check("nothing prints for no caption", printCaption(null) === null && printCaption("   ") === null);
+check("the stored caption is not changed - this is presentation", /Presentation only/.test(read("../lib/pdf/photo-evidence.ts")));
+const plateSource = read("../lib/pdf/components.tsx");
+check("the plate prints the printed form, capped at three lines", /<Text style=\{s\.photoCaption\} maxLines=\{3\}>\s*\{printCaption\(item\.caption\)\}/.test(plateSource));
+check("inside a box every plate reserves", /<View style=\{s\.photoCaptionBox\}>/.test(plateSource));
+const themeSource = read("../lib/pdf/theme.ts");
+const boxHeight = Number(themeSource.match(/photoCaptionBox: \{ minHeight: (\d+)/)?.[1]);
+const reserved = Number(plateSource.match(/PLATE_CAPTION_HEIGHT = (\d+);/)?.[1]);
+check("the box is two lines of the caption's size", boxHeight >= 22 && boxHeight <= 24, String(boxHeight));
+check("and the pagination reserve is the same number", reserved === boxHeight, `${reserved} vs ${boxHeight}`);
+check("the reserve is what the heading measures against", /\+ PLATE_CHROME\s*\)/.test(plateSource));
+check("rows have more air below them than before", Number(themeSource.match(/photoCell: \{ width: "50%", paddingRight: 12, paddingBottom: (\d+) \}/)?.[1]) >= 14);
+check("the caption size itself is unchanged", /photoCaption: \{ fontSize: 8\.75,/.test(themeSource));
 
 console.log("\n11. Appendices still attach, and the report is still first");
 const supporting = await PDFDocument.create();

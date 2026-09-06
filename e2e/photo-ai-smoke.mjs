@@ -72,9 +72,19 @@ check(
   /never say that something is\s+absent/i.test(PHOTO_DESCRIPTION_SYSTEM_PROMPT),
 );
 check(
-  "the answer is one short sentence for a UK report",
-  /one sentence/i.test(PHOTO_DESCRIPTION_SYSTEM_PROMPT) &&
+  "the answer is one concise line, two short ones at most, for a UK report",
+  /one concise line wherever possible, never more than two short/i.test(PHOTO_DESCRIPTION_SYSTEM_PROMPT) &&
     /British English/i.test(PHOTO_DESCRIPTION_SYSTEM_PROMPT),
+);
+check(
+  "location or item first, then what the photograph shows, joined by a dash",
+  /Location or item first, then what the/i.test(PHOTO_DESCRIPTION_SYSTEM_PROMPT) &&
+    /Bay 33 - gully surround reinstated in QC6\./.test(PHOTO_DESCRIPTION_SYSTEM_PROMPT),
+);
+check(
+  "and never \"This photograph shows\", adjectives without a fact, or a claim the photograph cannot prove",
+  /Never begin "This photograph shows"/.test(PHOTO_DESCRIPTION_SYSTEM_PROMPT) &&
+    /nothing the photograph cannot prove/i.test(PHOTO_DESCRIPTION_SYSTEM_PROMPT),
 );
 
 console.log("\n4. The context handed over is the safe context only");
