@@ -355,21 +355,28 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
         <Link href={`/projects/${report.project_id}?tab=reports`}><ArrowLeft aria-hidden />{project?.name ?? "Back to project"}</Link>
       </Button>
 
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
-            {report.title || `${label} ${formatReportNumber(report.number)}`}
-          </h1>
-          <p className="mt-1 text-sm text-ink-muted">
-            {[
-              project?.name,
-              summaryPeriodLabel(report.kind, report.period_start, report.period_end, formatDate),
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
+      <header className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold tracking-wide text-ink-subtle">{label}</p>
+            <h1 className="text-[28px] leading-tight font-bold tracking-tight text-balance text-ink md:text-3xl">
+              {report.title || `${label} ${formatReportNumber(report.number)}`}
+            </h1>
+          </div>
+          <Badge tone={isFinal ? "success" : reopened ? "warning" : "neutral"} dot>{isFinal ? "Final" : reopened ? "Reopened" : "Draft"}</Badge>
         </div>
-        <Badge tone={isFinal ? "success" : "neutral"}>{isFinal ? "Final" : reopened ? "Reopened" : "Draft"}</Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          {[
+            project?.name,
+            summaryPeriodLabel(report.kind, report.period_start, report.period_end, formatDate),
+          ]
+            .filter(Boolean)
+            .map((item) => (
+              <span key={String(item)} className="rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-ink-muted">
+                {item}
+              </span>
+            ))}
+        </div>
       </header>
 
       {/* One line, and deliberately only one. The evidence is frozen onto this
@@ -378,7 +385,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
           screen was already carrying. The full list stays behind Advanced
           details below. */}
       {sourceLine ? (
-        <p className="flex items-start gap-2 rounded-xl border border-line bg-surface-muted px-3 py-2 text-sm text-ink-muted">
+        <p className="flex items-start gap-2 rounded-xl bg-surface px-3 py-2.5 text-sm text-ink-muted ring-1 ring-line/70 ring-inset">
           <Layers aria-hidden className="mt-0.5 size-4 shrink-0" />
           {sourceLine}
         </p>

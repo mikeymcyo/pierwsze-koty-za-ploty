@@ -67,15 +67,15 @@ export type PdfTheme = {
  */
 const PALETTES: Record<PdfStyle, PdfTheme["colors"]> = {
   siteboss: {
-    ink: "#18181b",
-    charcoal: "#3f3f46",
-    muted: "#52525b",
-    faint: "#71717a",
-    line: "#e4e4e7",
-    rule: "#18181b",
-    panel: "#fafafa",
-    accent: "#f59e0b",
-    accentInk: "#b45309",
+    ink: "#14171c",
+    charcoal: "#3d444e",
+    muted: "#555d68",
+    faint: "#7a828e",
+    line: "#e6e9ee",
+    rule: "#c9cfd8",
+    panel: "#f7f8fa",
+    accent: "#f6b800",
+    accentInk: "#9a6b00",
     inverse: "#ffffff",
   },
   corporate: {
@@ -94,15 +94,15 @@ const PALETTES: Record<PdfStyle, PdfTheme["colors"]> = {
     inverse: "#ffffff",
   },
   photo: {
-    ink: "#18181b",
-    charcoal: "#3f3f46",
-    muted: "#52525b",
-    faint: "#71717a",
-    line: "#e4e4e7",
-    rule: "#18181b",
-    panel: "#fafafa",
-    accent: "#f59e0b",
-    accentInk: "#b45309",
+    ink: "#14171c",
+    charcoal: "#3d444e",
+    muted: "#555d68",
+    faint: "#7a828e",
+    line: "#e6e9ee",
+    rule: "#c9cfd8",
+    panel: "#f7f8fa",
+    accent: "#f6b800",
+    accentInk: "#9a6b00",
     inverse: "#ffffff",
   },
 };
@@ -203,8 +203,8 @@ export function createPdfStyles(theme: PdfTheme) {
     // A short accent stub against a full rule: the accent is a mark on the
     // page, never a band across it. Thinner than it was, for the same reason
     // the name above it is smaller.
-    rule: { flexDirection: "row", height: 1.25 },
-    ruleAccent: { width: 28, backgroundColor: c.accent },
+    rule: { flexDirection: "row", height: 1 },
+    ruleAccent: { width: 24, backgroundColor: c.accent },
     ruleRest: { flex: 1, backgroundColor: c.rule },
 
     // ---- cover photograph -------------------------------------------------
@@ -225,14 +225,14 @@ export function createPdfStyles(theme: PdfTheme) {
     docType: {
       fontSize: 15,
       fontFamily: "Helvetica-Bold",
-      letterSpacing: 1.4,
+      letterSpacing: 1.2,
       textTransform: "uppercase",
       color: c.ink,
     },
     docTypeLarge: {
       fontSize: 17,
       fontFamily: "Helvetica-Bold",
-      letterSpacing: 1.6,
+      letterSpacing: 1.4,
       textTransform: "uppercase",
       color: c.ink,
     },
@@ -248,12 +248,7 @@ export function createPdfStyles(theme: PdfTheme) {
       backgroundColor: c.panel,
       borderLeftWidth: 2,
       borderLeftColor: c.accent,
-      borderTopWidth: 1,
-      borderTopColor: c.line,
-      borderBottomWidth: 1,
-      borderBottomColor: c.line,
-      borderRightWidth: 1,
-      borderRightColor: c.line,
+      borderRadius: 3,
       paddingVertical: 6,
       paddingLeft: 10,
       paddingRight: 4,
@@ -273,7 +268,7 @@ export function createPdfStyles(theme: PdfTheme) {
     sectionHeader: {
       flexDirection: "row",
       alignItems: "center",
-      borderBottomWidth: 1,
+      borderBottomWidth: 0.75,
       borderBottomColor: c.rule,
       paddingBottom: 4,
       marginTop: sectionGap,
@@ -283,7 +278,7 @@ export function createPdfStyles(theme: PdfTheme) {
     sectionTitle: {
       fontSize: 9.5,
       fontFamily: "Helvetica-Bold",
-      letterSpacing: 1.2,
+      letterSpacing: 1.1,
       textTransform: "uppercase",
       color: c.ink,
     },
@@ -335,7 +330,7 @@ export function createPdfStyles(theme: PdfTheme) {
     // ---- tables -----------------------------------------------------------
     tableHeadRow: {
       flexDirection: "row",
-      borderBottomWidth: 1,
+      borderBottomWidth: 0.75,
       borderBottomColor: c.rule,
       paddingBottom: 4,
     },
@@ -414,8 +409,9 @@ export function createPdfStyles(theme: PdfTheme) {
     // photograph can cut out the very thing it was taken to evidence.
     photoFrame: {
       backgroundColor: c.panel,
-      borderWidth: 0.75,
+      borderWidth: 0.5,
       borderColor: c.line,
+      borderRadius: 2,
       padding: 2,
       marginBottom: 3,
     },

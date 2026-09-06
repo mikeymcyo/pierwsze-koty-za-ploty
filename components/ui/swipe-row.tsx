@@ -113,7 +113,7 @@ export function SwipeRow({
         onPointerMove={onPointerMove}
         onPointerUp={endGesture}
         onPointerCancel={endGesture}
-        className="relative flex items-center gap-3 rounded-2xl border border-line bg-surface p-4 shadow-sm"
+        className="relative flex items-center gap-3 rounded-card bg-surface p-4 shadow-card ring-1 ring-line/70 ring-inset transition-colors duration-200 hover:bg-surface-raised"
       >
         <Link
           href={href}
@@ -135,7 +135,7 @@ export function SwipeRow({
           onClick={() => setRevealed((open) => !open)}
           aria-expanded={revealed}
           aria-label={`Actions for ${label}`}
-          className="grid size-11 shrink-0 place-items-center rounded-xl text-ink-subtle hover:bg-surface-muted hover:text-ink"
+          className="grid size-11 shrink-0 place-items-center rounded-full text-ink-subtle transition-colors hover:bg-surface-muted hover:text-ink"
         >
           {revealed ? (
             <ChevronRight className="size-5" aria-hidden />

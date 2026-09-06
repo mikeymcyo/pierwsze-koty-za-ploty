@@ -24,7 +24,7 @@ export function ProjectTabs({
     <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
       <nav
         aria-label="Project sections"
-        className="flex min-w-max gap-1 border-b border-line"
+        className="flex min-w-max gap-1 rounded-full bg-surface p-1 shadow-card ring-1 ring-line/70 ring-inset"
       >
         {PROJECT_TABS.map((tab) => {
           const params = new URLSearchParams(searchParams);
@@ -39,15 +39,15 @@ export function ProjectTabs({
               aria-current={isActive ? "page" : undefined}
               scroll={false}
               className={cn(
-                "flex min-h-12 items-center gap-2 border-b-2 px-4 text-sm font-semibold transition-colors",
+                "flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold transition-colors duration-200",
                 isActive
-                  ? "border-ink text-ink"
-                  : "border-transparent text-ink-muted hover:text-ink",
+                  ? "bg-surface-raised text-ink shadow-card ring-1 ring-line-strong/60 ring-inset"
+                  : "text-ink-muted hover:text-ink",
               )}
             >
               {tab.label}
               {typeof count === "number" && count > 0 ? (
-                <span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-ink-muted">
+                <span className={cn("rounded-full px-2 py-0.5 text-[11px] font-semibold", isActive ? "bg-brand-soft text-brand-ink" : "bg-surface-muted text-ink-muted")}>
                   {count}
                 </span>
               ) : null}

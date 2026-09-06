@@ -24,7 +24,7 @@ function PrepareButton({ label, force }: { label: string; force: boolean }) {
       type="submit"
       size="lg"
       variant={force ? "secondary" : "primary"}
-      className="w-full text-base font-bold tracking-wide"
+      className={force ? "w-full text-base" : "h-16 w-full text-lg font-bold"}
       loading={pending}
       disabled={pending}
     >
@@ -47,7 +47,7 @@ export function PrepareDaily({ reportId }: { reportId: string }) {
       {state.unreadNote ? <Alert tone="info">{state.unreadNote}</Alert> : null}
 
       {asked ? (
-        <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface-muted p-4">
+        <div className="flex flex-col gap-3 rounded-card bg-surface p-4 shadow-card ring-1 ring-line/70 ring-inset">
           <p className="text-sm font-semibold text-ink">Before I write today&rsquo;s Daily:</p>
           <ul className="flex flex-col gap-3">
             {state.questions?.map((question) => (
@@ -68,7 +68,7 @@ export function PrepareDaily({ reportId }: { reportId: string }) {
       ) : null}
 
       <form action={action}>
-        <PrepareButton label="PREPARE DAILY" force={false} />
+        <PrepareButton label="Prepare Daily" force={false} />
       </form>
     </div>
   );

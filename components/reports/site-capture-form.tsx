@@ -22,6 +22,7 @@ function SaveButton({ retry }: { retry: boolean }) {
     <Button
       type="submit"
       size="lg"
+      variant="secondary"
       className="h-14 w-full text-base"
       loading={pending}
       // Two taps on one bar of signal used to be two entries. The button goes

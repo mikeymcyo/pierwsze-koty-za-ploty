@@ -33,19 +33,19 @@ const sources = [...walk("app"), ...walk("components")];
 console.log("\n1. The palette is the brand sheet's");
 const css = read("app/globals.css");
 for (const [name, value] of [
-  ["charcoal", "#0d0f12"],
-  ["dark grey", "#1a1d23"],
-  ["medium grey", "#2a2e36"],
-  ["SiteBoss gold", "#ffc107"],
+  ["charcoal", "#0e1116"],
+  ["dark grey", "#151a22"],
+  ["medium grey", "#1f2733"],
+  ["SiteBoss gold", "#f6b800"],
   ["white", "#ffffff"],
 ]) {
   check(`${name} ${value} is a token`, css.includes(value), value);
 }
-check("the page is charcoal", /--color-surface-sunken:\s*#0d0f12/.test(css));
-check("a card is the dark grey", /--color-surface:\s*#1a1d23/.test(css));
-check("gold is the brand", /--color-brand:\s*#ffc107/.test(css));
-check("and the one primary action", /--color-primary:\s*#ffc107/.test(css));
-check("text on gold is charcoal, never white", /--color-ink-inverse:\s*#0d0f12/.test(css));
+check("the page is charcoal", /--color-surface-sunken:\s*#0e1116/.test(css));
+check("a card is the dark grey", /--color-surface:\s*#151a22/.test(css));
+check("gold is the brand", /--color-brand:\s*#f6b800/.test(css));
+check("and the one primary action", /--color-primary:\s*#f6b800/.test(css));
+check("text on gold is charcoal, never white", /--color-ink-inverse:\s*#0e1116/.test(css));
 check("the browser draws its own furniture dark", /color-scheme:\s*dark/.test(css));
 check("focus is gold, so it is findable on charcoal", /:focus-visible[\s\S]{0,80}var\(--color-brand\)/.test(css));
 
@@ -96,7 +96,7 @@ check("it is drawn, not set in a font", !/<text/.test(monogram) && /<path/.test(
 // so the light theme gets the dark-S mark the brand sheet draws.
 check("the S is white on the plate", /plate \? "#ffffff"/.test(monogram));
 check("and follows the ink without it", /var\(--color-ink, #ffffff\)/.test(monogram));
-check("the B is gold, so the two letters cannot merge", /fill="#ffc107"/.test(monogram));
+check("the B is gold, so the two letters cannot merge", /fill="#f6b800"/.test(monogram));
 check("and it carries the three bars", (monogram.match(/M\d+ 100h18/g) ?? []).length === 3);
 check("it names itself for a screen reader", /aria-label=\{title\}/.test(monogram));
 const wordmark = read("components/brand/wordmark.tsx");
@@ -112,10 +112,10 @@ const manifest = read("app/manifest.ts");
 check("there is a manifest", /export default function manifest/.test(manifest));
 check("it is called SiteBoss", /short_name: "SiteBoss"/.test(manifest));
 check("it opens standalone, not in a tab", /display: "standalone"/.test(manifest));
-check("on charcoal, so it does not flash white", /background_color: "#0d0f12"/.test(manifest));
+check("on charcoal, so it does not flash white", /background_color: "#0e1116"/.test(manifest));
 check("with a maskable icon for Android", /purpose: "maskable"/.test(manifest));
 const layout = read("app/layout.tsx");
-check("the status bar matches the app", /themeColor: "#0d0f12"/.test(layout));
+check("the status bar matches the app", /themeColor: "#0e1116"/.test(layout));
 check("iOS treats it as an app", /appleWebApp/.test(layout));
 for (const icon of [
   "app/icon.svg",

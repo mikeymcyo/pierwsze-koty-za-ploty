@@ -4,12 +4,12 @@ import { AlertTriangle, CheckCircle2, Info } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-const alertVariants = cva("flex gap-3 rounded-xl border p-4 text-sm", {
+const alertVariants = cva("flex gap-3 rounded-control p-4 text-sm ring-1 ring-inset animate-fade", {
   variants: {
     tone: {
-      danger: "border-danger/25 bg-danger-soft text-danger",
-      success: "border-success/25 bg-success-soft text-success",
-      info: "border-info/25 bg-info-soft text-info",
+      danger: "bg-danger-soft text-danger ring-danger/20",
+      success: "bg-success-soft text-success ring-success/20",
+      info: "bg-info-soft text-info ring-info/20",
     },
   },
   defaultVariants: { tone: "info" },

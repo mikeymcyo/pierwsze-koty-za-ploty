@@ -19,9 +19,9 @@ export function SettingsLink() {
     <Link
       href={settingsHref(pathname)}
       aria-label="Settings"
-      className="grid size-10 shrink-0 place-items-center rounded-xl text-ink-muted hover:bg-surface-muted hover:text-ink"
+      className="grid size-10 shrink-0 place-items-center rounded-full text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink active:scale-95"
     >
-      <Settings className="size-5" aria-hidden />
+      <Settings className="size-5" aria-hidden strokeWidth={2} />
     </Link>
   );
 }

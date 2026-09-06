@@ -109,7 +109,7 @@ export function DictationField({
             size="lg"
             onClick={listening ? stop : start}
             aria-pressed={listening}
-            className={prominent ? "h-16 w-full text-base" : undefined}
+            className={prominent ? "h-16 w-full text-lg font-bold" : undefined}
           >
             {listening ? <Square aria-hidden /> : <Mic aria-hidden />}
             {listening ? stopLabel : startLabel}

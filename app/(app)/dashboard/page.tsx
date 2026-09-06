@@ -2,11 +2,13 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import {
   AlertTriangle,
+  ChevronRight,
   FileCheck2,
   FilePen,
   FileText,
   FolderKanban,
   HardHat,
+  MapPin,
   Mic,
   Plus,
   Store,
@@ -117,13 +119,21 @@ export default async function DashboardPage() {
   const inProgress = captureInProgress(openDrafts, workingDay());
   const openIssues = issuesResult.data ?? [];
 
+  const today = new Date();
+  const todayLabel = today.toLocaleDateString("en-GB", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+
   const greeting = (
     <header className="flex flex-col gap-1">
-      {/* The mobile top bar already carries the company name. */}
-      <p className="hidden text-sm font-semibold text-ink-muted md:block">
-        {session.companyName}
+      <p className="text-sm font-semibold text-ink-muted">
+        {todayLabel}
+        {/* The mobile top bar already carries the company name. */}
+        <span className="hidden md:inline"> · {session.companyName}</span>
       </p>
-      <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
+      <h1 className="text-[28px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
         Hello, {displayName(session)}
       </h1>
     </header>
@@ -143,6 +153,8 @@ export default async function DashboardPage() {
     );
   }
 
+  const otherDrafts = drafts.filter((draft) => draft.id !== inProgress?.id);
+
   return (
     <div className="flex flex-col gap-8">
       {greeting}
@@ -160,31 +172,28 @@ export default async function DashboardPage() {
         <QuickAction href="/stores" icon={<Store aria-hidden />} label="Store locator" />
       </div>
 
-      {drafts.filter((draft) => draft.id !== inProgress?.id).length > 0 ? (
+      {otherDrafts.length > 0 ? (
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
-            Finish what you started
-          </h2>
+          <SectionHeading count={otherDrafts.length}>Finish what you started</SectionHeading>
           <ul className="flex flex-col gap-3">
-            {drafts
-              .filter((draft) => draft.id !== inProgress?.id)
-              .map((draft) => {
+            {otherDrafts.map((draft) => {
               const project = Array.isArray(draft.projects) ? draft.projects[0] : draft.projects;
               return (
                 <li key={draft.id}>
-                  <Card className="transition-colors hover:border-line-strong">
-                    <Link href={`/reports/${draft.id}`} className="flex items-center gap-4 p-5">
-                      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-brand-soft ring-1 ring-brand/25">
+                  <Card className="transition-colors duration-200 hover:bg-surface-raised">
+                    <Link href={`/reports/${draft.id}`} className="flex items-center gap-4 p-4">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-soft ring-1 ring-brand/25">
                         <FilePen className="size-5 text-warning" aria-hidden />
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-semibold text-ink">
-                          Report {formatReportNumber(draft.report_number)} · draft
+                          Report {formatReportNumber(draft.report_number)}
                         </p>
                         <p className="truncate text-sm text-ink-muted">
                           {project?.name ?? "Unknown project"} · {formatDate(draft.report_date)}
                         </p>
                       </div>
+                      <Badge tone="warning">Draft</Badge>
                     </Link>
                   </Card>
                 </li>
@@ -196,17 +205,15 @@ export default async function DashboardPage() {
 
       {openIssues.length > 0 ? (
         <section className="flex flex-col gap-3">
-          <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
-            Needs attention
-          </h2>
+          <SectionHeading count={openIssues.length}>Needs attention</SectionHeading>
           <ul className="flex flex-col gap-3">
             {openIssues.map((issue) => {
               const project = Array.isArray(issue.projects) ? issue.projects[0] : issue.projects;
               return (
                 <li key={issue.id}>
-                  <Card className="transition-colors hover:border-line-strong">
-                    <Link href={`/issues/${issue.id}`} className="flex items-center gap-4 p-5">
-                      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-surface-muted">
+                  <Card className="transition-colors duration-200 hover:bg-surface-raised">
+                    <Link href={`/issues/${issue.id}`} className="flex items-center gap-4 p-4">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-warning-soft">
                         <AlertTriangle className="size-5 text-warning" aria-hidden />
                       </span>
                       <div className="min-w-0 flex-1">
@@ -229,11 +236,9 @@ export default async function DashboardPage() {
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
-            Active projects
-          </h2>
+          <SectionHeading count={projects.length}>Active projects</SectionHeading>
           {projects.length > 0 ? (
-            <Button asChild variant="secondary" size="sm">
+            <Button asChild variant="ghost" size="sm">
               <Link href="/projects/new">
                 <Plus aria-hidden />
                 New project
@@ -260,20 +265,31 @@ export default async function DashboardPage() {
           <ul className="flex flex-col gap-3">
             {projects.map((project) => (
               <li key={project.id}>
-                <Card className="transition-colors hover:border-line-strong">
+                <Card className="transition-colors duration-200 hover:bg-surface-raised">
                   <Link
                     href={`/projects/${project.id}`}
-                    className="flex items-start justify-between gap-4 p-5"
+                    className="flex items-center gap-4 p-4"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-ink">{project.name}</p>
-                      <p className="truncate text-sm text-ink-muted">
-                        {[project.client, project.site_address]
-                          .filter(Boolean)
-                          .join(" · ") || "No client or address recorded"}
+                      <p className="truncate text-base font-bold text-ink">{project.name}</p>
+                      <p className="mt-0.5 flex items-center gap-1.5 truncate text-sm text-ink-muted">
+                        {project.client || project.site_address ? (
+                          <MapPin className="size-3.5 shrink-0 text-ink-subtle" aria-hidden />
+                        ) : null}
+                        <span className="truncate">
+                          {[project.client, project.site_address]
+                            .filter(Boolean)
+                            .join(" · ") || "No client or address recorded"}
+                        </span>
                       </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        <ProjectStatusBadge status={project.status} />
+                        <span className="text-xs text-ink-subtle">
+                          Updated {formatDate(project.updated_at)}
+                        </span>
+                      </div>
                     </div>
-                    <ProjectStatusBadge status={project.status} />
+                    <ChevronRight className="size-5 shrink-0 text-ink-subtle" aria-hidden />
                   </Link>
                 </Card>
               </li>
@@ -283,9 +299,7 @@ export default async function DashboardPage() {
       </section>
 
       <section className="flex flex-col gap-3">
-        <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
-          Recent reports
-        </h2>
+        <SectionHeading count={reports.length + summaryReports.length}>Recent reports</SectionHeading>
 
         {reports.length === 0 && summaryReports.length === 0 ? (
           <EmptyState
@@ -301,10 +315,10 @@ export default async function DashboardPage() {
                 : report.projects;
               return (
                 <li key={report.id}>
-                  <Card className="transition-colors hover:border-line-strong">
-                    <Link href={`/summary-reports/${report.id}`} className="flex items-center gap-4 p-5">
-                      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-surface-muted">
-                        <FileCheck2 className="size-5 text-ink-muted" aria-hidden />
+                  <Card className="transition-colors duration-200 hover:bg-surface-raised">
+                    <Link href={`/summary-reports/${report.id}`} className="flex items-center gap-4 p-4">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-info-soft">
+                        <FileCheck2 className="size-5 text-info" aria-hidden />
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="truncate font-semibold text-ink">
@@ -314,6 +328,9 @@ export default async function DashboardPage() {
                           {project?.name ?? "Unknown project"} · {report.period_start && report.period_end ? `${formatDate(report.period_start)} to ${formatDate(report.period_end)}` : "Whole project"}
                         </p>
                       </div>
+                      <Badge tone={report.status === "final" ? "success" : "neutral"}>
+                        {report.status === "final" ? "Issued" : "Draft"}
+                      </Badge>
                     </Link>
                   </Card>
                 </li>
@@ -326,12 +343,12 @@ export default async function DashboardPage() {
 
               return (
                 <li key={report.id}>
-                  <Card className="transition-colors hover:border-line-strong">
+                  <Card className="transition-colors duration-200 hover:bg-surface-raised">
                     <Link
                       href={`/reports/${report.id}`}
-                      className="flex items-center gap-4 p-5"
+                      className="flex items-center gap-4 p-4"
                     >
-                      <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-surface-muted">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-surface-muted">
                         <FolderKanban className="size-5 text-ink-muted" aria-hidden />
                       </span>
                       <div className="min-w-0 flex-1">
@@ -343,6 +360,9 @@ export default async function DashboardPage() {
                           {formatDate(report.report_date)}
                         </p>
                       </div>
+                      <Badge tone={report.status === "final" ? "success" : "neutral"}>
+                        {report.status === "final" ? "Issued" : "Draft"}
+                      </Badge>
                     </Link>
                   </Card>
                 </li>
@@ -352,6 +372,20 @@ export default async function DashboardPage() {
         )}
       </section>
     </div>
+  );
+}
+
+/** A section's name, with how many of the thing are listed under it. */
+function SectionHeading({ children, count }: { children: string; count?: number }) {
+  return (
+    <h2 className="flex items-center gap-2 text-base font-bold tracking-tight text-ink">
+      {children}
+      {typeof count === "number" && count > 0 ? (
+        <span className="rounded-full bg-surface-muted px-2 py-0.5 text-[11px] font-semibold text-ink-muted">
+          {count}
+        </span>
+      ) : null}
+    </h2>
   );
 }
 
@@ -372,8 +406,8 @@ function QuickAction({
       href={href}
       className={
         primary
-          ? "flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl bg-primary p-3 text-center text-sm font-semibold text-ink-inverse [&_svg]:size-6"
-          : "flex min-h-24 flex-col items-center justify-center gap-2 rounded-2xl border border-line bg-surface p-3 text-center text-sm font-semibold text-ink shadow-sm [&_svg]:size-6"
+          ? "flex min-h-24 flex-col items-center justify-center gap-2 rounded-card bg-primary p-3 text-center text-sm font-bold text-ink-inverse shadow-glow transition-[transform,filter] duration-200 active:scale-[0.98] [&_svg]:size-6"
+          : "flex min-h-24 flex-col items-center justify-center gap-2 rounded-card bg-surface p-3 text-center text-sm font-semibold text-ink shadow-card ring-1 ring-line/70 ring-inset transition-[transform,background-color] duration-200 hover:bg-surface-raised active:scale-[0.98] [&_svg]:size-6 [&_svg]:text-brand"
       }
     >
       {icon}

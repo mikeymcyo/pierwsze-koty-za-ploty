@@ -1,12 +1,12 @@
 import type { Metadata, Viewport } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist_Mono, Inter } from "next/font/google";
 
 import { preferenceBootScript } from "@/lib/preferences";
 
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
 });
 
@@ -38,7 +38,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
   // The charcoal the application is drawn on, so the browser furniture and the
   // launch splash match it instead of flashing white.
-  themeColor: "#0d0f12",
+  themeColor: "#0e1116",
   colorScheme: "dark",
 };
 
@@ -46,7 +46,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
       lang="en-GB"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${inter.variable} ${geistMono.variable} h-full antialiased`}
       // The boot script stamps this device's appearance on the element before
       // React sees it, so the two disagree by design on the very first render.
       suppressHydrationWarning

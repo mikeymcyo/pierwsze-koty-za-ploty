@@ -12,7 +12,7 @@ export function SideNav() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-60 shrink-0 border-r border-line bg-surface md:flex md:flex-col">
+    <aside className="hidden w-60 shrink-0 bg-surface shadow-[1px_0_0_0_var(--color-line)] md:flex md:flex-col">
       <div className="px-6 py-6">
         <Link href="/dashboard" aria-label="SiteBoss Pro dashboard">
           <Wordmark />
@@ -34,10 +34,10 @@ export function SideNav() {
                   href={item.href === SETTINGS_HREF ? settingsHref(pathname) : item.href}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "relative flex min-h-12 items-center gap-3 rounded-xl px-3 text-sm font-semibold transition-colors",
+                    "relative flex min-h-12 items-center gap-3 rounded-control px-3 text-sm font-semibold transition-colors duration-200",
                     "before:absolute before:top-1/2 before:left-0 before:h-6 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:transition-colors",
                     active
-                      ? "bg-surface-muted text-ink before:bg-brand"
+                      ? "bg-surface-raised text-ink shadow-card before:bg-brand"
                       : "text-ink-muted before:bg-transparent hover:bg-surface-muted/60 hover:text-ink",
                     item.primary && !active && "text-brand-ink",
                   )}

@@ -38,16 +38,16 @@ export function ReportSectionCard({
   recordsHint?: string;
 }) {
   return (
-    <section className="flex flex-col gap-4 border-t border-line pt-6">
+    <section className="flex flex-col gap-5 rounded-card bg-surface p-5 shadow-card ring-1 ring-line/70 ring-inset md:p-6">
       <div className="flex flex-col gap-1">
-        <h2 className="text-base font-bold tracking-tight text-ink">{group.label}</h2>
-        <p className="text-sm text-ink-muted">{group.hint}</p>
+        <h2 className="text-lg font-bold tracking-tight text-ink">{group.label}</h2>
+        <p className="text-sm leading-relaxed text-ink-muted">{group.hint}</p>
       </div>
       {children}
       {records ? (
-        <div className="flex flex-col gap-3 border-t border-line pt-4">
+        <div className="flex flex-col gap-3 rounded-control bg-surface-sunken/50 p-4 ring-1 ring-line/60 ring-inset">
           {recordsLabel ? (
-            <h3 className="text-xs font-bold tracking-wide text-ink-muted uppercase">
+            <h3 className="text-xs font-bold tracking-wide text-ink-muted">
               {recordsLabel}
             </h3>
           ) : null}

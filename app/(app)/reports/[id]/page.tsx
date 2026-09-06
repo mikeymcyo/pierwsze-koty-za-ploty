@@ -275,20 +275,30 @@ export default async function ReportCapturePage({
         </Button>
       </div>
 
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
-            Report {formatReportNumber(report.report_number)}
-          </h1>
-          <p className="text-sm text-ink-muted">
-            {[project?.name, formatDate(report.report_date), report.author_name]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
+      <header className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-semibold tracking-wide text-ink-subtle">Daily Report</p>
+            <h1 className="text-[28px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
+              Report {formatReportNumber(report.report_number)}
+            </h1>
+          </div>
+          <Badge tone={report.status === "final" ? "success" : reopened ? "warning" : "neutral"} dot>
+            {report.status === "final" ? "Final" : reopened ? "Reopened" : "Draft"}
+          </Badge>
         </div>
-        <Badge tone={report.status === "final" ? "success" : "neutral"}>
-          {report.status === "final" ? "Final" : reopened ? "Reopened" : "Draft"}
-        </Badge>
+        <div className="flex flex-wrap items-center gap-2">
+          {[project?.name, formatDate(report.report_date), report.author_name]
+            .filter(Boolean)
+            .map((item) => (
+              <span
+                key={String(item)}
+                className="rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-ink-muted"
+              >
+                {item}
+              </span>
+            ))}
+        </div>
       </header>
 
       {/* Back to the microphone. The report screen is where a day is finished -
@@ -472,7 +482,7 @@ export default async function ReportCapturePage({
           action; these are the tools behind it, kept for the office and for
           the day something needs redrafting by hand. */}
       {loadError || isFinal ? null : (
-        <details className="rounded-2xl border border-line px-4 py-3">
+        <details className="rounded-card bg-surface px-4 py-3 shadow-card ring-1 ring-line/70 ring-inset">
           <summary className="cursor-pointer text-sm font-semibold text-ink-muted">More tools</summary>
           <div className="mt-4 flex flex-col gap-6">
             <ReportWriter
@@ -513,7 +523,7 @@ export default async function ReportCapturePage({
         />
       )}
 
-      <div className="border-t border-line pt-6">
+      <div className="border-t border-line/70 pt-6">
         <DeleteReport reportId={report.id} status={report.status} />
       </div>
     </div>

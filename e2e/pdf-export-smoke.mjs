@@ -140,10 +140,10 @@ const themes = Object.fromEntries(PDF_STYLES.map((key) => [key, pdfTheme(key, "s
 check(
   "corporate drops the amber",
   themes.corporate.colors.accent !== themes.siteboss.colors.accent &&
-    !/f59e0b/i.test(themes.corporate.colors.accent),
+    !/f6b800/i.test(themes.corporate.colors.accent),
 );
 check("and softens the rule", themes.corporate.colors.rule !== themes.siteboss.colors.rule);
-check("siteboss keeps it", /f59e0b/i.test(themes.siteboss.colors.accent));
+check("siteboss keeps it", /f6b800/i.test(themes.siteboss.colors.accent));
 check("photo keeps the house colours", themes.photo.colors.accent === themes.siteboss.colors.accent);
 check(
   "photo gives the cover far more of the page",

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
-import { AlertTriangle, Camera, ClipboardList, FileText, Mic, Pencil, Plus } from "lucide-react";
+import { AlertTriangle, Camera, ClipboardList, FileText, Mic, Pencil, Plus, MapPin } from "lucide-react";
 
 import { openSiteCapture } from "@/app/(app)/reports/capture-actions";
 import { IssueList } from "@/components/issues/issue-list";
@@ -48,8 +48,8 @@ export const metadata: Metadata = { title: "Project" };
 
 function DetailRow({ label, value }: { label: string; value: string | null }) {
   return (
-    <div className="flex flex-col gap-0.5 border-b border-line py-3 last:border-b-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
-      <dt className="text-sm text-ink-muted">{label}</dt>
+    <div className="flex flex-col gap-0.5 border-b border-line/70 py-3 last:border-b-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-6">
+      <dt className="text-xs font-semibold text-ink-subtle">{label}</dt>
       <dd className="font-medium text-ink sm:text-right">{value || "—"}</dd>
     </div>
   );
@@ -221,23 +221,28 @@ export default async function ProjectPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-3">
-        <BackLink href="/projects">All projects</BackLink>
+      <BackLink href="/projects">All projects</BackLink>
 
+      {/* The hub of the job: what it is, where it is, and the one thing to
+          press. Everything else is a tab below. */}
+      <header className="flex flex-col gap-5 rounded-card bg-surface-raised p-5 shadow-raised ring-1 ring-line/70 ring-inset md:p-6">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <h1 className="text-2xl font-bold tracking-tight text-balance text-ink md:text-3xl">
+            <h1 className="text-[26px] leading-tight font-bold tracking-tight text-balance text-ink md:text-3xl">
               {project.name}
             </h1>
-            <p className="mt-1 text-ink-muted">
-              {[project.client, project.site_address].filter(Boolean).join(" · ") ||
-                "No client or address recorded"}
+            <p className="mt-1.5 flex items-start gap-1.5 text-sm text-ink-muted">
+              <MapPin aria-hidden className="mt-0.5 size-4 shrink-0 text-ink-subtle" />
+              <span>
+                {[project.client, project.site_address].filter(Boolean).join(" · ") ||
+                  "No client or address recorded"}
+              </span>
             </p>
           </div>
           <ProjectStatusBadge status={project.status} />
         </div>
 
-        <div className="flex flex-wrap gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
           {/* An enquiry has no works to report on yet, so it is offered the
               survey and nothing else. Daily, Progress and Completion Reports
               appear the moment the work is awarded. */}
@@ -249,23 +254,23 @@ export default async function ProjectPage({
                do. Posts rather than links: it may insert a row and let the
                database assign its number, which a GET must not do. Progress,
                Completion and the survey live on the Reports tab. */
-            <form action={openSiteCapture}>
+            <form action={openSiteCapture} className="contents sm:block">
               <input type="hidden" name="projectId" value={project.id} />
-              <Button type="submit">
+              <Button type="submit" size="lg" className="h-14 w-full text-base sm:w-auto">
                 <Mic aria-hidden />
                 {capturingToday ? "Continue Site Capture" : "Start Site Capture"}
               </Button>
             </form>
           )}
           {enquiry ? (
-            <Button asChild>
+            <Button asChild size="lg" className="h-14 w-full text-base sm:w-auto">
               <Link href={`/surveys/new?project=${project.id}`}>
                 <ClipboardList aria-hidden />
                 Site survey
               </Link>
             </Button>
           ) : null}
-          <Button asChild variant="secondary">
+          <Button asChild variant="ghost" className="w-full sm:w-auto">
             <Link href={`/projects/${project.id}/edit`}>
               <Pencil aria-hidden />
               Edit project
@@ -275,7 +280,7 @@ export default async function ProjectPage({
       </header>
 
       {enquiry ? (
-        <div className="flex flex-col gap-3 rounded-2xl border border-line bg-surface-muted p-4">
+        <div className="flex flex-col gap-3 rounded-card bg-surface p-4 shadow-card ring-1 ring-line/70 ring-inset">
           <p className="text-sm text-ink-muted">
             This is an enquiry: somebody is pricing work here, not doing it. It is kept out of
             active projects and off the dashboard until the work is awarded.
@@ -284,7 +289,7 @@ export default async function ProjectPage({
         </div>
       ) : null}
 
-      <Suspense fallback={<div className="h-12 border-b border-line" />}>
+      <Suspense fallback={<div className="h-[52px] rounded-full bg-surface" />}>
         <ProjectTabs
           active={activeTab}
           counts={{

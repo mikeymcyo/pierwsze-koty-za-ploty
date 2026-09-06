@@ -66,9 +66,9 @@ export function FinaliseReport({
 
   if (status === "final") {
     return (
-      <section className="flex flex-col gap-4 border-t border-line pt-6">
+      <section className="flex flex-col gap-4 rounded-card bg-surface-raised p-5 shadow-raised ring-1 ring-line/70 ring-inset md:p-6">
         <div className="flex flex-col gap-1">
-          <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">Issued report</h2>
+          <h2 className="text-lg font-bold tracking-tight text-ink">Issued report</h2>
           <p className="text-sm text-ink-muted">
             {finalisedAt
               ? `Finalised on ${finalisedAt}. This PDF is the record that was issued - it is not regenerated.`
@@ -98,9 +98,9 @@ export function FinaliseReport({
   }
 
   return (
-    <section className="flex flex-col gap-4 border-t border-line pt-6">
+    <section className="flex flex-col gap-4 rounded-card bg-surface-raised p-5 shadow-raised ring-1 ring-line/70 ring-inset md:p-6">
       <div className="flex flex-col gap-1">
-        <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+        <h2 className="text-lg font-bold tracking-tight text-ink">
           {reopened ? "Reopened for editing" : "Finalise"}
         </h2>
         <p className="text-sm text-ink-muted">
@@ -128,7 +128,7 @@ export function FinaliseReport({
       />
 
       {documentCount > 0 ? (
-        <label className="flex items-start gap-3 rounded-xl border border-line p-3">
+        <label className="flex items-start gap-3 rounded-control bg-surface p-3 ring-1 ring-line/70 ring-inset">
           <input
             type="checkbox"
             checked={includeDocuments}
@@ -146,8 +146,8 @@ export function FinaliseReport({
         </label>
       ) : null}
 
-      <div className="flex flex-wrap gap-3">
-        <form action={formAction}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <form action={formAction} className="contents sm:block">
           <input type="hidden" name="includeDocuments" value={documentsFlag(includeDocuments)} />
           {/* The presentation goes with the render, so what was previewed is
               what gets issued. */}
@@ -156,7 +156,7 @@ export function FinaliseReport({
           <FinaliseButton reissue={reopened} />
         </form>
 
-        <Button asChild variant="secondary" size="lg">
+        <Button asChild variant="secondary" size="lg" className="w-full sm:w-auto">
           <Link
             href={`/reports/${reportId}/pdf?draft=1&documents=${documentsFlag(
               includeDocuments,

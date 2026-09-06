@@ -51,7 +51,7 @@ function Part({
     <div>
       {labelled ? (
         <span
-          className="block px-4 pt-3 text-xs font-bold tracking-wide text-ink-muted uppercase"
+          className="block px-4 pt-3 text-xs font-bold tracking-wide text-ink-muted"
           aria-hidden
         >
           {part.label}
@@ -66,7 +66,7 @@ function Part({
         onFocus={onFocus}
         rows={rows}
         placeholder={placeholder}
-        className="w-full resize-y bg-transparent px-4 pt-2 pb-3 text-ink placeholder:text-ink-subtle focus:outline-none"
+        className="w-full resize-y bg-transparent px-4 pt-3 pb-3 leading-relaxed text-ink placeholder:text-ink-subtle focus:outline-none"
       />
     </div>
   );
@@ -189,7 +189,7 @@ export function GroupEditor({
 
       {/* One surface. The parts inside it are divided by a hairline and a
           quiet name, not by anything anybody can type over. */}
-      <div className="overflow-hidden rounded-xl border border-line-strong bg-surface-sunken focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/25">
+      <div className="overflow-hidden rounded-control bg-surface-sunken/70 shadow-[inset_0_1px_0_0_rgb(0_0_0/0.25)] ring-1 ring-line-strong/70 ring-inset transition-[box-shadow] duration-200 focus-within:ring-2 focus-within:ring-brand/60">
         <Part
           part={primary}
           groupKey={groupKey}

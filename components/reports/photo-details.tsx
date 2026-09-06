@@ -154,7 +154,7 @@ export function PhotoDetails({
             // A status is a decision, not a draft: saved as soon as it changes.
             setFlush((count) => count + 1);
           }}
-          className="min-h-10 w-full rounded-lg border border-line-strong bg-surface px-2 text-sm text-ink"
+          className="min-h-10 w-full rounded-full bg-surface-muted px-3 text-xs font-semibold text-ink-muted ring-1 ring-line/60 ring-inset transition-colors hover:text-ink focus:ring-2 focus:ring-brand/60 focus:outline-none"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -177,8 +177,8 @@ export function PhotoDetails({
       {suggestion.error ? <p className="text-xs text-danger">{suggestion.error}</p> : null}
 
       {showing ? (
-        <div className="flex flex-col gap-2 rounded-lg border border-line-strong bg-surface-muted p-2">
-          <p className="text-xs text-ink-muted">Suggested description</p>
+        <div className="flex flex-col gap-2 rounded-control bg-surface-muted p-3 ring-1 ring-brand/20 ring-inset animate-fade">
+          <p className="text-xs font-semibold text-brand-ink">Suggested description</p>
           <p className="text-sm text-ink">{showing}</p>
           <div className="flex flex-wrap gap-2">
             <Button

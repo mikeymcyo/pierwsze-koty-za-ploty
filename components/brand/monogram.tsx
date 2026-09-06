@@ -28,7 +28,7 @@ export function Monogram({
       aria-label={title}
       className={cn("block", className)}
     >
-      {plate ? <rect width="128" height="128" rx="28" fill="#0d0f12" /> : null}
+      {plate ? <rect width="128" height="128" rx="28" fill="#0e1116" /> : null}
 
       {/* S - an angular block letter, cut on the diagonal top-right and
           bottom-left the way the mark is drawn. On the charcoal plate it is
@@ -41,12 +41,12 @@ export function Monogram({
 
       {/* B - flat spine, two square bowls, gold. */}
       <path
-        fill="#ffc107"
+        fill="#f6b800"
         d="M74 26h24c9.9 0 18 8.1 18 18 0 5.2-2.2 9.9-5.8 13.2 4.8 3.3 7.8 8.8 7.8 15 0 10.4-8.5 18.8-18.9 18.8H74V26zm14 14v11h10c3 0 5.5-2.5 5.5-5.5S101 40 98 40H88zm0 25v13h11c3.6 0 6.5-2.9 6.5-6.5S102.6 65 99 65H88z"
       />
 
       {/* The three bars. Gold, and set below the letters as an accent. */}
-      <g fill="#ffc107">
+      <g fill="#f6b800">
         <path d="M21 100h18l-7 12H14z" />
         <path d="M45 100h18l-7 12H38z" />
         <path d="M69 100h18l-7 12H62z" />

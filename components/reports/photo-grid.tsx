@@ -10,6 +10,7 @@ import { PhotoDetails } from "@/components/reports/photo-details";
 import { PhotoOrderBar, usePhotoOrder } from "@/components/reports/photo-reorder";
 import { PhotoArrangeView } from "@/components/reports/photo-arrange";
 import { photoPrintLabel, photoPrintLabelText } from "@/lib/photo-captions";
+import { photoReference } from "@/lib/pdf/photo-evidence";
 import { cssRotation } from "@/lib/photos-rotation";
 import type { Photo } from "@/types/database";
 
@@ -98,13 +99,22 @@ export function PhotoGrid({
 
       <ul
         className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {ordered.map((photo) => {
+        {ordered.map((photo, index) => {
           const label = photoPrintLabel(photo);
           const alt = photoPrintLabelText(photo);
 
           return (
-            <li key={photo.id} className="flex flex-col gap-2">
-              <div className="relative aspect-square overflow-hidden rounded-xl border border-line bg-surface-muted">
+            <li
+              key={photo.id}
+              className="flex flex-col gap-2.5 overflow-hidden rounded-card bg-surface p-2 shadow-card ring-1 ring-line/70 ring-inset"
+            >
+              <div className="relative aspect-square overflow-hidden rounded-[14px] bg-surface-muted">
+                {/* The plate number this will print as, in this order. */}
+                {reportId ? (
+                  <span className="absolute top-1.5 left-1.5 z-10 rounded-full bg-surface-sunken/80 px-2 py-0.5 text-[11px] font-bold tracking-wide text-ink backdrop-blur">
+                    {photoReference(index)}
+                  </span>
+                ) : null}
                 {photo.url ? (
                   // Signed Supabase URLs expire, so next/image's optimiser would
                   // cache a URL that outlives it and then serve broken images.
@@ -130,7 +140,7 @@ export function PhotoGrid({
                 {deletable ? (
                   <form
                     action={deletePhoto}
-                    className="absolute top-1.5 right-1.5 opacity-90"
+                    className="absolute top-1.5 right-1.5 opacity-90 transition-opacity hover:opacity-100"
                   >
                     <input type="hidden" name="photoId" value={photo.id} />
                     <Button
@@ -138,7 +148,7 @@ export function PhotoGrid({
                       variant="danger"
                       size="icon"
                       aria-label={`Delete photo${alt ? `: ${alt}` : ""}`}
-                      className="size-9 rounded-lg"
+                      className="size-9 rounded-xl shadow-card"
                     >
                       <Trash2 aria-hidden />
                     </Button>
@@ -154,10 +164,10 @@ export function PhotoGrid({
                   aiConfigured={aiConfigured}
                 />
               ) : (
-                <div className="flex flex-col gap-1">
+                <div className="flex flex-col gap-1 px-1 pb-1">
                   {label.status ? <Badge tone="neutral">{label.status}</Badge> : null}
                   {label.caption ? (
-                    <p className="text-xs text-ink-muted">{label.caption}</p>
+                    <p className="text-xs leading-relaxed text-ink-muted">{label.caption}</p>
                   ) : null}
                 </div>
               )}

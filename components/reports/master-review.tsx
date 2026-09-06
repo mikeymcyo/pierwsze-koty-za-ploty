@@ -102,7 +102,7 @@ export function MasterReviewPanel({
   return (
     <section className="flex flex-col gap-4 border-t border-line pt-6">
       <div>
-        <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+        <h2 className="text-base font-bold tracking-tight text-ink">
           Review &amp; polish
         </h2>
         <p className="mt-1 text-sm text-ink-muted">

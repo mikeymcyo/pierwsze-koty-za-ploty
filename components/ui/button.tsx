@@ -6,15 +6,15 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-xl font-semibold transition-[color,background-color,border-color,filter,transform] active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45 disabled:shadow-none [&_svg]:shrink-0",
+  "inline-flex items-center justify-center gap-2 rounded-control font-semibold tracking-[-0.01em] transition-[color,background-color,border-color,box-shadow,filter,transform] duration-200 ease-out active:scale-[0.98] active:brightness-95 disabled:pointer-events-none disabled:opacity-45 disabled:shadow-none [&_svg]:shrink-0",
   {
     variants: {
       variant: {
-        primary: "bg-primary text-ink-inverse shadow-sm shadow-brand/20 hover:bg-primary-hover",
-        secondary: "border border-line-strong bg-surface text-ink hover:border-brand/40 hover:bg-surface-muted",
-        ghost: "text-ink-muted hover:bg-surface-muted hover:text-ink",
-        danger: "bg-danger-strong text-white hover:brightness-110",
-        brand: "bg-brand text-ink-inverse hover:bg-primary-hover",
+        primary: "bg-primary text-ink-inverse shadow-glow hover:bg-primary-hover hover:shadow-glow",
+        secondary: "bg-surface-raised text-ink shadow-card ring-1 ring-line-strong/80 ring-inset hover:bg-surface-muted hover:ring-line-strong",
+        ghost: "text-ink-muted hover:bg-surface-muted/70 hover:text-ink",
+        danger: "bg-danger-strong text-white shadow-card hover:brightness-110",
+        brand: "bg-brand text-ink-inverse shadow-glow hover:bg-primary-hover",
       },
       size: {
         // Sizes are generous by default and grow again on Large touch: the

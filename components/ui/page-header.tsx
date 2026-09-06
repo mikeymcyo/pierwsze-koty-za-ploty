@@ -29,16 +29,16 @@ export function PageHeader({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3">
           {Icon ? (
-            <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-soft text-brand-ink ring-1 ring-brand/20">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-soft text-brand-ink ring-1 ring-brand/20">
               <Icon className="size-5" aria-hidden />
             </span>
           ) : null}
           <div className="min-w-0">
-            <h1 className="truncate text-2xl font-bold tracking-tight text-ink md:text-3xl">
+            <h1 className="truncate text-[26px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
               {title}
             </h1>
             {description ? (
-              <p className="mt-0.5 text-sm text-ink-muted">{description}</p>
+              <p className="mt-1 text-sm text-ink-muted">{description}</p>
             ) : null}
           </div>
         </div>

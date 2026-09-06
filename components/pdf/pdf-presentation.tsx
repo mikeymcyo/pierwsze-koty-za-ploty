@@ -49,7 +49,7 @@ export function PdfPresentation({
   photos: CoverChoice[];
 }) {
   return (
-    <section className="flex flex-col gap-4 rounded-xl border border-line p-3">
+    <section className="flex flex-col gap-4 rounded-control bg-surface p-4 ring-1 ring-line/70 ring-inset">
       <div>
         <h3 className="font-medium text-ink">Presentation</h3>
         <p className="mt-1 text-sm text-ink-muted">

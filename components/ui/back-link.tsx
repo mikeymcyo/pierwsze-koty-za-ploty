@@ -13,7 +13,7 @@ export function BackLink({ href, children }: { href: string; children: string })
   return (
     <Link
       href={href}
-      className="inline-flex min-h-11 items-center gap-2 text-sm font-semibold text-ink-muted hover:text-ink"
+      className="inline-flex min-h-11 items-center gap-1.5 text-sm font-semibold text-ink-muted transition-colors hover:text-ink"
     >
       <ArrowLeft className="size-4 shrink-0" aria-hidden />
       {children}

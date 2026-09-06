@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { Camera } from "lucide-react";
+import { Camera, CalendarDays, FileText, Sparkles } from "lucide-react";
 
 import { adoptJobDocument } from "@/app/(app)/projects/brief-actions";
 import { addCapture } from "@/app/(app)/reports/capture-actions";
@@ -91,17 +91,27 @@ export default async function SiteCapturePage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <BackLink href={projectHref}>{project?.name ?? "Back"}</BackLink>
-          <span className="text-sm text-ink-muted">{formatDate(report.report_date)}</span>
+      <header className="flex flex-col gap-3">
+        <BackLink href={projectHref}>{project?.name ?? "Back"}</BackLink>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h1 className="text-[28px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
+            Site Capture
+          </h1>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-ink-muted">
+            <CalendarDays aria-hidden className="size-3.5" />
+            {formatDate(report.report_date)}
+          </span>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">Site Capture</h1>
       </header>
 
-      {/* 1. Say what happened. */}
-      <Card>
+      {/* 1. Say what happened. The question is the heading of the screen. */}
+      <Card raised>
         <CardContent className="flex flex-col gap-4">
+          {/* The field carries this as its accessible name; on screen it is
+              the one question a tired operative has to read. */}
+          <h2 aria-hidden className="text-xl font-bold tracking-tight text-ink">
+            What happened on site?
+          </h2>
           <SiteCaptureForm
             action={addCapture.bind(null, report.id)}
             entryCount={entries.length}
@@ -113,10 +123,15 @@ export default async function SiteCapturePage({
       {/* 2. Photos. One button; the phone offers camera, library and files. */}
       <Card>
         <CardContent className="flex flex-col gap-4">
-          <h2 className="flex items-center gap-2 text-sm font-bold tracking-wide text-ink-muted uppercase">
-            <Camera aria-hidden className="size-4" />
-            Photos
-          </h2>
+          <div className="flex items-center gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-surface-muted text-brand-ink">
+              <Camera aria-hidden className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="font-bold text-ink">Photos</h2>
+              <p className="text-sm text-ink-muted">Camera, library or files. They go on today&rsquo;s report.</p>
+            </div>
+          </div>
           <PhotoUpload
             companyId={session.companyId}
             projectId={report.project_id}
@@ -134,7 +149,16 @@ export default async function SiteCapturePage({
       {/* 3. A document, if one turned up. SiteBoss reads it in the background
           and uses it in Prepare Daily; nothing about that is shown here. */}
       <Card>
-        <CardContent className="flex flex-col gap-3">
+        <CardContent className="flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-surface-muted text-ink-muted">
+              <FileText aria-hidden className="size-5" />
+            </span>
+            <div className="min-w-0">
+              <h2 className="font-bold text-ink">Documents</h2>
+              <p className="text-sm text-ink-muted">A PDF or a photo of the paperwork.</p>
+            </div>
+          </div>
           <DocumentUpload
             companyId={session.companyId}
             projectId={report.project_id}
@@ -148,14 +172,18 @@ export default async function SiteCapturePage({
 
       {/* What has landed. Counts on the line; the notes themselves one tap
           away, because a worker came here to talk, not to read a timeline. */}
-      <details className="rounded-xl border border-line bg-surface-muted px-4 py-3">
-        <summary className="cursor-pointer text-sm font-semibold text-ink">
-          Today so far: {plural(entries.length, "note")} · {plural(photos.length, "photo")} ·{" "}
-          {plural(documents, "document")}
-          {span ? <span className="font-normal text-ink-subtle"> · {span.first} to {span.last}</span> : null}
+      <details className="group rounded-card bg-surface px-4 py-3 shadow-card ring-1 ring-line/70 ring-inset">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
+          <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+            <span>Today so far: {plural(entries.length, "note")} · {plural(photos.length, "photo")} · {plural(documents, "document")}</span>
+            {span ? <span className="font-normal text-ink-subtle">· {span.first} to {span.last}</span> : null}
+          </span>
+          <span aria-hidden className="grid size-7 shrink-0 place-items-center rounded-full bg-surface-muted text-ink-subtle transition-transform duration-200 group-open:rotate-180">
+            <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          </span>
         </summary>
         {entries.length > 0 ? (
-          <ul className="mt-3 flex flex-col gap-3">
+          <ul className="mt-3 flex flex-col gap-3 border-t border-line pt-3">
             {entries.map((entry, index) => (
               <li key={index} className="flex gap-3 text-sm">
                 <span className="w-12 shrink-0 font-mono text-xs text-ink-subtle">
@@ -166,12 +194,18 @@ export default async function SiteCapturePage({
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-ink-muted">Nothing said yet.</p>
+          <p className="mt-3 border-t border-line pt-3 text-sm text-ink-muted">Nothing said yet.</p>
         )}
       </details>
 
-      {/* 4. The one AI action. */}
-      <PrepareDaily reportId={report.id} />
+      {/* 4. The one action that finishes the day. */}
+      <div className="flex flex-col gap-2">
+        <p className="flex items-center gap-2 px-1 text-sm text-ink-muted">
+          <Sparkles aria-hidden className="size-4 text-brand" />
+          Writes today&rsquo;s Daily from what you captured.
+        </p>
+        <PrepareDaily reportId={report.id} />
+      </div>
     </div>
   );
 }

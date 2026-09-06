@@ -13,52 +13,89 @@
  * screen. It is never a large field of colour behind content.
  */
 @theme {
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
-  /* Surfaces. Sunken is the page, surface is a card, raised is a card on a card. */
-  --color-surface: #1a1d23;
-  --color-surface-sunken: #0d0f12;
-  --color-surface-muted: #2a2e36;
-  --color-surface-raised: #22262e;
+  /* Surfaces. Sunken is the page, surface is a card, raised is a card on a
+     card or anything that has to come forward. Muted is a fill inside a card:
+     a chip, a hover, a quiet panel. */
+  --color-surface: #151a22;
+  --color-surface-sunken: #0e1116;
+  --color-surface-muted: #1f2733;
+  --color-surface-raised: #1b212c;
 
-  /* Lines. Barely there by default; strong enough to read as a control when needed. */
-  --color-line: #262a32;
-  --color-line-strong: #3a404b;
+  /* Lines. A hairline by default, and mostly replaced by layering and space;
+     strong is for a control that has to read as one. */
+  --color-line: #232b38;
+  --color-line-strong: #2a3342;
 
   /* Text */
-  --color-ink: #ffffff;
-  --color-ink-muted: #a7adb8;
-  --color-ink-subtle: #737b88;
+  --color-ink: #f3f5f7;
+  --color-ink-muted: #a7b0bd;
+  --color-ink-subtle: #76818f;
   /* What goes on top of gold or white - never white on gold. */
-  --color-ink-inverse: #0d0f12;
+  --color-ink-inverse: #0e1116;
 
   /* Brand */
-  --color-brand: #ffc107;
-  --color-brand-strong: #ffd454;
-  --color-brand-soft: #2a2411;
+  --color-brand: #f6b800;
+  --color-brand-strong: #ffc928;
+  --color-brand-soft: #2a230e;
   /* Gold as words rather than as a fill. On charcoal that is the gold itself;
      on white it has to darken or it cannot be read. */
-  --color-brand-ink: #ffc107;
+  --color-brand-ink: #f6b800;
 
   /* The single primary action on a screen. */
-  --color-primary: #ffc107;
-  --color-primary-hover: #ffcf3d;
+  --color-primary: #f6b800;
+  --color-primary-hover: #ffc928;
 
   /*
    * Status. Each is a light tint that reads as text on charcoal, with a dark
    * companion for the chip behind it. Danger has a filled variant as well,
    * because a destructive button has to look like one.
    */
-  --color-success: #3ddc97;
-  --color-success-soft: #10281f;
-  --color-warning: #f5a524;
-  --color-warning-soft: #2a2110;
-  --color-danger: #ff6b6b;
-  --color-danger-soft: #2c1618;
-  --color-danger-strong: #c0392f;
-  --color-info: #6aa9ff;
-  --color-info-soft: #131e2e;
+  --color-success: #23c16b;
+  --color-success-soft: #10271b;
+  --color-warning: #ff8a3d;
+  --color-warning-soft: #2c1c12;
+  --color-danger: #f45b69;
+  --color-danger-soft: #2e161b;
+  --color-danger-strong: #d8404f;
+  --color-info: #4da3ff;
+  --color-info-soft: #122239;
+
+  /* Corners. Cards are generous; controls a step tighter so they nest. */
+  --radius-card: 20px;
+  --radius-control: 16px;
+
+  /* Depth. Soft and low, never a hard drop: the cards are lit, not stacked. */
+  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 10px 30px -18px rgb(0 0 0 / 0.7);
+  --shadow-raised: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 18px 40px -20px rgb(0 0 0 / 0.75);
+  --shadow-glow: 0 12px 30px -12px rgb(246 184 0 / 0.55);
+  --shadow-nav: 0 -1px 0 0 rgb(255 255 255 / 0.03) inset, 0 16px 40px -12px rgb(0 0 0 / 0.8);
+
+  /* Motion. One curve, two speeds. */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-rise: rise 420ms var(--ease-out-soft) both;
+  --animate-fade: fade 240ms ease-out both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
 }
 
 /*
@@ -100,26 +137,26 @@
 :root[data-theme="light"],
 :root[data-theme="system"] {
   --color-surface: #ffffff;
-  --color-surface-sunken: #f4f5f7;
-  --color-surface-muted: #eceef1;
+  --color-surface-sunken: #f2f4f7;
+  --color-surface-muted: #e9ecf1;
   --color-surface-raised: #fafbfc;
 
-  --color-line: #e2e5ea;
-  --color-line-strong: #c9ced6;
+  --color-line: #e3e7ed;
+  --color-line-strong: #cbd2dc;
 
   --color-ink: #14171c;
-  --color-ink-muted: #4d545f;
-  --color-ink-subtle: #79808c;
+  --color-ink-muted: #4d5560;
+  --color-ink-subtle: #7a828e;
   /* Still what goes on top of gold, so it darkens rather than inverting. */
   --color-ink-inverse: #14171c;
 
   --color-brand-strong: #b45309;
-  --color-brand-soft: #fff6dd;
-  --color-brand-ink: #a86a00;
+  --color-brand-soft: #fff5d6;
+  --color-brand-ink: #9a6b00;
 
   /* Gold is the primary action in both themes - it is the brand's button. */
-  --color-primary: #ffc107;
-  --color-primary-hover: #f0b400;
+  --color-primary: #f6b800;
+  --color-primary-hover: #e9ae00;
 
   --color-success: #0f7a52;
   --color-success-soft: #e3f6ee;
@@ -130,40 +167,48 @@
   --color-danger-strong: #c0392f;
   --color-info: #1d4ed8;
   --color-info-soft: #e6edfd;
+
+  --shadow-card: 0 1px 2px rgb(20 23 28 / 0.04), 0 10px 30px -18px rgb(20 23 28 / 0.25);
+  --shadow-raised: 0 1px 2px rgb(20 23 28 / 0.05), 0 18px 40px -20px rgb(20 23 28 / 0.3);
+  --shadow-nav: 0 16px 40px -12px rgb(20 23 28 / 0.35);
 }
 
 /* "System" is light only where the device actually asks for light. */
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] {
-    --color-surface: #1a1d23;
-    --color-surface-sunken: #0d0f12;
-    --color-surface-muted: #2a2e36;
-    --color-surface-raised: #22262e;
+    --color-surface: #151a22;
+    --color-surface-sunken: #0e1116;
+    --color-surface-muted: #1f2733;
+    --color-surface-raised: #1b212c;
 
-    --color-line: #262a32;
-    --color-line-strong: #3a404b;
+    --color-line: #232b38;
+    --color-line-strong: #2a3342;
 
-    --color-ink: #ffffff;
-    --color-ink-muted: #a7adb8;
-    --color-ink-subtle: #737b88;
-    --color-ink-inverse: #0d0f12;
+    --color-ink: #f3f5f7;
+    --color-ink-muted: #a7b0bd;
+    --color-ink-subtle: #76818f;
+    --color-ink-inverse: #0e1116;
 
-    --color-brand-strong: #ffd454;
-    --color-brand-soft: #2a2411;
-    --color-brand-ink: #ffc107;
+    --color-brand-strong: #ffc928;
+    --color-brand-soft: #2a230e;
+    --color-brand-ink: #f6b800;
 
-    --color-primary: #ffc107;
-    --color-primary-hover: #ffcf3d;
+    --color-primary: #f6b800;
+    --color-primary-hover: #ffc928;
 
-    --color-success: #3ddc97;
-    --color-success-soft: #10281f;
-    --color-warning: #f5a524;
-    --color-warning-soft: #2a2110;
-    --color-danger: #ff6b6b;
-    --color-danger-soft: #2c1618;
-    --color-danger-strong: #c0392f;
-    --color-info: #6aa9ff;
-    --color-info-soft: #131e2e;
+    --color-success: #23c16b;
+    --color-success-soft: #10271b;
+    --color-warning: #ff8a3d;
+    --color-warning-soft: #2c1c12;
+    --color-danger: #f45b69;
+    --color-danger-soft: #2e161b;
+    --color-danger-strong: #d8404f;
+    --color-info: #4da3ff;
+    --color-info-soft: #122239;
+
+    --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 10px 30px -18px rgb(0 0 0 / 0.7);
+    --shadow-raised: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 18px 40px -20px rgb(0 0 0 / 0.75);
+    --shadow-nav: 0 -1px 0 0 rgb(255 255 255 / 0.03) inset, 0 16px 40px -12px rgb(0 0 0 / 0.8);
   }
 }
 
@@ -190,7 +235,26 @@
     background-color: var(--color-surface-sunken);
     color: var(--color-ink);
     font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01", "tnum";
+    line-height: 1.5;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  /* No motion where the device asks for none. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
   }
 
   /* iOS Safari zooms the viewport when focusing an input under 16px, so this
@@ -211,6 +275,17 @@
 
 @utility pb-safe {
   padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Glass: an elevated dark surface with a light blur, for the bars only. */
+@utility glass {
+  background-color: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  -webkit-backdrop-filter: saturate(140%) blur(18px);
+  backdrop-filter: saturate(140%) blur(18px);
 }
 
 @utility mb-safe {

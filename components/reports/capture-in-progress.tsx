@@ -29,14 +29,17 @@ export function CaptureInProgress({
   where?: string | null;
 }) {
   return (
-    <Card className="border-brand bg-brand-soft">
+    <Card raised className="ring-brand/40">
       <CardContent className="flex flex-col gap-4">
         <div className="flex items-start gap-3">
-          <span className="grid size-11 shrink-0 place-items-center rounded-xl bg-surface ring-1 ring-brand/30">
+          <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-soft ring-1 ring-brand/30">
             <Mic className="size-5 text-brand" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
-            <p className="font-semibold text-ink">Site Capture in progress</p>
+            <p className="flex items-center gap-2 font-bold text-ink">
+              <span className="size-2 rounded-full bg-brand animate-pulse" aria-hidden />
+              Site Capture in progress
+            </p>
             <p className="truncate text-sm text-ink-muted">
               {[draft.projectName, where].filter(Boolean).join(" · ")}
             </p>

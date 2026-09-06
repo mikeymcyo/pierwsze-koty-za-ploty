@@ -63,9 +63,9 @@ export function SummaryFinalise({
 
   if (status === "final") {
     return (
-      <section className="flex flex-col gap-4 border-t border-line pt-6">
+      <section className="flex flex-col gap-4 rounded-card bg-surface-raised p-5 shadow-raised ring-1 ring-line/70 ring-inset md:p-6">
         <div>
-          <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">Issued document</h2>
+          <h2 className="text-lg font-bold tracking-tight text-ink">Issued document</h2>
           <p className="mt-1 text-sm text-ink-muted">
             Finalised{finalisedAt ? ` on ${finalisedAt}` : ""}. This stored PDF is the issued record.
           </p>
@@ -93,9 +93,9 @@ export function SummaryFinalise({
   }
 
   return (
-    <section className="flex flex-col gap-4 border-t border-line pt-6">
+    <section className="flex flex-col gap-4 rounded-card bg-surface-raised p-5 shadow-raised ring-1 ring-line/70 ring-inset md:p-6">
       <div>
-        <h2 className="text-sm font-bold tracking-wide text-ink-muted uppercase">
+        <h2 className="text-lg font-bold tracking-tight text-ink">
           {reopened ? "Reopened for editing" : "Finalise"}
         </h2>
         <p className="mt-1 text-sm text-ink-muted">
@@ -123,7 +123,7 @@ export function SummaryFinalise({
       />
 
       {documentCount > 0 ? (
-        <label className="flex items-start gap-3 rounded-xl border border-line p-3">
+        <label className="flex items-start gap-3 rounded-control bg-surface p-3 ring-1 ring-line/70 ring-inset">
           <input
             type="checkbox"
             checked={includeDocuments}
