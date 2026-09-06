@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { generateReport } from "@/app/(app)/reports/ai-actions";
 import { requireSessionContext } from "@/lib/auth/session";
 import { documentContextForProject } from "@/lib/documents/job-context";
-import { currentExtractions, runExtraction } from "@/lib/documents/extractions";
+import { IMAGE_NOT_READ, currentExtractions, runExtraction } from "@/lib/documents/extractions";
+import { isPdfContentType } from "@/lib/documents/file-validation";
 import { parseCaptureLog } from "@/lib/reports/capture-log";
 import { prepareQuestions, shortScope, type PrepareQuestion } from "@/lib/reports/prepare-gate";
 import { createClient } from "@/lib/supabase/server";
@@ -61,7 +62,7 @@ export async function prepareDaily(
   let unreadNote: string | undefined;
   const { data: contextRows } = await supabase
     .from("job_context_documents")
-    .select("document_id, documents(id, title, doc_type, storage_path, project_id)")
+    .select("document_id, documents(id, title, doc_type, storage_path, project_id, mime_type)")
     .is("removed_at", null);
   const contextDocuments = (contextRows ?? [])
     .map((row) => (Array.isArray(row.documents) ? row.documents[0] : row.documents))
@@ -74,6 +75,8 @@ export async function prepareDaily(
     for (const document of contextDocuments) {
       const reading = readings.get(document.id);
       if (reading?.status === "succeeded" || reading?.status === "running") continue;
+      // A photo document is never "unread": there is no text in it to read.
+      if (document.mime_type && !isPdfContentType(document.mime_type)) continue;
       const result = await runExtraction(
         supabase,
         {
@@ -86,7 +89,7 @@ export async function prepareDaily(
         },
         session.userId,
       );
-      if (!result.ok && !/already being read/.test(result.error)) {
+      if (!result.ok && !/already being read/.test(result.error) && result.error !== IMAGE_NOT_READ) {
         unreadNote = `${document.title} could not be read, so today's Daily is written without it.`;
       }
     }

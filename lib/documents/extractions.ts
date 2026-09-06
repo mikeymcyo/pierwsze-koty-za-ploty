@@ -8,6 +8,7 @@ import {
   type ExtractionContent,
   type VerifiedExtraction,
 } from "@/lib/documents/extraction-schema";
+import { documentKindFromBytes } from "@/lib/documents/file-validation";
 import { documentTypeLabel, DOCUMENT_BUCKET } from "@/lib/documents/metadata";
 import { extractPdfText, pagesForPrompt } from "@/lib/documents/pdf-text";
 import { createClient } from "@/lib/supabase/server";
@@ -135,6 +136,10 @@ export async function currentExtractions(
   return state;
 }
 
+/** Why an image document is not read for job context. */
+export const IMAGE_NOT_READ =
+  "This document is a photo, not a PDF, so it is not read for job context. It still goes into the report's PDF.";
+
 export type ExtractionOutcome = { ok: true; extraction: VerifiedExtraction } | { ok: false; error: string };
 
 /**
@@ -206,6 +211,15 @@ export async function runExtraction(
   // replaced, this says which file this reading came from - and two readings
   // of the same file can be told apart from two readings of two files.
   const sha256 = createHash("sha256").update(bytes).digest("hex");
+
+  // A photographed delivery note is a supporting document, but it has no
+  // text layer to read and nothing here does OCR. Said plainly, once, rather
+  // than as "could not be opened" - which would send somebody looking for a
+  // password that does not exist.
+  if (documentKindFromBytes(bytes) !== "pdf") {
+    await finish({ source_sha256: sha256, source_bytes: bytes.byteLength });
+    return fail(IMAGE_NOT_READ);
+  }
 
   const text = await extractPdfText(bytes);
   if (!text.ok) {

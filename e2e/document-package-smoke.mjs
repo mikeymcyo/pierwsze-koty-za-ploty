@@ -12,8 +12,10 @@
  */
 import { readFileSync } from "node:fs";
 
+import { createCanvas } from "@napi-rs/canvas";
 import { PDFDocument } from "pdf-lib";
 
+import { extractPdfText } from "../lib/documents/pdf-text.ts";
 import { describeMergeFailure, mergeReportWithDocuments } from "../lib/pdf/merge.ts";
 import {
   describePackageChoice,
@@ -120,6 +122,57 @@ check(
 );
 check("one failure reads in the singular", /^"A" could not be read/.test(describeMergeFailure(["A"])));
 check("several are counted and listed", /^2 supporting documents could not be read/.test(describeMergeFailure(["A", "B"])));
+
+console.log("\n5b. A photographed document becomes one full A4 page");
+/** A real JPEG or PNG of the given size, from the same canvas the photo pipeline uses. */
+function makeImage(width, height, format) {
+  const canvas = createCanvas(width, height);
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#c8102e";
+  context.fillRect(0, 0, width, height);
+  return canvas.toBuffer(format);
+}
+const A4_SHORT = 595;
+const A4_LONG = 842;
+const landscapeNote = makeImage(1200, 800, "image/jpeg");
+const portraitPermit = makeImage(600, 900, "image/png");
+const withPhotos = await mergeReportWithDocuments(report, [
+  { title: "GA Plan", bytes: drawing },
+  { title: "Delivery note 12 Sep", bytes: landscapeNote },
+  { title: "Hot works permit", bytes: portraitPermit },
+]);
+check("the merge accepts a JPEG and a PNG alongside a PDF", withPhotos.ok, withPhotos.ok ? "" : withPhotos.error);
+const photoPages = withPhotos.ok ? await PDFDocument.load(new Uint8Array(withPhotos.pdf)) : null;
+const sizes = photoPages
+  ? photoPages.getPages().map((page) => `${Math.round(page.getWidth())}x${Math.round(page.getHeight())}`)
+  : [];
+check("each photo is exactly one page, in selection order", sizes.length === 5, sizes.join());
+check("a landscape photo gets a landscape A4 page", sizes[3] === `${A4_LONG}x${A4_SHORT}`, sizes[3]);
+check("a portrait photo gets a portrait A4 page", sizes[4] === `${A4_SHORT}x${A4_LONG}`, sizes[4]);
+check("the PDF document before them is copied as it was", sizes[2] === `${DRAWING_W}x800`, sizes[2]);
+check("the appended count includes the photo pages", withPhotos.ok && withPhotos.appendedPages === 3);
+check(
+  "the kind is decided from the bytes, so a photo needs no recorded type",
+  withPhotos.ok && !("contentType" in (withPhotos.pdf ?? {})),
+);
+const bytesOut = withPhotos.ok ? Buffer.from(withPhotos.pdf).toString("latin1") : "";
+check("the JPEG is embedded as a JPEG, not re-encoded", /\/DCTDecode/.test(bytesOut));
+check("the PNG is embedded losslessly", /\/FlateDecode/.test(bytesOut));
+const photoText = withPhotos.ok ? await extractPdfText(new Uint8Array(withPhotos.pdf)) : { ok: false };
+const photoPageText = photoText.ok ? photoText.text.pages.map((page) => page.text).join("\n") : "";
+check(
+  "the photo pages carry their titles, as real text",
+  /Delivery note 12 Sep/.test(photoPageText) && /Hot works permit/.test(photoPageText),
+  photoPageText.slice(0, 120),
+);
+const tinyOnly = await mergeReportWithDocuments(report, [{ title: "Sketch", bytes: makeImage(20, 10, "image/png") }]);
+const tinyPage = tinyOnly.ok ? (await PDFDocument.load(new Uint8Array(tinyOnly.pdf))).getPages()[2] : null;
+check("a tiny image still gets a full A4 page rather than a stamp-sized one", tinyPage !== null && Math.round(tinyPage.getWidth()) === A4_LONG);
+const badImage = await mergeReportWithDocuments(report, [
+  { title: "Torn photo", bytes: Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from("not really a jpeg")]) },
+]);
+check("a damaged photo blocks the issue and is named, like a damaged PDF", !badImage.ok && badImage.failed.join() === "Torn photo");
+check("and the failure message now says image as well as PDF", /PDF or image/.test(describeMergeFailure(["A"])));
 
 console.log("\n6. A document whose file has gone blocks it too");
 const gone = [

@@ -408,7 +408,7 @@ export default async function ReportCapturePage({
                   companyId={session.companyId}
                   projectId={report.project_id}
                   reportId={report.id}
-                  label="Upload and attach a PDF"
+                  label="Upload and attach a document"
                 />
                 <DocumentPicker
                   action={saveReportDocuments.bind(null, report.id)}

@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { requireSessionContext } from "@/lib/auth/session";
 import { runExtraction } from "@/lib/documents/extractions";
+import { isPdfContentType } from "@/lib/documents/file-validation";
 import {
   appendBriefEntry,
   briefAlreadyEnds,
@@ -177,7 +178,7 @@ export async function adoptJobDocument(
   const [{ data: document }, { data: project }] = await Promise.all([
     supabase
       .from("documents")
-      .select("id, title, doc_type, storage_path")
+      .select("id, title, doc_type, storage_path, mime_type")
       .eq("id", parsed.data.documentId)
       .eq("project_id", projectId)
       .maybeSingle(),
@@ -215,6 +216,15 @@ export async function adoptJobDocument(
     docType: document.doc_type,
     storagePath: document.storage_path,
   };
+  // A photo document has no text to read and nothing here does OCR. It is
+  // job context all the same - listed, and printed in the report's PDF - it
+  // just is not read for scope. An old row with no recorded type is still
+  // tried; the reader itself checks the bytes.
+  if (document.mime_type && !isPdfContentType(document.mime_type)) {
+    revalidatePath(`/projects/${projectId}`);
+    if (returnTo.startsWith("/") && !returnTo.startsWith("//")) revalidatePath(returnTo);
+    return {};
+  }
   after(async () => {
     const result = await runExtraction(supabase, target, session.userId);
     if (!result.ok) console.warn(`[siteboss] background read of ${document.title} failed: ${result.error}`);

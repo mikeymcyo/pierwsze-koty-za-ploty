@@ -7,8 +7,7 @@ import { attachDocument } from "@/app/(app)/documents/actions";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
-  PDF_CONTENT_TYPE,
-  PDF_SIGNATURE_BYTES,
+  DOCUMENT_SIGNATURE_BYTES,
   checkDocumentFile,
   describeUploadOutcome,
 } from "@/lib/documents/file-validation";
@@ -17,7 +16,8 @@ import { createClient } from "@/lib/supabase/client";
 import type { DocumentType } from "@/types/database";
 
 /**
- * Uploads a PDF straight from the browser to Supabase Storage, then records it.
+ * Uploads a PDF, JPEG or PNG straight from the browser to Supabase Storage,
+ * then records it.
  *
  * The same split as photographs, for the same reason: a Server Action's
  * request body is capped well below the bucket limit and a drawing set is
@@ -33,14 +33,17 @@ import type { DocumentType } from "@/types/database";
  * that morning actually lives. Confirmed working on a real iPad.
  *
  * It carries no `accept` attribute; lib/documents/file-validation.ts explains
- * why, and is what enforces PDF-only once a file has been chosen.
+ * why, and is what decides what a chosen file is once it has been chosen. A
+ * photographed delivery note is a supporting document like a PDF of one: it
+ * is listed the same way and, when the documents go into the issued PDF, it is
+ * printed as a full page.
  */
 export function DocumentUpload({
   companyId,
   projectId,
   reportId = null,
   summaryReportId = null,
-  label = "Upload a PDF",
+  label = "Upload a document",
   onAttached,
   attachedLabel = "Working…",
   simple = false,
@@ -83,7 +86,7 @@ export function DocumentUpload({
    */
   async function readSignature(file: File): Promise<Uint8Array | null> {
     try {
-      const head = await file.slice(0, PDF_SIGNATURE_BYTES).arrayBuffer();
+      const head = await file.slice(0, DOCUMENT_SIGNATURE_BYTES).arrayBuffer();
       return new Uint8Array(head);
     } catch {
       return null;
@@ -110,14 +113,14 @@ export function DocumentUpload({
       }
 
       try {
-        const path = `${companyId}/${projectId}/${crypto.randomUUID()}.pdf`;
+        const path = `${companyId}/${projectId}/${crypto.randomUUID()}.${check.extension}`;
         const { error: uploadError } = await supabase.storage
           .from(DOCUMENT_BUCKET)
           .upload(path, file, {
-            // Normalised: the bucket is PDF-only and iOS routinely hands over a
-            // genuine PDF as an empty string or octet-stream. Safe to assert
-            // here only because the signature check above has passed.
-            contentType: PDF_CONTENT_TYPE,
+            // Normalised from the kind the check decided, not from what the
+            // device said: iOS routinely hands over a genuine PDF as an empty
+            // string or octet-stream, and the bucket would reject that.
+            contentType: check.contentType,
             upsert: false,
           });
 
@@ -133,7 +136,7 @@ export function DocumentUpload({
             originalFilename: file.name,
             docType,
             fileSize: file.size,
-            mimeType: PDF_CONTENT_TYPE,
+            mimeType: check.contentType,
           });
           if (result?.error) failures.push(result.error);
           else {
@@ -203,7 +206,7 @@ export function DocumentUpload({
         ref={input}
         type="file"
         // No accept attribute: it earns nothing here, and checkDocumentFile
-        // enforces PDF-only after selection. See file-validation.ts.
+        // decides what is allowed after selection. See file-validation.ts.
         multiple
         className="sr-only"
         onChange={(event) => {
@@ -214,8 +217,8 @@ export function DocumentUpload({
         <p className="text-xs text-ink-subtle">Optional. An order, drawing, survey or instruction.</p>
       ) : (
         <p className="text-xs text-ink-subtle">
-          PDFs up to 25 MB, from Files, iCloud Drive or anywhere else on the device. You can rename
-          it and add a reference, revision or date afterwards.
+          PDFs and photos (JPEG or PNG) up to 25 MB, from Files, Photos, iCloud Drive or anywhere
+          else on the device. You can rename it and add a reference, revision or date afterwards.
         </p>
       )}
     </div>

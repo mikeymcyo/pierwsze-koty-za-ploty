@@ -532,7 +532,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
                   companyId={session.companyId}
                   projectId={report.project_id}
                   summaryReportId={id}
-                  label="Upload and attach a PDF"
+                  label="Upload and attach a document"
                 />
                 <DocumentPicker
                   action={saveSummaryReportDocuments.bind(null, id)}
