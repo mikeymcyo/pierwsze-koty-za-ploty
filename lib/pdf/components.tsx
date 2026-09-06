@@ -716,7 +716,7 @@ export function PhotoPlate({
           full caption stays in the app; this is the printed form of it. */}
       <View style={s.photoCaptionBox}>
         {item.caption ? (
-          <Text style={s.photoCaption} maxLines={3}>
+          <Text style={[s.photoCaption, { maxLines: 3, textOverflow: "ellipsis" }]}>
             {printCaption(item.caption)}
           </Text>
         ) : null}

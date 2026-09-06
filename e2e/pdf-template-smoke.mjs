@@ -528,7 +528,7 @@ check(
 check("nothing prints for no caption", printCaption(null) === null && printCaption("   ") === null);
 check("the stored caption is not changed - this is presentation", /Presentation only/.test(read("../lib/pdf/photo-evidence.ts")));
 const plateSource = read("../lib/pdf/components.tsx");
-check("the plate prints the printed form, capped at three lines", /<Text style=\{s\.photoCaption\} maxLines=\{3\}>\s*\{printCaption\(item\.caption\)\}/.test(plateSource));
+check("the plate prints the printed form, capped at three lines", /<Text style=\{\[s\.photoCaption, \{ maxLines: 3, textOverflow: "ellipsis" \}\]\}>\s*\{printCaption\(item\.caption\)\}/.test(plateSource));
 check("inside a box every plate reserves", /<View style=\{s\.photoCaptionBox\}>/.test(plateSource));
 const themeSource = read("../lib/pdf/theme.ts");
 const boxHeight = Number(themeSource.match(/photoCaptionBox: \{ minHeight: (\d+)/)?.[1]);
