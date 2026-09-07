@@ -15,7 +15,11 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
         {/* Bottom padding clears the floating mobile nav bar. */}
         <main className="flex-1 px-4 pt-5 pb-32 md:px-8 md:pt-8 md:pb-10">
-          <div className="mx-auto w-full max-w-3xl animate-rise">{children}</div>
+          {/* Opacity only, never a transform: the PDF viewer inside is
+              position: fixed, and a transformed ancestor becomes its
+              containing block - on iOS Safari for good, which collapsed the
+              viewer to a strip at the top of the screen. */}
+          <div className="mx-auto w-full max-w-3xl animate-fade">{children}</div>
         </main>
       </div>
 
