@@ -159,6 +159,25 @@ export default async function ReportCapturePage({
     ),
   ]);
 
+  // Only a draft takes a suggestion, and only for an open issue on this
+  // project. The URL says which; the database says whether.
+  const suggestions = report.status === "final" ? [] : parseResolutionSuggestions(resolve);
+  const { data: suggestedRows } = suggestions.length
+    ? await supabase
+        .from("issues")
+        .select("id, title, description, resolution, responsible, priority, status, created_at")
+        .in(
+          "id",
+          suggestions.map((item) => item.issueId),
+        )
+        .eq("project_id", report.project_id)
+        .neq("status", "closed")
+    : { data: [] };
+  const ownIssueIds = new Set((issuesResult.data ?? []).map((issue) => issue.id));
+  const suggestedIssues = (suggestedRows ?? []).filter(
+    (issue) => !ownIssueIds.has(issue.id) && !isResolvedStatus(issue.status),
+  );
+
   const photoRows = photosResult.data ?? [];
   const photos: PhotoWithUrl[] = photoRows.map((photo) => ({
     ...photo,
@@ -473,20 +492,25 @@ export default async function ReportCapturePage({
             />
           )}
 
+          {/* What Prepare Daily read in today's notes: an issue raised on an
+              earlier day of this project that today's work appears to have put
+              right. It is listed here, on the report the person is looking at,
+              with "Resolve this issue?" - because the issue itself lives on
+              the Daily that raised it, which is usually issued by now. Nothing
+              is resolved until Confirm is pressed. */}
+          {suggestedIssues.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              <h3 className="text-xs font-bold tracking-wide text-ink-muted">
+                Raised earlier on this project
+              </h3>
+              <IssueList issues={suggestedIssues} suggestions={suggestions} />
+            </div>
+          ) : null}
+
           {issuesResult.data && issuesResult.data.length > 0 ? (
             <IssueList
               issues={issuesResult.data}
-              // What Prepare Daily read in today's notes, offered against the
-              // open issues actually on this report. Confirming is the person's.
-              suggestions={
-                isFinal
-                  ? []
-                  : parseResolutionSuggestions(resolve).filter((item) =>
-                      issuesResult.data?.some(
-                        (issue) => issue.id === item.issueId && !isResolvedStatus(issue.status),
-                      ),
-                    )
-              }
+              suggestions={suggestions}
             />
           ) : null}
         </ReportSectionCard>

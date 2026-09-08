@@ -207,7 +207,7 @@ check("junk in the URL is nothing", parseResolutionSuggestions("not json").lengt
 check("an id that is not an id is dropped", parseResolutionSuggestions('[{"issueId":"../etc","note":"x"}]').length === 0);
 check("a note is capped and a duplicate id kept once", parseResolutionSuggestions(JSON.stringify([{ issueId: good[0].issueId, note: "x".repeat(400) }, { issueId: good[0].issueId, note: "again" }]))[0].note.length === 200 && parseResolutionSuggestions(JSON.stringify([good[0], good[0]])).length === 1);
 const page = readFileSync(new URL("../app/(app)/reports/[id]/page.tsx", import.meta.url), "utf8");
-check("the screen offers a suggestion only for an open issue on this report", /parseResolutionSuggestions\(resolve\)\.filter/.test(page) && /!isResolvedStatus\(issue\.status\)/.test(page));
+check("the screen takes a suggestion only on a draft, and only for an open issue of this project", /report\.status === "final" \? \[\] : parseResolutionSuggestions\(resolve\)/.test(page) && /\.eq\("project_id", report\.project_id\)\s*\.neq\("status", "closed"\)/.test(page) && /Raised earlier on this project/.test(page));
 const pdfData = readFileSync(new URL("../lib/summary-reports/pdf-data.ts", import.meta.url), "utf8");
 check("a draft Progress or Completion prints the issue as it stands today", /report\.status === "final" \? \(link\.status_at_issue \?\? issue\.status\) : issue\.status/.test(pdfData));
 check("the consolidator is told a resolved issue is not outstanding", /is not outstanding: never list it under outstanding/.test(readFileSync(new URL("../lib/ai/summary-prompt.ts", import.meta.url), "utf8")));
