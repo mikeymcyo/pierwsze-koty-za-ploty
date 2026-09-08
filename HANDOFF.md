@@ -124,6 +124,36 @@ up, project, Site Capture with notes, three photos and a document, Prepare
 Daily, Daily issued, Progress consolidated and issued - every check passing
 on the redesigned screens, with no horizontal overflow on any of them.
 
+### Issue lifecycle, 2026-09-08 - `df2d594`, `df9b33c`
+
+The Southampton case: Saturday's Daily recorded the H&B section held up by
+missing upright inserts; Monday's notes said they arrived and the section
+was finished; nothing offered to resolve the Saturday issue, so Progress
+still called it outstanding. On the existing issue model, no schema change,
+no new screen:
+
+- A closed issue is labelled **Resolved** (stored value still `closed`).
+- **Mark resolved** sits in the issue list: one line on what was done, then
+  Confirm - `resolveIssue` in `app/(app)/issues/actions.ts` records the note
+  as `resolution` and stamps `closed_at`. The edit form still works as before.
+- **Prepare Daily** reads the day's notes against the project's open issues
+  (`lib/ai/issue-resolution.ts`, conservative: waiting is not resolution,
+  doubt returns nothing) and carries any match to the report screen in the
+  URL (`?resolve=`), where it is listed under "Raised earlier on this
+  project" as "Resolve this issue?" with the note pre-filled. Nothing resolves
+  an issue but the person pressing Confirm; the suggestion is shown once and
+  stored nowhere.
+- A **draft** Progress or Completion reads each issue as it stands today
+  (`lib/summary-reports/pdf-data.ts`, `lib/reports/review-context.ts`); an
+  issued document keeps its snapshot. The consolidator is told a resolved
+  issue is never outstanding.
+
+Proved on the Preview with the exact sequence: the suggestion arrived with a
+note in the site manager's words, the issue stayed Open until Confirm, the
+row then read Resolved with the note and date, the Progress consolidation
+put only the till point under outstanding, and the Progress PDF printed the
+issue RESOLVED with its resolution.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one
