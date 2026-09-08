@@ -3,6 +3,8 @@
 import { redirect } from "next/navigation";
 
 import { generateReport } from "@/app/(app)/reports/ai-actions";
+import { suggestResolvedIssues } from "@/lib/ai/issue-resolution";
+import { resolutionSuggestionsParam } from "@/lib/issues/metadata";
 import { requireSessionContext } from "@/lib/auth/session";
 import { documentContextForProject } from "@/lib/documents/job-context";
 import { IMAGE_NOT_READ, currentExtractions, runExtraction } from "@/lib/documents/extractions";
@@ -119,5 +121,29 @@ export async function prepareDaily(
   // 3. Write it, and go and read it.
   const result = await generateReport(reportId, {}, formData);
   if (result.error) return { error: result.error, unreadNote };
-  redirect(`/reports/${reportId}`);
+
+  // 4. Did today put anything right? The notes are read against the
+  //    project's open issues and any match travels to the report screen as a
+  //    suggestion - "Resolve this issue?" - which the person confirms or
+  //    leaves. Nothing here changes an issue, and a failure here changes
+  //    nothing about the Daily just written.
+  let resolveParam = "";
+  try {
+    const { data: openIssues } = await supabase
+      .from("issues")
+      .select("id, title, description")
+      .eq("project_id", report.project_id)
+      .neq("status", "closed")
+      .order("created_at", { ascending: true })
+      .limit(20);
+    if (openIssues && openIssues.length > 0 && notes.length > 0) {
+      const suggested = await suggestResolvedIssues({ notes, issues: openIssues });
+      if (suggested.ok && suggested.suggestions.length > 0) {
+        resolveParam = `?resolve=${resolutionSuggestionsParam(suggested.suggestions)}`;
+      }
+    }
+  } catch (cause) {
+    console.warn("[siteboss] resolution suggestion skipped:", cause);
+  }
+  redirect(`/reports/${reportId}${resolveParam}`);
 }

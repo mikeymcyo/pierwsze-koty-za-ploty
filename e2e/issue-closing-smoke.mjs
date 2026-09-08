@@ -15,7 +15,14 @@
  */
 import { readFileSync } from "node:fs";
 
-import { closedAtFor, hasRequiredResolution } from "../lib/issues/metadata.ts";
+import {
+  ISSUE_STATUS_LABELS,
+  closedAtFor,
+  hasRequiredResolution,
+  isResolvedStatus,
+  parseResolutionSuggestions,
+  resolutionSuggestionsParam,
+} from "../lib/issues/metadata.ts";
 import {
   GENERIC_FIELD_MESSAGE,
   RESOLUTION_REQUIRED,
@@ -175,6 +182,35 @@ check(
   "the daily report explains why the break went",
   /Forcing one here ended whatever preceded it/.test(daily),
 );
+
+console.log("\n9. Resolved: the word, the one-tap route, and a suggestion that never acts alone");
+check("a closed issue is called Resolved on screen and on the page", ISSUE_STATUS_LABELS.closed === "Resolved");
+check("and the stored value is still closed", isResolvedStatus("closed") && !isResolvedStatus("open") && !isResolvedStatus("in_progress"));
+const resolveBody = actions.slice(actions.indexOf("export async function resolveIssue"));
+check("marking resolved records the note as the resolution", /resolution: parsed\.data\.note,/.test(resolveBody));
+check("and stamps the resolved date the same way closing does", /closed_at: closedAtFor\("closed", existing\.closed_at\)/.test(resolveBody));
+check("an empty note is refused", /min\(1, "Say what was done"\)/.test(actions));
+check("the list offers Mark resolved in place of a trip to the edit form", /<ResolveIssue/.test(readFileSync(new URL("../components/issues/issue-list.tsx", import.meta.url), "utf8")) && !/Resolve and close/.test(readFileSync(new URL("../components/issues/issue-list.tsx", import.meta.url), "utf8")));
+const prepare = readFileSync(new URL("../app/(app)/reports/prepare-actions.ts", import.meta.url), "utf8");
+check("Prepare Daily asks whether the notes resolved an open issue", /suggestResolvedIssues\(/.test(prepare));
+check("and only carries the answer to the screen - it never writes an issue", !/from\("issues"\)[\s\S]{0,400}\.update\(/.test(prepare) && !/resolveIssue|setIssueStatus/.test(prepare));
+check("a failure there never spoils the Daily", /catch \(cause\)[\s\S]{0,120}resolution suggestion skipped/.test(prepare));
+const control = readFileSync(new URL("../components/issues/resolve-issue.tsx", import.meta.url), "utf8");
+check("the suggestion asks, and the person confirms", /Resolve this issue\?/.test(control) && /Confirm resolved/.test(control) && /Leave it open/.test(control));
+const ai = readFileSync(new URL("../lib/ai/issue-resolution.ts", import.meta.url), "utf8");
+check("the reader is told waiting is not resolution and doubt returns nothing", /NOT resolution/.test(ai) && /Return an empty list rather than guess/.test(ai));
+check("and it keeps only ids it was given", /offered\.has\(item\.issueId\)/.test(ai));
+const good = [{ issueId: "0b4c2b7d-6eb7-4edb-a3f0-a070d431aee4", note: "Inserts arrived Monday; section completed." }];
+const round = parseResolutionSuggestions(decodeURIComponent(resolutionSuggestionsParam(good)));
+check("a suggestion round-trips through the URL", round.length === 1 && round[0].issueId === good[0].issueId && round[0].note === good[0].note);
+check("junk in the URL is nothing", parseResolutionSuggestions("not json").length === 0 && parseResolutionSuggestions('{"a":1}').length === 0 && parseResolutionSuggestions(null).length === 0);
+check("an id that is not an id is dropped", parseResolutionSuggestions('[{"issueId":"../etc","note":"x"}]').length === 0);
+check("a note is capped and a duplicate id kept once", parseResolutionSuggestions(JSON.stringify([{ issueId: good[0].issueId, note: "x".repeat(400) }, { issueId: good[0].issueId, note: "again" }]))[0].note.length === 200 && parseResolutionSuggestions(JSON.stringify([good[0], good[0]])).length === 1);
+const page = readFileSync(new URL("../app/(app)/reports/[id]/page.tsx", import.meta.url), "utf8");
+check("the screen offers a suggestion only for an open issue on this report", /parseResolutionSuggestions\(resolve\)\.filter/.test(page) && /!isResolvedStatus\(issue\.status\)/.test(page));
+const pdfData = readFileSync(new URL("../lib/summary-reports/pdf-data.ts", import.meta.url), "utf8");
+check("a draft Progress or Completion prints the issue as it stands today", /report\.status === "final" \? \(link\.status_at_issue \?\? issue\.status\) : issue\.status/.test(pdfData));
+check("the consolidator is told a resolved issue is not outstanding", /is not outstanding: never list it under outstanding/.test(readFileSync(new URL("../lib/ai/summary-prompt.ts", import.meta.url), "utf8")));
 
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL ISSUE CLOSING CHECKS PASSED");

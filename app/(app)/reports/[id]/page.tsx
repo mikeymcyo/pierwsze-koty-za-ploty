@@ -8,6 +8,7 @@ import { applyDailyReview, reviewDailyReport } from "@/app/(app)/reports/review-
 import { updateSectionGroup } from "@/app/(app)/reports/ai-actions";
 import { saveReport, type ReportFormState } from "@/app/(app)/reports/actions";
 import { IssueList } from "@/components/issues/issue-list";
+import { isResolvedStatus, parseResolutionSuggestions } from "@/lib/issues/metadata";
 import { RaiseIssue, type PhotoChoice } from "@/components/issues/raise-issue";
 import { DocumentPicker, type PickableDocument } from "@/components/documents/document-picker";
 import { DocumentUpload } from "@/components/documents/document-upload";
@@ -85,9 +86,9 @@ export default async function ReportCapturePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; resolve?: string }>;
 }) {
-  const [{ id }, { saved }] = await Promise.all([params, searchParams]);
+  const [{ id }, { saved, resolve }] = await Promise.all([params, searchParams]);
 
   const session = await requireSessionContext();
   const supabase = await createClient();
@@ -473,7 +474,20 @@ export default async function ReportCapturePage({
           )}
 
           {issuesResult.data && issuesResult.data.length > 0 ? (
-            <IssueList issues={issuesResult.data} />
+            <IssueList
+              issues={issuesResult.data}
+              // What Prepare Daily read in today's notes, offered against the
+              // open issues actually on this report. Confirming is the person's.
+              suggestions={
+                isFinal
+                  ? []
+                  : parseResolutionSuggestions(resolve).filter((item) =>
+                      issuesResult.data?.some(
+                        (issue) => issue.id === item.issueId && !isResolvedStatus(issue.status),
+                      ),
+                    )
+              }
+            />
           ) : null}
         </ReportSectionCard>
       )}

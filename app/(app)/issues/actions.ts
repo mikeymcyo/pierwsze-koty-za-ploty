@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireSessionContext } from "@/lib/auth/session";
-import { closedAtFor, hasRequiredResolution } from "@/lib/issues/metadata";
+import { closedAtFor, hasRequiredResolution, isResolvedStatus } from "@/lib/issues/metadata";
 import { RESOLUTION_REQUIRED, fieldErrorsFrom } from "@/lib/issues/validation";
 import { createClient } from "@/lib/supabase/server";
 
@@ -246,4 +246,64 @@ export async function setIssueStatus(formData: FormData) {
 
   revalidatePath(`/projects/${existing.project_id}`);
   if (existing.report_id) revalidatePath(`/reports/${existing.report_id}`);
+}
+
+export type ResolveIssueState = { error?: string; resolved?: boolean };
+
+const resolveSchema = z.object({
+  issueId: z.uuid(),
+  note: z
+    .string()
+    .trim()
+    .min(1, "Say what was done")
+    .max(500, "Keep the resolution to a sentence or two"),
+});
+
+/**
+ * Marks an issue resolved, from the list it sits in, with the words that say
+ * how.
+ *
+ * The one-tap route the Southampton site needed: the inserts arrived, the
+ * section was finished, and the Saturday issue should say so without a trip
+ * to an edit form. It goes through the same rule as the form - a resolved
+ * issue carries a resolution - and stamps `closed_at` the same way. A person
+ * presses this; nothing calls it on their behalf. An AI suggestion only
+ * pre-fills the note.
+ */
+export async function resolveIssue(
+  _previous: ResolveIssueState,
+  formData: FormData,
+): Promise<ResolveIssueState> {
+  const parsed = resolveSchema.safeParse({
+    issueId: read(formData, "issueId"),
+    note: read(formData, "note") ?? "",
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Say what was done" };
+  }
+
+  await requireSessionContext();
+  const supabase = await createClient();
+
+  const { data: existing } = await supabase
+    .from("issues")
+    .select("project_id, report_id, status, closed_at")
+    .eq("id", parsed.data.issueId)
+    .maybeSingle();
+  if (!existing) return { error: "That issue could not be found." };
+  if (isResolvedStatus(existing.status)) return { resolved: true };
+
+  const { error } = await supabase
+    .from("issues")
+    .update({
+      status: "closed",
+      resolution: parsed.data.note,
+      closed_at: closedAtFor("closed", existing.closed_at),
+    })
+    .eq("id", parsed.data.issueId);
+  if (error) return { error: `Could not resolve the issue: ${error.message}` };
+
+  revalidatePath(`/projects/${existing.project_id}`);
+  if (existing.report_id) revalidatePath(`/reports/${existing.report_id}`);
+  return { resolved: true };
 }

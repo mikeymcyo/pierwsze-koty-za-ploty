@@ -200,7 +200,7 @@ export function SummaryReportDocument({ data }: { data: SummaryPdfData }) {
                       label: section.label,
                       content: section.content,
                     })),
-                    data.issues.filter((issue) => !/closed/i.test(issue.statusLabel)).length,
+                    data.issues.filter((issue) => !/closed|resolved/i.test(issue.statusLabel)).length,
                   )
                 : null,
             },

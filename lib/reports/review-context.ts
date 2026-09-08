@@ -236,7 +236,7 @@ export async function buildSummaryReviewContext(
   const { data: report } = await supabase
     .from("summary_reports")
     .select(
-      "id, project_id, kind, number, title, period_start, period_end, projects(name, client, site_address, project_reference, description)",
+      "id, project_id, kind, number, title, period_start, period_end, status, projects(name, client, site_address, project_reference, description)",
     )
     .eq("id", reportId)
     .maybeSingle();
@@ -367,8 +367,15 @@ export async function buildSummaryReviewContext(
           lines: issueLines(
             (issues ?? []).map((issue) => ({
               ...issue,
-              status: statusById.get(issue.id)?.status ?? issue.status,
-              resolution: statusById.get(issue.id)?.resolution ?? issue.resolution,
+              // A draft is reviewed against the issue as it stands today.
+              status:
+                report.status === "final"
+                  ? (statusById.get(issue.id)?.status ?? issue.status)
+                  : issue.status,
+              resolution:
+                report.status === "final"
+                  ? (statusById.get(issue.id)?.resolution ?? issue.resolution)
+                  : issue.resolution,
             })),
           ),
         },

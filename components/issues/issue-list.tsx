@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Pencil } from "lucide-react";
 
 import { setIssueStatus } from "@/app/(app)/issues/actions";
+import { ResolveIssue } from "@/components/issues/resolve-issue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,7 +12,9 @@ import {
   ISSUE_STATUSES,
   ISSUE_STATUS_LABELS,
   ISSUE_STATUS_TONES,
+  isResolvedStatus,
   sortIssues,
+  type ResolutionSuggestion,
 } from "@/lib/issues/metadata";
 import { formatDate } from "@/lib/utils";
 import type { Issue } from "@/types/database";
@@ -29,7 +32,18 @@ export type IssueRow = Pick<
  * a dropdown is a trip that does not get made, and then the tracker stops
  * matching the site.
  */
-export function IssueList({ issues }: { issues: IssueRow[] }) {
+export function IssueList({
+  issues,
+  suggestions = [],
+}: {
+  issues: IssueRow[];
+  /**
+   * Issues today's Daily suggested are resolved, with the words to offer.
+   * Only an open issue in this list is offered; the person confirms.
+   */
+  suggestions?: readonly ResolutionSuggestion[];
+}) {
+  const suggestedNote = new Map(suggestions.map((item) => [item.issueId, item.note]));
   return (
     <ul className="flex flex-col gap-3">
       {sortIssues(issues).map((issue) => (
@@ -67,9 +81,13 @@ export function IssueList({ issues }: { issues: IssueRow[] }) {
                 {ISSUE_STATUSES.filter((option) => option.value !== issue.status).map(
                   (option) =>
                     option.value === "closed" ? (
-                      <Button asChild variant="secondary" size="sm" key={option.value}>
-                        <Link href={`/issues/${issue.id}`}>Resolve and close</Link>
-                      </Button>
+                      <ResolveIssue
+                        key={option.value}
+                        issueId={issue.id}
+                        suggestedNote={
+                          isResolvedStatus(issue.status) ? undefined : suggestedNote.get(issue.id)
+                        }
+                      />
                     ) : (
                       <form action={setIssueStatus} key={option.value}>
                         <input type="hidden" name="issueId" value={issue.id} />

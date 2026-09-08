@@ -574,7 +574,7 @@ export function IssueRecord({
   colour: string;
   inverse: string;
 }) {
-  const closed = /closed/i.test(issue.statusLabel);
+  const closed = /closed|resolved/i.test(issue.statusLabel);
   return (
     <View style={[s.issue, { borderLeftColor: colour }]} wrap={false}>
       <Text style={s.issueTitle}>{issue.title}</Text>

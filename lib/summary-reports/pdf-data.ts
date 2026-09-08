@@ -242,7 +242,9 @@ export async function loadSummaryPdfData(
       issues: issueLinks.flatMap((link) => {
         const issue = issueById.get(link.issue_id);
         if (!issue) return [];
-        const status = link.status_at_issue ?? issue.status;
+        // A draft reads the issue as it stands today; an issued document keeps
+        // the status it was issued with. Finalising refreshes the snapshot.
+        const status = report.status === "final" ? (link.status_at_issue ?? issue.status) : issue.status;
         return [
           {
             id: issue.id,
@@ -252,7 +254,8 @@ export async function loadSummaryPdfData(
             priority: issue.priority,
             priorityLabel: ISSUE_PRIORITY_LABELS[issue.priority],
             statusLabel: ISSUE_STATUS_LABELS[status],
-            resolution: link.resolution_at_issue ?? issue.resolution,
+            resolution:
+              report.status === "final" ? (link.resolution_at_issue ?? issue.resolution) : issue.resolution,
           },
         ];
       }),
