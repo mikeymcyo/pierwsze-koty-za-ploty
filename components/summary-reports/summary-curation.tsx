@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useId, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { ImageOff, RotateCw, Sparkles } from "lucide-react";
 
@@ -10,7 +10,9 @@ import { PhotoDescriptionField } from "@/components/reports/photo-description-fi
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS } from "@/lib/issues/metadata";
+import { IssueStatusActions } from "@/components/issues/issue-list";
+import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS, ISSUE_STATUS_TONES } from "@/lib/issues/metadata";
+import { formatDate } from "@/lib/utils";
 import { photoStatusLabel } from "@/lib/photo-captions";
 import type { IssuePriority, IssueStatus, PhotoCategory } from "@/types/database";
 
@@ -31,6 +33,8 @@ export type CuratedIssueChoice = {
   priority: IssuePriority;
   status: IssueStatus;
   resolution: string | null;
+  /** When it was resolved, for the row; null while it is open. */
+  closedAt?: string | null;
   selected: boolean;
 };
 
@@ -147,6 +151,12 @@ export function SummaryCuration({
 }) {
   const save = saveSummaryCuration.bind(null, reportId);
   const [state, action] = useActionState<SummaryFormState, FormData>(save, {});
+  // The issue rows sit outside the form element so each can carry its own
+  // status controls - a form cannot be nested in a form - and their
+  // checkboxes point back at it by id. `display: contents` on the form lets
+  // the wrapper order everything the way it reads: photographs, issues, Save.
+  const formId = useId();
+  const returnPath = `/summary-reports/${reportId}`;
   /**
    * Which photographs are in the document, tracked here rather than left to
    * the DOM.
@@ -196,8 +206,9 @@ export function SummaryCuration({
   }, [dirty]);
 
   return (
-    <form action={action} onSubmit={() => setTouched(false)} className="flex flex-col gap-6">
-      <div>
+    <div className="flex flex-col gap-6">
+    <form id={formId} action={action} onSubmit={() => setTouched(false)} className="contents">
+      <div className="order-1">
         {/* An h3: the report's three section headings are the h2s on this
             screen now, and this control sits under one of them. */}
         <h3 className="text-sm font-bold tracking-tight text-ink">What the client sees</h3>
@@ -208,12 +219,12 @@ export function SummaryCuration({
         </p>
       </div>
       {state.error ? (
-        <Alert tone="danger">
+        <Alert tone="danger" className="order-2">
           {state.error} Nothing was lost - your ticks and descriptions are still on this screen.
           Press Try again.
         </Alert>
       ) : null}
-      {state.saved ? <Alert tone="success">Selection saved.</Alert> : null}
+      {state.saved ? <Alert tone="success" className="order-2">Selection saved.</Alert> : null}
 
       {/* Tells the action this form carried a photograph selection at all. A
           survey manages its own photographs, so its form must not be read as
@@ -221,7 +232,7 @@ export function SummaryCuration({
       {showPhotos ? <input type="hidden" name="photosIncluded" value="1" /> : null}
 
       {showPhotos ? (
-      <fieldset className="flex flex-col gap-3">
+      <fieldset className="order-3 flex flex-col gap-3">
         <legend className="mb-2 font-semibold text-ink">Photographs</legend>
         {photos.length === 0 ? (
           <p className="text-sm text-ink-muted">No project photographs are available.</p>
@@ -304,34 +315,53 @@ export function SummaryCuration({
       </fieldset>
       ) : null}
 
-      <fieldset className="flex flex-col gap-3">
+      <div className="order-5">
+        <SaveButton retry={Boolean(state.error)} />
+      </div>
+    </form>
+
+      {/* Outside the form on purpose: every row carries the issue's own
+          status controls. Tick decides whether it is in this document; the
+          buttons move the issue itself - open, in progress, resolved with a
+          note and a date - through the same actions as everywhere else, so
+          this is the one issue system, seen from the Progress Report. An
+          issued document is untouched: it keeps the status it was issued with. */}
+      <fieldset className="order-4 flex flex-col gap-3">
         <legend className="mb-2 font-semibold text-ink">Issues</legend>
         {issues.length === 0 ? (
           <p className="text-sm text-ink-muted">No project issues are available.</p>
         ) : (
           issues.map((issue) => (
-            <label key={issue.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-line p-4">
-              <input
-                type="checkbox"
-                name="issueId"
-                value={issue.id}
-                defaultChecked={issue.selected}
-                onChange={() => setDirty(true)}
-                className="mt-1 size-5 shrink-0 accent-brand"
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block font-semibold text-ink">{issue.title}</span>
-                <span className="mt-1 flex flex-wrap gap-2">
-                  <Badge tone="neutral">{ISSUE_PRIORITY_LABELS[issue.priority]}</Badge>
-                  <Badge tone={issue.status === "closed" ? "success" : "info"}>{ISSUE_STATUS_LABELS[issue.status]}</Badge>
+            <div key={issue.id} className="flex flex-col gap-3 rounded-xl border border-line p-4">
+              <label className="flex cursor-pointer items-start gap-3">
+                <input
+                  type="checkbox"
+                  name="issueId"
+                  value={issue.id}
+                  form={formId}
+                  defaultChecked={issue.selected}
+                  onChange={() => setDirty(true)}
+                  className="mt-1 size-5 shrink-0 accent-brand"
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold text-ink">{issue.title}</span>
+                  <span className="mt-1 flex flex-wrap gap-2">
+                    <Badge tone="neutral">{ISSUE_PRIORITY_LABELS[issue.priority]}</Badge>
+                    <Badge tone={ISSUE_STATUS_TONES[issue.status]} dot>{ISSUE_STATUS_LABELS[issue.status]}</Badge>
+                    {issue.status === "closed" && issue.closedAt ? (
+                      <span className="text-xs text-ink-subtle">Resolved {formatDate(issue.closedAt)}</span>
+                    ) : null}
+                  </span>
+                  {issue.resolution ? <span className="mt-2 block text-sm text-ink-muted">Resolution: {issue.resolution}</span> : null}
                 </span>
-                {issue.resolution ? <span className="mt-2 block text-sm text-ink-muted">Resolution: {issue.resolution}</span> : null}
-              </span>
-            </label>
+              </label>
+              <div className="flex flex-wrap items-center gap-2 pl-8">
+                <IssueStatusActions issue={issue} returnPath={returnPath} />
+              </div>
+            </div>
           ))
         )}
       </fieldset>
-      <SaveButton retry={Boolean(state.error)} />
-    </form>
+    </div>
   );
 }

@@ -125,7 +125,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
         supabase.from("photos").select("id, caption, category, storage_path, rotation").eq("project_id", report.project_id).order("created_at", { ascending: true }),
       ),
       withClockSkewRetry(() =>
-        supabase.from("issues").select("id, title, priority, status, resolution").eq("project_id", report.project_id).order("created_at", { ascending: true }),
+        supabase.from("issues").select("id, title, priority, status, resolution, closed_at").eq("project_id", report.project_id).order("created_at", { ascending: true }),
       ),
     ]);
   const loadError = sectionsResult.error ?? sourcesResult.error ?? photoLinksResult.error ?? issueLinksResult.error ?? photosResult.error ?? issuesResult.error;
@@ -215,6 +215,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
   }));
   const issues: CuratedIssueChoice[] = (issuesResult.data ?? []).map((issue) => ({
     ...issue,
+    closedAt: issue.closed_at,
     selected: selectedIssueIds.has(issue.id),
   }));
 

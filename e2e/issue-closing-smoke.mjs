@@ -212,6 +212,15 @@ const pdfData = readFileSync(new URL("../lib/summary-reports/pdf-data.ts", impor
 check("a draft Progress or Completion prints the issue as it stands today", /report\.status === "final" \? \(link\.status_at_issue \?\? issue\.status\) : issue\.status/.test(pdfData));
 check("the consolidator is told a resolved issue is not outstanding", /is not outstanding: never list it under outstanding/.test(readFileSync(new URL("../lib/ai/summary-prompt.ts", import.meta.url), "utf8")));
 
+console.log("\n10. Issues are actionable from a Progress Report, through the same actions");
+const curation = readFileSync(new URL("../components/summary-reports/summary-curation.tsx", import.meta.url), "utf8");
+const issueList = readFileSync(new URL("../components/issues/issue-list.tsx", import.meta.url), "utf8");
+check("one status-actions row is shared by the Daily list and the Progress picker", /export function IssueStatusActions/.test(issueList) && /<IssueStatusActions issue=\{issue\}/.test(issueList) && /<IssueStatusActions issue=\{issue\} returnPath=\{returnPath\}/.test(curation));
+check("the picker's checkboxes still belong to the curation form", /form=\{formId\}/.test(curation) && /<form id=\{formId\} action=\{action\}/.test(curation) && /name="issueId"/.test(curation));
+check("the row shows when an issue was resolved", /Resolved \{formatDate\(issue\.closedAt\)\}/.test(curation));
+check("the status actions refresh the screen they were pressed on, and only a path here", /safeReturnPath\(read\(formData, "returnPath"\)\)/.test(actions) && (actions.match(/if \(returnTo\) revalidatePath\(returnTo\);/g) ?? []).length === 2);
+check("no second issue system: the picker imports the shared row rather than posting its own", !/from\("issues"\)/.test(curation) && !/setIssueStatus|resolveIssue/.test(curation.replace(/IssueStatusActions/g, "")));
+
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL ISSUE CLOSING CHECKS PASSED");
 else {

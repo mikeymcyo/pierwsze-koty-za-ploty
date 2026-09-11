@@ -30,10 +30,13 @@ function ConfirmButton() {
 export function ResolveIssue({
   issueId,
   suggestedNote,
+  returnPath,
 }: {
   issueId: string;
   /** Present when today's Daily suggested this issue is resolved. */
   suggestedNote?: string;
+  /** The screen this sits on, refreshed once the issue is resolved. */
+  returnPath?: string;
 }) {
   const suggested = suggestedNote !== undefined;
   const [open, setOpen] = useState(suggested);
@@ -61,6 +64,7 @@ export function ResolveIssue({
       }
     >
       <input type="hidden" name="issueId" value={issueId} />
+      {returnPath ? <input type="hidden" name="returnPath" value={returnPath} /> : null}
       {suggested ? (
         <p className="flex items-center gap-2 text-sm font-semibold text-ink">
           <Sparkles aria-hidden className="size-4 text-brand" />

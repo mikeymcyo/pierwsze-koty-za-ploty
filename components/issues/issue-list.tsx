@@ -25,6 +25,51 @@ export type IssueRow = Pick<
 >;
 
 /**
+ * The one row of controls that moves an issue between open, in progress and
+ * resolved - the same row on a Daily Report's list and on a Progress Report's
+ * issue picker, so there is one way to change an issue's status and not two.
+ *
+ * `returnPath` is the screen this sits on, so the action can refresh it: the
+ * issue actions know the project and the Daily that raised the issue, but not
+ * the Progress Report it is being changed from.
+ */
+export function IssueStatusActions({
+  issue,
+  suggestedNote,
+  returnPath,
+}: {
+  issue: Pick<Issue, "id" | "status">;
+  /** Present when today's Daily suggested this issue is resolved. */
+  suggestedNote?: string;
+  returnPath?: string;
+}) {
+  return (
+    <>
+      {ISSUE_STATUSES.filter((option) => option.value !== issue.status).map((option) =>
+        option.value === "closed" ? (
+          <ResolveIssue
+            key={option.value}
+            issueId={issue.id}
+            suggestedNote={isResolvedStatus(issue.status) ? undefined : suggestedNote}
+            returnPath={returnPath}
+          />
+        ) : (
+          <form action={setIssueStatus} key={option.value}>
+            <input type="hidden" name="issueId" value={issue.id} />
+            <input type="hidden" name="status" value={option.value} />
+            {returnPath ? <input type="hidden" name="returnPath" value={returnPath} /> : null}
+            <Button type="submit" variant="secondary" size="sm">
+              {isResolvedStatus(issue.status) ? "Reopen as " : "Mark "}
+              {option.label.toLowerCase()}
+            </Button>
+          </form>
+        ),
+      )}
+    </>
+  );
+}
+
+/**
  * Issues as a list, with the one action that gets used on site.
  *
  * Moving something from open to in progress is what a site manager actually
@@ -78,26 +123,7 @@ export function IssueList({
               ) : null}
 
               <div className="flex flex-wrap items-center gap-2">
-                {ISSUE_STATUSES.filter((option) => option.value !== issue.status).map(
-                  (option) =>
-                    option.value === "closed" ? (
-                      <ResolveIssue
-                        key={option.value}
-                        issueId={issue.id}
-                        suggestedNote={
-                          isResolvedStatus(issue.status) ? undefined : suggestedNote.get(issue.id)
-                        }
-                      />
-                    ) : (
-                      <form action={setIssueStatus} key={option.value}>
-                        <input type="hidden" name="issueId" value={issue.id} />
-                        <input type="hidden" name="status" value={option.value} />
-                        <Button type="submit" variant="secondary" size="sm">
-                          Mark {option.label.toLowerCase()}
-                        </Button>
-                      </form>
-                    ),
-                )}
+                <IssueStatusActions issue={issue} suggestedNote={suggestedNote.get(issue.id)} />
 
                 <Button asChild variant="ghost" size="sm">
                   <Link href={`/issues/${issue.id}`}>

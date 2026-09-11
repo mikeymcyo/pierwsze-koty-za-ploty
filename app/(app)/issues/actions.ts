@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireSessionContext } from "@/lib/auth/session";
 import { closedAtFor, hasRequiredResolution, isResolvedStatus } from "@/lib/issues/metadata";
 import { RESOLUTION_REQUIRED, fieldErrorsFrom } from "@/lib/issues/validation";
+import { safeReturnPath } from "@/lib/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -246,6 +247,10 @@ export async function setIssueStatus(formData: FormData) {
 
   revalidatePath(`/projects/${existing.project_id}`);
   if (existing.report_id) revalidatePath(`/reports/${existing.report_id}`);
+  // The screen it was pressed on - a Progress Report, say - which the issue
+  // itself knows nothing about. Only a path on this application is accepted.
+  const returnTo = safeReturnPath(read(formData, "returnPath"));
+  if (returnTo) revalidatePath(returnTo);
 }
 
 export type ResolveIssueState = { error?: string; resolved?: boolean };
@@ -305,5 +310,7 @@ export async function resolveIssue(
 
   revalidatePath(`/projects/${existing.project_id}`);
   if (existing.report_id) revalidatePath(`/reports/${existing.report_id}`);
+  const returnTo = safeReturnPath(read(formData, "returnPath"));
+  if (returnTo) revalidatePath(returnTo);
   return { resolved: true };
 }
