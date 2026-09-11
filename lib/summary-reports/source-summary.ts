@@ -102,3 +102,54 @@ export function generateLabel(counts: SourceCounts, hasContent: boolean): string
 /** The line under the button, saying plainly that typing is not required. */
 export const CONSOLIDATION_HELPER =
   "SiteBoss will consolidate the selected reports into this one. Add your own notes only if you want to provide extra context.";
+
+// ---------------------------------------------------------------------------
+// What a Completion Report will be built from, before it is
+// ---------------------------------------------------------------------------
+
+/**
+ * "1 Progress Report · 4 Daily Reports", and the sentence under it.
+ *
+ * A Completion Report is all of a project's issued history: every issued
+ * Progress Report, plus any issued Daily Report no Progress Report already
+ * carries; where there is no Progress Report at all, every issued Daily. A
+ * day inside a Progress Report is kept as provenance and never read twice.
+ * That rule already lives in startSummaryReport and completionSourcePlan;
+ * this only says it in the words a site manager reads before pressing
+ * Create Completion, so nobody has to understand the rule to trust it.
+ */
+export function describeProjectHistory(input: {
+  progressCount: number;
+  dailyCount: number;
+  /** Daily Reports already inside an issued Progress Report. */
+  coveredCount: number;
+}): { headline: string; note: string } | null {
+  const { progressCount, dailyCount } = input;
+  const covered = Math.min(Math.max(input.coveredCount, 0), dailyCount);
+  if (progressCount === 0 && dailyCount === 0) return null;
+
+  const parts = [
+    progressCount > 0
+      ? `${progressCount} Progress Report${progressCount === 1 ? "" : "s"}`
+      : null,
+    dailyCount > 0 ? `${dailyCount} Daily Report${dailyCount === 1 ? "" : "s"}` : null,
+  ].filter((part): part is string => part !== null);
+
+  const direct = dailyCount - covered;
+  let detail: string;
+  if (progressCount === 0) {
+    detail = "There is no Progress Report, so every issued Daily Report is used.";
+  } else if (direct === 0) {
+    detail =
+      dailyCount === 0
+        ? "The Progress Reports are used as issued."
+        : `Every Daily Report already sits inside a Progress Report, so each day is read once.`;
+  } else {
+    detail = `${direct} Daily Report${direct === 1 ? " is" : "s are"} not yet in a Progress Report and will be added. No day is read twice.`;
+  }
+
+  return {
+    headline: parts.join(" · "),
+    note: `All project activity will be included. ${detail}`,
+  };
+}

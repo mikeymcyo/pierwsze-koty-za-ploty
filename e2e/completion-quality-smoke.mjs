@@ -252,6 +252,21 @@ check(
   /CONTRADICTIONS - FLAG, NEVER RESOLVE/.test(MASTER_REVIEW_SYSTEM_PROMPT),
 );
 
+console.log("\n5b. Completion is one press: all of the project's issued history");
+const { describeProjectHistory } = await import("../lib/summary-reports/source-summary.ts");
+const one = describeProjectHistory({ progressCount: 1, dailyCount: 4, coveredCount: 2 });
+check("the counts read as a site manager would say them", one?.headline === "1 Progress Report · 4 Daily Reports", one?.headline);
+check("and the sentence promises everything, once", /All project activity will be included/.test(one?.note ?? "") && /2 Daily Reports are not yet in a Progress Report and will be added\. No day is read twice/.test(one?.note ?? ""), one?.note);
+const none = describeProjectHistory({ progressCount: 0, dailyCount: 3, coveredCount: 0 });
+check("no Progress Report means every issued Daily", /no Progress Report, so every issued Daily Report is used/.test(none?.note ?? ""), none?.note);
+const all = describeProjectHistory({ progressCount: 2, dailyCount: 6, coveredCount: 6 });
+check("fully covered days are read once", /each day is read once/.test(all?.note ?? ""), all?.note);
+check("nothing issued says nothing", describeProjectHistory({ progressCount: 0, dailyCount: 0, coveredCount: 0 }) === null);
+const createForm = read("../components/summary-reports/summary-create-form.tsx");
+check("the screen shows the history and one button", /Project history found/.test(createForm) && /"Create Completion"/.test(createForm));
+check("the pickers wait behind Change sources", /Change sources/.test(createForm) && /setChangingSources\(true\)/.test(createForm) && /pickingProgress && projectId && !simpleCompletion/.test(createForm));
+check("the server rule is unchanged: no ticks means every issued Progress Report", /input\.progressIds\.length > 0[\s\S]{0,120}: availableProgress/.test(actions));
+
 console.log("\n6. The picker on screen");
 
 const form = read("../components/summary-reports/summary-create-form.tsx");

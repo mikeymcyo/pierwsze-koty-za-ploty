@@ -50,8 +50,14 @@ export default async function NewSummaryReportPage({
         <Link href="/reports"><ArrowLeft aria-hidden />All reports</Link>
       </Button>
       <header>
-        <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">Create consolidated report</h1>
-        <p className="mt-1 text-sm text-ink-muted">Build a client document from reports that have already been checked and issued.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-ink md:text-3xl">
+          {defaultKind === "completion" ? "Create Completion Report" : "Create consolidated report"}
+        </h1>
+        <p className="mt-1 text-sm text-ink-muted">
+          {defaultKind === "completion"
+            ? "Everything issued on this project, brought into one client document."
+            : "Build a client document from reports that have already been checked and issued."}
+        </p>
       </header>
       {error ? (
         <LoadError what="your projects" code={error.code} />

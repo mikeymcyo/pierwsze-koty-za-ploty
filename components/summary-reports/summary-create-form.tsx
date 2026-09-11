@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { History, SlidersHorizontal } from "lucide-react";
 
 import { startSummaryReport, type SummaryFormState } from "@/app/(app)/summary-reports/actions";
 import { Alert } from "@/components/ui/alert";
@@ -16,12 +17,14 @@ import {
   type SelectableDaily,
 } from "@/lib/summary-reports/daily-selection";
 import {
+  coveredDailyIds,
   defaultProgressSelection,
   resolveProgressSelection,
   uncoveredDailyIds,
   type SelectableProgress,
 } from "@/lib/summary-reports/progress-selection";
 import type { SummarySourceMode } from "@/lib/summary-reports/provenance";
+import { describeProjectHistory } from "@/lib/summary-reports/source-summary";
 import { formatDate, formatReportNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { SummaryReportKind } from "@/types/database";
@@ -56,12 +59,45 @@ function sourceModes(
   ];
 }
 
-function StartButton() {
+function StartButton({ label }: { label: string }) {
   const { pending } = useFormStatus();
   return (
-    <Button type="submit" size="lg" loading={pending}>
-      {pending ? "Preparing…" : "Start report"}
+    <Button type="submit" size="lg" loading={pending} className="w-full text-base sm:w-auto">
+      {pending ? "Preparing…" : label}
     </Button>
+  );
+}
+
+/**
+ * What a Completion Report will be built from, said once, in plain words.
+ *
+ * Completion is all of the project's issued history. The rule that makes it
+ * so - Progress Reports first, any day they do not cover added, no day read
+ * twice - is already the server's; this card is so the person never has to
+ * know it. One line of counts, one sentence, and the button.
+ */
+function ProjectHistory({
+  progressCount,
+  dailyCount,
+  coveredCount,
+}: {
+  progressCount: number;
+  dailyCount: number;
+  coveredCount: number;
+}) {
+  const history = describeProjectHistory({ progressCount, dailyCount, coveredCount });
+  if (!history) return null;
+  return (
+    <div className="flex items-start gap-3 rounded-card bg-surface-raised p-4 shadow-raised ring-1 ring-line/70 ring-inset">
+      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-surface-muted text-brand-ink">
+        <History aria-hidden className="size-5" />
+      </span>
+      <div className="min-w-0 flex flex-col gap-1">
+        <p className="text-xs font-semibold text-ink-muted">Project history found</p>
+        <p className="text-lg font-bold tracking-tight text-ink">{history.headline}</p>
+        <p className="text-sm text-ink-muted">{history.note}</p>
+      </div>
+    </div>
   );
 }
 
@@ -294,6 +330,14 @@ export function SummaryCreateForm({
   );
   const [state, action] = useActionState<SummaryFormState, FormData>(startSummaryReport, {});
   const errors = state.fieldErrors ?? {};
+  // A Completion Report is one press: everything issued on the project. The
+  // pickers, the period and the way the content is sourced are still there,
+  // behind "Change sources", for the person who needs them.
+  const [changingSources, setChangingSources] = useState(false);
+  const hasHistory = progressReports.length > 0 || dailies.length > 0;
+  const simpleCompletion =
+    kind === "completion" && sourceMode === "sources" && Boolean(projectId) && hasHistory && !changingSources;
+  const coveredCount = coveredDailyIds(progressReports).size;
 
   // The picker is the Progress Report's whole point. A Completion Report
   // consolidates issued Progress Reports and keeps its own flow, and a report
@@ -352,9 +396,10 @@ export function SummaryCreateForm({
           intent, but a job can genuinely finish with nothing issued behind it,
           and refusing to write that job's completion document does not make
           the job less finished. */}
-      <fieldset className="flex flex-col gap-2">
+      {simpleCompletion ? <input type="hidden" name="sourceMode" value={sourceMode} /> : null}
+      <fieldset className={cn("flex flex-col gap-2", simpleCompletion && "hidden")}>
           <legend className="mb-1 text-sm font-medium text-ink">Where the content comes from</legend>
-          <input type="hidden" name="sourceMode" value={sourceMode} />
+          {simpleCompletion ? null : <input type="hidden" name="sourceMode" value={sourceMode} />}
           <div className="grid gap-2 sm:grid-cols-2">
             {sourceModes(kind).map((mode) => {
               const active = mode.value === sourceMode;
@@ -403,7 +448,15 @@ export function SummaryCreateForm({
         )
       ) : null}
 
-      {pickingProgress && projectId ? (
+      {simpleCompletion ? (
+        <ProjectHistory
+          progressCount={progressReports.length}
+          dailyCount={dailies.length}
+          coveredCount={coveredCount}
+        />
+      ) : null}
+
+      {pickingProgress && projectId && !simpleCompletion ? (
         progressReports.length > 0 ? (
           <ProgressPicker
             reports={progressReports}
@@ -439,7 +492,7 @@ export function SummaryCreateForm({
         <Input id="title" name="title" placeholder={kind === "progress" ? "Fortnightly progress update" : "Project completion report"} />
       </Field>
 
-      <div className="grid gap-5 sm:grid-cols-2">
+      <div className={cn("grid gap-5 sm:grid-cols-2", simpleCompletion && "hidden")}>
         {/* Optional on both, and blank means blank: no date is invented for a
             report whose author did not give one. */}
         <Field label="Period start" htmlFor="periodStart" optional error={errors.periodStart}>
@@ -450,6 +503,7 @@ export function SummaryCreateForm({
         </Field>
       </div>
 
+      {simpleCompletion ? null : (
       <Alert tone="info">
         {sourceMode === "standalone"
           ? "Nothing is consolidated. You write the report from your own notes, photographs, issues and documents, and it says so - there is no source record and nothing claims to come from a previous report."
@@ -457,10 +511,17 @@ export function SummaryCreateForm({
             ? "The Progress Reports you tick are used for their own periods, with the Daily Reports beneath them kept as provenance rather than read again. Any day they do not cover is read directly."
             : "Only the Daily Reports you tick become the evidence, and only those are listed in the PDF as the source record. Leave the dates blank and the report covers the span of what you chose."}
       </Alert>
+      )}
 
-      <div className="flex flex-wrap gap-3">
-        <StartButton />
-        <Button asChild variant="secondary" size="lg"><Link href="/reports">Cancel</Link></Button>
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+        <StartButton label={kind === "completion" ? "Create Completion" : "Start report"} />
+        {simpleCompletion ? (
+          <Button type="button" variant="ghost" size="sm" onClick={() => setChangingSources(true)}>
+            <SlidersHorizontal aria-hidden />
+            Change sources
+          </Button>
+        ) : null}
+        <Button asChild variant="ghost" size="sm"><Link href="/reports">Cancel</Link></Button>
       </div>
     </form>
   );
