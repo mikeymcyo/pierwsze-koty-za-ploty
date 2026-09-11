@@ -154,6 +154,21 @@ row then read Resolved with the note and date, the Progress consolidation
 put only the till point under outstanding, and the Progress PDF printed the
 issue RESOLVED with its resolution.
 
+### Completion is one press, 2026-09-11 - `2df8ecb`
+
+The rule was already the server's (`startSummaryReport` and
+`completionSourcePlan`): every issued Progress Report, plus any issued Daily
+no Progress Report carries; every issued Daily where there is no Progress
+Report; a day inside a Progress Report kept as provenance and never read
+twice. The screen made the person choose anyway. Now `/summary-reports/new?
+kind=completion&project=…` opens on a card - "Project history found · 1
+Progress Report · 4 Daily Reports · All project activity will be included",
+with one sentence for this project (`describeProjectHistory` in
+`lib/summary-reports/source-summary.ts`) - and one button, **Create
+Completion**. "Change sources" reveals the unchanged pickers, period and
+source-mode choice. The Progress flow is untouched. A project with nothing
+issued still gets the "Write it directly" route.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one
