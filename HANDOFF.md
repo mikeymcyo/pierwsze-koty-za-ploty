@@ -169,6 +169,20 @@ Completion**. "Change sources" reveals the unchanged pickers, period and
 source-mode choice. The Progress flow is untouched. A project with nothing
 issued still gets the "Write it directly" route.
 
+### Issues actionable from a Progress Report, 2026-09-11
+
+Each issue row on a draft Progress or Completion Report carries the same
+controls as the Daily list - Mark in progress / Mark open / Mark resolved
+with a note and a date, and Reopen on a resolved one - through the same
+`setIssueStatus` and `resolveIssue` actions (`IssueStatusActions` in
+`components/issues/issue-list.tsx`, used by the curation picker). The rows
+sit outside the curation form; their checkboxes point at it with
+`form={id}`. The actions take a `returnPath` (checked by `safeReturnPath`)
+so the Progress screen refreshes. Unresolved issues already carry into a new
+Progress Report; a resolved one stays in history and prints RESOLVED with its
+resolution; an issued document keeps the status it was issued with. No
+migration.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one
