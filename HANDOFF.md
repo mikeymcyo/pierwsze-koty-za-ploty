@@ -314,6 +314,31 @@ style" on the fold; Review & polish in the open; after Finalise the
 issued card with View report and Share PDF sits above Daily Summary,
 both within the first screen.
 
+### Photo reordering by a grip, 2026-09-12 - `20bda8b`
+
+Reproduced from the code: `components/reports/photo-arrange.tsx` made
+the whole tile the drag source (dnd-kit `useDraggable` on the `<li>`)
+behind a `TouchSensor` with a 200 ms hold and 8 px tolerance, with
+`touch-action: manipulation` leaving the browser free to pan. On iOS that
+is the fight the tester felt: a finger drifting more than 8 px during the
+hold cancels the lift (a dead tap), and a still finger that then moves has
+Safari panning the page under the drag (stutter, wrong drop). The swap
+model showed no drop position either. Fix: the tile is not draggable; a
+44 px grip (`setActivatorNodeRef`, `touch-action: none` on the grip only)
+starts a `PointerSensor` drag after 4 px, no hold; `@dnd-kit/sortable`
+(added, with `@dnd-kit/utilities`) draws a dashed placeholder that moves
+through the grid as neighbours shift, `DragOverlay` follows the finger,
+`autoScroll` on the view's own scroll container; a drop is an insertion
+(`order.place` → `movePhoto`), arrows under each tile move one place
+(fallback). `usePhotoOrder` in `photo-reorder.tsx` now writes on the drop
+with no debounce and coalesces moves made while a save is in flight (the
+latest order is sent once after). Re-seeding is still only on a change of
+the photo set, so nothing snaps back. Save action, PDF ordering
+(`sort_order`), captions/statuses on the row and the issued-report refusal
+are unchanged. Pins rewritten in `e2e/photo-order-smoke.mjs` (7c2 and the
+gesture block), `summary-photos-smoke.mjs`, `photo-rotation-smoke.mjs`.
+No migration.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one
