@@ -233,6 +233,13 @@ wrapper, beneath the glass top bar (over Close and Share) and the bottom
 nav (over the zoom buttons). The reader now renders through a portal from
 `document.body`, and Share is a filled secondary button beside the title.
 Drafts still offer no Share (the issued file is the only thing shared).
+Proved on the deployment of `aa37b74` at 393px/3x with a nine-photograph
+Daily: reader is a child of the body and fills the viewport; Share PDF and
+Close sit at the top with nothing over them (`elementFromPoint`); page one
+drawn at 1107px for a 369px slot (3x); at 3x zoom redrawn at 2912x4119
+(under the 12M cap) with only the page in view held; scrolling draws the
+pages arrived at and releases page one; the shared file is the stored PDF
+(3.1 MB for nine photographs).
 
 ### Where to start when the field-test result arrives
 
