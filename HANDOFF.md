@@ -183,6 +183,31 @@ Progress Report; a resolved one stays in history and prints RESOLVED with its
 resolution; an issued document keeps the status it was issued with. No
 migration.
 
+### Daily authoring: the write-up appears where the notes are, 2026-09-12 - `9265b40`
+
+A tester dictated the day, pressed the AI button, and found the result
+three cards up past the photographs: "Write my report" lived at the bottom
+under More tools and the sections it wrote appeared at the top. Now the
+button is a second submit on the notes form (`formAction` on
+`components/reports/report-capture-form.tsx`), directly under the notes;
+it posts the whole form, which `writeReportFromNotes` in
+`app/(app)/reports/ai-actions.ts` saves through the new
+`lib/reports/save-capture.ts` (shared with Save draft) before calling the
+unchanged `generateReport`, so the model still reads only saved notes and
+nobody saves first. The written report (the `GroupEditor`, "Written by
+AI") is passed to the form as `written` and slotted in at `order-3`
+between the button and the day's details; the form is `display: contents`
+like the Progress curation form. The button is disabled with "Say or type
+what happened first" until the notes box has text; a form with no notes is
+saved and declined; a bad date is a field error and nothing is drafted.
+A draft no longer shows the sections twice (prose + box); an issued
+report keeps the prose. `ReportWriter` and its "What you actually said"
+panel are deleted. Master Review stays under More tools before Finalise.
+Proved on the deployment of `9265b40` at 393px: notes, button, written
+report 194px below it, details, photos; the same press saved the
+workforce row; edit in place, Save draft and Master Review all still work.
+No migration.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one
