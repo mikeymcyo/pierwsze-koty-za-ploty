@@ -283,6 +283,29 @@ deployment, so every page also loads the Vercel toolbar script from
 vercel.live. Disable "Vercel Toolbar" for the project, or point the domain
 at a Production deployment, and that goes away.
 
+### Daily screen polish, 2026-09-12 - `894020e`
+
+Hurricane pass on the draft Daily, inspected full-length on a phone first.
+Cut: the gold Site Capture button above the notes (now a small secondary
+link), the sentence under every section heading (`quiet` on
+`ReportSectionCard`) and under the notes label, the write-button hint
+once there are notes, the three photo buttons with hints and the status
+menu (`PhotoUpload simple` - one Add photos button, status set on the
+photograph), the open empty document register (`recordsFolded` while no
+document is linked; once one is linked it prints, so it stays open), the
+"More tools" fold (Review & polish is now in the open before Finalise),
+the long Finalise paragraph, the presentation chooser open on every draft
+(folded behind a `describePresentation` summary line), the "preview is a
+draft" footnote, Cancel on the notes form, and the issued-report alert.
+The date, weather, workforce and plant now fold behind one line that
+carries every value that will print (`lib/reports/details-summary.ts`),
+which is what keeps "nothing exports unseen" true while the screen stays
+one for speaking into. Draft offers Preview then Finalise. An issued
+report opens on View report and Share PDF, above its sections. PDF,
+sections, AI safeguards and immutability untouched. Pins updated in
+`e2e/what-you-see-smoke.mjs` (2b), `job-brief-smoke.mjs`,
+`report-structure-smoke.mjs`. No migration.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one
