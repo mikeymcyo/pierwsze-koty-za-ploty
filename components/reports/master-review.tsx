@@ -106,9 +106,7 @@ export function MasterReviewPanel({
           Review &amp; polish
         </h2>
         <p className="mt-1 text-sm text-ink-muted">
-          Reads the whole report together - the sections, the issues, the photographs and the
-          documents - and suggests where it repeats itself or reads badly. Optional: you can issue
-          the report without it.
+          Reads the whole report and suggests where it repeats itself or reads badly. Optional.
         </p>
       </div>
 

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { BookOpen, FileCheck2, FileText } from "lucide-react";
+import { BookOpen, ChevronDown, FileCheck2, FileText } from "lucide-react";
 
 import { finaliseReport, type FinaliseState } from "@/app/(app)/reports/finalise-actions";
 import { PdfPresentation, type CoverChoice } from "@/components/pdf/pdf-presentation";
@@ -11,7 +11,7 @@ import { SharePdf } from "@/components/pdf/share-pdf";
 import { ReopenReport } from "@/components/reports/report-lifecycle";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { DEFAULT_PDF_STYLE, type PdfStyle } from "@/lib/pdf/presentation";
+import { DEFAULT_PDF_STYLE, describePresentation, type PdfStyle } from "@/lib/pdf/presentation";
 import { describePackageChoice, documentsFlag } from "@/lib/reports/document-package";
 
 function FinaliseButton({ reissue }: { reissue: boolean }) {
@@ -70,9 +70,7 @@ export function FinaliseReport({
         <div className="flex flex-col gap-1">
           <h2 className="text-lg font-bold tracking-tight text-ink">Issued report</h2>
           <p className="text-sm text-ink-muted">
-            {finalisedAt
-              ? `Finalised on ${finalisedAt}. This PDF is the record that was issued - it is not regenerated.`
-              : "This report has been finalised. Its PDF is the record that was issued."}
+            {finalisedAt ? `Issued on ${finalisedAt}. ` : ""}The PDF is the record that went out and is not regenerated.
           </p>
         </div>
 
@@ -106,7 +104,7 @@ export function FinaliseReport({
         <p className="text-sm text-ink-muted">
           {reopened
             ? "Make your corrections, then issue the report again. The PDF already sent stays in place until you do."
-            : "Check the report reads the way you want it to. Finalising produces the PDF for the client and closes the report - after that it is the issued record and is not edited."}
+            : "Preview it, then finalise. Finalising issues the PDF and closes the report."}
         </p>
       </div>
 
@@ -119,13 +117,29 @@ export function FinaliseReport({
 
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
 
-      <PdfPresentation
-        style={style}
-        onStyle={setStyle}
-        cover={cover}
-        onCover={setCover}
-        photos={photos}
-      />
+      {/* The house style is the default and the right answer nearly every
+          time, so the chooser folds; the line on the fold says what will be
+          issued, so nothing is chosen unseen. */}
+      <details className="group rounded-control bg-surface ring-1 ring-line/70 ring-inset">
+        <summary className="flex cursor-pointer list-none items-center gap-3 p-3 [&::-webkit-details-marker]:hidden">
+          <span className="min-w-0 flex-1">
+            <span className="block text-sm font-semibold text-ink">Presentation</span>
+            <span className="mt-0.5 block text-sm text-ink-muted">
+              {describePresentation({ style, hasCover: Boolean(cover), photoCount: photos.length })}
+            </span>
+          </span>
+          <ChevronDown aria-hidden className="size-5 shrink-0 text-ink-subtle transition-transform duration-200 group-open:rotate-180" />
+        </summary>
+        <div className="border-t border-line p-3">
+          <PdfPresentation
+            style={style}
+            onStyle={setStyle}
+            cover={cover}
+            onCover={setCover}
+            photos={photos}
+          />
+        </div>
+      </details>
 
       {documentCount > 0 ? (
         <label className="flex items-start gap-3 rounded-control bg-surface p-3 ring-1 ring-line/70 ring-inset">
@@ -146,7 +160,19 @@ export function FinaliseReport({
         </label>
       ) : null}
 
+      {/* Preview, then Finalise: the order a person does them in. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <Button asChild variant="secondary" size="lg" className="w-full sm:w-auto">
+          <Link
+            href={`/reports/${reportId}/pdf?draft=1&documents=${documentsFlag(
+              includeDocuments,
+            )}${presentation}`}
+          >
+            <FileText aria-hidden />
+            {reopened ? "Preview your changes" : "Preview"}
+          </Link>
+        </Button>
+
         <form action={formAction} className="contents sm:block">
           <input type="hidden" name="includeDocuments" value={documentsFlag(includeDocuments)} />
           {/* The presentation goes with the render, so what was previewed is
@@ -155,17 +181,6 @@ export function FinaliseReport({
           <input type="hidden" name="coverPhoto" value={cover ?? ""} />
           <FinaliseButton reissue={reopened} />
         </form>
-
-        <Button asChild variant="secondary" size="lg" className="w-full sm:w-auto">
-          <Link
-            href={`/reports/${reportId}/pdf?draft=1&documents=${documentsFlag(
-              includeDocuments,
-            )}${presentation}`}
-          >
-            <FileText aria-hidden />
-            {reopened ? "Preview your changes" : "Preview final PDF"}
-          </Link>
-        </Button>
 
         {reopened ? (
           <>
@@ -183,9 +198,6 @@ export function FinaliseReport({
         ) : null}
       </div>
 
-      {reopened ? null : (
-        <p className="text-xs text-ink-subtle">The preview is a draft, not the issued record.</p>
-      )}
     </section>
   );
 }

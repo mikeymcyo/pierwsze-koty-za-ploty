@@ -29,6 +29,8 @@ export function ReportSectionCard({
   records,
   recordsLabel,
   recordsHint,
+  recordsFolded = false,
+  quiet = false,
 }: {
   group: ReportGroup;
   children: React.ReactNode;
@@ -36,23 +38,47 @@ export function ReportSectionCard({
   records?: React.ReactNode;
   recordsLabel?: string;
   recordsHint?: string;
+  /**
+   * Fold the records away behind their label. Only ever for records that
+   * hold nothing yet - an empty document register is a control for adding
+   * one, not content - because anything that prints stays on the screen.
+   */
+  recordsFolded?: boolean;
+  /** No sentence under the heading. A Daily on a phone reads its heading and moves on. */
+  quiet?: boolean;
 }) {
+  const body = (
+    <>
+      {recordsHint ? <p className="text-sm text-ink-muted">{recordsHint}</p> : null}
+      <div className="flex flex-col gap-6">{records}</div>
+    </>
+  );
+
   return (
     <section className="flex flex-col gap-5 rounded-card bg-surface p-5 shadow-card ring-1 ring-line/70 ring-inset md:p-6">
       <div className="flex flex-col gap-1">
         <h2 className="text-lg font-bold tracking-tight text-ink">{group.label}</h2>
-        <p className="text-sm leading-relaxed text-ink-muted">{group.hint}</p>
+        {quiet ? null : <p className="text-sm leading-relaxed text-ink-muted">{group.hint}</p>}
       </div>
       {children}
-      {records ? (
+      {records && recordsFolded ? (
+        <details className="group rounded-control bg-surface-sunken/50 ring-1 ring-line/60 ring-inset">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 p-4 text-xs font-bold tracking-wide text-ink-muted [&::-webkit-details-marker]:hidden">
+            {recordsLabel}
+            <span aria-hidden className="text-ink-subtle transition-transform duration-200 group-open:rotate-180">
+              <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 8l5 5 5-5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+            </span>
+          </summary>
+          <div className="flex flex-col gap-3 border-t border-line p-4">{body}</div>
+        </details>
+      ) : records ? (
         <div className="flex flex-col gap-3 rounded-control bg-surface-sunken/50 p-4 ring-1 ring-line/60 ring-inset">
           {recordsLabel ? (
             <h3 className="text-xs font-bold tracking-wide text-ink-muted">
               {recordsLabel}
             </h3>
           ) : null}
-          {recordsHint ? <p className="text-sm text-ink-muted">{recordsHint}</p> : null}
-          <div className="flex flex-col gap-6">{records}</div>
+          {body}
         </div>
       ) : null}
     </section>

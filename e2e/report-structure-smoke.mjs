@@ -352,11 +352,12 @@ for (const [name, source] of [
 // more. They were behind "Advanced details" until it turned out a report could
 // export a workforce nobody had opened the panel to look at.
 const captureForm = read("../components/reports/report-capture-form.tsx");
+// Folded again since the hurricane pass - the Daily screen is for speaking
+// into - but every value that will print is on the line of the fold, so the
+// rule that nothing exports unseen still holds. See lib/reports/details-summary.ts.
 check(
-  "the date, weather, workforce and plant are inline, not folded",
-  !/<details/.test(
-    captureForm.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, ""),
-  ),
+  "the date, weather, workforce and plant fold with what prints on the fold",
+  /<details/.test(captureForm) && /const detailsLine = summariseDetails\(/.test(captureForm) && /\{detailsLine\}/.test(captureForm),
 );
 for (const kept of ["WorkforceRows", "PlantRows", "report_date", "weather"]) {
   check(`and ${kept} is still on the form`, captureForm.includes(kept));

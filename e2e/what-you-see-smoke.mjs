@@ -93,7 +93,13 @@ check("and neither screen uses it", !/EditDisclosure/.test(dailyPage) && !/EditD
 // workforce nobody had opened the panel to look at.
 check(
   "the disclosure that held recorded data is gone from the card",
-  !/<details/.test(code(sectionCard)) && /records\?: React\.ReactNode/.test(sectionCard),
+  // A fold is offered only for records that hold nothing yet - an empty
+  // document register is a control, not content - and the page may ask for
+  // it only when no document is linked.
+  /records\?: React\.ReactNode/.test(sectionCard) &&
+    /records && recordsFolded \? \(/.test(code(sectionCard)) &&
+    /recordsFolded=\{!isFinal && referencedDocuments\.length === 0\}/.test(dailyPage) &&
+    !/recordsFolded/.test(summaryPage),
 );
 check(
   "and its label with it",
@@ -102,13 +108,36 @@ check(
     code(read("../lib/report-structure.ts")) + code(dailyPage) + code(summaryPage),
   ),
 );
+// The date, weather, workforce and plant fold on the Daily screen now - it
+// is a screen for speaking into, not a form - but every value that will
+// print is on the line of the fold, so nothing exports unseen.
 check(
-  "the date, weather, workforce and plant are inline on the form",
-  !/<details/.test(code(captureForm)) &&
-    ["WorkforceRows", "PlantRows", "report_date", "weather"].every((kept) =>
-      captureForm.includes(kept),
-    ),
+  "the date, weather, workforce and plant are on the form, with what prints on the fold",
+  ["WorkforceRows", "PlantRows", "report_date", "weather"].every((kept) =>
+    captureForm.includes(kept),
+  ) &&
+    /const detailsLine = summariseDetails\(/.test(captureForm) &&
+    /<summary[\s\S]*?\{detailsLine\}/.test(captureForm),
 );
+{
+  const { summariseDetails, NOTHING_RECORDED } = await import("../lib/reports/details-summary.ts");
+  const fmt = (value) => `D:${value}`;
+  check(
+    "the fold's line carries every workforce and plant row",
+    summariseDetails(
+      { reportDate: "2026-09-12", weather: "Dry", workforce: [{ company_name: "Groundworks Ltd", operatives: 4 }], plant: [{ description: "13t excavator", quantity: 1 }] },
+      fmt,
+    ) === "D:2026-09-12 · Dry · Groundworks Ltd ×4 · 13t excavator ×1",
+  );
+  check(
+    "and says so when there is nothing recorded",
+    summariseDetails({ reportDate: null, weather: null, workforce: [], plant: [] }, fmt) === NOTHING_RECORDED,
+  );
+  check(
+    "a blank row is not a row",
+    summariseDetails({ reportDate: "2026-09-12", weather: "", workforce: [{ company_name: "  ", operatives: 0 }], plant: [] }, fmt) === `D:2026-09-12 · ${NOTHING_RECORDED}`,
+  );
+}
 check(
   "supporting documents sit inline under their own heading",
   /recordsLabel="Supporting documents"/.test(dailyPage) &&
@@ -128,6 +157,24 @@ check(
   "raw notes are not printed in the daily PDF, so showing them is a choice",
   !/rawNotes|raw_notes/.test(dailyPdf),
 );
+
+console.log("\n2b. The Daily screen: speak, check, photograph, review, finish");
+const finaliseFile = read("../components/reports/finalise-report.tsx");
+// Hurricane pass. What was cut was what a site manager had to think about:
+// a second gold button before the notes, a sentence under every heading, a
+// three-button photo picker with a hint each, the review folded under "More
+// tools", the presentation chooser open on every draft, and View/Share at
+// the bottom of an issued report.
+check("the notes come with no sentence under the label", !/kept word for word, exactly as you said it/.test(captureForm));
+check("the write button explains itself only while there is nothing to write", /hasNotes \? null : \(/.test(captureForm) && !/Turns your notes into the written report/.test(captureForm));
+check("Site Capture is a quiet way back, not the first thing on the screen", /variant="secondary" size="sm">\s*<Link href=\{`\/reports\/\$\{report\.id\}\/capture`\}/.test(dailyPage));
+check("the section hints are off on the Daily", (dailyPage.match(/<ReportSectionCard[^>]*\bquiet\b/g) ?? []).length === 3 && /quiet \? null : <p/.test(sectionCard));
+check("photographs are one button on the Daily", /reportId=\{report\.id\}\s*simple\s*\/>/.test(dailyPage));
+check("Master Review is in the open, before Finalise, not under More tools", !/More tools/.test(dailyPage) && dailyPage.indexOf("<MasterReviewPanel") < dailyPage.indexOf("{isFinal || loadError ? null : finaliseCard}"));
+check("an issued report opens on View report and Share PDF", /\{isFinal && !loadError \? finaliseCard : null\}/.test(dailyPage) && dailyPage.indexOf("finaliseCard : null") < dailyPage.indexOf("<ReportSectionCard group={summaryGroup}"));
+check("a draft offers Preview then Finalise", (() => { const i = finaliseFile.indexOf('"Preview"'); const j = finaliseFile.indexOf("<FinaliseButton"); return i > 0 && j > i; })());
+check("the presentation chooser folds, with what will issue on the fold", /<details[\s\S]*?describePresentation\(\{ style, hasCover: Boolean\(cover\), photoCount: photos\.length \}\)[\s\S]*?<PdfPresentation/.test(finaliseFile));
+check("Cancel is gone from the notes form", !/cancelHref/.test(captureForm) && !/cancelHref/.test(dailyPage));
 
 console.log("\n3. One story, told once");
 

@@ -1,9 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { Sparkles } from "lucide-react";
+import { ChevronDown, Sparkles } from "lucide-react";
 
 import type { ReportFormState } from "@/app/(app)/reports/actions";
 import type { WriteState } from "@/app/(app)/reports/ai-actions";
@@ -13,7 +12,9 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { summariseDetails } from "@/lib/reports/details-summary";
 import { describeRegeneration } from "@/lib/reports/regeneration";
+import { formatDate } from "@/lib/utils";
 import type { PlantEntry, Report, WorkforceEntry } from "@/types/database";
 
 type ReportCaptureFormProps = {
@@ -35,7 +36,6 @@ type ReportCaptureFormProps = {
   report: Report;
   workforce: WorkforceEntry[];
   plant: PlantEntry[];
-  cancelHref: string;
   saved: boolean;
 };
 
@@ -49,8 +49,8 @@ function SaveButton({ primary, writing }: { primary: boolean; writing: boolean }
     <Button
       type="submit"
       variant={primary ? "primary" : "secondary"}
-      size="lg"
-      className="w-full sm:w-auto"
+      size={primary ? "lg" : "md"}
+      className={primary ? "w-full sm:w-auto" : undefined}
       loading={saving}
       disabled={writing}
     >
@@ -139,7 +139,6 @@ export function ReportCaptureForm({
   report,
   workforce,
   plant,
-  cancelHref,
   saved,
 }: ReportCaptureFormProps) {
   const [state, formAction] = useActionState<ReportFormState, FormData>(action, {});
@@ -152,6 +151,10 @@ export function ReportCaptureForm({
   const [notes, setNotes] = useState(report.raw_notes ?? "");
   const hasNotes = Boolean(notes.trim());
   const errors = { ...(state.fieldErrors ?? {}), ...(writeState.fieldErrors ?? {}) };
+  const detailsLine = summariseDetails(
+    { reportDate: report.report_date, weather: report.weather, workforce, plant },
+    formatDate,
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -160,11 +163,9 @@ export function ReportCaptureForm({
           {saved && !state.error ? <Alert tone="success">Draft saved.</Alert> : null}
           {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
 
-          {/* The one thing somebody is here to do. */}
-          <Block
-            title="Work completed"
-            hint="Speak or type. This is kept word for word, exactly as you said it."
-          >
+          {/* The one thing somebody is here to do. No sentence under the
+              label: the box, the microphone and the button say it. */}
+          <Block title="Work completed">
             <DictationField
               name="raw_notes"
               label="Work completed"
@@ -181,11 +182,10 @@ export function ReportCaptureForm({
           <div className="order-2 flex flex-col gap-3">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
               <WriteButton action={write} hasDraft={hasDraft} hasNotes={hasNotes} writing={writing} />
-              <p className="text-sm text-ink-muted">
-                {hasNotes
-                  ? "Turns your notes into the written report below. Your notes stay as you said them."
-                  : "Say or type what happened first."}
-              </p>
+              {/* One sentence, and only while there is nothing to write from. */}
+              {hasNotes ? null : (
+                <p className="text-sm text-ink-muted">Say or type what happened first.</p>
+              )}
             </div>
             {writeState.error ? <Alert tone="danger">{writeState.error}</Alert> : null}
             {!writeState.error && writeState.generated !== undefined ? (
@@ -199,18 +199,23 @@ export function ReportCaptureForm({
           </div>
         ) : null}
 
-        {/* Inline, not folded. Every field below is printed in the issued PDF's
-            appendix, and anything that reaches the client has to be on the screen
-            the person signed off. It used to sit behind "Advanced details", which
-            meant a report exported a workforce nobody had opened the panel to
-            check. */}
-        <div className="order-4 flex flex-col gap-2 border-t border-line pt-5">
-          <p className="text-sm text-ink-muted">
-            The date, the weather, and who and what was on site. All of it is saved with the
-            report and printed in its appendix.
-          </p>
+        {/* Folded, with what will print on the fold. Every field in here is
+            printed in the issued PDF's appendix, and nothing that reaches the
+            client may be hidden on the screen that issues it - so the summary
+            line carries every value, and opening the fold is for changing
+            one, not for finding out what is there. They used to be inline
+            for the same reason, and made a screen meant for speaking into a
+            form. See lib/reports/details-summary.ts. */}
+        <details className="group order-4 rounded-control bg-surface-sunken/50 ring-1 ring-line/60 ring-inset">
+          <summary className="flex cursor-pointer list-none items-center gap-3 p-4 [&::-webkit-details-marker]:hidden">
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-bold tracking-tight text-ink">Date, weather, workforce and plant</span>
+              <span className="mt-1 block text-sm text-ink-muted">{detailsLine}</span>
+            </span>
+            <ChevronDown aria-hidden className="size-5 shrink-0 text-ink-subtle transition-transform duration-200 group-open:rotate-180" />
+          </summary>
 
-          <div className="mt-4 flex flex-col gap-8">
+          <div className="flex flex-col gap-8 border-t border-line px-4 pt-5 pb-4">
             <Block title="Report details">
               <div className="grid gap-5 sm:grid-cols-2">
                 <Field label="Date" htmlFor="report_date" error={errors.report_date}>
@@ -242,17 +247,16 @@ export function ReportCaptureForm({
               <WorkforceRows entries={workforce} />
             </Block>
 
-            <Block title="Plant and equipment" hint="Machines and kit on site today.">
+            <Block title="Plant and equipment">
               <PlantRows entries={plant} />
             </Block>
           </div>
-        </div>
+        </details>
 
-        <div className="order-5 flex flex-col gap-3 sm:flex-row-reverse sm:justify-start">
+        {/* Save draft keeps the notes and the details without writing. Write
+            my report saves them too, so this is the quiet option. */}
+        <div className="order-5">
           <SaveButton primary={!writeAction} writing={writing} />
-          <Button asChild variant="ghost" size="lg" className="w-full sm:w-auto">
-            <Link href={cancelHref}>Cancel</Link>
-          </Button>
         </div>
       </form>
 

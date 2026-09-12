@@ -23,7 +23,6 @@ import {
   ReportSectionCard,
 } from "@/components/reports/report-section-card";
 import { GroupEditor } from "@/components/reports/group-editor";
-import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/load-error";
@@ -287,6 +286,29 @@ export default async function ReportCapturePage({
     formData: FormData,
   ) => Promise<WriteState>;
 
+  const finaliseCard = (
+    <FinaliseReport
+      reportId={report.id}
+      status={report.status}
+      hasPdf={Boolean(report.pdf_path)}
+      documentCount={referencedDocuments.length}
+      finalisedAt={report.finalised_at ? formatDate(report.finalised_at) : null}
+      // The report's own photographs, any of which can be its cover. They
+      // are already signed for the gallery above, so the picker costs
+      // nothing extra.
+      photos={photos.map((photo) => ({
+        id: photo.id,
+        url: photo.url,
+        label: photoPrintLabelText(photo),
+      }))}
+      shareName={issuedPdfFileName(
+        "Daily Report",
+        formatReportNumber(report.report_number),
+        report.report_date,
+      )}
+    />
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -330,7 +352,7 @@ export default async function ReportCapturePage({
           be the long way round. */}
       {isFinal ? null : (
         <div>
-          <Button asChild size="lg">
+          <Button asChild variant="secondary" size="sm">
             <Link href={`/reports/${report.id}/capture`}>
               <Mic aria-hidden />
               Site Capture
@@ -339,13 +361,9 @@ export default async function ReportCapturePage({
         </div>
       )}
 
-      {isFinal ? (
-        <Alert tone="info">
-          This report was issued{report.finalised_at ? ` on ${formatDate(report.finalised_at)}` : ""}.
-          It is a record of what was reported that day and is no longer edited. The
-          PDF below is the document that went out.
-        </Alert>
-      ) : null}
+      {/* An issued report opens on the two things somebody comes back for:
+          View report and Share PDF. Above the record, not beneath it. */}
+      {isFinal && !loadError ? finaliseCard : null}
 
       {loadError ? (
         <LoadError what="this report's workforce and plant" code={loadError.code} />
@@ -357,7 +375,7 @@ export default async function ReportCapturePage({
           yesterday rather than what somebody came here to do, but printed in
           the issued PDF and so shown on the screen that issues it. */}
       {loadError || (isFinal && !showsWhenIssued("summary")) ? null : (
-        <ReportSectionCard group={summaryGroup}>
+        <ReportSectionCard group={summaryGroup} quiet>
           {isFinal ? (
             <SectionProse entry={groupFor("summary")} />
           ) : (
@@ -384,7 +402,6 @@ export default async function ReportCapturePage({
               report={report}
               workforce={workforceResult.data ?? []}
               plant={plantResult.data ?? []}
-              cancelHref={projectHref}
               saved={saved === "1"}
             />
           )}
@@ -397,6 +414,11 @@ export default async function ReportCapturePage({
       {loadError || (isFinal && !showsWhenIssued("evidence")) ? null : (
         <ReportSectionCard
           group={evidenceGroup}
+          quiet
+          // Folded while nothing is linked: an empty register is a control
+          // for adding a document, not content. Once one is linked it prints,
+          // so it stays in the open.
+          recordsFolded={!isFinal && referencedDocuments.length === 0}
           recordsLabel="Supporting documents"
           recordsHint={
             isFinal
@@ -458,10 +480,13 @@ export default async function ReportCapturePage({
           }
         >
           {isFinal ? null : (
+            // One button; the phone offers camera, library and files itself.
+            // A status is set on the photograph, if at all.
             <PhotoUpload
               companyId={session.companyId}
               projectId={project?.id ?? report.project_id}
               reportId={report.id}
+              simple
             />
           )}
 
@@ -480,7 +505,7 @@ export default async function ReportCapturePage({
           they were raised in, so a finalised report still lists them - but it
           takes no new ones. */}
       {loadError || (isFinal && !showsWhenIssued("outstanding")) ? null : (
-        <ReportSectionCard group={outstandingGroup}>
+        <ReportSectionCard group={outstandingGroup} quiet>
           <SectionProse entry={groupFor("outstanding")} />
 
           {isFinal || !offerEditor("outstanding") || editorSections("outstanding").length === 0 ? null : (
@@ -525,44 +550,18 @@ export default async function ReportCapturePage({
         </ReportSectionCard>
       )}
 
-      {/* Off the worker's path. Writing the report sits with the notes above;
-          the whole-report review is optional and waits here, before Finalise,
-          for the office and for the day a document needs polishing. */}
+      {/* Four. The whole-report review, in the open, before Finalise. */}
       {loadError || isFinal ? null : (
-        <details className="rounded-card bg-surface px-4 py-3 shadow-card ring-1 ring-line/70 ring-inset">
-          <summary className="cursor-pointer text-sm font-semibold text-ink-muted">More tools</summary>
-          <div className="mt-4 flex flex-col gap-6">
-            <MasterReviewPanel
-              reviewAction={reviewDailyReport.bind(null, report.id)}
-              applyAction={applyDailyReview.bind(null, report.id)}
-              configured={hasAiConfig()}
-            />
-          </div>
-        </details>
+        <div className="rounded-card bg-surface p-5 shadow-card ring-1 ring-line/70 ring-inset md:p-6">
+          <MasterReviewPanel
+            reviewAction={reviewDailyReport.bind(null, report.id)}
+            applyAction={applyDailyReview.bind(null, report.id)}
+            configured={hasAiConfig()}
+          />
+        </div>
       )}
 
-      {loadError ? null : (
-        <FinaliseReport
-          reportId={report.id}
-          status={report.status}
-          hasPdf={Boolean(report.pdf_path)}
-          documentCount={referencedDocuments.length}
-          finalisedAt={report.finalised_at ? formatDate(report.finalised_at) : null}
-          // The report's own photographs, any of which can be its cover. They
-          // are already signed for the gallery above, so the picker costs
-          // nothing extra.
-          photos={photos.map((photo) => ({
-            id: photo.id,
-            url: photo.url,
-            label: photoPrintLabelText(photo),
-          }))}
-          shareName={issuedPdfFileName(
-            "Daily Report",
-            formatReportNumber(report.report_number),
-            report.report_date,
-          )}
-        />
-      )}
+      {isFinal || loadError ? null : finaliseCard}
 
       <div className="border-t border-line/70 pt-6">
         <DeleteReport reportId={report.id} status={report.status} />
