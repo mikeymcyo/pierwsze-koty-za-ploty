@@ -34,11 +34,17 @@ import { formatDate, formatReportNumber } from "@/lib/utils";
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
-  const session = await requireSessionContext();
   const supabase = await createClient();
 
-  const [projectsResult, reportsResult, summaryReportsResult, draftsResult, issuesResult] =
+  // The session and the dashboard's own reads in one round trip, not two.
+  // Nothing below needs the company id - row-level security scopes every
+  // query to the caller - and the session is resolved once per request (see
+  // lib/auth/session.ts), so the page starts its reads the moment it starts.
+  // A request with no session still ends in the redirect; its reads return
+  // nothing under RLS and are discarded with it.
+  const [session, projectsResult, reportsResult, summaryReportsResult, draftsResult, issuesResult] =
     await Promise.all([
+    requireSessionContext(),
     withClockSkewRetry(() =>
       supabase
         .from("projects")

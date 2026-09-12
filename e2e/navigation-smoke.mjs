@@ -212,6 +212,26 @@ check(
   /draftsResult\.data \?\? \[\]/.test(dashboard) && !/draftsResult\.error/.test(dashboard),
 );
 
+console.log("\n7. The shell comes first, and the session is resolved once");
+// Measured on the real build: a signed-in launch waited 1.1-1.6s for its
+// first byte against 0.34s for the sign-in screen. The session was resolved
+// three times per screen (layout, page, top bar), each a round trip to the
+// auth server and two queries, and the app layout awaited all of it before
+// sending a byte of the shell. Now the session is cached for the request,
+// the layout streams the frame at once with the company chip behind
+// Suspense, the dashboard reads alongside the session rather than after it,
+// and the function runs beside the database.
+const sessionSource = read("../lib/auth/session.ts");
+const appLayout = read("../app/(app)/layout.tsx");
+const topBar = read("../components/nav/top-bar.tsx");
+check("the session is resolved once per request", /export const getSessionContext = cache\(/.test(sessionSource) && /import \{ cache \} from "react"/.test(sessionSource));
+check("the app layout awaits nothing before the shell", !/await requireSessionContext|await getSessionContext/.test(appLayout.replace(/async function CompanyChip[\s\S]*?\n\}/, "")) && /export default function AppLayout/.test(appLayout));
+check("the company chip streams in behind Suspense", /<Suspense fallback=\{null\}>\s*<CompanyChip \/>/.test(appLayout) && /companyName: React\.ReactNode/.test(topBar));
+check("access is still decided before any page renders", /requireSessionContext\(\)/.test(dashboard) && /if \(!user && !isPublicPath\(pathname\)\)/.test(read("../lib/supabase/proxy.ts")));
+check("the dashboard reads alongside the session, not after it", /await Promise\.all\(\[\s*requireSessionContext\(\),/.test(dashboard));
+check("there is a skeleton for the page to stream in behind", /animate-pulse/.test(read("../app/(app)/loading.tsx")));
+check("the function runs next to the database", /"regions": \["fra1"\]/.test(read("../vercel.json")));
+
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL NAVIGATION CHECKS PASSED");
 else {
