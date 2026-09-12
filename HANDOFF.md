@@ -267,6 +267,17 @@ redirects a request with no user, every page still calls
 `requireSessionContext`. Pinned in `e2e/navigation-smoke.mjs` section 7.
 No migration.
 
+After, measured the same way against the old deployment still live at its
+own URL (same signed-in cookie, curl direct, from a US sandbox that now
+pays the transatlantic hop to fra1 that a UK phone does not): dashboard
+first byte 0.58-1.05s before vs 0.45-0.69s after, full HTML 0.76-1.64s
+before vs 0.55-0.79s after; the first cold request 1.69s/2.06s before vs
+0.69s/0.79s after; /reports 0.62-0.89s before vs 0.48-0.63s after. The
+first flush now carries the shell and the skeleton, the content follows
+60-100 ms later. The harness proxy buffers responses, so the Playwright
+numbers in scratchpad `startup-probe.mjs` measure full-HTML time, not
+first byte - use curl for first byte.
+
 Not app code, worth knowing: app.sitebosspro.co.uk is aliased to a Preview
 deployment, so every page also loads the Vercel toolbar script from
 vercel.live. Disable "Vercel Toolbar" for the project, or point the domain
