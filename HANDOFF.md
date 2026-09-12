@@ -208,6 +208,32 @@ report 194px below it, details, photos; the same press saved the
 workforce row; edit in place, Save draft and Master Review all still work.
 No migration.
 
+### PDF photo quality and the Share button, 2026-09-12 - `aa37b74`
+
+Live iPhone testing: a Daily with ~35 photographs looked soft, and the
+reader had no visible Share button. Inspected end to end before changing
+anything. Upload (`lib/photo-quality.ts`, `components/reports/photo-upload.tsx`):
+stepped canvas downscale to 1600px long edge, JPEG 0.88, plus a 640px 0.72
+thumbnail beside it; the bucket holds a median 496 kB per photograph
+(185 objects, 68-868 kB). Thumbnails are screens only (`/photos/[id]/thumb`);
+the PDF downloads the original object and react-pdf embeds the JPEG bytes
+unchanged (DCTDecode, no re-encode) at a 238pt-wide plate - about 480 DPI.
+The loss was the in-app reader (`components/pdf/pdf-viewer.tsx`): every
+page drawn once at a density capped at 2x, then magnified with CSS, so on
+a 3x iPhone a plate reached the eye through a canvas 1.5x too small at 1x
+and 4.5x too small at 3x. Fix: pages are laid out at their size and only
+the ones near the viewport are drawn (IntersectionObserver, released as
+they leave), at the screen's density (up to 3x) and the chosen zoom, with
+a 12-million-pixel cap per canvas. Zoom steps unchanged. No change to
+upload, storage, thumbnails or the PDF; no migration.
+
+The Share button existed but was covered: the page wrapper's fade
+animation is a stacking context, so the fixed reader was layered as its
+wrapper, beneath the glass top bar (over Close and Share) and the bottom
+nav (over the zoom buttons). The reader now renders through a portal from
+`document.body`, and Share is a filled secondary button beside the title.
+Drafts still offer no Share (the issued file is the only thing shared).
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one
