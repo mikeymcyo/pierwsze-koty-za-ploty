@@ -304,7 +304,15 @@ one for speaking into. Draft offers Preview then Finalise. An issued
 report opens on View report and Share PDF, above its sections. PDF,
 sections, AI safeguards and immutability untouched. Pins updated in
 `e2e/what-you-see-smoke.mjs` (2b), `job-brief-smoke.mjs`,
-`report-structure-smoke.mjs`. No migration.
+`report-structure-smoke.mjs`. No migration. Proved on the deployment of
+`894020e` at 393px: 32 checks - the one-press write still lands the
+written report 146px under the button and saves the workforce row; the
+fold line carries the date and "Groundworks Ltd ×4" with the inputs
+hidden until opened; one Add photos button; documents folded while none
+are linked; Preview above Finalise; presentation folded with "SiteBoss
+style" on the fold; Review & polish in the open; after Finalise the
+issued card with View report and Share PDF sits above Daily Summary,
+both within the first screen.
 
 ### Where to start when the field-test result arrives
 
