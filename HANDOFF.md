@@ -241,6 +241,37 @@ drawn at 1107px for a 369px slot (3x); at 3x zoom redrawn at 2912x4119
 pages arrived at and releases page one; the shared file is the stored PDF
 (3.1 MB for nine photographs).
 
+### Startup performance, 2026-09-12 - `bfea2bf`
+
+Profiled before changing anything (iPhone viewport through the harness
+proxy, plus curl direct). Before: sign-in screen TTFB 0.34s warm, 0.80s
+cold-ish, 2.3s on the first request after a deploy (Vercel cold start);
+signed-in dashboard launch TTFB 1.57s cold / 1.14s warm, first paint
+1.77s / 1.19s, nothing on screen until then. Client JS is not the cost:
+28 kB gz of route JS on the dashboard (~120 kB gz framework), no PDF code
+on startup routes (pdf.js is a lazy chunk only the reader loads), no
+service worker, two self-hosted fonts, SVG icons. Root cause: the session
+was resolved three times per signed-in screen (proxy.ts, app layout, page),
+each a round trip to the auth server plus two queries, from the function
+in iad1 to Supabase in eu-central-1 (~90 ms a round trip, six sequential
+groups), and `app/(app)/layout.tsx` awaited all of it before streaming a
+byte of the shell.
+
+Changes: `getSessionContext` wrapped in React `cache()` (one resolution
+per request); the app layout awaits nothing - the company chip is an async
+`CompanyChip` behind Suspense and the page streams behind
+`app/(app)/loading.tsx`; the dashboard runs its five reads alongside the
+session in one `Promise.all`; `vercel.json` sets `regions: ["fra1"]` so
+the function runs beside the database. Access unchanged: proxy.ts still
+redirects a request with no user, every page still calls
+`requireSessionContext`. Pinned in `e2e/navigation-smoke.mjs` section 7.
+No migration.
+
+Not app code, worth knowing: app.sitebosspro.co.uk is aliased to a Preview
+deployment, so every page also loads the Vercel toolbar script from
+vercel.live. Disable "Vercel Toolbar" for the project, or point the domain
+at a Production deployment, and that goes away.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one
