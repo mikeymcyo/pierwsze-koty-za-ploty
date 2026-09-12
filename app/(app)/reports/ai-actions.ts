@@ -21,9 +21,11 @@ import { reportStructure } from "@/lib/report-structure";
 import { changedSections, readGroupFields } from "@/lib/reports/group-text";
 import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
 import { partitionDraft } from "@/lib/reports/regeneration";
+import { saveCapture, type ReportFormState } from "@/lib/reports/save-capture";
 import type { ReportSectionType } from "@/types/database";
 
 export type AiState = { error?: string; generated?: number; kept?: number; saved?: boolean };
+export type WriteState = AiState & ReportFormState;
 
 /**
  * Drafts the report sections from the notes already saved on the report.
@@ -246,6 +248,33 @@ export async function generateReport(
 
   revalidatePath(`/reports/${reportId}`);
   return { generated: rows.length, kept: kept.length };
+}
+
+/**
+ * "Write my report": saves the capture form, then drafts from it.
+ *
+ * One press, where it used to be two - Save draft, scroll to the bottom,
+ * Write my report - and the write-up appears directly under the button. The
+ * notes the model reads are the notes on the screen, because they were just
+ * saved from it; generateReport still reads the database, so its rule that
+ * nothing unsaved reaches the write-up holds by construction.
+ *
+ * A rejected form (a bad date) comes back as field errors and nothing is
+ * drafted; a form with no notes is saved and then declined, because a report
+ * written from nothing would be invented.
+ */
+export async function writeReportFromNotes(
+  reportId: string,
+  _prev: WriteState,
+  formData: FormData,
+): Promise<WriteState> {
+  const saved = await saveCapture(reportId, formData);
+  if (!saved.ok) return saved.state;
+  if (!saved.rawNotes?.trim()) {
+    return { error: "Say or type what happened on site first, then press Write my report." };
+  }
+
+  return generateReport(reportId, {}, formData);
 }
 
 const groupSchema = z.object({ groupKey: z.string().min(1) });

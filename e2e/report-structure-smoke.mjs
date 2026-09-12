@@ -41,7 +41,7 @@ import {
   readGroupFields,
   sectionFieldName,
 } from "../lib/reports/group-text.ts";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
@@ -622,8 +622,48 @@ check(
   "every part of a group is rendered, in full",
 );
 check(
-  "the drafted report is shown as prose while it is still a draft",
-  /<SectionProse entry=\{groupFor\("summary"\)\} \/>/.test(dailyPage),
+  "an issued report shows its written sections as prose",
+  /isFinal \? \(\s*<SectionProse entry=\{groupFor\("summary"\)\} \/>/.test(dailyPage),
+);
+// The result of "Write my report" is the next thing under the button that
+// wrote it. A tester dictated, pressed the button at the bottom of the page,
+// and found the write-up three cards up past the photographs. Now the button
+// is a second submit on the notes form - it saves the form and drafts from
+// it, one press - and the writing box is slotted in directly beneath.
+check(
+  "the drafted report is the writing box, slotted in under the notes",
+  /written=\{\s*offerEditor\("summary"\) \? \(/.test(dailyPage) &&
+    /<GroupEditor[\s\S]*?groupKey="summary"/.test(
+      dailyPage.slice(dailyPage.indexOf("written={"), dailyPage.indexOf("report={report}")),
+    ),
+  "the page passes the summary editor to the form as `written`",
+);
+check(
+  "and the form puts it between the button and the day's details",
+  /className="contents"/.test(captureForm) &&
+    /order-2[\s\S]*<WriteButton/.test(captureForm) &&
+    /\{written \? <div className="order-3/.test(captureForm) &&
+    /order-4[\s\S]*report_date/.test(captureForm),
+);
+check(
+  "Write my report posts the notes form itself, so nothing has to be saved first",
+  /formAction=\{action\}/.test(captureForm) &&
+    /writeReportFromNotes/.test(read("../app/(app)/reports/ai-actions.ts")) &&
+    /const saved = await saveCapture\(reportId, formData\);/.test(read("../app/(app)/reports/ai-actions.ts")),
+);
+check(
+  "and it still reads the notes from the database, never from the request",
+  /return generateReport\(reportId, \{\}, formData\);/.test(read("../app/(app)/reports/ai-actions.ts")) &&
+    /const rawNotes = report\.raw_notes \?\? "";/.test(read("../app/(app)/reports/ai-actions.ts")),
+);
+check(
+  "a form with no notes is declined rather than written from nothing",
+  /if \(!saved\.rawNotes\?\.trim\(\)\) \{/.test(read("../app/(app)/reports/ai-actions.ts")),
+);
+check(
+  "the old writer at the bottom of the page is gone",
+  !existsSync(new URL("../components/reports/report-draft.tsx", import.meta.url)) &&
+    !/ReportWriter/.test(dailyPage),
 );
 check(
   "the one writing window is the notes box",

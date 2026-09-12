@@ -294,9 +294,10 @@ const reportPage = read("../app/(app)/reports/[id]/page.tsx");
 check("no extraction controls anywhere a worker goes", !/Read again|Extract job context|Use as job context|Remove from job context/.test(capturePage + projectPage + reportPage));
 check("no document read status on Site Capture", !/Not read|Could not read|superseded|succeeded/.test(capturePage));
 check("no page numbers, quotes or counts on Site Capture", !/\[p|quote|scope item/.test(capturePage));
-check("Write with AI and Master Review are behind More tools on the report", (() => {
+check("Write my report sits with the notes, and Master Review is behind More tools", (() => {
   const more = reportPage.slice(reportPage.indexOf("More tools"), reportPage.indexOf("<FinaliseReport"));
-  return /<ReportWriter/.test(more) && /<MasterReviewPanel/.test(more) && (reportPage.match(/<ReportWriter/g) ?? []).length === 1;
+  const captureForm = read("../components/reports/report-capture-form.tsx");
+  return /<MasterReviewPanel/.test(more) && !/ReportWriter/.test(reportPage) && /writeAction=\{hasAiConfig\(\) \? write : undefined\}/.test(reportPage) && /Write my report/.test(captureForm);
 })());
 check("photograph AI captions are off on Site Capture", /aiConfigured=\{false\}/.test(capturePage));
 check("only documents added as job context reach the AI", /from\("job_context_documents"\)/.test(read("../lib/documents/job-context.ts")) && /\.is\("removed_at", null\)/.test(read("../lib/documents/job-context.ts")));

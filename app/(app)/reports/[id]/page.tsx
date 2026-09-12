@@ -5,7 +5,7 @@ import { ArrowLeft, ExternalLink, Mic } from "lucide-react";
 
 import { saveReportDocuments } from "@/app/(app)/documents/actions";
 import { applyDailyReview, reviewDailyReport } from "@/app/(app)/reports/review-actions";
-import { updateSectionGroup } from "@/app/(app)/reports/ai-actions";
+import { updateSectionGroup, writeReportFromNotes, type WriteState } from "@/app/(app)/reports/ai-actions";
 import { saveReport, type ReportFormState } from "@/app/(app)/reports/actions";
 import { IssueList } from "@/components/issues/issue-list";
 import { isResolvedStatus, parseResolutionSuggestions } from "@/lib/issues/metadata";
@@ -23,7 +23,6 @@ import {
   ReportSectionCard,
 } from "@/components/reports/report-section-card";
 import { GroupEditor } from "@/components/reports/group-editor";
-import { ReportWriter } from "@/components/reports/report-draft";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -283,6 +282,10 @@ export default async function ReportCapturePage({
     state: ReportFormState,
     formData: FormData,
   ) => Promise<ReportFormState>;
+  const write = writeReportFromNotes.bind(null, id) as (
+    state: WriteState,
+    formData: FormData,
+  ) => Promise<WriteState>;
 
   return (
     <div className="flex flex-col gap-6">
@@ -355,28 +358,34 @@ export default async function ReportCapturePage({
           the issued PDF and so shown on the screen that issues it. */}
       {loadError || (isFinal && !showsWhenIssued("summary")) ? null : (
         <ReportSectionCard group={summaryGroup}>
-          {isFinal ? null : (
+          {isFinal ? (
+            <SectionProse entry={groupFor("summary")} />
+          ) : (
+            // The notes, the button that writes the report from them, and the
+            // written report directly under it - then the day's details. The
+            // form owns the order; see components/reports/report-capture-form.tsx.
             <ReportCaptureForm
               action={save}
+              writeAction={hasAiConfig() ? write : undefined}
+              hasDraft={(sectionsResult.data ?? []).length > 0}
+              written={
+                offerEditor("summary") ? (
+                  // Not behind a disclosure. What is written here is what the
+                  // client receives, so it is on the screen the person signs off.
+                  <GroupEditor
+                    key={JSON.stringify(editorSections("summary").map((section) => section.content))}
+                    groupKey="summary"
+                    groupLabel={summaryGroup.label}
+                    sections={editorSections("summary")}
+                    action={updateSectionGroup.bind(null, report.id)}
+                  />
+                ) : null
+              }
               report={report}
               workforce={workforceResult.data ?? []}
               plant={plantResult.data ?? []}
               cancelHref={projectHref}
               saved={saved === "1"}
-            />
-          )}
-
-          <SectionProse entry={groupFor("summary")} />
-
-          {isFinal || !offerEditor("summary") ? null : (
-            // Not behind a disclosure. What is written here is what the client
-            // receives, so it is on the screen the person signs off.
-            <GroupEditor
-              key={JSON.stringify(editorSections("summary").map((section) => section.content))}
-              groupKey="summary"
-              groupLabel={summaryGroup.label}
-              sections={editorSections("summary")}
-              action={updateSectionGroup.bind(null, report.id)}
             />
           )}
         </ReportSectionCard>
@@ -516,19 +525,13 @@ export default async function ReportCapturePage({
         </ReportSectionCard>
       )}
 
-      {/* Off the worker's path. Prepare Daily on Site Capture is the one AI
-          action; these are the tools behind it, kept for the office and for
-          the day something needs redrafting by hand. */}
+      {/* Off the worker's path. Writing the report sits with the notes above;
+          the whole-report review is optional and waits here, before Finalise,
+          for the office and for the day a document needs polishing. */}
       {loadError || isFinal ? null : (
         <details className="rounded-card bg-surface px-4 py-3 shadow-card ring-1 ring-line/70 ring-inset">
           <summary className="cursor-pointer text-sm font-semibold text-ink-muted">More tools</summary>
           <div className="mt-4 flex flex-col gap-6">
-            <ReportWriter
-              reportId={report.id}
-              hasDraft={(sectionsResult.data ?? []).length > 0}
-              rawNotes={report.raw_notes}
-              configured={hasAiConfig()}
-            />
             <MasterReviewPanel
               reviewAction={reviewDailyReport.bind(null, report.id)}
               applyAction={applyDailyReview.bind(null, report.id)}

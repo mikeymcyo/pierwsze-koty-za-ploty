@@ -70,22 +70,19 @@ try {
   await page.waitForURL(/\/reports\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
   const reportUrl = page.url();
 
-  console.log("\n2. Drafting is offered only once there is something to write from");
-  await page.getByRole("heading", { name: /the written report/i }).waitFor({ timeout: TIMEOUT });
+  console.log("\n2. Writing is offered with the notes, and only once there are some");
+  const writeButton = page.getByRole("button", { name: "Write my report" });
+  await writeButton.waitFor({ timeout: TIMEOUT });
+  check("the button is disabled before there is anything to write from", await writeButton.isDisabled());
   check(
-    "prompts for notes before offering to write",
-    await page.getByText(/turn it into a report/i).isVisible(),
+    "and says so",
+    await page.getByText(/say or type what happened first/i).isVisible(),
   );
 
   await page.getByLabel("Company").first().fill("Groundworks Ltd");
   await page.getByLabel("No.").first().fill("6");
   await page.getByLabel("Work completed").fill(NOTES);
-  await page.getByRole("button", { name: "Save draft" }).click();
-  await page.getByText("Draft saved.").waitFor({ timeout: TIMEOUT });
-
-  const writeButton = page.getByRole("button", { name: "Write my report" });
-  await writeButton.waitFor({ timeout: TIMEOUT });
-  check("offers to write once notes are saved", true);
+  check("offers to write once there are notes - no Save first", await writeButton.isEnabled());
 
   console.log("\n3. Generate");
   await writeButton.click();
@@ -143,11 +140,13 @@ try {
   );
 
   console.log("\n5. The raw notes survive generation, verbatim");
-  await page.getByText("What you actually said").click();
-  const notesPanel = page.locator("details", { hasText: "What you actually said" });
   check(
-    "raw notes are shown next to the draft",
-    (await notesPanel.innerText()).includes(NOTES),
+    "raw notes are still on the screen next to the draft",
+    (await page.getByLabel("Work completed").inputValue()) === NOTES,
+  );
+  check(
+    "and the workforce typed with them was saved by the same press",
+    (await page.getByLabel("Company").first().inputValue()) === "Groundworks Ltd",
   );
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   check(
