@@ -252,8 +252,8 @@ const view = read("../components/reports/photo-arrange.tsx");
 check("turning is offered inside arrange mode", /RotateButton/.test(view));
 check("both ways", /direction="left"/.test(view) && /direction="right"/.test(view));
 check(
-  "and a press on a button does not lift the photograph",
-  /onPointerDown=\{\(event\) => event\.stopPropagation\(\)\}/.test(view),
+  "and a press on a button does not lift the photograph - only the grip does",
+  /ref=\{setActivatorNodeRef\}/.test(view) && !/useDraggable/.test(view),
 );
 check("the screen says the file is not altered", /never altered/.test(view));
 

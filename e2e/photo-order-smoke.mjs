@@ -192,6 +192,31 @@ for (const [name, file] of [
   check(`${name} says the same thing`, /PhotoOrderBar/.test(screen) && /PhotoArrangeView/.test(screen));
 }
 
+console.log("\n7c2. The gesture: a handle, not the tile, and no fight with scrolling");
+// Rearranging was "not smooth again" on a real iPhone. The tile was the drag
+// source after a 200ms hold with the browser still allowed to pan, so a
+// drifting finger cancelled the lift and a still one dragged against Safari's
+// own scroll. Now only the grip starts a drag, the grip alone refuses the
+// browser's panning, a sortable placeholder shows where the drop lands, the
+// view scrolls itself near its edges, and the order is written on the drop.
+const arrangeCode = arrangeView.replace(/\{\/\*[\s\S]*?\*\/\}/g, "").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+check("the drag starts on a handle, not the tile", /ref=\{setActivatorNodeRef\}/.test(arrangeCode) && /useSortable\(\{ id: photo\.id \}\)/.test(arrangeCode) && !/useDraggable/.test(arrangeCode));
+check("only the handle refuses the browser's own scrolling", /data-photo-handle[\s\S]*?style=\{\{ touchAction: "none" \}\}/.test(arrangeCode) && !/touchAction: "manipulation"/.test(arrangeCode));
+check("no long-press: a few pixels on the handle is a drag", /PointerSensor, \{ activationConstraint: \{ distance: 4 \} \}/.test(arrangeCode) && !/TouchSensor/.test(arrangeCode) && !/delay:/.test(arrangeCode));
+check("the placeholder shows the drop position", /isDragging \? "border-dashed border-brand/.test(arrangeCode) && /rectSortingStrategy/.test(arrangeCode));
+check("the lifted photograph follows the finger", /<DragOverlay/.test(arrangeCode));
+check("the view scrolls itself near its edges", /autoScroll=\{\{ threshold: \{ x: 0, y: 0\.2 \} \}\}/.test(arrangeCode) && /overflow-y-auto/.test(arrangeCode));
+check("a drop is an insertion at the placeholder", /order\.place\(String\(active\.id\), order\.ids\.indexOf\(String\(over\.id\)\)\)/.test(arrangeCode));
+check("arrows move one place for anyone who would rather not drag", /order\.move\(photo\.id, "earlier"\)/.test(arrangeCode) && /order\.move\(photo\.id, "later"\)/.test(arrangeCode));
+check("the handle is a finger-sized target", /size-11 shrink-0 cursor-grab/.test(arrangeCode));
+const hookCode = control.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+check("the order is written on the drop, not after a debounce", !/SAVE_DELAY_MS|setTimeout/.test(hookCode) && /if \(inFlight\.current\) setQueued\(true\);\s*else send\(next\);/.test(hookCode));
+check("fast repeated moves are coalesced into the latest order", /const next = latest\.current;\s*if \(next && next\.join\(\) !== ids\.join\(\)\) send\(next\);/.test(hookCode));
+check("the screen never snaps back: re-seeded only when the set changes", /if \(order\.key !== key\) setOrder\(\{ key, ids: incoming \}\);/.test(hookCode));
+check("place is the insertion the lib already defines", /place: \(id: string, index: number\) => apply\(movePhoto\(order\.ids, id, index\)\)/.test(hookCode));
+check("the report grid's own tiles are not draggable", !/useSortable|useDraggable|DndContext/.test(read("../components/reports/photo-grid.tsx")) && !/useSortable|useDraggable|DndContext/.test(read("../components/summary-reports/report-photos.tsx")));
+check("the sortable preset is a real dependency", /"@dnd-kit\/sortable"/.test(read("../package.json")) && /"@dnd-kit\/utilities"/.test(read("../package.json")));
+
 console.log("\n7d. Every document kind reaches it");
 const summaryPage = read("../app/(app)/summary-reports/[id]/page.tsx");
 check(
@@ -235,7 +260,7 @@ check(
 check("each plate shows the number it will print as", /photoReference\(index\)/.test(arrangeView));
 check(
   "and the view says how to move a plate",
-  /Press and hold a photograph, then drop it on another to swap the two/.test(arrangeView),
+  /Drag a photograph by its grip to where it should print/.test(arrangeView),
 );
 check(
   "captions travel with the photograph, not the position",
@@ -255,56 +280,44 @@ const dependencies = JSON.parse(read("../package.json")).dependencies;
 // dnd-kit core alone: the sortable package went with the insertion behaviour
 // it existed to provide.
 check("the drag is a maintained library", Boolean(dependencies["@dnd-kit/core"]));
-check("and the sortable list it no longer needs is gone", !dependencies["@dnd-kit/sortable"]);
+// The sortable preset is back on purpose: a placeholder that moves through
+// the grid is the drop position, and that is what the preset draws.
+check("and the sortable preset draws the placeholder", Boolean(dependencies["@dnd-kit/sortable"]));
 check(
   "no hand-written gesture is left behind",
   !/elementFromPoint|setPointerCapture|passive: false/.test(arrangeView) &&
     !/elementFromPoint|setPointerCapture|usePhotoDrag/.test(control),
 );
+// The hold-to-lift on the whole tile is gone with the tile as drag source.
+// Only the grip starts a drag, so nothing has to be told apart from a scroll:
+// the grip refuses the browser's panning and lifts after a few pixels, and
+// everything else on the screen scrolls untouched.
 check(
-  "a finger has to hold still first, so the grid can still be scrolled",
-  /TouchSensor, \{ activationConstraint: \{ delay: \d+, tolerance: \d+ \} \}/.test(arrangeView),
+  "no hold: a few pixels on the grip is a drag",
+  /PointerSensor, \{ activationConstraint: \{ distance: \d+ \} \}/.test(arrangeView) && !/TouchSensor|MouseSensor/.test(arrangeView),
 );
 check(
-  "and a mouse simply drags",
-  /MouseSensor, \{ activationConstraint: \{ distance: \d+ \} \}/.test(arrangeView),
-);
-// One sensor covering both inputs claims a touch before the hold above can be
-// judged, so a press-and-hold did nothing and a swipe started a drag the
-// browser then cancelled. Two sensors, one rule each.
-check(
-  "and the two are separate sensors, not one that covers both",
-  !/useSensor\(PointerSensor/.test(arrangeView),
-);
-check(
-  "touch-action lets a swipe through until the hold takes the gesture",
-  /touchAction: "manipulation"/.test(arrangeView),
+  "and the tile itself is left to scroll",
+  !/touchAction: "manipulation"/.test(arrangeView) && /data-photo-handle[\s\S]*?touchAction: "none"/.test(arrangeView),
 );
 check(
   "the lifted photograph is a real tile following the finger",
   /<DragOverlay/.test(arrangeView),
 );
-// The grid stands still. An insertion-style sortable reflows every tile
-// between the two, which is what made a drag feel like it had taken the report
-// apart. Here the only things that change before the drop are the lifted
-// tile's opacity and the highlight on the one under the finger.
+// The grid makes room. The swap model stood still and lit up the tile under
+// the finger, and a tester could not tell where a drop would land; a sortable
+// placeholder that moves through the grid is the drop position, drawn.
 check(
-  "nothing reflows: the tiles are droppables, not a sortable list",
-  /useDroppable/.test(arrangeView) &&
-    /useDraggable/.test(arrangeView) &&
-    !/SortableContext|rectSortingStrategy|useSortable/.test(arrangeView),
+  "the tiles are a sortable list with a moving placeholder",
+  /SortableContext/.test(arrangeView) && /useSortable/.test(arrangeView) && !/useDroppable|useDraggable/.test(arrangeView),
 );
 check(
-  "the tile it is over lights up, so the swap is obvious before the drop",
-  /isOver && !isDragging/.test(arrangeView) && /border-brand/.test(arrangeView),
+  "the slot it came from is a dashed placeholder while it travels",
+  /isDragging \? "border-dashed border-brand/.test(arrangeView),
 );
 check(
-  "and the one it came from is dimmed where it stands",
-  /opacity: isDragging \? 0\.35 : 1/.test(arrangeView),
-);
-check(
-  "no tile is ever transformed, so the grid cannot shuffle under a finger",
-  !/CSS\.Transform/.test(arrangeView),
+  "the neighbours shift to show where it lands",
+  /CSS\.Transform\.toString\(transform\)/.test(arrangeView) && /rectSortingStrategy/.test(arrangeView),
 );
 check(
   "the view owns its scrolling, which is what lets it auto-scroll",
@@ -322,12 +335,12 @@ check(
     /PhotoArrangeView/.test(read("../components/summary-reports/report-photos.tsx")),
 );
 check(
-  "the order it produces goes through the same debounced save as before",
-  /order\.swap\(/.test(arrangeView) && /usePhotoOrder/.test(control),
+  "the order it produces goes through the one shared control, written on the drop",
+  /order\.place\(/.test(arrangeView) && /usePhotoOrder/.test(control),
 );
 check(
-  "and the swap happens on the drop, not while the finger moves",
-  /function onDragEnd[\s\S]{0,400}order\.swap\(/.test(arrangeView) &&
+  "and the insertion happens on the drop, not while the finger moves",
+  /function onDragEnd[\s\S]{0,400}order\.place\(/.test(arrangeView) &&
     !/onDragOver/.test(arrangeView),
 );
 

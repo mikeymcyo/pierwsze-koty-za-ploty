@@ -254,11 +254,11 @@ check(
 );
 check(
   "leaving with an unsaved arrangement asks first",
-  /beforeunload/.test(reorderUi) && /const unsaved = scheduled \|\| pending \|\| error !== null/.test(reorderUi),
+  /beforeunload/.test(reorderUi) && /const unsaved = queued \|\| pending \|\| error !== null/.test(reorderUi),
 );
 check(
-  "a debounce still waiting counts as unsaved",
-  /setScheduled\(true\)/.test(reorderUi),
+  "a save queued behind one in flight counts as unsaved",
+  /setQueued\(true\)/.test(reorderUi),
 );
 
 check(

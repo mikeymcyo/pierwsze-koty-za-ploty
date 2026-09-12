@@ -2,22 +2,34 @@
 
 import { useActionState, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Check, GripVertical, ImageOff, RotateCcw, RotateCw } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  GripVertical,
+  ImageOff,
+  RotateCcw,
+  RotateCw,
+} from "lucide-react";
 import {
   DndContext,
   DragOverlay,
   KeyboardSensor,
-  MouseSensor,
-  TouchSensor,
+  PointerSensor,
   closestCenter,
-  useDraggable,
-  useDroppable,
   useSensor,
   useSensors,
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { restrictToWindowEdges } from "@dnd-kit/modifiers";
+import {
+  SortableContext,
+  rectSortingStrategy,
+  sortableKeyboardCoordinates,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 import { rotatePhoto, type PhotoRotationState } from "@/app/(app)/reports/photo-actions";
 import { Button } from "@/components/ui/button";
@@ -37,39 +49,37 @@ export type ArrangeablePhoto = {
  * The arrange view: a screen of nothing but photographs, in the order they
  * will print.
  *
- * ## Why a library
+ * ## The gesture, third time
  *
- * The first two attempts at this were written by hand - arrows, then a custom
- * long-press pointer drag - and the second felt wrong on a real iPhone. A
- * photograph that does not visibly leave the grid and follow the finger reads
- * as a broken tap, and the things that fix that are not small: a lifted
- * overlay, neighbours that move aside to show where it will land, auto-scroll
- * when the finger nears an edge, and a delay long enough to tell a drag from a
- * scroll on a screen made entirely of drag targets.
+ * The last version made every tile the thing you drag, after a 200 ms hold,
+ * with the browser still allowed to pan. On a real iPhone that is a fight:
+ * a finger that drifts eight pixels during the hold cancels the lift and
+ * reads as a dead tap, and a finger that holds still and then moves has
+ * Safari panning the page underneath the drag, so the tile stutters and the
+ * drop lands somewhere else. A screen made entirely of drag targets cannot
+ * also be a screen that scrolls.
  *
- * dnd-kit does all of that and is maintained. Writing a third custom gesture
- * to avoid 40kB would be the wrong trade in an app whose whole promise is that
- * it works with one hand on site.
+ * So the tile is not draggable. A handle is - the grip on each tile, with
+ * `touch-action: none` on the handle alone - and it lifts the moment the
+ * finger moves, no hold. Everywhere else on the screen is ordinary scrolling
+ * that nothing intercepts.
  *
- * ## The parts that matter on a phone
+ * ## What the finger sees
  *
- * - **TouchSensor with a delay**, so a swipe scrolls and only a hold picks a
- *   photograph up. `touch-action: manipulation` lets that scroll through.
- * - **DragOverlay**, so the thing under the finger is a real lifted tile
- *   rather than a hole in the grid.
- * - **A swap, not an insertion.** Dropping one photograph onto another
- *   exchanges the two and moves nothing else, and the grid stands perfectly
- *   still while the finger travels - the tile it is over lights up, and that
- *   is the only thing that changes until the drop.
- * - **Auto-scroll** is dnd-kit's own, and works because this view owns its
- *   scroll container.
- * - **A dedicated view.** Captions, delete buttons and the AI have nothing to
- *   do with sequence, and a full screen of photographs is what somebody
- *   reordering fifteen plates actually needs.
+ * A sortable grid: the lifted photograph follows the finger as an overlay,
+ * its own slot stays behind as a dashed placeholder, and the placeholder
+ * moves through the grid as the neighbours shift to make room, so the drop
+ * position is never in doubt. Near the top or bottom the view scrolls itself.
+ * Dropping writes the order at once - no debounce - and the screen keeps the
+ * order it shows; a save that fails says so and offers to try again.
+ *
+ * An insertion, not a swap. Dropping P05 where P02 is makes it P02 and moves
+ * P02-P04 along by one - what "put that one there" means on a page of plates
+ * - and the arrows under a tile do the same one place at a time, for anyone
+ * who would rather not drag at all.
  *
  * Order is sequence and nothing else. It decides which plate is P01 and which
- * is P07; it does not decide how many plates the PDF puts on a row, and the
- * screen no longer says otherwise.
+ * is P07; it does not decide how many plates the PDF puts on a row.
  */
 export function PhotoArrangeView({
   photos,
@@ -94,18 +104,12 @@ export function PhotoArrangeView({
   }, [onDone]);
 
   const sensors = useSensors(
-    // MouseSensor and TouchSensor rather than the one PointerSensor that
-    // covers both. A pointer sensor also receives touch, so it claims the
-    // gesture before the hold below can be judged - which on a phone meant a
-    // press-and-hold did nothing at all and a swipe started a drag the browser
-    // then cancelled. Two sensors, one rule each:
-    //
-    // a mouse drags as soon as it has travelled a little, and a finger has to
-    // hold still first, because on this screen every scroll starts on a
-    // photograph.
-    useSensor(MouseSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }),
-    useSensor(KeyboardSensor),
+    // One sensor for mouse, pen and finger alike. It only ever hears the
+    // handle, and the handle refuses the browser's own panning, so a few
+    // pixels of travel is all it takes to know this is a drag and not a
+    // scroll - no hold, and nothing for a scroll to cancel.
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
   const byId = new Map(photos.map((photo) => [photo.id, photo]));
@@ -123,9 +127,9 @@ export function PhotoArrangeView({
     setLifted(null);
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    // The two photographs exchange places, and nothing else moves.
-    // usePhotoOrder holds the order and debounces the write.
-    order.swap(String(active.id), String(over.id));
+    // Where the placeholder was when the finger let go is where it lands.
+    // usePhotoOrder holds the order and writes it straight away.
+    order.place(String(active.id), order.ids.indexOf(String(over.id)));
   }
 
   // Never server-rendered - it only exists once somebody has pressed Arrange -
@@ -134,7 +138,7 @@ export function PhotoArrangeView({
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex flex-col bg-surface">
-      <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3">
+      <header className="flex items-center justify-between gap-3 border-b border-line px-4 py-3 pt-[calc(env(safe-area-inset-top,0px)+0.75rem)]">
         <div className="flex flex-col">
           <h2 className="text-base font-bold text-ink">{title}</h2>
           <span aria-live="polite" className="text-xs text-ink-muted">
@@ -149,36 +153,52 @@ export function PhotoArrangeView({
             )}
           </span>
         </div>
-        <Button type="button" onClick={onDone}>
-          <Check aria-hidden />
-          Done
-        </Button>
+        <div className="flex items-center gap-2">
+          {order.error ? (
+            <Button type="button" variant="secondary" size="sm" onClick={order.retry}>
+              <RotateCw aria-hidden />
+              Try again
+            </Button>
+          ) : null}
+          <Button type="button" onClick={onDone}>
+            <Check aria-hidden />
+            Done
+          </Button>
+        </div>
       </header>
 
       <p className="px-4 pt-3 text-sm text-ink-muted">
-        Press and hold a photograph, then drop it on another to swap the two.
-        Nothing else moves. The arrows turn a photograph a quarter at a time -
-        the file itself is never altered.
+        Drag a photograph by its grip to where it should print. The others make room. The
+        arrows move it one place; the order is saved as you go.
       </p>
 
       {/* This view owns its scrolling, which is what lets dnd-kit scroll it
-          automatically when a drag reaches the top or the bottom. */}
-      <div className="flex-1 overflow-y-auto overscroll-contain p-4">
+          itself when a drag reaches the top or the bottom. */}
+      <div className="flex-1 overflow-y-auto overscroll-contain p-4 pb-[calc(env(safe-area-inset-bottom,0px)+1rem)]">
         <DndContext
           sensors={sensors}
           collisionDetection={closestCenter}
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
           onDragCancel={() => setLifted(null)}
+          autoScroll={{ threshold: { x: 0, y: 0.2 } }}
         >
-          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {ordered.map((photo, index) => (
-              <ArrangeTile key={photo.id} photo={photo} index={index} />
-            ))}
-          </ul>
+          <SortableContext items={order.ids} strategy={rectSortingStrategy}>
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+              {ordered.map((photo, index) => (
+                <ArrangeTile
+                  key={photo.id}
+                  photo={photo}
+                  index={index}
+                  count={ordered.length}
+                  order={order}
+                />
+              ))}
+            </ul>
+          </SortableContext>
 
           {/* What the finger is actually holding. */}
-          <DragOverlay modifiers={[restrictToWindowEdges]}>
+          <DragOverlay modifiers={[restrictToWindowEdges]} dropAnimation={null}>
             {liftedPhoto ? (
               <div className="rounded-xl border-2 border-brand bg-surface p-1 shadow-2xl">
                 <Thumbnail photo={liftedPhoto} />
@@ -227,13 +247,7 @@ function Thumbnail({ photo }: { photo: ArrangeablePhoto }) {
   );
 }
 
-/**
- * Turn this photograph a quarter of the way round.
- *
- * `stopPropagation` on the pointer, or the drag sensor on the tile beneath
- * would see the press and a firm tap on a button would lift the photograph
- * instead of turning it.
- */
+/** Turn this photograph a quarter of the way round. */
 function RotateButton({
   photoId,
   direction,
@@ -246,7 +260,7 @@ function RotateButton({
   const Icon = direction === "left" ? RotateCcw : RotateCw;
 
   return (
-    <form action={action} onPointerDown={(event) => event.stopPropagation()}>
+    <form action={action}>
       <input type="hidden" name="direction" value={direction} />
       <Button
         type="submit"
@@ -255,7 +269,7 @@ function RotateButton({
         // A finger, not a cursor: the same target the rest of the app uses.
         className="size-10"
         aria-label={`Rotate ${direction} 90 degrees`}
-        title={state.error ?? `Rotate ${direction}`}
+        title={state.error ?? `Rotate ${direction} - the file itself is never altered`}
       >
         <Icon aria-hidden />
       </Button>
@@ -263,53 +277,96 @@ function RotateButton({
   );
 }
 
-function ArrangeTile({ photo, index }: { photo: ArrangeablePhoto; index: number }) {
-  // Both at once: every tile can be picked up, and every tile is somewhere a
-  // photograph can be dropped. Nothing here is a sortable list, because a
-  // sortable list reflows - see swapPhotos in lib/photos-order.ts for why the
-  // grid has to stand still.
-  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
-    id: photo.id,
-  });
-  const { setNodeRef: setDropRef, isOver } = useDroppable({ id: photo.id });
+function ArrangeTile({
+  photo,
+  index,
+  count,
+  order,
+}: {
+  photo: ArrangeablePhoto;
+  index: number;
+  count: number;
+  order: PhotoOrder;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: photo.id });
 
   return (
     <li
-      ref={(node) => {
-        setDragRef(node);
-        setDropRef(node);
-      }}
+      ref={setNodeRef}
       style={{
-        // Scrolling still works: the touch sensor's delay lets a swipe through
-        // and only takes the gesture once a finger has held still.
-        touchAction: "manipulation",
-        // The one it came from, dimmed. Its position does not change, and no
-        // neighbour moves - the only thing travelling is the overlay under the
-        // finger.
-        opacity: isDragging ? 0.35 : 1,
+        transform: CSS.Transform.toString(transform),
+        transition,
       }}
-      {...attributes}
-      {...listeners}
       className={[
-        "flex cursor-grab flex-col gap-1 rounded-xl border-2 bg-surface p-1 transition-colors select-none active:cursor-grabbing",
-        // What it will swap with, said plainly while the finger is still down.
-        isOver && !isDragging ? "border-brand bg-brand/10" : "border-line",
+        "flex flex-col gap-1 rounded-xl border-2 bg-surface p-1 select-none",
+        // The slot it came from, held open while it travels: the placeholder
+        // moves through the grid as the neighbours make room, and where it
+        // is when the finger lets go is where the photograph lands.
+        isDragging ? "border-dashed border-brand bg-brand/10 opacity-40" : "border-line",
       ].join(" ")}
     >
       <Thumbnail photo={photo} />
-      <div className="flex items-center justify-between gap-1 px-1 pb-0.5">
+
+      <div className="flex items-center justify-between gap-1 px-1">
         <span className="font-mono text-xs font-semibold tabular-nums text-ink">
           {photoReference(index)}
         </span>
-        <GripVertical className="size-4 shrink-0 text-ink-subtle" aria-hidden />
+        {/* The handle. The only thing on this screen that starts a drag, and
+            the only thing that tells the browser not to scroll - so the rest
+            of the tile, and the whole screen around it, scrolls as normal. */}
+        <button
+          ref={setActivatorNodeRef}
+          type="button"
+          {...attributes}
+          {...listeners}
+          aria-label={`Drag to move ${photoReference(index)}`}
+          data-photo-handle={photo.id}
+          className="grid size-11 shrink-0 cursor-grab place-items-center rounded-lg text-ink-muted transition-colors hover:bg-surface-muted hover:text-ink active:cursor-grabbing"
+          style={{ touchAction: "none" }}
+        >
+          <GripVertical className="size-5" aria-hidden />
+        </button>
       </div>
 
-      {/* Turning belongs here rather than on the report screen: this is the
-          view somebody opens when they are looking at the photographs
-          themselves. */}
-      <div className="flex items-center justify-center gap-2 px-1 pb-1">
-        <RotateButton photoId={photo.id} direction="left" />
-        <RotateButton photoId={photo.id} direction="right" />
+      {/* One place at a time, for anyone who would rather not drag. Left
+          means earlier in the report, right means later. */}
+      <div className="flex items-center justify-between gap-1 px-1 pb-1">
+        <div className="flex items-center gap-1">
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            className="size-10"
+            aria-label={`Move ${photoReference(index)} earlier`}
+            disabled={index === 0}
+            onClick={() => order.move(photo.id, "earlier")}
+          >
+            <ChevronLeft aria-hidden />
+          </Button>
+          <Button
+            type="button"
+            variant="secondary"
+            size="icon"
+            className="size-10"
+            aria-label={`Move ${photoReference(index)} later`}
+            disabled={index === count - 1}
+            onClick={() => order.move(photo.id, "later")}
+          >
+            <ChevronRight aria-hidden />
+          </Button>
+        </div>
+        <div className="flex items-center gap-1">
+          <RotateButton photoId={photo.id} direction="left" />
+          <RotateButton photoId={photo.id} direction="right" />
+        </div>
       </div>
 
       {photo.caption ? (
