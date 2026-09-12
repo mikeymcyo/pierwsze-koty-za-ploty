@@ -142,6 +142,17 @@ check(
   !/toBlob|toDataURL|resize|quality/i.test(pdfImage),
 );
 
+console.log("\n6. The detail stored is the detail shown");
+// A stored plate is 1600px across and reaches the PDF byte for byte; the one
+// place it was being thrown away was the in-app reader, which drew each page
+// once at 2x and stretched it. The reader now draws at the screen's density
+// and the chosen magnification - see e2e/pdf-export-smoke.mjs section 7 -
+// and nothing in the storage path changed to fix it.
+const viewerSource = read("../components/pdf/pdf-viewer.tsx");
+check("the reader draws at up to 3x, an iPhone's density", /MAX_DEVICE_SCALE = 3/.test(viewerSource));
+check("the stored size and quality did not need to change", MAX_EDGE === 1600 && JPEG_QUALITY === 0.88);
+check("the PDF still embeds the stored bytes, not a re-encode", !/sharp|jimp|toBlob|toDataURL/.test(read("../lib/pdf/components.tsx")) && /src=\{data\}/.test(read("../lib/pdf/components.tsx")));
+
 console.log("\n=== Result ===");
 if (failures.length === 0) {
   console.log("ALL PHOTO QUALITY CHECKS PASSED");

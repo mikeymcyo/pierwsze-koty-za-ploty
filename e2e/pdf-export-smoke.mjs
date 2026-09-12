@@ -314,6 +314,25 @@ for (const [name, file] of [["daily", finalise], ["consolidated", summaryFinalis
 }
 const viewer = read("../components/pdf/pdf-viewer.tsx");
 check("the viewer shares only a stored file", /shareHref \? \(/.test(viewer));
+// Live iPhone testing found no Share button on the reader. It was there,
+// under the app's glass header: the page wrapper's fade animation makes a
+// stacking context, so the fixed reader was layered as its wrapper, beneath
+// the top bar and the bottom nav. The reader now renders from the body, and
+// Share is a filled button rather than a ghost beside the title.
+check("the reader renders from the body, above the app's own chrome", /createPortal\(/.test(viewer) && /document\.body,?\s*\)/.test(viewer));
+check("and Share is a filled button, not a ghost", /<SharePdf[\s\S]*?variant="secondary"[\s\S]*?size="sm"/.test(viewer) && !/variant="ghost"\s*\n\s*size="sm"/.test(viewer));
+// The same testing found the photographs soft. Not in the file - the plate is
+// the stored 1600px JPEG byte for byte - but on the screen: every page was
+// drawn once at a density capped at 2x and magnified by stretching, so a
+// plate reached a 3x iPhone through a canvas a third the size of the pixels
+// under it. Pages are now drawn at the screen's density and the current
+// magnification, and only the ones near the viewport, so the memory that
+// forced the cap is never asked for.
+check("pages are drawn at the screen's full density", /MAX_DEVICE_SCALE = 3/.test(viewer));
+check("and redrawn at the magnification chosen, not stretched to it", /const \{ width \} = cssSize\(slot, fitRef\.current, zoomRef\.current\);\s*\n\s*const density/.test(viewer) && /\(width \/ slot\.width\) \* density/.test(viewer));
+check("only the pages near the viewport hold a canvas", /new IntersectionObserver\(/.test(viewer) && /release\(slot\)/.test(viewer));
+check("with a ceiling on one page's pixels so iOS never hands back a blank", /MAX_CANVAS_PIXELS/.test(viewer) && /Math\.sqrt\(MAX_CANVAS_PIXELS \/ pixels\)/.test(viewer));
+check("the zoom steps are unchanged", /ZOOM_STEPS = \[1, 1\.5, 2, 3\]/.test(viewer));
 const dailyPdfPage = read("../app/(app)/reports/[id]/pdf/page.tsx");
 check(
   "a draft preview is never offered for sharing",
