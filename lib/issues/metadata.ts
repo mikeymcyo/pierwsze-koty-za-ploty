@@ -76,6 +76,28 @@ export function closedAtFor(status: IssueStatus, existing: string | null): strin
 }
 
 /** A closed issue needs an outcome before it can appear honestly in a completion record. */
+/**
+ * What is recorded when an issue is resolved with nothing typed.
+ *
+ * A resolved issue always carries a resolution (hasRequiredResolution), and
+ * the whole-report review's Resolve control makes the note optional, so this
+ * is what goes on the record when it is left blank. It states what happened -
+ * the person marked it resolved while reviewing the report - and nothing
+ * about the work that nobody wrote down.
+ */
+export const RESOLVED_DURING_REVIEW = "Marked resolved during the report review.";
+
+/**
+ * The instant recorded for a resolved-on date chosen on a form.
+ *
+ * Midday UTC, so the calendar date survives every UK offset when it is read
+ * back as a date; a bare midnight would print as the day before in summer.
+ * With no date the existing stamp is kept, or now is used.
+ */
+export function closedAtOn(date: string, existing: string | null): string {
+  return date ? `${date}T12:00:00.000Z` : (existing ?? new Date().toISOString());
+}
+
 export function hasRequiredResolution(status: IssueStatus, resolution: string | null): boolean {
   return status !== "closed" || Boolean(resolution?.trim());
 }

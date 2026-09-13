@@ -7,10 +7,13 @@ import { reviewReportAsWhole } from "@/lib/ai/master-review";
 import { requireSessionContext } from "@/lib/auth/session";
 import {
   REVIEW_NEEDS_DRAFT,
+  collapseIssueWarnings,
+  linkWarningsToIssues,
   reconcileReview,
   sectionsToApply,
   describeApplied,
   type MasterReview,
+  type ReviewIssue,
 } from "@/lib/reports/master-review";
 import {
   buildDailyReviewContext,
@@ -19,7 +22,21 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import type { ReportSectionType, SummarySectionType } from "@/types/database";
 
-export type MasterReviewState = { error?: string; review?: MasterReview };
+/** What the controls on a finding need, sent back with the review itself. */
+export type ReviewIssueContext = {
+  projectId: string;
+  /** The Daily Report a new issue is raised against; null on a consolidated one. */
+  reportId: string | null;
+  /** The screen the controls sit on, refreshed after each action. */
+  returnPath: string;
+  issues: ReviewIssue[];
+};
+
+export type MasterReviewState = {
+  error?: string;
+  review?: MasterReview;
+  context?: ReviewIssueContext;
+};
 export type ApplyReviewState = { error?: string; message?: string };
 
 /**
@@ -78,13 +95,25 @@ async function runReview(
   const result = await reviewReportAsWhole(context.input);
   if (!result.ok) return { error: result.error };
 
+  // The handles the model was shown become ids here, and only here; then a
+  // person sees one finding per issue rather than the same contradiction
+  // three times over.
+  const review = reconcileReview(
+    context.sections,
+    result.sections,
+    linkWarningsToIssues(result.warnings, context.issues),
+    result.assessment,
+  );
+  review.warnings = collapseIssueWarnings(review.warnings);
+
   return {
-    review: reconcileReview(
-      context.sections,
-      result.sections,
-      result.warnings,
-      result.assessment,
-    ),
+    review,
+    context: {
+      projectId: context.projectId,
+      reportId: context.reportId,
+      returnPath: kind === "daily" ? `/reports/${reportId}` : `/summary-reports/${reportId}`,
+      issues: context.issues.map(({ id, title, status }) => ({ id, title, status })),
+    },
   };
 }
 

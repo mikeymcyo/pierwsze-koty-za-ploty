@@ -2,20 +2,22 @@
 
 import { useActionState, useState } from "react";
 import { useFormStatus } from "react-dom";
-import { AlertTriangle, Check, Sparkles, TriangleAlert } from "lucide-react";
+import { Check, Sparkles } from "lucide-react";
 
 import type {
   ApplyReviewState,
   MasterReviewState,
 } from "@/app/(app)/reports/review-actions";
+import { ReviewFinding } from "@/components/reports/review-findings";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   bulkAcceptableSections,
   changedSections,
+  describeActioned,
+  type FindingOutcome,
   type MasterReview,
-  type ReviewWarning,
 } from "@/lib/reports/master-review";
 
 function RunButton({ again }: { again: boolean }) {
@@ -41,19 +43,6 @@ function ApplyButton({ count }: { count: number }) {
     </Button>
   );
 }
-
-const SEVERITY_TONE: Record<ReviewWarning["severity"], "danger" | "info" | "neutral"> = {
-  high: "danger",
-  medium: "info",
-  low: "neutral",
-};
-
-const WARNING_HEADING: Record<ReviewWarning["type"], string> = {
-  contradiction: "Possible contradiction",
-  missing: "Missing information",
-  wording: "Wording",
-  other: "Worth a look",
-};
 
 /**
  * The whole-report review, and what to do about it.
@@ -82,13 +71,31 @@ export function MasterReviewPanel({
   const [state, runReview] = useActionState<MasterReviewState, FormData>(reviewAction, {});
   const [applied, apply] = useActionState<ApplyReviewState, FormData>(applyAction, {});
   const [accepted, setAccepted] = useState<Set<string>>(new Set());
+  // What has been done about each finding, keyed by its place in this review.
+  // Tied to the review object itself, so a fresh review starts clean without
+  // an effect to reset anything.
+  const [handledFor, setHandledFor] = useState<{
+    review: MasterReview | undefined;
+    outcomes: Map<number, FindingOutcome>;
+  }>({ review: undefined, outcomes: new Map() });
 
   if (!configured) return null;
 
   const review: MasterReview | undefined = state.review;
   const changes = review ? changedSections(review) : [];
-  const warnings = review?.warnings ?? [];
+  const handled = handledFor.review === review ? handledFor.outcomes : new Map<number, FindingOutcome>();
+  const warnings = (review?.warnings ?? []).map((warning, index) => ({ warning, index }));
+  const open = warnings.filter(({ index }) => !handled.has(index));
+  const actioned = describeActioned([...handled.values()]);
   const bulk = review ? bulkAcceptableSections(review) : [];
+
+  function handle(index: number, outcome: FindingOutcome) {
+    setHandledFor((was) => {
+      const outcomes = new Map(was.review === review ? was.outcomes : []);
+      outcomes.set(index, outcome);
+      return { review, outcomes };
+    });
+  }
 
   function toggle(sectionType: string) {
     setAccepted((was) => {
@@ -129,39 +136,37 @@ export function MasterReviewPanel({
           {warnings.length > 0 ? (
             <section className="flex flex-col gap-2">
               <h3 className="text-sm font-bold text-ink">
-                {warnings.length === 1 ? "1 thing to check" : `${warnings.length} things to check`}
+                {open.length === 0
+                  ? "Nothing left to check"
+                  : open.length === 1
+                    ? "1 thing to check"
+                    : `${open.length} things to check`}
               </h3>
-              <p className="text-xs text-ink-subtle">
-                These are not changed for you. Nothing here has been applied to the report.
-              </p>
-              <ul className="flex flex-col gap-2">
-                {warnings.map((warning, index) => (
-                  <li
-                    key={`${warning.type}-${index}`}
-                    className="flex items-start gap-3 rounded-xl border border-line p-3"
-                  >
-                    {warning.severity === "high" ? (
-                      <TriangleAlert className="mt-0.5 size-5 shrink-0 text-danger" aria-hidden />
-                    ) : (
-                      <AlertTriangle className="mt-0.5 size-5 shrink-0 text-ink-muted" aria-hidden />
-                    )}
-                    <span className="min-w-0 flex-1">
-                      <span className="flex flex-wrap items-center gap-2">
-                        <Badge tone={SEVERITY_TONE[warning.severity]}>
-                          {WARNING_HEADING[warning.type]}
-                        </Badge>
-                        {warning.relatedSection ? (
-                          <span className="text-xs text-ink-subtle">
-                            {review.sections.find((s) => s.sectionType === warning.relatedSection)
-                              ?.label ?? warning.relatedSection}
-                          </span>
-                        ) : null}
-                      </span>
-                      <span className="mt-1 block text-sm text-ink">{warning.message}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              {open.length > 0 ? (
+                <p className="text-xs text-ink-subtle">
+                  Nothing here has been applied to the report. Where a finding is about an issue,
+                  deal with the issue from here.
+                </p>
+              ) : null}
+              {open.length > 0 ? (
+                <ul className="flex flex-col gap-2">
+                  {open.map(({ warning, index }) => (
+                    <ReviewFinding
+                      key={`${warning.type}-${index}`}
+                      warning={warning}
+                      sectionLabel={
+                        warning.relatedSection
+                          ? (review.sections.find((s) => s.sectionType === warning.relatedSection)
+                              ?.label ?? warning.relatedSection)
+                          : null
+                      }
+                      context={state.context}
+                      onHandled={(outcome) => handle(index, outcome)}
+                    />
+                  ))}
+                </ul>
+              ) : null}
+              {actioned ? <Alert tone="success">{actioned}</Alert> : null}
             </section>
           ) : null}
 

@@ -8,7 +8,7 @@ import {
   buildMasterReviewPrompt,
   type MasterReviewInput,
 } from "@/lib/ai/master-review-prompt";
-import type { ProposedSection, ReviewWarning } from "@/lib/reports/master-review";
+import type { ProposedSection, ProposedWarning } from "@/lib/reports/master-review";
 import { describeAiFailure } from "@/lib/ai/failure";
 
 /**
@@ -29,7 +29,7 @@ export type MasterReviewResult =
   | {
       ok: true;
       sections: ProposedSection[];
-      warnings: ReviewWarning[];
+      warnings: ProposedWarning[];
       assessment: string;
     }
   | { ok: false; error: string };
@@ -49,6 +49,8 @@ const replySchema = z.object({
       severity: z.string(),
       message: z.string(),
       relatedSection: z.string(),
+      relatedIssue: z.string(),
+      suggestedIssue: z.string(),
     }),
   ),
   overallAssessment: z.string(),
@@ -133,8 +135,18 @@ export async function reviewReportAsWhole(
                       description:
                         "The section type it concerns, or an empty string where it concerns the report as a whole.",
                     },
+                    relatedIssue: {
+                      type: "string",
+                      description:
+                        "The handle of the recorded issue this warning is about, exactly as shown in the ISSUES list - I1, I2 and so on - or an empty string where it is about no recorded issue. Never a title and never a guess.",
+                    },
+                    suggestedIssue: {
+                      type: "string",
+                      description:
+                        "Only where the prose or a photograph describes a live snag, defect or outstanding item that NO recorded issue carries: a title for it of at most eight words, in the language of the works. Empty string otherwise, and always empty where relatedIssue is set.",
+                    },
                   },
-                  required: ["type", "severity", "message", "relatedSection"],
+                  required: ["type", "severity", "message", "relatedSection", "relatedIssue", "suggestedIssue"],
                   additionalProperties: false,
                 },
               },
@@ -167,10 +179,12 @@ export async function reviewReportAsWhole(
         reason: section.reason,
       })),
       warnings: parsed.data.warnings.map((warning) => ({
-        type: warning.type as ReviewWarning["type"],
-        severity: warning.severity as ReviewWarning["severity"],
+        type: warning.type,
+        severity: warning.severity,
         message: warning.message,
         relatedSection: warning.relatedSection || null,
+        relatedIssue: warning.relatedIssue || null,
+        suggestedIssue: warning.suggestedIssue || null,
       })),
       assessment: parsed.data.overallAssessment,
     };

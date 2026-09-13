@@ -42,6 +42,31 @@ type Client = Awaited<ReturnType<typeof createClient>>;
  * is a different feature.
  */
 
+/** What the reviewer is told about an issue, and what the controls need. */
+export type ReviewContextIssue = {
+  /** "I1", "I2": what the model is shown in place of an id. */
+  handle: string;
+  id: string;
+  title: string;
+  status: string;
+};
+
+/**
+ * Handles, not ids. The model names an issue by the handle it was shown, the
+ * action turns that back into an id, and a handle it was never given maps to
+ * nothing - so the model can point at an issue but never invent one.
+ */
+export function issueHandles(
+  issues: readonly { id: string; title: string; status: string }[],
+): ReviewContextIssue[] {
+  return issues.map((issue, index) => ({
+    handle: `I${index + 1}`,
+    id: issue.id,
+    title: issue.title,
+    status: issue.status,
+  }));
+}
+
 function issueLines(
   issues: readonly {
     title: string;
@@ -51,9 +76,9 @@ function issueLines(
     responsible?: string | null;
   }[],
 ): string[] {
-  return issues.map((issue) =>
+  return issues.map((issue, index) =>
     [
-      issue.title,
+      `[I${index + 1}] ${issue.title}`,
       `priority ${ISSUE_PRIORITY_LABELS[issue.priority as keyof typeof ISSUE_PRIORITY_LABELS] ?? issue.priority}`,
       `status ${ISSUE_STATUS_LABELS[issue.status as keyof typeof ISSUE_STATUS_LABELS] ?? issue.status}`,
       issue.responsible ? `responsible ${issue.responsible}` : null,
@@ -128,10 +153,20 @@ async function jobContextFor(
   );
 }
 
+/** Everything the reviewer needs, plus what the controls on its findings need. */
+export type ReviewContext = {
+  input: MasterReviewInput;
+  sections: CurrentSection[];
+  projectId: string;
+  /** The Daily Report an issue raised from the review belongs to; null on a consolidated one. */
+  reportId: string | null;
+  issues: ReviewContextIssue[];
+};
+
 export async function buildDailyReviewContext(
   supabase: Client,
   reportId: string,
-): Promise<{ input: MasterReviewInput; sections: CurrentSection[] } | { error: string }> {
+): Promise<ReviewContext | { error: string }> {
   const { data: report } = await supabase
     .from("reports")
     .select(
@@ -160,8 +195,9 @@ export async function buildDailyReviewContext(
       supabase.from("photos").select("category, caption").eq("report_id", reportId),
       supabase
         .from("issues")
-        .select("title, status, priority, responsible, resolution")
-        .eq("report_id", reportId),
+        .select("id, title, status, priority, responsible, resolution")
+        .eq("report_id", reportId)
+        .order("created_at", { ascending: true }),
     ]);
 
   const sections = dailySections(sectionRows ?? []);
@@ -170,6 +206,9 @@ export async function buildDailyReviewContext(
 
   return {
     sections,
+    projectId: report.project_id,
+    reportId,
+    issues: issueHandles(issues ?? []),
     input: {
       documentKind: "DAILY SITE REPORT",
       jobContext,
@@ -232,7 +271,7 @@ export async function buildDailyReviewContext(
 export async function buildSummaryReviewContext(
   supabase: Client,
   reportId: string,
-): Promise<{ input: MasterReviewInput; sections: CurrentSection[] } | { error: string }> {
+): Promise<ReviewContext | { error: string }> {
   const { data: report } = await supabase
     .from("summary_reports")
     .select(
@@ -298,6 +337,7 @@ export async function buildSummaryReviewContext(
           .from("issues")
           .select("id, title, status, priority, responsible, resolution")
           .in("id", issueIds)
+          .order("created_at", { ascending: true })
       : Promise.resolve({ data: [] as never[] }),
   ]);
 
@@ -317,6 +357,9 @@ export async function buildSummaryReviewContext(
 
   return {
     sections,
+    projectId: report.project_id,
+    reportId: null,
+    issues: issueHandles(issues ?? []),
     input: {
       documentKind: kindLabel.toUpperCase(),
       jobContext,

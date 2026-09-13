@@ -141,7 +141,7 @@ check(
       new URL("../supabase/migrations/20260828000005_summary_reports.sql", import.meta.url),
       "utf8",
     ),
-  ) && !/issue_events/.test(actions),
+  ) && !/from\("issue_events"\)/.test(actions),
 );
 
 console.log("\n6. An optional field tolerates the key being missing");
@@ -187,9 +187,9 @@ console.log("\n9. Resolved: the word, the one-tap route, and a suggestion that n
 check("a closed issue is called Resolved on screen and on the page", ISSUE_STATUS_LABELS.closed === "Resolved");
 check("and the stored value is still closed", isResolvedStatus("closed") && !isResolvedStatus("open") && !isResolvedStatus("in_progress"));
 const resolveBody = actions.slice(actions.indexOf("export async function resolveIssue"));
-check("marking resolved records the note as the resolution", /resolution: parsed\.data\.note,/.test(resolveBody));
-check("and stamps the resolved date the same way closing does", /closed_at: closedAtFor\("closed", existing\.closed_at\)/.test(resolveBody));
-check("an empty note is refused", /min\(1, "Say what was done"\)/.test(actions));
+check("marking resolved records the note as the resolution", /resolution: parsed\.data\.note \|\| RESOLVED_DURING_REVIEW/.test(resolveBody));
+check("and stamps the resolved date the same way closing does, or on the date chosen", /closed_at: parsed\.data\.resolvedOn\s*\?\s*closedAtOn\(parsed\.data\.resolvedOn, existing\.closed_at\)\s*:\s*closedAtFor\("closed", existing\.closed_at\)/.test(resolveBody));
+check("the list still asks for a note, and a blank one from the review records what happened rather than nothing", /name="note"[\s\S]{0,300}required/.test(readFileSync(new URL("../components/issues/resolve-issue.tsx", import.meta.url), "utf8")) && /RESOLVED_DURING_REVIEW/.test(actions));
 check("the list offers Mark resolved in place of a trip to the edit form", /<ResolveIssue/.test(readFileSync(new URL("../components/issues/issue-list.tsx", import.meta.url), "utf8")) && !/Resolve and close/.test(readFileSync(new URL("../components/issues/issue-list.tsx", import.meta.url), "utf8")));
 const prepare = readFileSync(new URL("../app/(app)/reports/prepare-actions.ts", import.meta.url), "utf8");
 check("Prepare Daily asks whether the notes resolved an open issue", /suggestResolvedIssues\(/.test(prepare));

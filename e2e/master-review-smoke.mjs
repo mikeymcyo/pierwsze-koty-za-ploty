@@ -429,6 +429,64 @@ check(
   /project_reference/.test(contextSource),
 );
 
+console.log("\n19. A finding about an issue can be acted on where it is found");
+const { linkWarningsToIssues, collapseIssueWarnings, actionableWarnings, describeActioned } = await import("../lib/reports/master-review.ts");
+const handles = [{ handle: "I1", id: "aaa-1" }, { handle: "I2", id: "aaa-2" }];
+const linked = linkWarningsToIssues(
+  [
+    { type: "contradiction", severity: "high", message: "Open in the tracker, resolved in the prose.", relatedSection: "", relatedIssue: "I1", suggestedIssue: "" },
+    { type: "wording", severity: "low", message: "Also mentions the same snag.", relatedSection: "", relatedIssue: "[i1]", suggestedIssue: "Should be ignored" },
+    { type: "missing", severity: "medium", message: "Nobody responsible.", relatedSection: "", relatedIssue: "I1", suggestedIssue: "" },
+    { type: "contradiction", severity: "medium", message: "Photo shows a live crack.", relatedSection: "", relatedIssue: "", suggestedIssue: "Cracking to plaster at door head" },
+    { type: "other", severity: "low", message: "Handle from nowhere.", relatedSection: "", relatedIssue: "I9", suggestedIssue: "" },
+  ],
+  handles,
+);
+check("a handle becomes the issue id", linked[0].relatedIssueId === "aaa-1");
+check("case and brackets are tolerated", linked[1].relatedIssueId === "aaa-1");
+check("a warning about a recorded issue never also proposes a new one", linked[1].suggestedIssue === null);
+check("a handle that was never handed out links to nothing", linked[4].relatedIssueId === null);
+check("a suggestion survives where no issue is named", linked[3].suggestedIssue === "Cracking to plaster at door head" && linked[3].relatedIssueId === null);
+const linkedReview = reconcileReview([], [], linked, "");
+check("the id and the suggestion reach the review", linkedReview.warnings[0].relatedIssueId === "aaa-1" && linkedReview.warnings[3].suggestedIssue === "Cracking to plaster at door head");
+const collapsed = collapseIssueWarnings(linkedReview.warnings);
+check("one actionable finding per issue: the contradiction stays, the wording note goes", collapsed.filter((w) => w.relatedIssueId === "aaa-1" && w.type !== "missing").length === 1 && collapsed.some((w) => w.message.startsWith("Open in the tracker")));
+check("a separate missing-information finding about the same issue is kept", collapsed.some((w) => w.relatedIssueId === "aaa-1" && w.type === "missing"));
+check("findings about no recorded issue are untouched", collapsed.filter((w) => !w.relatedIssueId).length === 2);
+check("order is preserved", collapsed[0].message.startsWith("Open in the tracker") && collapsed[collapsed.length - 1].message === "Handle from nowhere.");
+check("the higher severity wins a tie for the one slot", collapseIssueWarnings(reconcileReview([], [], [
+  { type: "wording", severity: "low", message: "a", relatedSection: "", relatedIssueId: "x" },
+  { type: "wording", severity: "high", message: "b", relatedSection: "", relatedIssueId: "x" },
+], "").warnings).map((w) => w.message).join() === "b");
+check("and a contradiction beats wording at equal severity", collapseIssueWarnings(reconcileReview([], [], [
+  { type: "wording", severity: "medium", message: "a", relatedSection: "", relatedIssueId: "x" },
+  { type: "contradiction", severity: "medium", message: "b", relatedSection: "", relatedIssueId: "x" },
+], "").warnings).map((w) => w.message).join() === "b");
+check("actionable means an issue to move or one to raise", actionableWarnings(collapsed).length === 3);
+check("the model is told to name the handle and raise one finding per issue", /ONE FINDING PER ISSUE/.test(MASTER_REVIEW_SYSTEM_PROMPT) && /relatedIssue/.test(MASTER_REVIEW_SYSTEM_PROMPT) && /at most ONE warning per recorded\s+issue/.test(MASTER_REVIEW_SYSTEM_PROMPT));
+check("and that a suggestion raises nothing by itself", /it raises\s+nothing by itself/.test(MASTER_REVIEW_SYSTEM_PROMPT) && /never treat a suggestion as recorded/.test(MASTER_REVIEW_SYSTEM_PROMPT));
+const modelCall = readFileSync(new URL("../lib/ai/master-review.ts", import.meta.url), "utf8");
+check("the reply schema carries the handle and the suggestion, and requires both", /relatedIssue: \{/.test(modelCall) && /suggestedIssue: \{/.test(modelCall) && /required: \["type", "severity", "message", "relatedSection", "relatedIssue", "suggestedIssue"\]/.test(modelCall));
+check("the reviewer is shown handles, never ids", /`\[I\$\{index \+ 1\}\] \$\{issue\.title\}`/.test(context) && /export function issueHandles/.test(context));
+check("the review action links handles to ids and collapses before anyone sees it", /linkWarningsToIssues\(result\.warnings, context\.issues\)/.test(actions) && /collapseIssueWarnings\(review\.warnings\)/.test(actions));
+const findings = readFileSync(new URL("../components/reports/review-findings.tsx", import.meta.url), "utf8");
+const issueActions = readFileSync(new URL("../app/(app)/issues/actions.ts", import.meta.url), "utf8");
+check("the controls are keep, in progress and resolve, on the finding", /Keep open/.test(findings) && /label="In progress"/.test(findings) && />\s*Resolve\s*</.test(findings.replace(/<Check aria-hidden \/>/g, "")));
+check("a resolved issue offers reopen, not resolve again", /label="Reopen"/.test(findings) && /Keep resolved/.test(findings));
+check("resolve goes through the issue list's own action", /resolveIssue\(previous, formData\)/.test(findings) && /setIssueStatusFromReview\(previous, formData\)/.test(findings) && /createIssue\(previous, formData\)/.test(findings));
+check("the resolution note is optional and the date defaults to today", /name="note"/.test(findings) && !/name="note"[^>]*required/.test(findings) && /name="resolvedOn"[\s\S]*defaultValue=\{today\(\)\}/.test(findings) && /max=\{today\(\)\}/.test(findings));
+check("a new issue is offered, never raised on its own", /Create issue/.test(findings) && /Not a live issue/.test(findings) && /onHandled\("ignored"\)/.test(findings));
+check("nothing moves an issue without a form a person submitted", (findings.match(/<form\s+action=/g) ?? []).length === 3 && !/useEffect/.test(findings));
+check("the review move never closes an issue", /z\.enum\(\["open", "in_progress"\]\)/.test(issueActions));
+check("a blank note records what happened, not a claim about the work", /resolution: parsed\.data\.note \|\| RESOLVED_DURING_REVIEW/.test(issueActions));
+const { RESOLVED_DURING_REVIEW, closedAtOn } = await import("../lib/issues/metadata.ts");
+check("and says so plainly", /marked resolved during the report review/i.test(RESOLVED_DURING_REVIEW));
+check("a resolved-on date is kept as that calendar date", closedAtOn("2026-09-13", null) === "2026-09-13T12:00:00.000Z" && closedAtOn("", "kept") === "kept");
+check("a future date is refused", /cannot be in the future/.test(issueActions));
+check("history is the table's own trigger, not a second system", !/from\("issue_events"\)/.test(issueActions) && !/issue_events/.test(findings));
+check("an issued report still refuses a review, so its snapshot cannot move", /if \(report\.status === "final"\) return \{ error: REVIEW_NEEDS_DRAFT \}/.test(actions));
+check("what was done is summed up in one line", describeActioned(["resolved", "kept", "created"]) === "1 issue resolved, 1 issue raised, 1 finding left as it was. Review again to confirm the report now reads clean." && describeActioned([]) === null && describeActioned(["kept"]) === "1 finding left as it was.");
+
 console.log("\n18. What the person is told when the model cannot answer");
 const { AI_OUT_OF_CREDIT, AI_KEY_REJECTED, describeAiFailure, isOutOfCredit } = await import("../lib/ai/failure.ts");
 const unreachable = "The AI service could not be reached. Your report is untouched - try again shortly.";

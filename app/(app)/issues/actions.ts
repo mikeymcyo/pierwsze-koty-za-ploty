@@ -4,7 +4,13 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { requireSessionContext } from "@/lib/auth/session";
-import { closedAtFor, hasRequiredResolution, isResolvedStatus } from "@/lib/issues/metadata";
+import {
+  RESOLVED_DURING_REVIEW,
+  closedAtFor,
+  closedAtOn,
+  hasRequiredResolution,
+  isResolvedStatus,
+} from "@/lib/issues/metadata";
 import { RESOLUTION_REQUIRED, fieldErrorsFrom } from "@/lib/issues/validation";
 import { safeReturnPath } from "@/lib/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -224,33 +230,75 @@ export async function setIssueStatus(formData: FormData) {
   // Closing needs a recorded resolution, so it goes through the edit screen.
   if (parsed.data.status === "closed") return;
 
+  const moved = await moveIssue(parsed.data.issueId, parsed.data.status, read(formData, "returnPath"));
+  if (moved.error) throw new Error(moved.error);
+}
+
+export type IssueMoveState = { error?: string; status?: "open" | "in_progress" };
+
+/**
+ * The same move, from a finding on the whole-report review.
+ *
+ * Returns its outcome rather than throwing, because the review panel keeps
+ * the finding on the screen until the issue has actually moved and needs to
+ * know when it has. Closing is not offered here either: that is resolveIssue,
+ * with its note.
+ */
+export async function setIssueStatusFromReview(
+  _previous: IssueMoveState,
+  formData: FormData,
+): Promise<IssueMoveState> {
+  const parsed = z
+    .object({ issueId: z.uuid(), status: z.enum(["open", "in_progress"]) })
+    .safeParse({
+      issueId: read(formData, "issueId"),
+      status: read(formData, "status"),
+    });
+  if (!parsed.success) return { error: "That issue could not be moved." };
+
+  const moved = await moveIssue(parsed.data.issueId, parsed.data.status, read(formData, "returnPath"));
+  return moved.error ? { error: moved.error } : { status: parsed.data.status };
+}
+
+/**
+ * One place that moves an issue between open and in progress.
+ *
+ * The status trigger on the table (`issues_record_event`) writes the
+ * issue_events row, so history is kept however the move was asked for.
+ */
+async function moveIssue(
+  issueId: string,
+  status: "open" | "in_progress",
+  returnPath: string,
+): Promise<{ error?: string }> {
   await requireSessionContext();
   const supabase = await createClient();
 
   const { data: existing } = await supabase
     .from("issues")
     .select("project_id, report_id, closed_at")
-    .eq("id", parsed.data.issueId)
+    .eq("id", issueId)
     .maybeSingle();
 
-  if (!existing) return;
+  if (!existing) return { error: "That issue could not be found." };
 
   const { error } = await supabase
     .from("issues")
     .update({
-      status: parsed.data.status,
-      closed_at: closedAtFor(parsed.data.status, existing.closed_at),
+      status,
+      closed_at: closedAtFor(status, existing.closed_at),
     })
-    .eq("id", parsed.data.issueId);
+    .eq("id", issueId);
 
-  if (error) throw new Error(`Could not update the issue: ${error.message}`);
+  if (error) return { error: `Could not update the issue: ${error.message}` };
 
   revalidatePath(`/projects/${existing.project_id}`);
   if (existing.report_id) revalidatePath(`/reports/${existing.report_id}`);
   // The screen it was pressed on - a Progress Report, say - which the issue
   // itself knows nothing about. Only a path on this application is accepted.
-  const returnTo = safeReturnPath(read(formData, "returnPath"));
+  const returnTo = safeReturnPath(returnPath);
   if (returnTo) revalidatePath(returnTo);
+  return {};
 }
 
 export type ResolveIssueState = { error?: string; resolved?: boolean };
@@ -260,8 +308,16 @@ const resolveSchema = z.object({
   note: z
     .string()
     .trim()
-    .min(1, "Say what was done")
     .max(500, "Keep the resolution to a sentence or two"),
+  /** YYYY-MM-DD, today by default, never in the future. */
+  resolvedOn: z
+    .union([z.string(), z.undefined(), z.null()])
+    .transform((value) => (value ?? "").trim())
+    .refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), "Pick a valid date")
+    .refine(
+      (value) => value === "" || value <= new Date().toISOString().slice(0, 10),
+      "The resolved date cannot be in the future",
+    ),
 });
 
 /**
@@ -282,6 +338,7 @@ export async function resolveIssue(
   const parsed = resolveSchema.safeParse({
     issueId: read(formData, "issueId"),
     note: read(formData, "note") ?? "",
+    resolvedOn: read(formData, "resolvedOn"),
   });
   if (!parsed.success) {
     return { error: parsed.error.issues[0]?.message ?? "Say what was done" };
@@ -302,8 +359,11 @@ export async function resolveIssue(
     .from("issues")
     .update({
       status: "closed",
-      resolution: parsed.data.note,
-      closed_at: closedAtFor("closed", existing.closed_at),
+      resolution: parsed.data.note || RESOLVED_DURING_REVIEW,
+      // A date chosen on the form wins; otherwise the existing stamp, or now.
+      closed_at: parsed.data.resolvedOn
+        ? closedAtOn(parsed.data.resolvedOn, existing.closed_at)
+        : closedAtFor("closed", existing.closed_at),
     })
     .eq("id", parsed.data.issueId);
   if (error) return { error: `Could not resolve the issue: ${error.message}` };

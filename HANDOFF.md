@@ -483,6 +483,58 @@ SDK threw it. No prompt, model, workflow or database change.
 Seen in the same query and not acted on: Daily 004 is issued with its
 notes and no written sections.
 
+### Master AI Review: a finding about an issue is acted on where it is found, 2026-09-13
+
+On the phone the review found the contradictions - an issue open in the
+tracker and resolved in the prose, a Completion claiming completion over
+an open issue, a photograph that looked like a live snag - and then left
+the person to go and find the issue somewhere else. Now the finding
+carries the issue's own controls.
+
+How the model names an issue: each recorded issue in the evidence is
+shown with a handle, `[I1]`, `[I2]`, and the reply schema requires
+`relatedIssue` (the handle or empty) and `suggestedIssue` (a title of at
+most eight words for a live snag no recorded issue carries, or empty).
+The model never sees an id; `linkWarningsToIssues` in
+`lib/reports/master-review.ts` turns a handle back into an id and drops
+one it was never given. The prompt says one finding per recorded issue,
+and `collapseIssueWarnings` enforces it: per issue the most severe
+non-gap finding (a contradiction beats wording at equal severity) plus at
+most one separate missing-information finding. Findings about no issue
+are untouched.
+
+On the screen (`components/reports/review-findings.tsx`): a finding about
+a recorded issue shows the issue's title and status with Keep open (or
+Keep in progress / Keep resolved), In progress, and Resolve; a resolved
+one offers Reopen. Resolve opens an optional note and a resolved-on date
+defaulting to today, never in the future, and goes through `resolveIssue`
+- the same action as the issue list - so the row, `closed_at` and the
+`issue_events` history (the table's own trigger) are the same whichever
+screen pressed it. A blank note records "Marked resolved during the
+report review." rather than a claim about the work. In progress goes
+through `setIssueStatusFromReview`, the issue list's move with a returned
+outcome, and can never close. A finding that reads as a new issue offers
+Create issue - `createIssue`, against this project and, on a Daily, this
+report, title on offer, priority to pick - or Not a live issue. Every
+outcome is a person's tap; the reviewer decides nothing, and the
+`ai_generated` and section rules are untouched.
+
+After an action the finding clears and one line sums up what was done
+("1 issue resolved, 1 finding left as it was. Review again to confirm
+the report now reads clean."). The review is not re-run automatically:
+that is another model call and another charge, and the report's own
+issue list has already refreshed under it. Review again re-reads the
+document against the issues as they now stand. Issued reports still
+refuse a review, so a snapshot cannot move. No migration: no new table,
+column or policy.
+
+Pinned in `e2e/master-review-smoke.mjs` section 19: handle linking and
+the unknown-handle case, collapsing, the prompt and schema, the controls
+and which actions they use, optional note and today's date, the
+resolved-on instant, no close from the move, no auto-resolve, no second
+history system, and the issued-report refusal. Not driven on a phone in
+this session; the field test is the check.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one

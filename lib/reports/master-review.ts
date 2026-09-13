@@ -34,6 +34,40 @@ export type ReviewWarning = {
   message: string;
   /** The section it concerns, where the reviewer named one we recognise. */
   relatedSection: string | null;
+  /**
+   * The recorded issue it is about, where the reviewer named one we handed
+   * it. This is what makes a finding actionable: the controls on the finding
+   * move this issue, through the same lifecycle as anywhere else.
+   */
+  relatedIssueId: string | null;
+  /**
+   * A short title for a possible new issue the prose or a photograph
+   * reveals and no recorded issue carries. Offered to a person as "Create
+   * issue"; nothing is raised until they say so.
+   */
+  suggestedIssue: string | null;
+};
+
+/** A recorded issue as the review knows it, for the controls on a finding. */
+export type ReviewIssue = {
+  id: string;
+  title: string;
+  status: string;
+};
+
+/**
+ * The reviewer's warning as it comes back, before the issue handle it names
+ * has been turned into an id. Handles are what the model is shown - "I1",
+ * "I2" - so a warning can point at an issue without the model ever seeing,
+ * or being able to invent, a database id.
+ */
+export type ProposedWarning = {
+  type: string;
+  severity: string;
+  message: string;
+  relatedSection: string | null;
+  relatedIssue?: string | null;
+  suggestedIssue?: string | null;
 };
 
 export type MasterReview = {
@@ -82,7 +116,7 @@ function normaliseText(value: string | null | undefined): string {
 export function reconcileReview(
   current: readonly CurrentSection[],
   proposed: readonly ProposedSection[],
-  warnings: readonly ReviewWarning[],
+  warnings: readonly (ProposedWarning | ReviewWarning)[],
   assessment: string,
 ): MasterReview {
   const byType = new Map(proposed.map((entry) => [entry.sectionType, entry]));
@@ -118,16 +152,147 @@ export function reconcileReview(
     warnings: warnings
       .filter((warning) => normaliseText(warning.message).length > 0)
       .map((warning) => ({
-        type: WARNING_TYPES.includes(warning.type) ? warning.type : "other",
-        severity: SEVERITIES.includes(warning.severity) ? warning.severity : "medium",
+        type: WARNING_TYPES.includes(warning.type as ReviewWarningType)
+          ? (warning.type as ReviewWarningType)
+          : "other",
+        severity: SEVERITIES.includes(warning.severity as ReviewSeverity)
+          ? (warning.severity as ReviewSeverity)
+          : "medium",
         message: normaliseText(warning.message),
         relatedSection:
           warning.relatedSection && known.has(warning.relatedSection)
             ? warning.relatedSection
             : null,
+        relatedIssueId:
+          "relatedIssueId" in warning && typeof warning.relatedIssueId === "string"
+            ? warning.relatedIssueId
+            : null,
+        suggestedIssue: normaliseText(
+          "suggestedIssue" in warning && typeof warning.suggestedIssue === "string"
+            ? warning.suggestedIssue
+            : null,
+        ) || null,
       })),
     assessment: normaliseText(assessment),
   };
+}
+
+const SEVERITY_RANK: Record<ReviewSeverity, number> = { high: 0, medium: 1, low: 2 };
+
+/**
+ * Turns the handles the model was shown into the ids the controls need.
+ *
+ * A handle we did not hand out is dropped rather than guessed at: a finding
+ * that moves the wrong issue is worse than one with no controls. A warning
+ * that names a recorded issue cannot also propose a new one - the recorded
+ * issue is the one to act on - so the suggestion is cleared in that case.
+ */
+export type LinkedWarning = ProposedWarning & { relatedIssueId: string | null };
+
+export function linkWarningsToIssues(
+  warnings: readonly ProposedWarning[],
+  issues: readonly { handle: string; id: string }[],
+): LinkedWarning[] {
+  const byHandle = new Map(issues.map((issue) => [issue.handle.trim().toUpperCase(), issue.id]));
+  return warnings.map((warning) => {
+    const handle = (warning.relatedIssue ?? "").trim().replace(/^\[|\]$/g, "").toUpperCase();
+    const relatedIssueId = handle ? (byHandle.get(handle) ?? null) : null;
+    return {
+      type: warning.type,
+      severity: warning.severity,
+      message: warning.message,
+      relatedSection: warning.relatedSection,
+      relatedIssueId,
+      suggestedIssue: relatedIssueId ? null : (warning.suggestedIssue ?? null),
+    };
+  });
+}
+
+/**
+ * One actionable finding per recorded issue.
+ *
+ * A reviewer given an issue that is open in the tracker, resolved in the
+ * prose and pictured in a photograph tends to raise three warnings about it,
+ * and a person on a phone then reads the same contradiction three times
+ * before they can act once. Per issue this keeps the most severe finding
+ * that is not a gap (a contradiction outranks wording at equal severity),
+ * plus at most one genuinely separate missing-information finding. Findings
+ * about no recorded issue are untouched, and order is otherwise preserved.
+ */
+export function collapseIssueWarnings(warnings: readonly ReviewWarning[]): ReviewWarning[] {
+  const kept: ReviewWarning[] = [];
+  const chosen = new Map<string, { actionable?: ReviewWarning; missing?: ReviewWarning }>();
+  for (const warning of warnings) {
+    if (!warning.relatedIssueId) {
+      kept.push(warning);
+      continue;
+    }
+    const slot = chosen.get(warning.relatedIssueId) ?? {};
+    const key = warning.type === "missing" ? "missing" : "actionable";
+    const holder = slot[key];
+    const better =
+      !holder ||
+      SEVERITY_RANK[warning.severity] < SEVERITY_RANK[holder.severity] ||
+      (SEVERITY_RANK[warning.severity] === SEVERITY_RANK[holder.severity] &&
+        warning.type === "contradiction" &&
+        holder.type !== "contradiction");
+    if (better) {
+      if (holder) kept.splice(kept.indexOf(holder), 1, warning);
+      else kept.push(warning);
+      slot[key] = warning;
+      chosen.set(warning.relatedIssueId, slot);
+    }
+  }
+  return kept;
+}
+
+/** What a person did about a finding, from the controls on it. */
+export type FindingOutcome =
+  | "kept"
+  | "in_progress"
+  | "reopened"
+  | "resolved"
+  | "created"
+  | "ignored";
+
+export const WARNING_HEADING: Record<ReviewWarningType, string> = {
+  contradiction: "Possible contradiction",
+  missing: "Missing information",
+  wording: "Wording",
+  other: "Worth a look",
+};
+
+/**
+ * One line after findings have been actioned.
+ *
+ * The review on the screen is a moment that has passed once an issue moves:
+ * the finding is cleared, the report's own issue list has already refreshed,
+ * and the honest next step is to read the document again - which is why the
+ * line says so rather than pretending the review re-ran itself.
+ */
+export function describeActioned(outcomes: readonly FindingOutcome[]): string | null {
+  const acted = outcomes.filter((outcome) => outcome !== "kept" && outcome !== "ignored");
+  const cleared = outcomes.length - acted.length;
+  if (outcomes.length === 0) return null;
+  const parts: string[] = [];
+  const count = (outcome: FindingOutcome, singular: string, plural: string) => {
+    const n = outcomes.filter((entry) => entry === outcome).length;
+    if (n > 0) parts.push(`${n} ${n === 1 ? singular : plural}`);
+  };
+  count("resolved", "issue resolved", "issues resolved");
+  count("in_progress", "issue marked in progress", "issues marked in progress");
+  count("reopened", "issue reopened", "issues reopened");
+  count("created", "issue raised", "issues raised");
+  if (cleared > 0) parts.push(`${cleared} ${cleared === 1 ? "finding" : "findings"} left as ${cleared === 1 ? "it was" : "they were"}`);
+  const summary = parts.join(", ");
+  return acted.length > 0
+    ? `${summary}. Review again to confirm the report now reads clean.`
+    : `${summary}.`;
+}
+
+/** Findings that carry a control: an issue to move, or one to raise. */
+export function actionableWarnings(warnings: readonly ReviewWarning[]): ReviewWarning[] {
+  return warnings.filter((warning) => warning.relatedIssueId || warning.suggestedIssue);
 }
 
 /** Every section the reviewer would actually change. */
