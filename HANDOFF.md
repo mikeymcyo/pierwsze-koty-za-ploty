@@ -372,6 +372,26 @@ says it. The lists read `site_address, postcode, location_directory,
 location_code` alongside the project name; no new column, no migration.
 Pinned in `e2e/navigation-smoke.mjs` section 8.
 
+### Tester-feedback regression sweep, 2026-09-13
+
+Twelve tester requirements checked against the branch. Eleven passed as
+they stood: one dictation area on a Daily with the AI result directly
+beneath its button; Progress and Survey have exactly two writing areas
+and Completion three, each with Dictate (`GroupEditor` returns null for
+the empty evidence group on Progress and Survey); captions and statuses
+autosave with no Save button; the photo prompt names the work, element,
+defect or document rather than narrating the frame; photographs start
+unmarked except on a survey (Before); the reporting period is optional on
+creation; the Daily opens on View report and Share PDF when issued; Share
+sits in the viewer header; grip reordering is proved; report cards carry
+their place. The one fix: an issued Progress, Completion or Survey kept
+its View report / Share PDF card at the foot of the page under three
+prose sections, with an "issued and no longer editable" banner at the top
+saying nothing actionable. The card is now the first thing on an issued
+consolidated report, exactly as on the Daily, and the banner is gone; a
+draft keeps it at the end. Pinned in `e2e/what-you-see-smoke.mjs` next
+to the Daily's pin. No migration.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one

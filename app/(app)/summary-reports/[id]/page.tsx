@@ -350,6 +350,34 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
     });
   };
 
+  // View report and Share PDF for an issued document; Preview and Finalise
+  // for a draft. Issued, it is the first thing on the screen - the record is
+  // what somebody opened an issued report for, not the prose above it. A
+  // draft keeps it at the end, after the sections it issues.
+  const finaliseCard = (
+    <SummaryFinalise
+      reportId={id}
+      status={report.status}
+      hasPdf={Boolean(report.pdf_path)}
+      documentCount={referencedDocuments.length}
+      finalisedAt={formatDate(report.finalised_at)}
+      // Only the curated photographs: the cover has to be one of the
+      // plates this report actually prints.
+      photos={photos
+        .filter((photo) => photo.selected)
+        .map((photo) => ({
+          id: photo.id,
+          url: photo.url,
+          label: photoPrintLabelText(photo),
+        }))}
+      shareName={issuedPdfFileName(
+        SUMMARY_KIND_LABELS[report.kind],
+        formatReportNumber(report.number),
+        report.finalised_at,
+      )}
+    />
+  );
+
   return (
     <div className="flex flex-col gap-6">
       <Button asChild variant="ghost" size="sm" className="-ml-3 self-start">
@@ -392,7 +420,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
         </p>
       ) : null}
 
-      {isFinal ? <Alert tone="info">This document has been issued and is no longer editable.</Alert> : null}
+      {isFinal && !loadError ? finaliseCard : null}
       {loadError ? <LoadError what="this report's contents" code={loadError.code} /> : null}
 
       {/* One. What the document says overall, then the record of how it was
@@ -652,29 +680,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
         />
       ) : null}
 
-      {!loadError ? (
-        <SummaryFinalise
-          reportId={id}
-          status={report.status}
-          hasPdf={Boolean(report.pdf_path)}
-          documentCount={referencedDocuments.length}
-          finalisedAt={formatDate(report.finalised_at)}
-          // Only the curated photographs: the cover has to be one of the
-          // plates this report actually prints.
-          photos={photos
-            .filter((photo) => photo.selected)
-            .map((photo) => ({
-              id: photo.id,
-              url: photo.url,
-              label: photoPrintLabelText(photo),
-            }))}
-          shareName={issuedPdfFileName(
-            SUMMARY_KIND_LABELS[report.kind],
-            formatReportNumber(report.number),
-            report.finalised_at,
-          )}
-        />
-      ) : null}
+      {!isFinal && !loadError ? finaliseCard : null}
 
       <div className="border-t border-line pt-6">
         <DeleteSummaryReport reportId={id} status={report.status} label={label} />

@@ -172,6 +172,7 @@ check("the section hints are off on the Daily", (dailyPage.match(/<ReportSection
 check("photographs are one button on the Daily", /reportId=\{report\.id\}\s*simple\s*\/>/.test(dailyPage));
 check("Master Review is in the open, before Finalise, not under More tools", !/More tools/.test(dailyPage) && dailyPage.indexOf("<MasterReviewPanel") < dailyPage.indexOf("{isFinal || loadError ? null : finaliseCard}"));
 check("an issued report opens on View report and Share PDF", /\{isFinal && !loadError \? finaliseCard : null\}/.test(dailyPage) && dailyPage.indexOf("finaliseCard : null") < dailyPage.indexOf("<ReportSectionCard group={summaryGroup}"));
+check("so does an issued Progress, Completion or Survey", /\{isFinal && !loadError \? finaliseCard : null\}/.test(summaryPage) && summaryPage.indexOf("{isFinal && !loadError ? finaliseCard : null}") < summaryPage.indexOf("<ReportSectionCard") && summaryPage.indexOf("{!isFinal && !loadError ? finaliseCard : null}") > summaryPage.indexOf("<MasterReviewPanel") && !/no longer editable/.test(summaryPage));
 check("a draft offers Preview then Finalise", (() => { const i = finaliseFile.indexOf('"Preview"'); const j = finaliseFile.indexOf("<FinaliseButton"); return i > 0 && j > i; })());
 check("the presentation chooser folds, with what will issue on the fold", /<details[\s\S]*?describePresentation\(\{ style, hasCover: Boolean\(cover\), photoCount: photos\.length \}\)[\s\S]*?<PdfPresentation/.test(finaliseFile));
 check("Cancel is gone from the notes form", !/cancelHref/.test(captureForm) && !/cancelHref/.test(dailyPage));
