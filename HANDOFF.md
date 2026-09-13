@@ -392,6 +392,65 @@ consolidated report, exactly as on the Daily, and the banner is gone; a
 draft keeps it at the end. Pinned in `e2e/what-you-see-smoke.mjs` next
 to the Daily's pin. No migration.
 
+### The dashboard on a real iPhone: the token is verified locally, 2026-09-13 - `1a5d8d1`
+
+The owner reported the shell arriving quickly and the dashboard sitting
+on its skeleton on a physical iPhone. Diagnosed from the Supabase request
+logs for the owner's own three loads that morning (06:57, 09:16 and 09:34
+UTC), not from emulation. All three were "open after an hour away", so
+the middleware refreshed the expired token; all three hit a cold Vercel
+function, because nobody uses the deployment between the owner's visits.
+The 09:16 load, the worst, spent on the server before any phone network
+time: token refresh 1.06 s, middleware `getUser` 0.36 s, a 0.9 s gap
+before the page function sent its first query (cold start), the page's
+own `getUser` 0.06 s, then the session and dashboard queries at 0.45-0.55
+s each against a cold free-tier database - about 2.9 s. The 09:34 load
+also took a PostgREST 401 (`PGRST303`, "JWT not yet valid") on a token
+minted 1.2 s earlier, which the clock-skew retry cleared 0.8 s later;
+06:57 had the same on the reports query. Every screen also fires fifteen
+link prefetches (two waves, two navs) through the middleware, each a
+`getUser` round trip; during the 09:34 burst the auth server slowed to
+300-750 ms per call and the page's own `getUser` queued 299 ms behind
+them. Warm, twenty seconds later, every query was 19-32 ms and content
+was ready in about 0.2 s: nothing here is a slow query, it is sequential
+network hops at their worst on a cold open.
+
+Fix: `lib/supabase/proxy.ts` and `lib/auth/session.ts` verify the JWT
+locally with `getClaims()` - an ES256 signature check with WebCrypto
+against the project's signing key, fetched from
+`/auth/v1/.well-known/jwks.json` once and cached per instance for ten
+minutes - instead of `getUser()`'s round trip on every request. An
+expired token is still refreshed at the auth server, exactly as before.
+That removes one sequential hop from the middleware and one from the
+page on every load, and takes the prefetch storm off the auth server
+entirely. If local verification is unavailable the middleware asks the
+auth server as it used to, so an outage cannot sign anybody out. The
+`SessionContext.user` object (unused) is gone; `userId` and `email` come
+from the claims. Pinned in `e2e/navigation-smoke.mjs` section 7. No
+schema change, no change to the skeleton or to what any screen shows.
+
+Not changed, and still on the path of a cold morning open: the auth
+server's own refresh time (0.5-1.1 s), the Vercel function cold start
+(0.6-0.9 s, every visit hours apart on a deployment nobody else uses),
+and the free-tier database's first queries after idle (0.35-0.55 s).
+The Vercel toolbar's preflight OPTIONS requests and the OPTIONS on the
+custom domain are Preview-only overhead that goes away on a Production
+target. Fifteen prefetches per screen are Next.js behaviour with a
+loading boundary and two navs; they are now cheap server-side.
+
+Retested on the deployment of `1a5d8d1` from an iPhone viewport through
+the local streaming proxy (which adds about 0.4 s to every figure) with a
+throwaway tenant, the auth cookie rewritten to an expired token for the
+"morning open" cases: expired token, warm cache 1.19 s -> 0.89 s to
+content; valid token, warm 0.98-1.31 s -> 0.75-0.81 s, and on the last
+load the content arrived with the shell and no skeleton was ever shown;
+expired token, cold cache 1.24 s -> 1.26 s (the browser cache, not the
+server, sets that one). Across five dashboard loads and seventy-five
+prefetches the Supabase logs show zero calls to `/auth/v1/user`, three
+fetches of the key set at up to 18 ms (one per fresh instance), no 401s.
+The probe is `dash-probe.mjs` in the session scratchpad; its throwaway
+tenant was deleted afterwards and verified gone.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one
