@@ -233,6 +233,9 @@ check("access is still decided before any page renders", /requireSessionContext\
 check("the dashboard reads alongside the session, not after it", /await Promise\.all\(\[\s*requireSessionContext\(\),/.test(dashboard));
 check("there is a skeleton for the page to stream in behind", /animate-pulse/.test(read("../app/(app)/loading.tsx")));
 check("the function runs next to the database", /"regions": \["fra1"\]/.test(read("../vercel.json")));
+const proxySource = read("../lib/supabase/proxy.ts");
+check("the token is verified locally on every request, not by a round trip to the auth server", /auth\.getClaims\(\)/.test(proxySource) && /auth\.getClaims\(\)/.test(sessionSource) && !/await supabase\.auth\.getUser\(\);\s*\n\s*if \(!user\) return null/.test(sessionSource));
+check("but the auth server is still asked when local verification is unavailable", /catch \{[\s\S]*auth\.getUser\(\)/.test(proxySource));
 
 console.log("\n8. A report card says where it is");
 const tilbury = { displayName: "Tilbury", displayCode: "2158" };

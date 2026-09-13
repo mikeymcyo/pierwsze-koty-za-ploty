@@ -19,6 +19,30 @@ function isPublicPath(pathname: string) {
 }
 
 /**
+ * Who the request's token says it is, or null.
+ *
+ * getClaims verifies the ES256 signature with WebCrypto against the JWKS it
+ * caches per process. Should that verification be unavailable for any reason
+ * other than a bad or absent token - the key set could not be fetched, say -
+ * the auth server is asked directly, as it used to be on every request, so
+ * nobody is signed out by an outage that getUser would have survived.
+ */
+async function verifiedUser(
+  supabase: ReturnType<typeof createServerClient<Database>>,
+): Promise<{ id: string } | null> {
+  try {
+    const { data } = await supabase.auth.getClaims();
+    const sub = data?.claims.sub;
+    return typeof sub === "string" && sub ? { id: sub } : null;
+  } catch {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    return user ? { id: user.id } : null;
+  }
+}
+
+/**
  * Refreshes the Supabase session on every request and gates private routes.
  *
  * The response object must be the one returned to the framework: token refreshes
@@ -48,10 +72,14 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  // Revalidates the token with the auth server; do not replace with getSession().
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Verifies the token's signature locally against the project's signing
+  // keys (fetched once and cached for the life of the instance), refreshing
+  // it first when it has expired. Do not replace with getSession(): that
+  // reads the cookie without verifying it. getUser() stood here before and
+  // was a round trip to the auth server on every request - including the
+  // dozen link prefetches every screen fires - measured at 40 ms warm and
+  // 300-750 ms when those prefetches queued up behind one another.
+  const user = await verifiedUser(supabase);
 
   const { pathname, search } = request.nextUrl;
 
