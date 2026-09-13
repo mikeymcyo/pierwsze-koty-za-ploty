@@ -381,12 +381,12 @@ export default async function ProjectPage({
           <ul className="flex flex-col gap-3">
             {summaryReports.map((report) => (
               <li key={report.id}>
-                <SummaryRow report={{ ...report, projectName: null }} />
+                <SummaryRow report={{ ...report, projectName: null, place: null }} />
               </li>
             ))}
             {reports.map((report) => (
               <li key={report.id}>
-                <ReportRow report={{ ...report, projectName: null }} />
+                <ReportRow report={{ ...report, projectName: null, place: null }} />
               </li>
             ))}
           </ul>

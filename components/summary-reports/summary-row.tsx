@@ -23,6 +23,8 @@ export type SummaryReportRowData = {
   created_at: string;
   finalised_at: string | null;
   projectName: string | null;
+  /** "Tilbury · Store 2158", or the site address, or nothing. See lib/reports/report-place.ts. */
+  place: string | null;
 };
 
 /**
@@ -77,6 +79,9 @@ export function SummaryRow({ report }: { report: SummaryReportRowData }) {
       )}
     >
       <p className="truncate font-semibold text-ink">{name}</p>
+      {/* Where it is, straight under what it is. Omitted on the project's own
+          page like the project name, for the same reason. */}
+      {report.place ? <p className="truncate text-xs text-ink-subtle">{report.place}</p> : null}
       {/* The project is omitted on its own page, where naming it again says
           nothing. The period always earns its line. */}
       <p className="truncate text-sm text-ink-muted">

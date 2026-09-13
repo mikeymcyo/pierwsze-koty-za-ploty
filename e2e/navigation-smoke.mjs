@@ -24,6 +24,8 @@ import {
   tallyOpenIssues,
 } from "../lib/projects/row-summary.ts";
 import { MOBILE_NAV_ITEMS, NAV_ITEMS, isNavItemActive } from "../lib/navigation.ts";
+import { reportPlace } from "../lib/reports/report-place.ts";
+import { storeLabel } from "../lib/stores/project-link.ts";
 
 const failures = [];
 function check(label, ok, detail = "") {
@@ -231,6 +233,25 @@ check("access is still decided before any page renders", /requireSessionContext\
 check("the dashboard reads alongside the session, not after it", /await Promise\.all\(\[\s*requireSessionContext\(\),/.test(dashboard));
 check("there is a skeleton for the page to stream in behind", /animate-pulse/.test(read("../app/(app)/loading.tsx")));
 check("the function runs next to the database", /"regions": \["fra1"\]/.test(read("../vercel.json")));
+
+console.log("\n8. A report card says where it is");
+const tilbury = { displayName: "Tilbury", displayCode: "2158" };
+check("a linked store reads as the client quotes it", reportPlace({ site_address: "12 Dock Road" }, tilbury) === "Tilbury · Store 2158");
+check("and the same way the project page names it", reportPlace(null, tilbury) === storeLabel(tilbury));
+check("no store: the site address", reportPlace({ site_address: " 12 Dock Road, Tilbury ", postcode: null }, null) === "12 Dock Road, Tilbury");
+check("a postcode joins the address", reportPlace({ site_address: "12 Dock Road, Tilbury", postcode: "RM18 7EH" }, null) === "12 Dock Road, Tilbury, RM18 7EH");
+check("but not twice", reportPlace({ site_address: "12 Dock Road, Tilbury, RM18 7EH", postcode: "rm18 7eh" }, null) === "12 Dock Road, Tilbury, RM18 7EH");
+check("a postcode alone still says something", reportPlace({ site_address: "", postcode: "RM18 7EH" }, null) === "RM18 7EH");
+check("neither: nothing, not an empty line", reportPlace({ site_address: "  ", postcode: null }, null) === null && reportPlace(null, null) === null);
+const reportRow = read("../components/reports/report-row.tsx");
+const summaryRow = read("../components/summary-reports/summary-row.tsx");
+const reportsList = read("../app/(app)/reports/page.tsx");
+const projectPage = read("../app/(app)/projects/[id]/page.tsx");
+check("both rows carry the place as one light line under the title", /place: string \| null/.test(reportRow) && /place: string \| null/.test(summaryRow) && /report\.place \? <p className="truncate text-xs text-ink-subtle">\{report\.place\}<\/p> : null/.test(reportRow) && /report\.place \? <p className="truncate text-xs text-ink-subtle">\{report\.place\}<\/p> : null/.test(summaryRow));
+check("the place sits directly under the title", reportRow.indexOf("report.place ?") < reportRow.indexOf("report.projectName ?") && summaryRow.indexOf("report.place ?") < summaryRow.indexOf("report.projectName,"));
+check("the lists read the store link and the address with the project", (reportsList.match(/projects\(name, site_address, postcode, location_directory, location_code\)/g) ?? []).length === 2 && (dashboard.match(/projects\(name, site_address, postcode, location_directory, location_code\)/g) ?? []).length === 2);
+check("and resolve the store from the shipped directory, never a new column", /placeOfProject\(project\)/.test(reportsList) && /placeOfProject\(project\)/.test(dashboard) && /storeFor\(link\.directory, link\.code\)/.test(read("../lib/projects/place.ts")));
+check("a project's own page does not repeat its place on every row", (projectPage.match(/projectName: null, place: null/g) ?? []).length === 2);
 
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL NAVIGATION CHECKS PASSED");

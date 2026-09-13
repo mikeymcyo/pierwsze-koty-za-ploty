@@ -9,6 +9,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
+import { placeOfProject } from "@/lib/projects/place";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,10 +20,10 @@ export default async function ReportsPage() {
   const supabase = await createClient();
   const [dailyResult, summaryResult] = await Promise.all([
     withClockSkewRetry(() =>
-      supabase.from("reports").select("id, report_number, report_date, status, created_at, finalised_at, projects(name)").order("report_date", { ascending: false }).order("report_number", { ascending: false }),
+      supabase.from("reports").select("id, report_number, report_date, status, created_at, finalised_at, projects(name, site_address, postcode, location_directory, location_code)").order("report_date", { ascending: false }).order("report_number", { ascending: false }),
     ),
     withClockSkewRetry(() =>
-      supabase.from("summary_reports").select("id, kind, number, revision, title, period_start, period_end, status, created_at, finalised_at, projects(name)").order("created_at", { ascending: false }),
+      supabase.from("summary_reports").select("id, kind, number, revision, title, period_start, period_end, status, created_at, finalised_at, projects(name, site_address, postcode, location_directory, location_code)").order("created_at", { ascending: false }),
     ),
   ]);
   const error = dailyResult.error ?? summaryResult.error;
@@ -61,7 +62,7 @@ export default async function ReportsPage() {
                   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
                   return (
                     <li key={report.id}>
-                      <SummaryRow report={{ ...report, projectName: project?.name ?? null }} />
+                      <SummaryRow report={{ ...report, projectName: project?.name ?? null, place: placeOfProject(project) }} />
                     </li>
                   );
                 })}
@@ -79,7 +80,7 @@ export default async function ReportsPage() {
                   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
                   return (
                     <li key={report.id}>
-                      <ReportRow report={{ ...report, projectName: project?.name ?? null }} />
+                      <ReportRow report={{ ...report, projectName: project?.name ?? null, place: placeOfProject(project) }} />
                     </li>
                   );
                 })}

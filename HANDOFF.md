@@ -339,6 +339,39 @@ are unchanged. Pins rewritten in `e2e/photo-order-smoke.mjs` (7c2 and the
 gesture block), `summary-photos-smoke.mjs`, `photo-rotation-smoke.mjs`.
 No migration.
 
+Proved on the real build (deployment of `20bda8b`, Chromium driving
+CDP touch events through the local proxy, iPhone 393 px and iPad 820 px):
+the grip is the only drag source and the only element with
+`touch-action: none`; mid-drag a dashed placeholder and an overlay are
+present; a drop is an insertion and reads "Order saved" with no error; the
+report grid shows the same order after a reload; six quick drags in a row
+end saved with the last order persisted; with 26 photographs a drag held
+at the top edge auto-scrolls the view to the top and the last photograph
+lands first; the iPad drag inserts and persists. After each run the
+`photos.sort_order` sequence in the database matched the screen order
+id-for-id. The two throwaway `Validation Co` tenants those runs created
+were deleted (storage as each tenant's own user, then rows by a guarded
+statement scoped to id and name); nothing named Validation remains, and
+Empire Interiors' companies, projects and photographs are untouched.
+
+### Report cards say where they are, 2026-09-13
+
+A report card in a list now carries one light line straight under its
+title: the store the client quotes when the project is linked to one
+(`Tilbury · Store 2158`, resolved from the shipped directory by
+`storeFor`, the same way the project page names it), otherwise the
+project's site address with its postcode, otherwise nothing at all - no
+empty line. `lib/reports/report-place.ts` (pure) decides the line,
+`lib/projects/place.ts` resolves the store server-side, and the two rows
+(`components/reports/report-row.tsx`, `components/summary-reports/summary-row.tsx`)
+take `place: string | null`. Applied to the Reports list (Daily, Progress,
+Completion and Site Survey rows) and the dashboard's Recent reports cards.
+A project's own page passes `place: null`, the same rule as the project
+name there: every row would say the same thing, and the header already
+says it. The lists read `site_address, postcode, location_directory,
+location_code` alongside the project name; no new column, no migration.
+Pinned in `e2e/navigation-smoke.mjs` section 8.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one

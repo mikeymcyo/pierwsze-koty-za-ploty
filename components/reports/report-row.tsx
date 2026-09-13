@@ -17,6 +17,8 @@ export type DailyReportRowData = {
   created_at: string;
   finalised_at: string | null;
   projectName: string | null;
+  /** "Tilbury · Store 2158", or the site address, or nothing. See lib/reports/report-place.ts. */
+  place: string | null;
 };
 
 /**
@@ -74,6 +76,10 @@ export function ReportRow({ report }: { report: DailyReportRowData }) {
       <p className="truncate font-semibold text-ink">
         Daily Report {formatReportNumber(report.report_number)} · {formatDate(report.report_date)}
       </p>
+      {/* Where it is, straight under what it is: the store the client quotes,
+          or the address. Omitted, like the project, on the project's own
+          page, where every row would say the same thing. */}
+      {report.place ? <p className="truncate text-xs text-ink-subtle">{report.place}</p> : null}
       {/* Omitted on a project's own page, where naming it again says nothing. */}
       {report.projectName ? (
         <p className="truncate text-sm text-ink-muted">{report.projectName}</p>

@@ -26,6 +26,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { displayName, requireSessionContext } from "@/lib/auth/session";
 import { ISSUE_PRIORITY_LABELS, ISSUE_PRIORITY_TONES } from "@/lib/issues/metadata";
+import { placeOfProject } from "@/lib/projects/place";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 import { SUMMARY_KIND_LABELS } from "@/lib/summary-reports/sections";
@@ -56,7 +57,7 @@ export default async function DashboardPage() {
     withClockSkewRetry(() =>
       supabase
         .from("reports")
-        .select("id, report_number, report_date, status, projects(name)")
+        .select("id, report_number, report_date, status, projects(name, site_address, postcode, location_directory, location_code)")
         .order("report_date", { ascending: false })
         .order("report_number", { ascending: false })
         .limit(5),
@@ -64,7 +65,7 @@ export default async function DashboardPage() {
     withClockSkewRetry(() =>
       supabase
         .from("summary_reports")
-        .select("id, kind, number, title, period_start, period_end, status, created_at, projects(name)")
+        .select("id, kind, number, title, period_start, period_end, status, created_at, projects(name, site_address, postcode, location_directory, location_code)")
         .order("created_at", { ascending: false })
         .limit(5),
     ),
@@ -333,6 +334,9 @@ export default async function DashboardPage() {
                         <p className="truncate text-sm text-ink-muted">
                           {project?.name ?? "Unknown project"} · {report.period_start && report.period_end ? `${formatDate(report.period_start)} to ${formatDate(report.period_end)}` : "Whole project"}
                         </p>
+                        {placeOfProject(project) ? (
+                          <p className="truncate text-xs text-ink-subtle">{placeOfProject(project)}</p>
+                        ) : null}
                       </div>
                       <Badge tone={report.status === "final" ? "success" : "neutral"}>
                         {report.status === "final" ? "Issued" : "Draft"}
@@ -365,6 +369,9 @@ export default async function DashboardPage() {
                           {project?.name ?? "Unknown project"} ·{" "}
                           {formatDate(report.report_date)}
                         </p>
+                        {placeOfProject(project) ? (
+                          <p className="truncate text-xs text-ink-subtle">{placeOfProject(project)}</p>
+                        ) : null}
                       </div>
                       <Badge tone={report.status === "final" ? "success" : "neutral"}>
                         {report.status === "final" ? "Issued" : "Draft"}
