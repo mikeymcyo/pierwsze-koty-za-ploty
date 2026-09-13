@@ -451,6 +451,38 @@ fetches of the key set at up to 18 ms (one per fresh instance), no 401s.
 The probe is `dash-probe.mjs` in the session scratchpad; its throwaway
 tenant was deleted afterwards and verified gone.
 
+### An out-of-credit AI account says so, 2026-09-13
+
+At 13:00 UTC on the phone, Generate on a Completion draft (Progress 001,
+Dailies 003 and 004, two more Dailies as provenance) came back with "The
+AI service could not be reached". The Vercel runtime log for the server
+action `POST /summary-reports/27b36978-...` shows what actually happened:
+OpenAI answered both calls - the cleanup pass at 13:00:18 and the summary
+generation at 13:00:20 - within two seconds with HTTP 429,
+`type: insufficient_quota`, `code: credit_balance_exhausted`, "You have
+no credits remaining". The key was present and accepted (a missing key is
+refused before any call; a bad one is a 401). Payload size played no
+part: the five sources total about 7,800 characters, roughly 2,000
+tokens plus the fixed prompt. The draft stayed a draft with nine empty
+section rows, five source links, 125 photo links and one issue link; the
+source reports are untouched. Every model-backed feature shares that key
+and organisation, so all of them fail the same way until credit is added
+on the OpenAI billing page.
+
+The app's part: every AI entry point mapped anything other than a
+rejected key to "could not be reached". `lib/ai/failure.ts` (pure) now
+decides the message - out of credit (429 with OpenAI's quota type or
+code, or its words), then a rejected key, then the caller's own line
+naming what is safe - and the six handlers (`report-generation`,
+`summary-generation`, `master-review`, `photo-description`,
+`document-extraction`, `cleanup`) all go through it. A 429 rate limit is
+deliberately not read as a billing problem. Pinned in
+`e2e/master-review-smoke.mjs` section 18 with the error exactly as the
+SDK threw it. No prompt, model, workflow or database change.
+
+Seen in the same query and not acted on: Daily 004 is issued with its
+notes and no written sections.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one

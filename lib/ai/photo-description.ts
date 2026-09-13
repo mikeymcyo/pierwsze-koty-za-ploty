@@ -7,6 +7,7 @@ import {
   buildPhotoDescriptionPrompt,
   type PhotoDescriptionInput,
 } from "@/lib/ai/photo-prompt";
+import { describeAiFailure } from "@/lib/ai/failure";
 
 /**
  * Proposes a description for one photograph.
@@ -73,10 +74,10 @@ export async function describePhotograph(
     console.error("[siteboss] photo description failed:", cause);
     return {
       ok: false,
-      error:
-        cause instanceof Error && /api key|401|invalid/i.test(cause.message)
-          ? "The AI key was rejected. Check OPENAI_API_KEY."
-          : "The AI service could not be reached. Your photograph and caption are untouched - try again shortly.",
+      error: describeAiFailure(
+        cause,
+        "The AI service could not be reached. Your photograph and caption are untouched - try again shortly.",
+      ),
     };
   }
 }

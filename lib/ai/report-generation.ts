@@ -6,6 +6,7 @@ import { z } from "zod";
 import { SYSTEM_PROMPT, buildPrompt, type GenerationInput } from "@/lib/ai/prompt";
 import { DAILY_DRAFTED_SECTIONS } from "@/lib/report-sections";
 import type { ReportSectionType } from "@/types/database";
+import { describeAiFailure } from "@/lib/ai/failure";
 
 /**
  * Turns a site manager's dictated notes into report sections.
@@ -132,10 +133,10 @@ export async function generateSections(
     console.error("[siteboss] AI generation failed:", cause);
     return {
       ok: false,
-      error:
-        cause instanceof Error && /api key|401|invalid/i.test(cause.message)
-          ? "The AI key was rejected. Check OPENAI_API_KEY."
-          : "The AI service could not be reached. Your notes are saved - try again in a moment.",
+      error: describeAiFailure(
+        cause,
+        "The AI service could not be reached. Your notes are saved - try again in a moment.",
+      ),
     };
   }
 }

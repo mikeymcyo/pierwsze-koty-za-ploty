@@ -9,6 +9,7 @@ import {
   type MasterReviewInput,
 } from "@/lib/ai/master-review-prompt";
 import type { ProposedSection, ReviewWarning } from "@/lib/reports/master-review";
+import { describeAiFailure } from "@/lib/ai/failure";
 
 /**
  * Reviews an assembled report as one document.
@@ -177,10 +178,10 @@ export async function reviewReportAsWhole(
     console.error("[siteboss] master review failed:", cause);
     return {
       ok: false,
-      error:
-        cause instanceof Error && /api key|401|invalid/i.test(cause.message)
-          ? "The AI key was rejected. Check OPENAI_API_KEY."
-          : "The AI service could not be reached. Your report is untouched - try again shortly.",
+      error: describeAiFailure(
+        cause,
+        "The AI service could not be reached. Your report is untouched - try again shortly.",
+      ),
     };
   }
 }

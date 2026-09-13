@@ -429,6 +429,23 @@ check(
   /project_reference/.test(contextSource),
 );
 
+console.log("\n18. What the person is told when the model cannot answer");
+const { AI_OUT_OF_CREDIT, AI_KEY_REJECTED, describeAiFailure, isOutOfCredit } = await import("../lib/ai/failure.ts");
+const unreachable = "The AI service could not be reached. Your report is untouched - try again shortly.";
+// The error exactly as the OpenAI SDK threw it on 13 September 2026.
+const quota = Object.assign(new Error("429 You have no credits remaining. Add credits to continue using the API at https://platform.openai.com/settings/organization/billing/."), { status: 429, code: "credit_balance_exhausted", type: "insufficient_quota" });
+check("an exhausted credit balance is named as such", describeAiFailure(quota, unreachable) === AI_OUT_OF_CREDIT);
+check("and the message says where the fix is", /credit/i.test(AI_OUT_OF_CREDIT) && /billing/i.test(AI_OUT_OF_CREDIT) && /try again/i.test(AI_OUT_OF_CREDIT));
+check("the code alone is enough", isOutOfCredit({ status: 429, code: "credit_balance_exhausted" }) && isOutOfCredit({ type: "insufficient_quota" }));
+check("so are the words, from a plain Error", isOutOfCredit(new Error("insufficient_quota")) && isOutOfCredit(new Error("You have no credits remaining.")));
+check("a 429 rate limit is not a billing problem", describeAiFailure(Object.assign(new Error("429 Rate limit reached for gpt-5.5"), { status: 429, code: "rate_limit_exceeded", type: "requests" }), unreachable) === unreachable);
+check("a rejected key still says so", describeAiFailure(Object.assign(new Error("401 Incorrect API key provided"), { status: 401 }), unreachable) === AI_KEY_REJECTED);
+check("anything else is the caller's own line, naming what is safe", describeAiFailure(new Error("fetch failed"), unreachable) === unreachable && describeAiFailure(null, unreachable) === unreachable);
+for (const file of ["report-generation", "summary-generation", "master-review", "photo-description", "document-extraction", "cleanup"]) {
+  const source = readFileSync(new URL(`../lib/ai/${file}.ts`, import.meta.url), "utf8");
+  check(`${file} maps its failure through the one place`, /describeAiFailure\(/.test(source) && !/api key\|401\|invalid/.test(source));
+}
+
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL MASTER REVIEW CHECKS PASSED");
 else {

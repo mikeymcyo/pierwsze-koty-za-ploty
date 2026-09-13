@@ -14,6 +14,7 @@ import {
   type DocumentPage,
   type VerifiedExtraction,
 } from "@/lib/documents/extraction-schema";
+import { describeAiFailure } from "@/lib/ai/failure";
 
 /**
  * Reads one document and returns what it says, checked.
@@ -102,10 +103,10 @@ export async function extractFromDocument(
     console.error("[siteboss] document extraction failed:", cause);
     return {
       ok: false,
-      error:
-        cause instanceof Error && /api key|401|invalid/i.test(cause.message)
-          ? "The AI key was rejected. Check OPENAI_API_KEY."
-          : "The AI service could not be reached. The document is untouched - try again shortly.",
+      error: describeAiFailure(
+        cause,
+        "The AI service could not be reached. The document is untouched - try again shortly.",
+      ),
     };
   }
 }

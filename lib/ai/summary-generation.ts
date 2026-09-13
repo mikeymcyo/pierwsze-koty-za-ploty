@@ -11,6 +11,7 @@ import {
   summaryDraftedSectionsFor,
 } from "@/lib/summary-reports/sections";
 import type { SummaryReportKind, SummarySectionType } from "@/types/database";
+import { describeAiFailure } from "@/lib/ai/failure";
 
 export type SummaryGenerationInput = {
   kind: SummaryReportKind;
@@ -166,10 +167,10 @@ export async function generateSummarySections(
     console.error("[siteboss] summary generation failed:", cause);
     return {
       ok: false,
-      error:
-        cause instanceof Error && /api key|401|invalid/i.test(cause.message)
-          ? "The AI key was rejected. Check OPENAI_API_KEY."
-          : "The AI service could not be reached. Your source reports are safe - try again shortly.",
+      error: describeAiFailure(
+        cause,
+        "The AI service could not be reached. Your source reports are safe - try again shortly.",
+      ),
     };
   }
 }

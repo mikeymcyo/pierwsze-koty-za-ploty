@@ -12,6 +12,7 @@ import {
   type CleanupInput,
   type CleanupSections,
 } from "@/lib/ai/cleanup-prompt";
+import { describeAiFailure } from "@/lib/ai/failure";
 
 /**
  * The Cleanup AI call: raw or dictated site material in, professional section
@@ -95,7 +96,7 @@ export async function cleanupSections(
     // Logged, never surfaced: the caller carries on with the raw material, so
     // there is nothing here for the user to act on.
     console.error("[siteboss] AI cleanup failed:", cause);
-    return { ok: false, error: "The cleanup pass could not be reached." };
+    return { ok: false, error: describeAiFailure(cause, "The cleanup pass could not be reached.") };
   }
 }
 
