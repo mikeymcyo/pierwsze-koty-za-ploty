@@ -535,6 +535,131 @@ resolved-on instant, no close from the move, no auto-resolve, no second
 history system, and the issued-report refusal. Not driven on a phone in
 this session; the field test is the check.
 
+## Production cut-over: the runbook, and why it has not been done
+
+**Status on 2026-09-14: NOT CUT OVER. Blocked on two things this session
+cannot reach and one the owner must buy.** Everything below was verified,
+not assumed.
+
+### What is true right now
+
+- There is **no Production deployment at all**. The project reports
+  `live: false`, and both production URLs 404:
+  `pierwsze-koty-za-ploty-mikeymcyo.vercel.app` and
+  `pierwsze-koty-za-ploty-git-main-mikeymcyo.vercel.app`.
+- `app.sitebosspro.co.uk` serves the **branch Preview**, healthy, HTTP 200
+  out of `fra1`. It appears in each new preview's alias list, so the domain
+  is assigned to the git branch and follows its latest deployment.
+- **`main` is an empty tree.** `git ls-tree -r origin/main` returns zero
+  files; its five commits deleted an unrelated static site (`index.html`,
+  `gorilla.webp`). It shares no history with this branch - `main` is not an
+  ancestor of the head. So "deploy main to production" would today ship
+  nothing.
+- Deployment protection is **off** for every environment, so a Production
+  deployment would be publicly reachable with no extra step.
+- The **Vercel Preview toolbar is already absent**: the served HTML carries
+  no `vercel.live` script on `/login` or `/`. An earlier handoff note
+  claiming it loads on every page was wrong. Nothing to remove at cut-over.
+
+### Why this session could not perform the cut-over
+
+The Vercel MCP surface available here exposes projects, deployments, logs,
+analytics and protection - and **no tool for environment variables, domains
+or aliases, the production-branch setting, or promoting a deployment**.
+There is no Vercel CLI and no `VERCEL_TOKEN` in the container. The only
+production-capable tool is `deploy_to_vercel`, which uploads an inline file
+tree unlinked from git and addresses the project by name; using it would
+produce a Production deployment with no commit behind it, which is the
+opposite of a traceable cut-over.
+
+So step 3 of the owner's own plan - *confirm the three variables exist for
+Production* - cannot be satisfied from here, and a cut-over performed
+without satisfying it would be a guess. The owner asked to stop in exactly
+that case.
+
+### The runbook (Vercel dashboard, in this order)
+
+**0. Add OpenAI credit first.** Until then every model-backed feature fails
+on Production exactly as it does now, and "verify the OpenAI call works"
+cannot pass. See the out-of-credit section above.
+
+**1. Environment variables** - Settings, Environment Variables, scope
+**Production**. The names the code actually reads (`lib/env.ts`, and
+`.env.example` is the canonical list):
+
+| Variable | Value |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://anwzyzfgfcuxrrpuaxwk.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_CjOoOrKbbqTy14oM2MoJIQ_OrVw5B2e` |
+| `OPENAI_API_KEY` | the existing key - copy it within the Vercel dashboard, never through a chat |
+
+**The publishable key's name is `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, not
+`NEXT_PUBLIC_SUPA_PUBLISHABLE_KEY`.** A truncated name is not read, and the
+app then treats Supabase as unconfigured: `proxy.ts` redirects every route
+to the landing page and the site looks broken while every variable appears
+present. `NEXT_PUBLIC_SUPABASE_ANON_KEY` is accepted as an alternative.
+
+Also copy any of `OPENAI_MODEL`, `OPENAI_CLEANUP_MODEL`,
+`OPENAI_VISION_MODEL`, `OPENAI_BASE_URL` that are set on Preview. They are
+optional, but if Preview pins a model and Production does not, Production
+silently drafts on the built-in default instead.
+
+**2. Email callback links.** On Production `env.siteUrl` builds confirmation
+and password-reset links from `VERCEL_PROJECT_PRODUCTION_URL`, which is the
+`.vercel.app` production host, not the custom domain. If
+`app.sitebosspro.co.uk` is to be the canonical address, set
+`NEXT_PUBLIC_SITE_URL=https://app.sitebosspro.co.uk` for Production **and**
+add it under Supabase, Authentication, URL Configuration, Redirect URLs.
+Miss this and sign-up confirmation and password reset mail points at the
+wrong host.
+
+**3. Production branch.** Two ways, and the first is the smaller:
+
+- *(a) Recommended.* Settings, Git, Production Branch: set it to
+  `claude/siteboss-pro-react-441-diagnosis-bhvwk8`. One setting, no git
+  history touched, reversible by setting it back.
+- *(b)* Make `main` carry the code -
+  `git push origin HEAD:main --force` - and leave `main` as the production
+  branch. This rewrites the default branch of a public repository. Rollback
+  is `git push origin 6e5221c:main --force`.
+
+**4. Deploy.** Deployments, find the deployment for the head being shipped,
+Promote to Production. Or push one commit to whichever branch step 3 made
+the production branch.
+
+**5. Domain.** Settings, Domains, `app.sitebosspro.co.uk`: it is assigned to
+the git branch today. Reassign it to Production. Do this **last**, once the
+Production deployment is verified on its `.vercel.app` URL - that way the
+domain never points at an unverified build.
+
+**6. Verify on Production** before telling anybody: sign in; dashboard
+greeting and Site Capture button; start a capture and upload a photograph;
+Daily AI write-up; the Reports list; open an issued PDF and Share it; and
+one model call of any kind. Then cold and warm timings from a phone.
+
+### Rollback
+
+Each step undoes independently, and **nothing here touches the database**,
+so there is nothing to roll back there.
+
+- **Domain**: reassign `app.sitebosspro.co.uk` back to the git branch.
+  Traffic returns to the Preview in seconds. Preview deployments are
+  retained, so the current one stays the reference build.
+- **Deployment**: Deployments, Instant Rollback to the previous Production
+  deployment.
+- **Production branch**: set the setting back to `main`.
+- **Git**, only if route (b) was taken: `git push origin 6e5221c:main --force`.
+- **Environment variables**: deleting a Production variable cannot break
+  Preview; the scopes are separate.
+
+### What is still blocking a green Production
+
+1. No OpenAI credit, so no model-backed feature can be verified.
+2. No environment-variable, domain or promotion tooling in this session -
+   steps 1, 3, 4 and 5 are dashboard actions for the owner.
+3. Production has never been built once, so its first build is also its
+   first proof that the Production variable set is complete.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one
