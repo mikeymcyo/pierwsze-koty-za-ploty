@@ -36,8 +36,8 @@
  *
  * Uploading, Waiting for signal, Uploaded, Failed. Underneath there is one
  * more - `queued`, chosen and secured but not yet attempted - which is shown
- * as Uploading while a drain is running and as Waiting for signal when the
- * phone is offline. Nobody on site needs a fifth word.
+ * as Uploading whenever the phone is online, because it is about to be, and
+ * as Waiting for signal when it is not. Nobody on site needs a fifth word.
  */
 
 /** Where a photograph is in the queue. Never "uploaded": an uploaded photograph is removed. */
@@ -243,15 +243,19 @@ export function countPending(records: QueuedPhoto[]): number {
 /**
  * The state a photograph is shown in.
  *
- * `queued` is shown as Uploading while the queue is being drained - it is
- * next - and as Waiting for signal when the phone is offline, when nothing is.
+ * `queued` is shown as Uploading whenever the phone is online - it is about
+ * to be attempted - and as Waiting for signal when the phone is offline. A
+ * `waiting` one is backing off after a network fault; it reads as Uploading
+ * only while a drain is actually running.
  */
 export function displayState(record: QueuedPhoto, online: boolean, draining: boolean): UploadState {
   if (record.status === "failed") return "failed";
   if (!online) return "waiting";
   if (record.status === "uploading") return "uploading";
-  if (record.status === "waiting") return "waiting";
-  return draining ? "uploading" : "waiting";
+  if (record.status === "waiting") return draining ? "uploading" : "waiting";
+  // Queued and online: it is about to be attempted, whether or not the
+  // runner has picked it up in the last few milliseconds.
+  return "uploading";
 }
 
 /**
@@ -270,8 +274,11 @@ export function summariseQueue(
   const failed = records.length - pending.length;
 
   if (pending.length > 0) {
+    // Moving: a drain is running, or something is queued and online and so
+    // about to be. Only a queue made entirely of photographs backing off
+    // after a fault - or an offline phone - is Waiting for signal.
     const moving =
-      online && (draining || pending.some((record) => record.status === "uploading"));
+      online && (draining || pending.some((record) => record.status !== "waiting"));
     const state: UploadState = moving ? "uploading" : "waiting";
     const tail = failed > 0 ? ` · ${plural(failed, "failure")}` : "";
     return {

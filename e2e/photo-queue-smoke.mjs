@@ -217,12 +217,15 @@ check("a dead page's 'uploading' records are found", reconcileAfterRestart([reco
 console.log("\n4. What the screen shows");
 
 check("queued shows as Uploading while draining", displayState(record(1), true, true) === "uploading");
-check("and as Waiting for signal when nothing is running", displayState(record(1), true, false) === "waiting");
+check("and as Uploading between drains too, because it is about to be", displayState(record(1), true, false) === "uploading");
+check("a photograph backing off after a fault is Waiting for signal", displayState(record(1, { status: "waiting" }), true, false) === "waiting");
 check("everything is Waiting for signal offline", displayState(record(1, { status: "uploading" }), false, true) === "waiting");
 check("failed is Failed whatever else is true", displayState(record(1, { status: "failed" }), false, true) === "failed");
 check("an empty queue says nothing at all", summariseQueue([], true, true) === null);
 check("uploading says how many are to go", summariseQueue(twentyFive(), true, true)?.text === "Uploading · 25 to go");
 check("offline it waits for signal", summariseQueue(twentyFive(), false, false)?.text === "Waiting for signal · 25 to go");
+check("freshly secured and online it is Uploading even before the runner wakes", summariseQueue(twentyFive(), true, false)?.text === "Uploading · 25 to go");
+check("a queue of photographs all backing off is Waiting for signal", summariseQueue(twentyFive().map((r) => ({ ...r, status: "waiting", nextAttemptAt: 9e12 })), true, false)?.text === "Waiting for signal · 25 to go");
 check("failures ride along on the line", summariseQueue([record(1), record(2, { status: "failed" })], true, true)?.text === "Uploading · 1 to go · 1 failure");
 check("only failures left says so", summariseQueue([record(2, { status: "failed" })], true, false)?.text === "1 photo failed");
 check("a survey photograph belongs to its survey", targetKey(record(1, { summaryReportId: "s1" })) === "summary:s1" && targetHref(record(1, { summaryReportId: "s1" })) === "/summary-reports/s1");
