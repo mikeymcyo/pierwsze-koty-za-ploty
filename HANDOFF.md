@@ -4,7 +4,7 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Last updated:** 2026-09-06
+**Written:** 2026-08-26 · **Last updated:** 2026-09-16
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
 **Head:** `87733dd` - Supporting documents may be photographs; a photo becomes an A4 appendix page (plus the handoff commit on top of it)
@@ -688,6 +688,123 @@ and nothing that blocked the 14 September attempt has moved:
 The owner's instruction was to stop rather than improvise when the safe
 path is not available, and it is not. The runbook and rollback above stand
 as written. Nothing was changed on Vercel, Supabase or git for this check.
+
+### Photo upload resilience: secured on the phone first, 2026-09-16
+
+**The field issue.** On a real iPhone with poor reception, somebody chose
+twenty-five site photographs and could not tell whether locking the phone
+would lose them. Read from the code, it would have. The selection, the
+compressed bytes and the storage paths all lived in React state until each
+photograph had a row. iOS freezes a locked or backgrounded page within
+seconds and discards it under memory pressure; the page came back empty and
+nothing said the photographs had ever been chosen. The one guard, a
+`beforeunload` prompt, is not fired by iOS Safari at all, and was not even
+armed during the compression phase - which for twenty-five photographs was
+ten to twenty seconds of silence with no indicator, exactly when a phone
+gets locked.
+
+**What a web app on an iPhone can honestly promise.** Not background
+uploading: iOS gives a page no Background Sync and no Background Fetch, and
+`fetch keepalive` is capped at 64 KB. What it can promise is that nothing
+chosen is lost, uploads pause rather than fail, and they resume the next
+time SiteBoss is open. That is what was built.
+
+**How it works now.**
+
+- **Secure first.** The moment the picker returns, every chosen file is
+  written to IndexedDB (`siteboss-photo-queue`, store `photos`) in one
+  transaction, with the storage path minted for it - before compression,
+  before a byte goes over the air. The screen shows "Securing 25 photos…"
+  while the write runs and "25 photos secured · uploading…" only once the
+  transaction's `oncomplete` has fired, which is the commit. A phone that
+  refuses (no IndexedDB, a full one) is told "N photos could NOT be secured
+  on this phone (reason)"; those photographs are kept in memory and still
+  uploaded while the screen is open. `lib/photo-queue-store.ts`.
+- **One runner in the app shell.** `components/photos/photo-queue-runner.tsx`
+  is mounted in `app/(app)/layout.tsx` and drains the queue on mount, on the
+  `online` event, on `visibilitychange` to visible, on `focus` and `pageshow`,
+  when a photograph is secured, on the retry clock, and every 30 s as a
+  safety net. It takes a Web Lock (`siteboss-photo-queue`, `ifAvailable`) so
+  two tabs never work one photograph; without the API it falls back to a
+  per-tab flag. It asks `navigator.storage.persist()` once, feature-detected,
+  and records the answer without relying on it. The loop itself is
+  `lib/photo-queue-runner.ts`, pure, with every browser dependency injected.
+- **The order of the steps is the safety contract.** Mark `uploading`;
+  compress from the stored original (`lib/photo-compress.ts`, the same canvas
+  code and the same `lib/photo-quality.ts` rules as before); write the
+  photograph then its thumbnail to the bucket at the record's own path with
+  `upsert: true`; attach the row; and only when the attach reply confirms the
+  row is the record removed from the phone. Nothing is removed on the way in.
+- **Deadline.** Each network step runs under a 60 s `withTimeout` whose
+  AbortSignal is carried into the Supabase client's fetch, so a stalled
+  upload actually closes its socket rather than holding the phone's one good
+  connection. A stall is Waiting for signal, not a hang.
+- **Four states, and the classification.** Uploading, Waiting for signal,
+  Uploaded, Failed - `UPLOAD_STATE_LABELS` in `lib/photo-queue.ts`. A
+  network fault (offline, a stall, a 5xx, "Load failed", "Failed to fetch",
+  an abort) is Waiting for signal with 2 s, 4 s, 8 s … 60 s backoff and
+  retries itself. A rejection (an issued report, a refused path, a 4xx from
+  the bucket) is Failed with its reason and offers Retry and Remove; Remove
+  goes through the same inline `ConfirmAction` as every other destructive
+  action, because it discards secured evidence. Uploaded is said only after
+  the server confirmed the row. A freshly secured photograph on an online
+  phone reads as Uploading, because it is about to be.
+- **The honest notice**, shown whenever anything is pending on the screen:
+  "Keep SiteBoss open to finish uploading. If you leave or lock your phone,
+  your secured photos will continue next time you open SiteBoss."
+- **Never invisible.** On every signed-in screen the runner shows "N photos
+  waiting to upload" (a link to the screen they belong to) for photographs
+  whose own upload control is not on show; a screen with its own list
+  registers its target so the chip does not double-count.
+- **Duplicates.** The path is minted once and persisted with the bytes, the
+  bucket write is an upsert, and `attachPhoto` / `attachSummaryPhoto` still
+  refuse a second row for a path they already have. A retry after a lost
+  reply finds its row and the record leaves the phone.
+
+**Unchanged.** Compression and quality, the bucket layout and policies, the
+photos rows, the attach actions, reports and surveys, the PDF pipeline.
+Document upload is not part of this pass. **No migration.**
+
+**Proved offline** by `npm run test:photo-queue` (`e2e/photo-queue-smoke.mjs`):
+the runner is driven against a memory store and a scripted network through
+the ten scenarios asked for - the cut after ten of twenty-five, a page dead
+mid-upload reconstructed from the store, offline then online then resume, a
+lost attach reply retried onto the same path with one row, a stalled request
+aborted at the deadline, a store that refuses, a rejection that stays Failed.
+Every other suite, export parity, lint, typecheck and the build pass.
+
+**Proved on the real build** (Preview of the head, `93f9ade`,
+`dpl_8mvdWK2QAsq2Hoq3euGyrUn7F3jb`; Chromium as an iPhone, every request
+through a bridge that can be made to fail, hold or go offline; the same run
+passed on `08d3efd` first; tenants `Validation Co 17895…`, deleted
+afterwards):
+
+| Step | Result |
+| --- | --- |
+| 25 chosen | "Securing 25 photos…" then "25 photos secured · uploading…"; 25 records on the phone with original bytes and 25 distinct paths; secured in 48 ms |
+| Signal cut after the 6th object upload | 20 left on the phone, all Waiting for signal, none failed (the 6th object landed, its row did not - retried later onto the same path) |
+| Leave to the dashboard | "20 photos waiting to upload" |
+| Reload | same 20 |
+| Page closed, new page opened | queue reconstructed from the phone, same 20 |
+| Offline | chip says Waiting for signal; nothing lost or failed |
+| Signal back | remaining 20 uploaded on their own in 35.7 s; chip clears |
+| No duplicates | capture screen counts 25; database: 27 rows, 27 distinct paths at the end of the run |
+| Stalled upload held open | Uploading, then Waiting for signal at 60.09 s; released, the retry landed on the same path (26) |
+| IndexedDB removed before the page ran | "1 photo could NOT be secured on this phone (This browser has no local database)…"; still uploaded (27) |
+
+**What is still true and worth knowing.**
+
+- Nothing continues while the phone is locked. The notice says so.
+- Safari purges script-writable storage for a site not opened for seven
+  days; home-screen apps are exempt. The dashboard chip is what stops a
+  queue being forgotten in the meantime.
+- Records carry the company they were chosen under; a queue left by one
+  account and drained by another is refused by the attach action's path
+  check and shows as Failed with Remove. Not observed, noted for completeness.
+- The queue runs from the original bytes, so twenty-five 4 MB originals are
+  100 MB on the phone until uploaded. Safari allows far more than that per
+  origin; it is mentioned because it is the trade for "secured before
+  compression".
 
 ### Two photo layouts, and the page actually filled, 2026-09-16
 
