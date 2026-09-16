@@ -9,6 +9,12 @@ import {
   describePresentation,
   type PdfStyle,
 } from "@/lib/pdf/presentation";
+import {
+  PHOTO_LAYOUTS,
+  PHOTO_LAYOUT_DESCRIPTIONS,
+  PHOTO_LAYOUT_LABELS,
+  type PhotoLayout,
+} from "@/lib/pdf/photo-layout";
 import { cn } from "@/lib/utils";
 
 export type CoverChoice = {
@@ -38,12 +44,16 @@ export type CoverChoice = {
 export function PdfPresentation({
   style,
   onStyle,
+  layout,
+  onLayout,
   cover,
   onCover,
   photos,
 }: {
   style: PdfStyle;
   onStyle: (style: PdfStyle) => void;
+  layout: PhotoLayout;
+  onLayout: (layout: PhotoLayout) => void;
   cover: string | null;
   onCover: (id: string | null) => void;
   photos: CoverChoice[];
@@ -53,7 +63,12 @@ export function PdfPresentation({
       <div>
         <h3 className="font-medium text-ink">Presentation</h3>
         <p className="mt-1 text-sm text-ink-muted">
-          {describePresentation({ style, hasCover: Boolean(cover), photoCount: photos.length })}
+          {describePresentation({
+            style,
+            layout,
+            hasCover: Boolean(cover),
+            photoCount: photos.length,
+          })}
         </p>
       </div>
 
@@ -85,6 +100,42 @@ export function PdfPresentation({
           })}
         </div>
       </fieldset>
+
+      {/* Two arrangements, and only where there are photographs to arrange.
+          There is nothing else to set: the count and the shape of the
+          pictures decide the rest. See lib/pdf/photo-layout.ts. */}
+      {photos.length > 0 ? (
+        <fieldset className="flex flex-col gap-2">
+          <legend className="sr-only">Photo layout</legend>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {PHOTO_LAYOUTS.map((key) => {
+              const active = key === layout;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => onLayout(key)}
+                  className={cn(
+                    "flex min-h-(--ui-control-min) flex-col items-start gap-1 rounded-xl border p-3 text-left transition-colors",
+                    active
+                      ? "border-brand bg-brand-soft"
+                      : "border-line bg-surface hover:border-line-strong",
+                  )}
+                >
+                  <span className="flex w-full items-center justify-between gap-2">
+                    <span className="font-semibold text-ink">{PHOTO_LAYOUT_LABELS[key]}</span>
+                    {active ? (
+                      <Check className="size-4 shrink-0 text-brand-ink" aria-hidden />
+                    ) : null}
+                  </span>
+                  <span className="text-xs text-ink-muted">{PHOTO_LAYOUT_DESCRIPTIONS[key]}</span>
+                </button>
+              );
+            })}
+          </div>
+        </fieldset>
+      ) : null}
 
       {/* A report with no photographs has no cover to offer, and saying so in
           the line above is enough - an empty picker would only be a puzzle. */}

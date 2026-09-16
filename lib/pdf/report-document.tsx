@@ -14,6 +14,7 @@ import {
   GroupedProse,
   IssueRecord,
   PhotoGrid,
+  photoRowPlan,
   RunningFooter,
   RunningHeader,
   SectionHeading,
@@ -24,6 +25,7 @@ import {
 } from "@/lib/pdf/components";
 import { photoReference } from "@/lib/pdf/photo-evidence";
 import { pickCoverPhoto, type PdfStyle } from "@/lib/pdf/presentation";
+import type { PhotoLayout } from "@/lib/pdf/photo-layout";
 import { storeLine } from "@/lib/reports/site-identity";
 import { createPdfStyles, pdfTheme } from "@/lib/pdf/theme";
 import { APPENDIX_LABEL, appendixNote, groupSections } from "@/lib/report-structure";
@@ -108,6 +110,11 @@ export type ReportPdfData = {
    * cover - is the default and an entirely valid document.
    */
   coverPhotoId?: string | null;
+  /**
+   * How the plates are arranged. Absent means Standard, so every existing
+   * caller and fixture prints as it always did. See lib/pdf/photo-layout.ts.
+   */
+  photoLayout?: PhotoLayout;
 };
 
 /** "P01-P08", so the section says up front what it contains. */
@@ -120,6 +127,15 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
   // Built per render rather than at module load, because the style is now the
   // user's choice at the moment they issue the report.
   const theme = pdfTheme(data.style, "compact");
+  // The plates, and how they will be arranged, worked out once: the heading
+  // above them reserves room from the same plan the grid lays out.
+  const gridPhotos = data.photos.map((photo) => ({
+    id: photo.id,
+    label: photoPrintLabel(photo),
+    data: photo.data,
+    rotation: photo.rotation,
+  }));
+  const photoRows = photoRowPlan(gridPhotos, data.photoLayout, theme.plate);
   const s = createPdfStyles(theme);
   const c = theme.colors;
 
@@ -209,7 +225,7 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
             entries.length > 0
               ? 48
               : photos.length > 0
-                ? plateReserve(photos[0].data, theme.plate, photos[0].rotation)
+                ? plateReserve(photos[0].data, photoRows[0], photos[0].rotation)
                 : issues.length > 0
                   ? issueReserve(issues[0])
                   : 48;
@@ -241,16 +257,7 @@ export function ReportDocument({ data }: { data: ReportPdfData }) {
                 // often a single short issue - halfway up a page and left the
                 // rest blank. The grid flows, and each plate still holds its
                 // image and caption together.
-                <PhotoGrid
-                  s={s}
-                  bounds={theme.plate}
-                  photos={photos.map((photo) => ({
-                    id: photo.id,
-                    label: photoPrintLabel(photo),
-                    data: photo.data,
-                    rotation: photo.rotation,
-                  }))}
-                />
+                <PhotoGrid s={s} photos={gridPhotos} rows={photoRows} />
               ) : null}
             </Fragment>
           );

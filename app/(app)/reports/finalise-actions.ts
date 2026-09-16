@@ -10,6 +10,7 @@ import {
 import { loadDocumentAttachments } from "@/lib/pdf/document-attachments";
 import { mergeReportWithDocuments } from "@/lib/pdf/merge";
 import { coverPhotoIdOf, pdfStyleOf } from "@/lib/pdf/presentation";
+import { photoLayoutOf } from "@/lib/pdf/photo-layout";
 import { renderReportPdf } from "@/lib/pdf/render";
 import { reportSite } from "@/lib/reports/site-identity";
 import { storeFor } from "@/lib/stores/catalogue";
@@ -189,6 +190,7 @@ export async function finaliseReport(
       // anywhere: it is baked into the file being issued, which is the record.
       // Re-issuing a reopened report is where a different choice takes effect.
       style: pdfStyleOf(String(formData.get("pdfStyle") ?? "")),
+      photoLayout: photoLayoutOf(String(formData.get("photoLayout") ?? "")),
       coverPhotoId: coverPhotoIdOf(String(formData.get("coverPhoto") ?? "")),
     });
   } catch (cause) {

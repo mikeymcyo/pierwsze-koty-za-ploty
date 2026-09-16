@@ -412,7 +412,10 @@ for (const [name, file] of [
 }
 const parts = readFileSync(new URL("../lib/pdf/components.tsx", import.meta.url), "utf8");
 check("an issue record is kept whole", /style=\{\[s\.issue[^\]]*\]\} wrap=\{false\}/.test(parts));
-check("a photographic plate is kept whole", /style=\{s\.photoCell\} wrap=\{false\}/.test(parts));
+check(
+  "a photographic plate is kept whole",
+  /style=\{\[s\.photoCell,[\s\S]{0,120}?wrap=\{false\}/.test(parts),
+);
 check("a table row is kept whole", /style=\{s\.tableRow\} key=\{entry\.key\} wrap=\{false\}/.test(parts));
 check(
   "a column header travels with its first row",
@@ -500,8 +503,19 @@ for (const [name, count] of Object.entries(counts)) console.log(`     ${name}: $
 check("a daily report with nothing attached is one page", counts.dailyBare === 1);
 check("one photograph does not cost a second page", counts.dailyOnePhoto === 1, String(counts.dailyOnePhoto));
 check("three issues do not own a page each", counts.dailyIssuesOnly === 1, String(counts.dailyIssuesOnly));
-check("a full daily report stays short", counts.dailyMixed <= 2, String(counts.dailyMixed));
-check("twelve photographs stay within a daily report's budget", counts.dailyManyPhotos <= 3, String(counts.dailyManyPhotos));
+// These two moved by one page each on 2026-09-16, and deliberately. The plate
+// cap went from 190pt to 300 so that a portrait phone photograph - most of
+// what a site report carries - stops printing 127pt wide with half its column
+// white. It prints 200x300 instead, two and a half times the picture, and the
+// page goes from about a quarter covered to about half. A report that carries
+// photographs therefore costs a page more than it did: a 25-photo Daily is 8
+// pages rather than 7. That is the trade the budgets exist to make visible,
+// not one to hide - what they still forbid is a report silently doubling.
+// The reports where a photograph is incidental are unmoved: one photograph,
+// or one plate on a Progress Report, is still a single page, which is why
+// Standard never widens a plate to the full page. See lib/pdf/photo-layout.ts.
+check("a full daily report stays short", counts.dailyMixed <= 3, String(counts.dailyMixed));
+check("twelve photographs stay within a daily report's budget", counts.dailyManyPhotos <= 4, String(counts.dailyManyPhotos));
 check("a progress report with one plate is one page", counts.progress === 1, String(counts.progress));
 check("a completion report with six plates stays compact", counts.completion <= 3, String(counts.completion));
 
@@ -535,7 +549,7 @@ const boxHeight = Number(themeSource.match(/photoCaptionBox: \{ minHeight: (\d+)
 const reserved = Number(plateSource.match(/PLATE_CAPTION_HEIGHT = (\d+);/)?.[1]);
 check("the box is two lines of the caption's size", boxHeight >= 22 && boxHeight <= 24, String(boxHeight));
 check("and the pagination reserve is the same number", reserved === boxHeight, `${reserved} vs ${boxHeight}`);
-check("the reserve is what the heading measures against", /\+ PLATE_CHROME\s*\)/.test(plateSource));
+check("the reserve is what the heading measures against", /\+\s*PLATE_CHROME\s*\)/.test(plateSource));
 check("rows have more air below them than before", Number(themeSource.match(/photoCell: \{ width: "50%", paddingRight: 12, paddingBottom: (\d+) \}/)?.[1]) >= 14);
 check("the caption size itself is unchanged", /photoCaption: \{ fontSize: 8\.75,/.test(themeSource));
 

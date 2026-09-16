@@ -19,6 +19,10 @@
  * effect. Nothing about this needed a migration.
  */
 
+// Type-only, so nothing is imported at runtime and the picker can still use
+// this module in the browser without the renderer coming with it.
+import type { PhotoLayout } from "./photo-layout";
+
 export const PDF_STYLES = ["siteboss", "corporate", "photo"] as const;
 
 export type PdfStyle = (typeof PDF_STYLES)[number];
@@ -87,17 +91,24 @@ export function describePresentation(input: {
   style: PdfStyle;
   hasCover: boolean;
   photoCount: number;
+  layout?: PhotoLayout;
 }): string {
   const style = PDF_STYLE_LABELS[input.style];
   if (input.photoCount === 0) {
     return `${style} style. This report has no photographs, so it has no cover image.`;
   }
-  if (!input.hasCover) {
-    return `${style} style, opening on the report itself rather than on a photograph.`;
-  }
-  return input.style === "photo"
-    ? `${style} style, opening on your cover photograph at full width.`
-    : `${style} style, with your cover photograph across the head of the first page.`;
+  // What the arrangement will actually do to this many photographs, rather
+  // than the name of it - the name is on the button the reader just pressed.
+  const plates =
+    input.layout === "focus"
+      ? "The photographs print one or two to a page, as large as the paper allows."
+      : "The photographs print two to a row, filling the page.";
+  const cover = !input.hasCover
+    ? `${style} style, opening on the report itself rather than on a photograph.`
+    : input.style === "photo"
+      ? `${style} style, opening on your cover photograph at full width.`
+      : `${style} style, with your cover photograph across the head of the first page.`;
+  return `${cover} ${plates}`;
 }
 
 /**

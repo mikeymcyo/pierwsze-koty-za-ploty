@@ -6,6 +6,7 @@ import { displayName, requireSessionContext } from "@/lib/auth/session";
 import { loadDocumentAttachments } from "@/lib/pdf/document-attachments";
 import { mergeReportWithDocuments } from "@/lib/pdf/merge";
 import { coverPhotoIdOf, pdfStyleOf } from "@/lib/pdf/presentation";
+import { photoLayoutOf } from "@/lib/pdf/photo-layout";
 import { renderSummaryReportPdf } from "@/lib/pdf/summary-render";
 import { PDF_BUCKET } from "@/lib/pdf/signing";
 import { snapshotDocumentReferences } from "@/lib/documents/snapshot";
@@ -101,6 +102,7 @@ export async function finaliseSummaryReport(
       // anywhere: it is baked into the file being issued, which is the record.
       // Re-issuing a reopened report is where a different choice takes effect.
       style: pdfStyleOf(String(formData.get("pdfStyle") ?? "")),
+      photoLayout: photoLayoutOf(String(formData.get("photoLayout") ?? "")),
       coverPhotoId: coverPhotoIdOf(String(formData.get("coverPhoto") ?? "")),
     });
   } catch (cause) {

@@ -23,7 +23,13 @@ import {
   visibleDocumentColumns,
   type ResolvedDocument,
 } from "@/lib/documents/metadata";
-import { fitBox, imageSize, photoBoxHeight, photoBoxSize } from "@/lib/pdf/image-size";
+import { fitBox, imageSize, isPortrait, photoBoxHeight, photoBoxSize } from "@/lib/pdf/image-size";
+import {
+  DEFAULT_PHOTO_LAYOUT,
+  planPhotoRows,
+  type PhotoLayout,
+  type PhotoRowPlan,
+} from "@/lib/pdf/photo-layout";
 import { photoEvidence, printCaption, type PhotoEvidenceItem } from "@/lib/pdf/photo-evidence";
 import {
   plateCell,
@@ -624,11 +630,35 @@ export const PLATE_CHROME = 12 + 9 + PLATE_CAPTION_HEIGHT + 14;
  * with its first plate overleaf, or throw the heading forward and leave a hole
  * where two thirds of a plate would have fitted.
  */
-export function plateReserve(data: Buffer, bounds?: PlateBounds, rotation = 0): number {
-  // Measured on the photograph as it will appear: a turned portrait reserves
-  // the room a landscape plate needs, not the room it needed before the turn.
+export function plateReserve(data: Buffer, row: PhotoRowPlan, rotation = 0): number {
+  // Measured on the photograph as it will appear, in the row it will actually
+  // occupy: a turned portrait reserves the room a landscape plate needs, and a
+  // full-width first plate reserves the room a full-width plate needs.
   return (
-    photoBoxHeight(rotatedSize(imageSize(data), rotation), PHOTO_COLUMN_WIDTH, bounds) + PLATE_CHROME
+    photoBoxHeight(rotatedSize(imageSize(data), rotation), row.columnWidth, row.bounds) +
+    PLATE_CHROME
+  );
+}
+
+/**
+ * How the plates will be arranged, worked out once so the heading above them
+ * can reserve the right amount of room and the grid can lay them out the same
+ * way.
+ *
+ * The shape is read from the photograph as it will appear, after any rotation,
+ * because a portrait turned on its side is a landscape plate.
+ */
+export function photoRowPlan(
+  photos: readonly GridPhoto[],
+  layout: PhotoLayout = DEFAULT_PHOTO_LAYOUT,
+  bounds?: PlateBounds,
+): PhotoRowPlan[] {
+  return planPhotoRows(
+    photos.map((photo) => ({
+      portrait: isPortrait(rotatedSize(imageSize(photo.data), photo.rotation ?? 0)),
+    })),
+    layout,
+    bounds?.min,
   );
 }
 
@@ -651,15 +681,24 @@ export function PhotoPlate({
   data,
   bounds,
   rotation = 0,
+  cellWidth = "50%",
+  centred = false,
+  columnWidth = PHOTO_COLUMN_WIDTH,
 }: {
   s: PdfStyles;
   index: number;
   label: { caption: string | null; status: string | null };
   data: Buffer;
-  /** The Photo style prints its plates larger; the others use the defaults. */
+  /** How tall this plate may be printed. See lib/pdf/photo-layout.ts. */
   bounds?: PlateBounds;
   /** Quarter turns to apply while drawing. The file itself is never altered. */
   rotation?: number;
+  /** This plate's share of the row: half of it, or the whole width. */
+  cellWidth?: string;
+  /** Whether to centre the plate in that cell, which a lone one always is. */
+  centred?: boolean;
+  /** The width the photograph is fitted into inside that cell. */
+  columnWidth?: number;
 }) {
   const item: PhotoEvidenceItem = photoEvidence(label, index);
   const turn = normaliseRotation(rotation);
@@ -667,7 +706,7 @@ export function PhotoPlate({
   // The plate is measured on the photograph as it will appear, not as it is
   // stored: a portrait shot turned on its side is a landscape plate, and a box
   // measured before the turn would be a tall frame round a wide picture.
-  const box = photoBoxSize(rotatedSize(imageSize(data), turn), PHOTO_COLUMN_WIDTH, bounds);
+  const box = photoBoxSize(rotatedSize(imageSize(data), turn), columnWidth, bounds);
 
   // The image is drawn at its own orientation and then turned inside that box,
   // so for a quarter turn it is laid out with the box's dimensions swapped -
@@ -676,8 +715,15 @@ export function PhotoPlate({
     ? { width: box.height, height: box.width }
     : { width: box.width, height: box.height };
 
+  // A plate with the row to itself is centred, with its reference line and
+  // caption kept to the photograph's own width so the three read as one block
+  // rather than as a picture with a stray line under it.
   return (
-    <View style={s.photoCell} wrap={false}>
+    <View
+      style={[s.photoCell, { width: cellWidth }, centred ? { alignItems: "center" } : {}]}
+      wrap={false}
+    >
+      <View style={centred ? { width: box.width } : {}}>
       <View style={s.photoRefRow}>
         <View style={s.photoRefTick} />
         <Text style={s.photoRef}>{item.reference}</Text>
@@ -721,6 +767,7 @@ export function PhotoPlate({
           </Text>
         ) : null}
       </View>
+      </View>
     </View>
   );
 }
@@ -734,42 +781,55 @@ export type GridPhoto = {
 };
 
 /**
- * The photographic evidence, two plates to a row.
+ * The photographic evidence, arranged a row at a time.
  *
  * Rows are built here rather than left to `flexWrap`. react-pdf lays a
  * wrapping container out as a single block and splits it badly across a page
  * boundary - four plates came out two to a page with two thirds of each page
  * empty. A row at a time paginates like any other stack of blocks, and each
  * row is kept whole so a plate is never cut in half.
+ *
+ * How many plates a row holds and how tall they may be is decided by
+ * lib/pdf/photo-layout.ts from the chosen layout and the shape of the
+ * photographs. The order is never touched: the plan returns the indices in
+ * the order they were given, and P01 is still the first photograph.
  */
 export function PhotoGrid({
   s,
   photos,
   bounds,
+  layout = DEFAULT_PHOTO_LAYOUT,
+  rows,
 }: {
   s: PdfStyles;
   photos: GridPhoto[];
   bounds?: PlateBounds;
+  layout?: PhotoLayout;
+  /** The plan, where the caller already worked it out to reserve room. */
+  rows?: PhotoRowPlan[];
 }) {
-  const rows: GridPhoto[][] = [];
-  for (let index = 0; index < photos.length; index += 2) {
-    rows.push(photos.slice(index, index + 2));
-  }
+  const plan = rows ?? photoRowPlan(photos, layout, bounds);
   return (
     <>
-      {rows.map((row, rowIndex) => (
-        <View key={row[0].id} style={s.photoRow} wrap={false}>
-          {row.map((photo, column) => (
-            <PhotoPlate
-              key={photo.id}
-              s={s}
-              index={rowIndex * 2 + column}
-              label={photo.label}
-              data={photo.data}
-              bounds={bounds}
-              rotation={photo.rotation}
-            />
-          ))}
+      {plan.map((row) => (
+        <View key={photos[row.indexes[0]].id} style={s.photoRow} wrap={false}>
+          {row.indexes.map((index) => {
+            const photo = photos[index];
+            return (
+              <PhotoPlate
+                key={photo.id}
+                s={s}
+                index={index}
+                label={photo.label}
+                data={photo.data}
+                bounds={row.bounds}
+                cellWidth={row.cellWidth}
+                centred={row.centred}
+                columnWidth={row.columnWidth}
+                rotation={photo.rotation}
+              />
+            );
+          })}
         </View>
       ))}
     </>

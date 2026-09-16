@@ -12,6 +12,7 @@ import { ReopenReport } from "@/components/reports/report-lifecycle";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_PDF_STYLE, describePresentation, type PdfStyle } from "@/lib/pdf/presentation";
+import { DEFAULT_PHOTO_LAYOUT, type PhotoLayout } from "@/lib/pdf/photo-layout";
 import { describePackageChoice, documentsFlag } from "@/lib/reports/document-package";
 
 function FinaliseButton({ reissue }: { reissue: boolean }) {
@@ -62,7 +63,10 @@ export function FinaliseReport({
   // A different choice is deliberate, never the default.
   const [style, setStyle] = useState<PdfStyle>(DEFAULT_PDF_STYLE);
   const [cover, setCover] = useState<string | null>(null);
-  const presentation = `&style=${style}${cover ? `&cover=${cover}` : ""}`;
+  // Standard unless somebody asks otherwise, so every report prints the same
+  // way by default and the choice is a deliberate one.
+  const [layout, setLayout] = useState<PhotoLayout>(DEFAULT_PHOTO_LAYOUT);
+  const presentation = `&style=${style}&layout=${layout}${cover ? `&cover=${cover}` : ""}`;
 
   if (status === "final") {
     return (
@@ -134,6 +138,8 @@ export function FinaliseReport({
           <PdfPresentation
             style={style}
             onStyle={setStyle}
+            layout={layout}
+            onLayout={setLayout}
             cover={cover}
             onCover={setCover}
             photos={photos}
@@ -178,6 +184,7 @@ export function FinaliseReport({
           {/* The presentation goes with the render, so what was previewed is
               what gets issued. */}
           <input type="hidden" name="pdfStyle" value={style} />
+          <input type="hidden" name="photoLayout" value={layout} />
           <input type="hidden" name="coverPhoto" value={cover ?? ""} />
           <FinaliseButton reissue={reopened} />
         </form>

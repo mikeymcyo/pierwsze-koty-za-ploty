@@ -5,6 +5,7 @@ import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS } from "@/lib/issues/metadat
 import { loadDocumentAttachments } from "@/lib/pdf/document-attachments";
 import { mergeReportWithDocuments } from "@/lib/pdf/merge";
 import { coverPhotoIdOf, pdfStyleOf } from "@/lib/pdf/presentation";
+import { photoLayoutOf } from "@/lib/pdf/photo-layout";
 import { renderReportPdf } from "@/lib/pdf/render";
 import { reportSite } from "@/lib/reports/site-identity";
 import { storeFor } from "@/lib/stores/catalogue";
@@ -154,6 +155,7 @@ export async function GET(
     // one. Nothing is stored: an unrecognised value falls back to the house
     // style rather than refusing to render.
     style: pdfStyleOf(search.get("style")),
+    photoLayout: photoLayoutOf(search.get("layout")),
     coverPhotoId: coverPhotoIdOf(search.get("cover")),
   });
 

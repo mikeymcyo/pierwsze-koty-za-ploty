@@ -34,7 +34,17 @@ import {
   issuedPdfFileName,
   pickCoverPhoto,
 } from "../lib/pdf/presentation.ts";
-import { fitBox, imageSize } from "../lib/pdf/image-size.ts";
+import { fitBox, imageSize, photoBoxSize } from "../lib/pdf/image-size.ts";
+import {
+  DEFAULT_PHOTO_LAYOUT,
+  PHOTO_LAYOUTS,
+  PLATE_CHROME_HEIGHT,
+  USABLE_PAGE_HEIGHT,
+  columnWidthFor,
+  isPhotoLayout,
+  photoLayoutOf,
+  planPhotoRows,
+} from "../lib/pdf/photo-layout.ts";
 import { createPdfStyles, pdfTheme } from "../lib/pdf/theme.ts";
 
 import { ReportDocument } from "../lib/pdf/report-document.tsx";
@@ -128,8 +138,13 @@ check(
 );
 check("a real choice survives", pdfStyleOf("corporate") === "corporate" && pdfStyleOf("photo") === "photo");
 const rules = read("../lib/pdf/presentation.ts");
-check("the rules import nothing at runtime", !/^import /m.test(rules));
+// A type-only import is erased by the compiler, so it costs the browser
+// nothing; what must never appear is a runtime one, which would drag whatever
+// it names into the picker's bundle.
+check("the rules import nothing at runtime", !/^import (?!type )/m.test(rules));
 check("so the picker can use them without the renderer", !/@\//.test(rules));
+const layoutRules = read("../lib/pdf/photo-layout.ts");
+check("and neither does the layout it names", !/^import /m.test(layoutRules) && !/@\//.test(layoutRules));
 check(
   "no colour picker crept in",
   !/#[0-9a-f]{6}/i.test(rules) && !/colou?rPicker|customColou?r/i.test(rules),
@@ -401,6 +416,171 @@ check(
 check("corporate costs no more pages than the house style", counts["corporate"] === undefined || counts["daily-corporate"] <= counts["daily-siteboss"]);
 check("the photo style spends its extra room on the photographs", counts["daily-photo"] >= counts["daily-siteboss"]);
 check("a survey with a cover still renders", counts["survey"] >= 1);
+
+// ---------------------------------------------------------------------------
+console.log("\n10. The photographs are given the page");
+
+check("two arrangements, and no more", PHOTO_LAYOUTS.length === 2 && PHOTO_LAYOUTS.join() === "standard,focus");
+check("standard is what a report prints as by default", DEFAULT_PHOTO_LAYOUT === "standard");
+check(
+  "an absent, empty or mistyped layout falls back rather than failing",
+  photoLayoutOf(undefined) === "standard" && photoLayoutOf("") === "standard" && photoLayoutOf("collage") === "standard",
+);
+check("a real choice survives", photoLayoutOf("focus") === "focus" && isPhotoLayout("standard"));
+
+const P = { width: 1080, height: 1620 };  // a 2:3 phone portrait
+const L = { width: 1600, height: 1067 };  // a 3:2 landscape
+const shapes = (kinds) => kinds.map((k) => ({ portrait: k === "P" }));
+const plate = (row, kind) => photoBoxSize(kind === "L" ? L : P, row.columnWidth, row.bounds);
+
+// The arrangement this replaced: two fixed columns, every plate capped at
+// 190pt. It is the thing the sizes below have to beat.
+const BEFORE = { columnWidth: 238, bounds: { min: 110, max: 190 } };
+const beforePortrait = photoBoxSize(P, BEFORE.columnWidth, BEFORE.bounds);
+check(
+  "the old grid really did shrink a portrait photograph to a strip",
+  beforePortrait.width === 127 && beforePortrait.height === 190,
+  `${beforePortrait.width}x${beforePortrait.height}`,
+);
+
+const mix = Array.from({ length: 25 }, (_, i) => (i % 4 === 3 ? "L" : "P"));
+const std = planPhotoRows(shapes(mix), "standard");
+const foc = planPhotoRows(shapes(mix), "focus");
+
+check(
+  "the order of the photographs is never touched",
+  std.flatMap((r) => r.indexes).join() === mix.map((_, i) => i).join() &&
+    foc.flatMap((r) => r.indexes).join() === mix.map((_, i) => i).join(),
+);
+check("every photograph is placed exactly once", std.flatMap((r) => r.indexes).length === 25);
+
+const stdPortrait = plate(std.find((r) => r.indexes.some((i) => mix[i] === "P")), "P");
+check(
+  "standard prints a portrait plate far larger than the old grid did",
+  stdPortrait.width * stdPortrait.height > beforePortrait.width * beforePortrait.height * 2,
+  `${stdPortrait.width}x${stdPortrait.height} vs ${beforePortrait.width}x${beforePortrait.height}`,
+);
+check("and still fits two to a row", std[0].cellWidth === "50%" && std[0].columnWidth === columnWidthFor(2));
+check(
+  "two rows of them still share a page, so the report does not double in length",
+  2 * (stdPortrait.height + PLATE_CHROME_HEIGHT) <= USABLE_PAGE_HEIGHT,
+);
+
+check(
+  "photo focus gives every photograph the width of the page",
+  foc.every((r) => r.indexes.length === 1 && r.columnWidth === columnWidthFor(1) && r.centred),
+);
+const focPortrait = plate(foc[0], "P");
+const focLandscape = plate(foc.find((r) => mix[r.indexes[0]] === "L"), "L");
+check(
+  "a tall photograph takes the page in photo focus",
+  focPortrait.height > 500 && (focPortrait.height + PLATE_CHROME_HEIGHT) * 2 > USABLE_PAGE_HEIGHT,
+  `${focPortrait.width}x${focPortrait.height}`,
+);
+check(
+  "a wide one shares it with exactly one other",
+  (focLandscape.height + PLATE_CHROME_HEIGHT) * 2 <= USABLE_PAGE_HEIGHT,
+  `${focLandscape.width}x${focLandscape.height}`,
+);
+check(
+  "so photo focus is one or two large plates a page, never three",
+  (focLandscape.height + PLATE_CHROME_HEIGHT) * 3 > USABLE_PAGE_HEIGHT,
+);
+
+// One, two, three and four: a photograph with the row to itself is centred at
+// the same size rather than stranded against the left margin with a hole
+// beside it. Standard never widens a plate to the full page - that is what
+// kept a one-photograph Daily and a one-plate Progress Report to one page.
+const cells = (kinds) => planPhotoRows(shapes(kinds), "standard").map((r) => `${r.indexes.length}${r.centred ? "c" : ""}`).join();
+check("a single photograph is centred rather than left stranded", cells(["P"]) === "1c");
+check("two sit side by side", cells(["P", "P"]) === "2" && cells(["L", "L"]) === "2");
+check("three are a pair and a centred third, not a pair and a gap", cells(["P", "P", "P"]) === "2,1c");
+check("four are two rows of two", cells(["P", "P", "P", "P"]) === "2,2");
+check("and five carry on the same way", cells(["P", "P", "P", "P", "P"]) === "2,2,1c");
+check(
+  "a centred plate is the same size as a paired one, so it costs no page",
+  planPhotoRows(shapes(["P"]), "standard")[0].columnWidth === columnWidthFor(2) &&
+    planPhotoRows(shapes(["P"]), "standard")[0].bounds.max ===
+      planPhotoRows(shapes(["P", "P"]), "standard")[0].bounds.max,
+);
+check(
+  "standard never widens a plate to the full page",
+  planPhotoRows(shapes(["P", "L", "P", "L", "P"]), "standard").every(
+    (r) => r.columnWidth === columnWidthFor(2),
+  ),
+);
+
+check(
+  "nothing is cropped: a plate keeps the photograph's own ratio",
+  Math.abs(stdPortrait.width / stdPortrait.height - P.width / P.height) < 0.02 &&
+    Math.abs(focLandscape.width / focLandscape.height - L.width / L.height) < 0.02,
+);
+check(
+  "the style's floor is passed through untouched, so a panorama is not stretched further",
+  planPhotoRows(shapes(["P", "P"]), "standard", 130)[0].bounds.min === 130,
+);
+
+console.log("\n10b. Rendered, on a 25-photo Daily");
+const swindon = (photoLayout) =>
+  daily({
+    photoLayout,
+    photos: mix.map((kind, i) => photo(`p${i}`, `Bay ${i + 1} - gully surround reinstated`, "during", kind === "L" ? LANDSCAPE : PORTRAIT)),
+  });
+const stdPages = await pages(createElement(ReportDocument, { data: swindon("standard") }));
+const defaultPages = await pages(createElement(ReportDocument, { data: swindon(undefined) }));
+const focusPages = await pages(createElement(ReportDocument, { data: swindon("focus") }));
+console.log(`     standard ${stdPages} pages, focus ${focusPages} pages`);
+check("an absent layout renders exactly as standard does", defaultPages === stdPages);
+check("bigger plates do not run the report away with itself", stdPages <= 9, `${stdPages} pages`);
+check("photo focus is the longer document, as asked for", focusPages > stdPages);
+check(
+  "a 25-photo Daily still renders in both",
+  stdPages >= 1 && focusPages >= 1,
+);
+
+// Two full-width plates must share a page. The cap is derived from
+// USABLE_PAGE_HEIGHT, so this is the check that the figure is still right
+// against the renderer rather than against arithmetic.
+const wide = (h) => png(4980, Math.round(4980 / (498 / h)));
+const eight = (h) =>
+  daily({ photoLayout: "focus", sections: [], photos: Array.from({ length: 8 }, (_, i) => photo(`p${i}`, null, null, wide(h))) });
+const atCap = await pages(createElement(ReportDocument, { data: eight(columnWidthFor(1) / 1.6) }));
+check(
+  "eight full-width plates pair up rather than taking a page each",
+  atCap <= 6,
+  `${atCap} pages for 8 plates`,
+);
+
+console.log("\n10c. The same system prints the consolidated reports");
+const summaryStd = await pages(
+  createElement(SummaryReportDocument, { data: summary("completion", { photos: PHOTOS }) }),
+);
+const summaryFocus = await pages(
+  createElement(SummaryReportDocument, { data: summary("completion", { photos: PHOTOS, photoLayout: "focus" }) }),
+);
+check("a Completion Report takes the same layouts", summaryStd >= 1 && summaryFocus >= 1);
+check("and photo focus gives its plates more room there too", summaryFocus >= summaryStd);
+const finaliseDaily = read("../app/(app)/reports/finalise-actions.ts");
+const finaliseSummary = read("../app/(app)/summary-reports/finalise-actions.ts");
+check(
+  "both finalise actions bake the chosen layout into the issued file",
+  /photoLayout: photoLayoutOf\(String\(formData\.get\("photoLayout"\)/.test(finaliseDaily) &&
+    /photoLayout: photoLayoutOf\(String\(formData\.get\("photoLayout"\)/.test(finaliseSummary),
+);
+check(
+  "and the preview is rendered from the same choice, so it is what gets issued",
+  /photoLayout: photoLayoutOf\(search\.get\("layout"\)\)/.test(read("../app/(app)/reports/[id]/preview/route.ts")) &&
+    /photoLayout: photoLayoutOf\(search\.get\("layout"\)\)/.test(read("../app/(app)/summary-reports/[id]/preview/route.ts")),
+);
+check(
+  "the choice is carried, never stored - no column, no migration",
+  !/photo_layout/.test(finaliseDaily) && !/photo_layout/.test(finaliseSummary),
+);
+const picker = read("../components/pdf/pdf-presentation.tsx");
+check(
+  "the picker offers the two and nothing else to set",
+  /PHOTO_LAYOUTS\.map/.test(picker) && !/drag|resize|columns=|gridSize/i.test(picker),
+);
 
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL PDF EXPORT CHECKS PASSED");

@@ -5,6 +5,7 @@ import { PdfViewer } from "@/components/pdf/pdf-viewer";
 import { requireSessionContext } from "@/lib/auth/session";
 import { issuedPdfFileName } from "@/lib/pdf/presentation";
 import { coverPhotoIdOf, pdfStyleOf } from "@/lib/pdf/presentation";
+import { photoLayoutOf } from "@/lib/pdf/photo-layout";
 import { reportNumberLabel } from "@/lib/pdf/report-data";
 import { viewerSource } from "@/lib/pdf/viewer-source";
 import { isReopened } from "@/lib/reports/lifecycle";
@@ -18,7 +19,7 @@ export default async function ReportPdfPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ draft?: string; documents?: string; style?: string; cover?: string }>;
+  searchParams: Promise<{ draft?: string; documents?: string; style?: string; cover?: string; layout?: string }>;
 }) {
   const { id } = await params;
   const search = await searchParams;
@@ -27,7 +28,7 @@ export default async function ReportPdfPage({
   // presentation - that would be issued.
   const documentsFlag = search.documents === "0" ? "documents=0&" : "";
   const cover = coverPhotoIdOf(search.cover);
-  const previewQuery = `${documentsFlag}style=${pdfStyleOf(search.style)}${cover ? `&cover=${cover}` : ""}`;
+  const previewQuery = `${documentsFlag}style=${pdfStyleOf(search.style)}&layout=${photoLayoutOf(search.layout)}${cover ? `&cover=${cover}` : ""}`;
   await requireSessionContext();
   const supabase = await createClient();
 

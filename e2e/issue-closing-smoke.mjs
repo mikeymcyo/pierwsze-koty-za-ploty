@@ -173,7 +173,12 @@ check(
   "an issue card is still kept together",
   /style=\{\[s\.issue[^\]]*\]\} wrap=\{false\}/.test(parts),
 );
-check("a photograph keeps its caption", /style=\{s\.photoCell\} wrap=\{false\}/.test(parts));
+// The cell now carries its share of the row, so the style is an array; what
+// matters here is unchanged - the plate and its caption never split a page.
+check(
+  "a photograph keeps its caption",
+  /style=\{\[s\.photoCell,[\s\S]{0,120}?wrap=\{false\}/.test(parts),
+);
 check(
   "headings reserve room so they are not stranded at the foot of a page",
   /minPresenceAhead=\{reserve\}/.test(parts),

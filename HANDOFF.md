@@ -660,6 +660,89 @@ so there is nothing to roll back there.
 3. Production has never been built once, so its first build is also its
    first proof that the Production variable set is complete.
 
+### Two photo layouts, and the page actually filled, 2026-09-16
+
+The PDF was clean and the photographs were small. Measured rather than
+eyeballed: the grid was two fixed columns with every plate capped at
+190pt tall, so a 2:3 phone portrait in a 238pt column - most of what a
+site Daily carries - was cut from the 357pt it wanted to 190 and printed
+**127pt wide**, leaving nearly half its column white on both sides. Four
+of those to a page covered about **a quarter** of the paper.
+
+**Standard**, the default, keeps the two-column grid and raises the cap to
+300. The same portrait now prints **200x300** - two and a half times the
+picture - still four to a page, and page coverage roughly doubles to about
+a half. Landscapes barely move (238x159 to 240x160): they already filled
+their column, and all the waste was in portraits. A photograph with a row
+to itself is **centred** at the same size rather than stranded against the
+left margin with a hole beside it, so one, two, three and four
+photographs all come out looking deliberate.
+
+**Standard never widens a plate to the full page, and that is the
+interesting decision.** A full-width plate is a wide plate and therefore a
+tall one, and these documents are text with photographs rather than photo
+albums. Rendered against the real fixtures, a single full-width plate
+pushed a one-photograph Daily onto a second page at every height above
+240, and a one-plate Progress Report at every height above 160 - below the
+size the plate already had. "One photograph does not cost a second page"
+and "a progress report with one plate is one page" are invariants that
+predate this change and are worth more than the extra centimetre. So the
+full page is what **Photo focus** is for, and choosing it is how somebody
+asks for it.
+
+**Photo focus** gives every photograph the full width and lets its shape
+choose the height: a portrait takes the page at **373x560**, a landscape
+prints **450x300** and shares the page with one other. One or two large
+plates a page, never three, and nothing to set.
+
+`lib/pdf/photo-layout.ts` (pure, no runtime imports) decides all of it and
+returns rows of indices; `PhotoGrid` lays out the plan and `plateReserve`
+measures the same plan, so the heading above the plates reserves what the
+first plate will actually need. Order is never touched - the plan returns
+the indices as given, so P01 is still the first photograph. Nothing is
+cropped or re-encoded: the layout chooses a column width and a height
+bound, and `photoBoxSize` fits the picture at its own ratio. The style's
+`min` is passed through untouched, so raising the cap cannot stretch a
+panorama further than it already was.
+
+**Every constant is measured against the renderer, not derived.** A4 less
+the page padding is 764pt, but the fixed header and footer take some of
+it: full-width plates sized from the arithmetic figure came out one to a
+page, each wasting half a sheet. Rendering eight plates at descending
+heights put the boundary between a 368pt row (two to a page) and a 373pt
+row (one), so `USABLE_PAGE_HEIGHT` is 736, the conservative end, and the
+caps derive from it. `e2e/pdf-export-smoke.mjs` section 10b re-measures
+that against the real renderer, so a change to the plate chrome cannot
+silently return the document to one plate a page.
+
+**Two page budgets in `e2e/pdf-template-smoke.mjs` moved by one page
+each, deliberately**: a mixed Daily from 2 to 3, and a twelve-photograph
+Daily from 3 to 4. That is the cost of the bigger plates and the trade
+the owner asked for - a 25-photo Daily is 8 pages rather than 7 - and the
+comment beside them says so. What the budgets still forbid is a report
+silently doubling. The reports where a photograph is incidental did not
+move: one photograph, and one plate on a Progress Report, are each still
+a single page.
+
+No migration, and none could be needed: the layout travels exactly as the
+style and the cover already do - a `layout` query parameter on the
+preview and a `photoLayout` field on the finalise form - and is baked into
+the PDF at the moment it is issued. **Issued PDFs are stored files and are
+never re-rendered, so every document already sent to a client is
+untouched.** Reopening and re-issuing is where a different choice takes
+effect, the same rule the style has always had.
+
+The picker is two buttons in the existing folded Presentation panel,
+beside the style, shown only where there are photographs to arrange. No
+page designer, no per-plate controls, nothing stored. Daily, Progress,
+Completion and Survey all use the one system. Pinned in
+`e2e/pdf-export-smoke.mjs` section 10, including the before-and-after
+plate sizes, the order, the aspect ratios, the small-set arrangements and
+real renders of a 25-photo Daily in both.
+
+Not seen on a phone this session: the renders were measured offline
+against the real renderer, and the field test is still the check.
+
 ### Where to start when the field-test result arrives
 
 Read the failure as reported, reproduce it on the Preview, fix that one
