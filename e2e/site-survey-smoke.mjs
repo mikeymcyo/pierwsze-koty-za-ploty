@@ -234,7 +234,6 @@ for (const forbidden of ["Workforce", "Plant and equipment", "Deliveries"]) {
 console.log("\n9. Photographs are taken inside the survey, on the system already there");
 const photoActions = read("../app/(app)/summary-reports/photo-actions.ts");
 const workspace = read("../components/summary-reports/report-photos.tsx");
-const uploader = read("../components/reports/photo-upload.tsx");
 
 check("there is no second photo table", !/create table|from\("survey_photos"\)/.test(photoActions));
 check(
@@ -274,7 +273,10 @@ check(
 );
 check(
   "one uploader, two destinations, one code path",
-  /summaryReportId\s*\?\s*await attachSummaryPhoto/.test(uploader.replace(/\n\s*/g, " ")),
+  /record\.summaryReportId\s*\?\s*attachSummaryPhoto\(/.test(
+    read("../components/photos/photo-queue-runner.tsx").replace(/\n\s*/g, " "),
+  ),
+  "the queue runner attaches to a survey or a report from the same record",
 );
 check(
   "captions and AI descriptions are the ones used everywhere else",

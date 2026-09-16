@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { BottomNav } from "@/components/nav/bottom-nav";
 import { SideNav } from "@/components/nav/side-nav";
 import { TopBar } from "@/components/nav/top-bar";
+import { PhotoQueueRunner } from "@/components/photos/photo-queue-runner";
 import { getSessionContext } from "@/lib/auth/session";
 
 /**
@@ -50,7 +51,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               position: fixed, and a transformed ancestor becomes its
               containing block - on iOS Safari for good, which collapsed the
               viewer to a strip at the top of the screen. */}
-          <div className="mx-auto w-full max-w-3xl animate-fade">{children}</div>
+          <div className="mx-auto w-full max-w-3xl animate-fade">
+            {/* Drains the photo queue whenever the app is open, and says so
+                on every screen while anything is still waiting. */}
+            <PhotoQueueRunner />
+            {children}
+          </div>
         </main>
       </div>
 

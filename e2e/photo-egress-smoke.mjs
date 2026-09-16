@@ -130,15 +130,18 @@ check("and the PDF's own data layer knows nothing about thumbnails", !/thumb/i.t
 
 console.log("\n7. A thumbnail is a convenience, never a photograph lost");
 
-const upload = codeOf(read("../components/reports/photo-upload.tsx"));
-check("one is written beside the photograph", /upload\(thumbnailPath\(item\.path\)/.test(upload));
-check("after the photograph itself", upload.indexOf("upload(item.path") < upload.indexOf("thumbnailPath(item.path"));
-check("and a failure to write it is swallowed", /thumbnailPath\(item\.path\)[\s\S]{0,320}?\.catch\(/.test(upload));
-check("the photograph is still stored at full quality", /encode\(canvas, JPEG_QUALITY\)/.test(upload));
-check("and the thumbnail at its own", /encode\(canvas, THUMB_QUALITY\)/.test(upload));
+// The bucket writes happen in the queue runner (components/photos/
+// photo-queue-runner.tsx) and the encodes in lib/photo-compress.ts.
+const upload = codeOf(read("../components/photos/photo-queue-runner.tsx"));
+const compress = codeOf(read("../lib/photo-compress.ts"));
+check("one is written beside the photograph", /upload\(thumbnailPath\(record\.path\)/.test(upload));
+check("after the photograph itself", upload.indexOf("upload(record.path") < upload.indexOf("thumbnailPath(record.path"));
+check("and a failure to write it is swallowed", /thumbnailPath\(record\.path\)[\s\S]{0,320}?\.catch\(/.test(upload));
+check("the photograph is still stored at full quality", /encode\(canvas, JPEG_QUALITY\)/.test(compress));
+check("and the thumbnail at its own", /encode\(canvas, THUMB_QUALITY\)/.test(compress));
 check(
   "both come off one decode of the file",
-  (upload.match(/createImageBitmap\(file/g) ?? []).length === 1,
+  (compress.match(/createImageBitmap\(file/g) ?? []).length === 1,
 );
 
 console.log("\n=== Result ===");
