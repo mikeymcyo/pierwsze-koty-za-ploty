@@ -660,6 +660,35 @@ so there is nothing to roll back there.
 3. Production has never been built once, so its first build is also its
    first proof that the Production variable set is complete.
 
+### Re-checked 2026-09-16 after the iPhone field test: still NOT CUT OVER
+
+Asked again to cut over now that the Standard PDF layout (97e67c5) has been
+field-tested on a physical iPhone. Re-inspected before touching anything,
+and nothing that blocked the 14 September attempt has moved:
+
+- Head `97e67c5` is the branch tip locally and on origin, tree clean.
+  Latest Vercel deployment `dpl_7hSSC6jUesf53aocLohpivE4fzZP` builds that
+  commit, READY, `target: null` - a Preview. Project still `live: false`.
+- `app.sitebosspro.co.uk` answers 200 out of `fra1` from that Preview.
+  Both `.vercel.app` production hosts still 404. No `vercel.live` script in
+  the served HTML, so there is no Preview toolbar to remove.
+- `origin/main` is still `6e5221c` with zero files. Deploying it would ship
+  nothing; merging it into this branch would be merging an unrelated,
+  empty history for no gain. Not done.
+- The tool surface is unchanged: no environment-variable read, no domain or
+  alias assignment, no production-branch setting, no promote. The
+  Production variable set therefore cannot be verified from here, and the
+  owner's plan names the publishable key as `NEXT_PUBLIC_SUPA_PUBLISHABLE_KEY`,
+  which the code does not read - it must be
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (see step 1 above).
+- OpenAI credit: unconfirmed. Runtime-log retention on this plan no longer
+  covers the 13 September failures, and no model call has been observed
+  since, so "AI call works on Production" still cannot be promised.
+
+The owner's instruction was to stop rather than improvise when the safe
+path is not available, and it is not. The runbook and rollback above stand
+as written. Nothing was changed on Vercel, Supabase or git for this check.
+
 ### Two photo layouts, and the page actually filled, 2026-09-16
 
 The PDF was clean and the photographs were small. Measured rather than
