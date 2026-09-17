@@ -235,16 +235,21 @@ for (const [where, file] of [
   ["the store page", "../app/(app)/stores/[code]/page.tsx"],
   ["a project's linked store card", "../components/stores/linked-store-card.tsx"],
 ]) {
+  // Both screens hand their links to the one DirectionsLinks component,
+  // which is also what records a tap under Recent locations; the anchors
+  // themselves - new tab, noopener, hidden when there is nowhere to go -
+  // live there now.
   const source = read(file);
-  check(`${where} still offers Directions`, /Directions\n/.test(source) || /Directions/.test(source));
-  check(`${where} offers Waze beside it`, /wazeUrl\(store\)/.test(source) && />\s*Waze\s*</.test(source));
+  const links = read("../components/stores/directions-links.tsx");
+  check(`${where} still offers Directions`, /<DirectionsLinks/.test(source) && /directions=\{directions\}/.test(source) && /Directions\s*<\/a>/.test(links));
+  check(`${where} offers Waze beside it`, /wazeUrl\(store\)/.test(source) && /waze=\{waze\}/.test(source) && />\s*Waze\s*</.test(links));
   check(
     `${where} opens both in a new tab, safely`,
-    (source.match(/rel="noopener noreferrer"/g) ?? []).length >= 2,
+    (links.match(/rel="noopener noreferrer"/g) ?? []).length >= 2,
   );
   check(
     `${where} hides Waze when there is nowhere to send anybody`,
-    /\{waze \? \(/.test(source),
+    /\{waze \? \(/.test(links),
   );
 }
 
@@ -374,7 +379,9 @@ for (const file of ["../lib/stores/directory.ts", "../lib/stores/directions.ts",
 }
 const page = readFileSync(new URL("../app/(app)/stores/page.tsx", import.meta.url), "utf8");
 check("the store list is behind the session like every other page", /requireSessionContext/.test(page));
-check("and reads no company table", !/createClient|\.from\(/.test(page));
+// The one read is the person's own recent stores - a user-scoped table of
+// directory keys, not a company table - through lib/stores/recent-server.ts.
+check("and reads no company table", !/\.from\(/.test(page) && /loadRecentLocations\(/.test(page));
 
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL STORE LOCATOR CHECKS PASSED");

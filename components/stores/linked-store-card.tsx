@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { MapPin, Moon, Navigation, Store } from "lucide-react";
+import { Moon, Store } from "lucide-react";
 
+import { DirectionsLinks } from "@/components/stores/directions-links";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { directionsUrl, wazeUrl } from "@/lib/stores/directions";
@@ -47,24 +48,16 @@ export function LinkedStoreCard({ store }: { store: ResolvedStore }) {
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row">
-          {directions ? (
-            <Button asChild variant="secondary" className="sm:flex-1">
-              <a href={directions} target="_blank" rel="noopener noreferrer">
-                <MapPin aria-hidden />
-                Directions
-              </a>
-            </Button>
-          ) : null}
-          {/* Beside it, not instead of it. Two links to the same place, and
-              whichever app is on the phone is the one that opens. */}
-          {waze ? (
-            <Button asChild variant="secondary" className="sm:flex-1">
-              <a href={waze} target="_blank" rel="noopener noreferrer">
-                <Navigation aria-hidden />
-                Waze
-              </a>
-            </Button>
-          ) : null}
+          {/* Two links to the same place, and whichever app is on the phone
+              is the one that opens. A tap on either records the store under
+              Recent locations. */}
+          <DirectionsLinks
+            directory={store.directoryId}
+            code={store.code}
+            directions={directions}
+            waze={waze}
+            className="sm:flex-1"
+          />
           <Button asChild variant="secondary" className="sm:flex-1">
             <Link href={`/stores/${store.code}`}>View store</Link>
           </Button>

@@ -138,6 +138,27 @@ export type Database = {
           },
         ];
       };
+      recent_locations: {
+        Row: {
+          user_id: string;
+          directory: string;
+          code: string;
+          visited_at: string;
+        };
+        Insert: {
+          user_id: string;
+          directory: string;
+          code: string;
+          visited_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          directory?: string;
+          code?: string;
+          visited_at?: string;
+        };
+        Relationships: [];
+      };
       profiles: {
         Row: Timestamps & {
           id: string;

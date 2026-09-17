@@ -689,6 +689,60 @@ The owner's instruction was to stop rather than improvise when the safe
 path is not available, and it is not. The runbook and rollback above stand
 as written. Nothing was changed on Vercel, Supabase or git for this check.
 
+### Recent locations, 2026-09-17
+
+**The field need.** Addresses and store numbers arrive for possible Lidl
+jobs; the store is looked up in SiteBoss, opened, and Waze or Google Maps
+is used from it. SiteBoss then forgot it, and the next time the same store
+had to be typed in from scratch.
+
+**What was built.** On the Store locator, while the search box is empty, a
+**Recent locations** section sits under the search and above the full list:
+the stores this person opened or asked the way to, newest first, at most
+twenty. Each row is the store's own identity - `Croydon · Store 1470` (the
+same shape `reportPlace` prints on a report card) with the address under it
+- and opens the store; Directions and Waze sit beside it, and a small cross
+takes the row off. History, not a CRM: no notes, no statuses, no leads.
+
+**Migration `20260917000013_recent_locations.sql` - APPLIED** through the
+controlled `apply_migration` path (database version `20260917163521`). One
+new table, `public.recent_locations (user_id, directory, code, visited_at)`,
+primary key `(user_id, directory, code)`, index on `(user_id, visited_at
+desc)`, `user_id` cascading from `auth.users`. RLS on, with four policies
+that all say only `user_id = auth.uid()`; `authenticated` granted
+select/insert/update/delete, `anon` revoked. Verified after apply by reading
+`information_schema.columns`, `pg_policies`, `role_table_grants` and
+`pg_constraint`. Not company data: the row holds two keys of shipped
+reference data and a time. No other table changed. Rollback:
+`drop table public.recent_locations;`. (Supabase's default privileges also
+grant `authenticated` REFERENCES/TRIGGER/TRUNCATE, exactly as on every other
+table in this project; pre-existing and project-wide, noted, not changed.)
+
+**How it records.** `lib/stores/recent-server.ts` `recordRecentLocation`
+takes a directory id and a store code and nothing else: the key is checked
+for shape (`parseRecentKey`), then against the shipped directory
+(`knownStore` with the catalogue), and only then upserted with the
+**session's** user id - never the client's - on the primary key, which is
+what moves a revisit to the top without a second row; anything past twenty
+is trimmed on the same write. Opening a store records it (`RecentRecorder`,
+on mount). Tapping Directions or Waze records it too, and because the very
+next thing that happens is Maps or Waze taking the screen, the record is a
+`navigator.sendBeacon` (with `fetch keepalive` behind it) to
+`POST /stores/recent` - the browser's promise to deliver a small request
+through a page hide, which a server action cannot be sent as. The route
+refuses a foreign `Origin`, and the body is validated the same way. Removal
+is a server action deleting the user's own row by the same two keys.
+
+**Where the links live.** `components/stores/directions-links.tsx` is the
+one Directions/Waze pair, used by the store page, the project's linked
+store card and each recent row; the hrefs are the unchanged plain Google
+Maps and Waze links, computed on the server as before.
+
+**Tests.** `npm run test:recent-locations` (`e2e/recent-locations-smoke.mjs`):
+key validation, the twenty limit and order, the migration's self-only
+policies, session-derived `user_id`, the beacon path, and the locator
+placement. Every other suite, parity, lint, typecheck and build pass.
+
 ### Reliability and integrity hardening after the independent audit, 2026-09-17
 
 An independent read of the whole codebase found ten proven ways to lose

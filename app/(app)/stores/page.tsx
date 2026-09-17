@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Store as StoreIcon } from "lucide-react";
 
+import { RecentLocations } from "@/components/stores/recent-locations";
 import { StoreCard } from "@/components/stores/store-card";
 import { StoreSearch } from "@/components/stores/store-search";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -8,6 +9,8 @@ import { PageHeader } from "@/components/ui/page-header";
 import { requireSessionContext } from "@/lib/auth/session";
 import { defaultDirectory } from "@/lib/stores/catalogue";
 import { distributionCentres, searchStores } from "@/lib/stores/directory";
+import { loadRecentLocations } from "@/lib/stores/recent-server";
+import { createClient } from "@/lib/supabase/server";
 
 export const metadata: Metadata = { title: "Store locator" };
 
@@ -29,9 +32,15 @@ export default async function StoresPage({
 }: {
   searchParams: Promise<{ q?: string; rdc?: string; night?: string }>;
 }) {
-  await requireSessionContext();
+  const session = await requireSessionContext();
   const search = await searchParams;
   const { directory, stores } = defaultDirectory();
+
+  // The person's own recent stores, shown only while nothing is being
+  // searched for: a search is a question about the whole directory, and the
+  // answer should not start with last week.
+  const searching = Boolean(search.q?.trim() || search.rdc || search.night === "1");
+  const recent = searching ? [] : await loadRecentLocations(await createClient(), session.userId);
 
   const results = searchStores(stores, {
     text: search.q,
@@ -50,6 +59,8 @@ export default async function StoresPage({
       />
 
       <StoreSearch rdcs={distributionCentres(stores)} nightShiftCount={nightShiftCount} />
+
+      {searching ? null : <RecentLocations recent={recent} />}
 
       {results.length === 0 ? (
         <EmptyState

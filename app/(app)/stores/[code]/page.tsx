@@ -5,14 +5,14 @@ import {
   ChevronRight,
   ClipboardList,
   FolderOpen,
-  MapPin,
   Mic,
   Moon,
-  Navigation,
   Plus,
 } from "lucide-react";
 
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
+import { DirectionsLinks } from "@/components/stores/directions-links";
+import { RecentRecorder } from "@/components/stores/recent-recorder";
 import { Button } from "@/components/ui/button";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardContent } from "@/components/ui/card";
@@ -124,6 +124,8 @@ export default async function StorePage({
 
   return (
     <div className="flex flex-col gap-6">
+      {/* Opening the store is a visit: it lands under Recent locations. */}
+      <RecentRecorder directory={store.directoryId} code={store.code} />
       <BackLink href="/stores">Store locator</BackLink>
 
       <header className="flex flex-col gap-2">
@@ -212,31 +214,19 @@ export default async function StorePage({
         </CardContent>
       </Card>
 
+      {/* A plain Google Maps link and Waze's universal link: the app on a
+          phone that has it, the website on one that does not, no API key
+          and nothing to expire. Tapping either records the store under
+          Recent locations before the other app takes the screen. */}
       <div className="flex flex-col gap-3 sm:flex-row">
-        {directions ? (
-          <Button asChild size="lg" variant="secondary" className="sm:flex-1">
-            {/* A plain Google Maps link: it opens the Maps app on an iPhone or
-                iPad when it is installed and the website when it is not, needs
-                no API key, and cannot stop working because a billing account
-                lapsed. */}
-            <a href={directions} target="_blank" rel="noopener noreferrer">
-              <MapPin aria-hidden />
-              Directions
-            </a>
-          </Button>
-        ) : null}
-        {waze ? (
-          <Button asChild size="lg" variant="secondary" className="sm:flex-1">
-            {/* Waze's universal link, on the same terms: the app on a phone
-                that has it, the Waze website on one that does not, and the
-                store's point rather than its address wherever the directory
-                carries one. */}
-            <a href={waze} target="_blank" rel="noopener noreferrer">
-              <Navigation aria-hidden />
-              Waze
-            </a>
-          </Button>
-        ) : null}
+        <DirectionsLinks
+          directory={store.directoryId}
+          code={store.code}
+          directions={directions}
+          waze={waze}
+          size="lg"
+          className="sm:flex-1"
+        />
       </div>
 
       {/* The visit that happens before there is a job. Starting one from here
