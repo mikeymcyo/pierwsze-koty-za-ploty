@@ -1,6 +1,5 @@
 "use client";
 
-import { useActionState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 
 import { deleteSummaryReport, type DeleteState } from "@/app/(app)/summary-reports/actions";
@@ -10,6 +9,7 @@ import {
 } from "@/app/(app)/summary-reports/finalise-actions";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { reopenWarning } from "@/lib/reports/lifecycle";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 /** Reopens an issued Progress or Completion Report so a correction can be made. */
 export function ReopenSummaryReport({
@@ -20,7 +20,7 @@ export function ReopenSummaryReport({
   finalisedAt: string | null;
 }) {
   const reopen = reopenSummaryReport.bind(null, reportId);
-  const [state, action] = useActionState<SummaryFinaliseState, FormData>(reopen, {});
+  const [state, action] = useRecoverableActionState<SummaryFinaliseState, FormData>(reopen, {});
   return (
     <ConfirmAction
       action={action}
@@ -52,7 +52,7 @@ export function DeleteSummaryReport({
   onCancel?: () => void;
 }) {
   const remove = deleteSummaryReport.bind(null, reportId);
-  const [state, action] = useActionState<DeleteState, FormData>(remove, {});
+  const [state, action] = useRecoverableActionState<DeleteState, FormData>(remove, {});
   const isFinal = status === "final";
   return (
     <ConfirmAction

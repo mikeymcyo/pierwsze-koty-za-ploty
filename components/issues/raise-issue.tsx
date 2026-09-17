@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { AlertTriangle, X } from "lucide-react";
 
@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ISSUE_PRIORITIES } from "@/lib/issues/metadata";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 export type PhotoChoice = { id: string; label: string };
 
@@ -41,7 +42,7 @@ export function RaiseIssue({
   reportId: string | null;
   photos?: PhotoChoice[];
 }) {
-  const [state, formAction] = useActionState<IssueFormState, FormData>(createIssue, {});
+  const [state, formAction] = useRecoverableActionState<IssueFormState, FormData>(createIssue, {});
   const [open, setOpen] = useState(false);
   const [acknowledged, setAcknowledged] = useState(false);
   const id = useId();

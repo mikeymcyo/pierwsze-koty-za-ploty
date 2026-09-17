@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { History, SlidersHorizontal } from "lucide-react";
 
@@ -28,6 +28,7 @@ import { describeProjectHistory } from "@/lib/summary-reports/source-summary";
 import { formatDate, formatReportNumber } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import type { SummaryReportKind } from "@/types/database";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 /**
  * The two honest ways to write a consolidated report.
@@ -328,7 +329,7 @@ export function SummaryCreateForm({
   const [selectedProgress, setSelectedProgress] = useState<Set<string>>(
     () => new Set(defaultProgressSelection(progressReports)),
   );
-  const [state, action] = useActionState<SummaryFormState, FormData>(startSummaryReport, {});
+  const [state, action] = useRecoverableActionState<SummaryFormState, FormData>(startSummaryReport, {});
   const errors = state.fieldErrors ?? {};
   // A Completion Report is one press: everything issued on the project. The
   // pickers, the period and the way the content is sourced are still there,

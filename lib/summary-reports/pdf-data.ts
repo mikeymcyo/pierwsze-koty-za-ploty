@@ -34,6 +34,12 @@ export async function loadSummaryPdfData(
       data: Omit<SummaryPdfData, "documentsAppended">;
       sourceCount: number;
       sectionCount: number;
+      /**
+       * Plates the bucket did not hand back, in print order. A preview may
+       * print around them; an issue must not - the finalise action refuses
+       * while this is non-empty.
+       */
+      missingPhotos: { index: number; row: { id: string; caption: string | null } }[];
     }
   | { ok: false; error: string }
 > {
@@ -89,6 +95,11 @@ export async function loadSummaryPdfData(
     const { data: file } = await supabase.storage.from("site-photos").download(photo.storage_path);
     if (file) downloaded.set(photo.id, Buffer.from(await file.arrayBuffer()));
   }
+  const missingPhotos = photoLinks.flatMap((link, index) => {
+    const photo = photoById.get(link.photo_id);
+    if (!photo || downloaded.has(photo.id)) return [];
+    return [{ index, row: { id: photo.id, caption: link.caption_override?.trim() || photo.caption } }];
+  });
 
   const issueLinks = issueLinksResult.data ?? [];
   const issueIds = issueLinks.map((row) => row.issue_id);
@@ -224,6 +235,7 @@ export async function loadSummaryPdfData(
     report: { id: report.id, project_id: report.project_id, status: report.status, pdf_path: report.pdf_path },
     sourceCount: sources.length,
     sectionCount: sections.length,
+    missingPhotos,
     data: {
       kind: report.kind,
       companyName: identity.companyName,

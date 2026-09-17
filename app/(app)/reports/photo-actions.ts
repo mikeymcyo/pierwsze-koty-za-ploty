@@ -5,6 +5,8 @@ import { z } from "zod";
 
 import { describePhotograph } from "@/lib/ai/photo-description";
 import { requireSessionContext } from "@/lib/auth/session";
+import { dependentsOfPhoto, issuedDependents } from "@/lib/reports/dependents";
+import { deletionBlockedBy } from "@/lib/reports/lifecycle";
 import { photoStatusLabel } from "@/lib/photo-captions";
 import { rotateBy } from "@/lib/photos-rotation";
 import { createClient } from "@/lib/supabase/server";
@@ -122,6 +124,16 @@ export async function attachPhoto(input: AttachPhotoInput) {
   return {};
 }
 
+/** Why a caption or a turn is refused: the photograph is printed in an issued document. */
+function printedInIssued(issued: readonly { label: string }[]): string {
+  const names = issued.map((document) => document.label).join(", ");
+  return `This photograph is printed in ${names}, which ${
+    issued.length === 1 ? "has" : "have"
+  } been issued. Its caption, status and orientation are part of that record now. Reopen ${
+    issued.length === 1 ? "that report" : "those reports"
+  } first if the change belongs there.`;
+}
+
 export async function deletePhoto(formData: FormData) {
   const photoId = String(formData.get("photoId") ?? "").trim();
   if (!photoId) return;
@@ -142,6 +154,12 @@ export async function deletePhoto(formData: FormData) {
   // showing something the report no longer claims.
   const owner = Array.isArray(photo.reports) ? photo.reports[0] : photo.reports;
   if (owner?.status === "final") throw new Error(REPORT_IS_FINAL);
+
+  // The same rule through the other door: a Progress, Completion or Survey
+  // that prints this photograph - draft or issued - is built on it. Deleting
+  // it would cascade the link away and leave that document short a plate.
+  const blocked = deletionBlockedBy(await dependentsOfPhoto(supabase, photoId));
+  if (blocked) throw new Error(blocked);
 
   const { error } = await supabase.from("photos").delete().eq("id", photoId);
   if (error) {
@@ -218,6 +236,8 @@ export async function savePhotoDetails(
   // it says, and its captions must not drift away from it.
   const owner = Array.isArray(photo.reports) ? photo.reports[0] : photo.reports;
   if (owner?.status === "final") return { error: REPORT_IS_FINAL };
+  const issued = issuedDependents(await dependentsOfPhoto(supabase, photoId));
+  if (issued.length > 0) return { error: printedInIssued(issued) };
 
   const { error } = await supabase
     .from("photos")
@@ -271,6 +291,8 @@ export async function rotatePhoto(
   // says what it says, and what it shows must not drift away from it.
   const owner = Array.isArray(photo.reports) ? photo.reports[0] : photo.reports;
   if (owner?.status === "final") return { error: REPORT_IS_FINAL };
+  const issued = issuedDependents(await dependentsOfPhoto(supabase, photoId));
+  if (issued.length > 0) return { error: printedInIssued(issued) };
 
   const { error } = await supabase
     .from("photos")

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { AlertTriangle, Check, Plus, TriangleAlert } from "lucide-react";
 
@@ -25,6 +25,7 @@ import {
 import type { IssueStatus } from "@/types/database";
 import type { ReviewIssue, ReviewWarning } from "@/lib/reports/master-review";
 import { type FindingOutcome, WARNING_HEADING } from "@/lib/reports/master-review";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 const SEVERITY_TONE: Record<ReviewWarning["severity"], "danger" | "info" | "neutral"> = {
   high: "danger",
@@ -73,7 +74,7 @@ function MoveIssue({
   // The outcome is reported from inside the action, once the server has
   // answered - never during a render, which is the one place a parent must
   // not be told anything.
-  const [state, action] = useActionState<IssueMoveState, FormData>(
+  const [state, action] = useRecoverableActionState<IssueMoveState, FormData>(
     async (previous, formData) => {
       const result = await setIssueStatusFromReview(previous, formData);
       if (result.status) onMoved(result.status === "in_progress" ? "in_progress" : "reopened");
@@ -120,7 +121,7 @@ function ResolveFromFinding({
   onResolved: () => void;
   onCancel: () => void;
 }) {
-  const [state, action] = useActionState<ResolveIssueState, FormData>(
+  const [state, action] = useRecoverableActionState<ResolveIssueState, FormData>(
     async (previous, formData) => {
       const result = await resolveIssue(previous, formData);
       if (result.resolved) onResolved();
@@ -253,7 +254,7 @@ function NewIssueControls({
   onHandled: (outcome: FindingOutcome) => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [state, action] = useActionState<IssueFormState, FormData>(
+  const [state, action] = useRecoverableActionState<IssueFormState, FormData>(
     async (previous, formData) => {
       const result = await createIssue(previous, formData);
       if (result.created) onHandled("created");

@@ -297,8 +297,9 @@ check(
     ),
 );
 check(
-  "only sectionsToApply reaches the database",
-  /const writes = sectionsToApply\(review, accepted\)/.test(actions),
+  "only sectionsToApply reaches the database, filtered against what the reviewer read",
+  /withoutStaleWrites\(review, accepted, payload\.sections\)/.test(actions) &&
+    /sectionsToApply\(review, acceptedTypes\)/.test(read("../lib/reports/master-review.ts")),
 );
 
 console.log("\n12. Consolidated provenance is summarised, not fed twice");

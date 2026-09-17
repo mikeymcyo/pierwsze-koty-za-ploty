@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Mic, Square } from "lucide-react";
 
@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useSpeechInput } from "@/lib/hooks/use-speech-input";
 import { editableSections, sectionFieldName } from "@/lib/reports/group-text";
 import { joinTranscript } from "@/lib/speech/transcript";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 export type GroupEditorSection = {
   type: string;
@@ -140,7 +141,7 @@ export function GroupEditor({
   sections: GroupEditorSection[];
   action: (state: GroupEditorState, formData: FormData) => Promise<GroupEditorState>;
 }) {
-  const [state, formAction] = useActionState<GroupEditorState, FormData>(action, {});
+  const [state, formAction] = useRecoverableActionState<GroupEditorState, FormData>(action, {});
 
   // Fixed at mount: a part must not appear or disappear under somebody's thumb
   // because of what they have just typed.

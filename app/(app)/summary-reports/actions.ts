@@ -374,7 +374,7 @@ export async function startSummaryReport(
       .in("report_id", sourceDailyIds)
       .order("created_at", { ascending: true });
     if (photos?.length) {
-      await supabase.from("summary_report_photos").insert(
+      const { error: photosError } = await supabase.from("summary_report_photos").insert(
         photos.map((photo, index) => ({
           company_id: session.companyId,
           summary_report_id: summary.id,
@@ -382,6 +382,12 @@ export async function startSummaryReport(
           sort_order: index,
         })),
       );
+      // A report that silently lost its photographs at birth would be drafted
+      // from thin evidence and say so to nobody. Same answer as the sources.
+      if (photosError) {
+        await supabase.from("summary_reports").delete().eq("id", summary.id);
+        return { error: `Could not link the photographs: ${photosError.message}` };
+      }
     }
   }
 
@@ -396,7 +402,7 @@ export async function startSummaryReport(
       (!periodStart || !issue.closed_at || issue.closed_at.slice(0, 10) >= periodStart),
   );
   if (relevantIssues.length) {
-    await supabase.from("summary_report_issues").insert(
+    const { error: issuesError } = await supabase.from("summary_report_issues").insert(
       relevantIssues.map((issue, index) => ({
         company_id: session.companyId,
         summary_report_id: summary.id,
@@ -406,6 +412,12 @@ export async function startSummaryReport(
         resolution_at_issue: issue.resolution,
       })),
     );
+    // Without its issues the writer is told "no issue rows were selected"
+    // and writes accordingly. Not a report anybody should be handed.
+    if (issuesError) {
+      await supabase.from("summary_reports").delete().eq("id", summary.id);
+      return { error: `Could not link the issues: ${issuesError.message}` };
+    }
   }
 
   revalidatePath("/reports");

@@ -6,6 +6,7 @@ import { ImageOff, Trash2 } from "lucide-react";
 import { deletePhoto, reorderReportPhotos } from "@/app/(app)/reports/photo-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmAction } from "@/components/ui/confirm-action";
 import { PhotoDetails } from "@/components/reports/photo-details";
 import { PhotoOrderBar, usePhotoOrder } from "@/components/reports/photo-reorder";
 import { PhotoArrangeView } from "@/components/reports/photo-arrange";
@@ -66,6 +67,8 @@ export function PhotoGrid({
   reportId?: string | null;
 }) {
   const [reordering, setReordering] = useState(false);
+  // The photograph whose delete is being asked about, if any.
+  const [confirming, setConfirming] = useState<string | null>(null);
   const order = usePhotoOrder(
     photos.map((photo) => photo.id),
     (ids) => reorderReportPhotos(reportId!, ids),
@@ -137,24 +140,38 @@ export function PhotoGrid({
                   </div>
                 )}
 
-                {deletable ? (
-                  <form
-                    action={deletePhoto}
-                    className="absolute top-1.5 right-1.5 opacity-90 transition-opacity hover:opacity-100"
+                {deletable && confirming !== photo.id ? (
+                  // The icon only opens the question. A photograph is evidence
+                  // and a two-column grid held one-handed is a thumb-slip
+                  // away from the corner of a tile, so the delete itself is
+                  // the second tap, in the same inline confirmation every
+                  // other destructive action uses.
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="icon"
+                    aria-label={`Delete photo${alt ? `: ${alt}` : ""}`}
+                    className="absolute top-1.5 right-1.5 size-9 rounded-xl shadow-card opacity-90 transition-opacity hover:opacity-100"
+                    onClick={() => setConfirming(photo.id)}
                   >
-                    <input type="hidden" name="photoId" value={photo.id} />
-                    <Button
-                      type="submit"
-                      variant="danger"
-                      size="icon"
-                      aria-label={`Delete photo${alt ? `: ${alt}` : ""}`}
-                      className="size-9 rounded-xl shadow-card"
-                    >
-                      <Trash2 aria-hidden />
-                    </Button>
-                  </form>
+                    <Trash2 aria-hidden />
+                  </Button>
                 ) : null}
               </div>
+
+              {deletable && confirming === photo.id ? (
+                <ConfirmAction
+                  action={deletePhoto}
+                  hiddenFields={{ photoId: photo.id }}
+                  trigger="Delete photo"
+                  title="Delete this photograph?"
+                  description="It is removed from the report and from storage, and cannot be got back."
+                  confirmLabel="Delete photo"
+                  pendingLabel="Deleting…"
+                  defaultOpen
+                  onCancel={() => setConfirming(null)}
+                />
+              ) : null}
 
               {editable ? (
                 <PhotoDetails

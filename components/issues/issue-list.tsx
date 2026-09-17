@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Pencil } from "lucide-react";
 
-import { setIssueStatus } from "@/app/(app)/issues/actions";
+import { MoveIssueButton } from "@/components/issues/move-issue-button";
 import { ResolveIssue } from "@/components/issues/resolve-issue";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,15 +54,13 @@ export function IssueStatusActions({
             returnPath={returnPath}
           />
         ) : (
-          <form action={setIssueStatus} key={option.value}>
-            <input type="hidden" name="issueId" value={issue.id} />
-            <input type="hidden" name="status" value={option.value} />
-            {returnPath ? <input type="hidden" name="returnPath" value={returnPath} /> : null}
-            <Button type="submit" variant="secondary" size="sm">
-              {isResolvedStatus(issue.status) ? "Reopen as " : "Mark "}
-              {option.label.toLowerCase()}
-            </Button>
-          </form>
+          <MoveIssueButton
+            key={option.value}
+            issueId={issue.id}
+            status={option.value}
+            returnPath={returnPath}
+            label={`${isResolvedStatus(issue.status) ? "Reopen as " : "Mark "}${option.label.toLowerCase()}`}
+          />
         ),
       )}
     </>

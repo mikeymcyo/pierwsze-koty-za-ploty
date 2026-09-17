@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
-import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { Check, RotateCw } from "lucide-react";
 
@@ -15,6 +14,7 @@ import {
   writeCaptureDraft,
 } from "@/lib/capture-draft";
 import { Button } from "@/components/ui/button";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 function SaveButton({ retry }: { retry: boolean }) {
   const { pending } = useFormStatus();
@@ -81,7 +81,7 @@ export function SiteCaptureForm({
   entryCount: number;
   reportId: string;
 }) {
-  const [state, formAction] = useActionState<CaptureState, FormData>(action, {});
+  const [state, formAction] = useRecoverableActionState<CaptureState, FormData>(action, {});
   const capturedAt = useRef<HTMLInputElement>(null);
 
   /**

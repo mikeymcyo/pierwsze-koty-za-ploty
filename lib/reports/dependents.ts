@@ -82,3 +82,28 @@ export async function dependentsOfSummaryReport(
       .filter((id) => id !== reportId),
   );
 }
+
+/**
+ * Consolidated reports printing this one photograph.
+ *
+ * Looked up by the photograph itself rather than through its Daily, so a
+ * photograph that belongs to the project (report_id null) or was added
+ * straight to a survey is found just the same. The delete action refuses on
+ * any of these; the caption and rotation actions refuse only on issued ones,
+ * because a draft summary reads the live caption again when it is written.
+ */
+export async function dependentsOfPhoto(
+  supabase: Client,
+  photoId: string,
+): Promise<DependentDocument[]> {
+  const { data } = await supabase
+    .from("summary_report_photos")
+    .select("summary_report_id")
+    .eq("photo_id", photoId);
+  return labelsFor(supabase, (data ?? []).map((row) => row.summary_report_id));
+}
+
+/** Only the issued ones, for the actions that may still touch a draft's evidence. */
+export function issuedDependents(dependents: readonly DependentDocument[]): DependentDocument[] {
+  return dependents.filter((document) => !/\(draft\)$/.test(document.label));
+}

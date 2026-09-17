@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Check, Sparkles } from "lucide-react";
 
@@ -12,6 +12,7 @@ import { ReviewFinding } from "@/components/reports/review-findings";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 import {
   bulkAcceptableSections,
   changedSections,
@@ -68,8 +69,8 @@ export function MasterReviewPanel({
   applyAction: (previous: ApplyReviewState, formData: FormData) => Promise<ApplyReviewState>;
   configured: boolean;
 }) {
-  const [state, runReview] = useActionState<MasterReviewState, FormData>(reviewAction, {});
-  const [applied, apply] = useActionState<ApplyReviewState, FormData>(applyAction, {});
+  const [state, runReview] = useRecoverableActionState<MasterReviewState, FormData>(reviewAction, {});
+  const [applied, apply] = useRecoverableActionState<ApplyReviewState, FormData>(applyAction, {});
   const [accepted, setAccepted] = useState<Set<string>>(new Set());
   // What has been done about each finding, keyed by its place in this review.
   // Tied to the review object itself, so a fresh review starts clean without
@@ -182,6 +183,9 @@ export function MasterReviewPanel({
                 value={JSON.stringify({
                   sections: changes.map((section) => ({
                     sectionType: section.sectionType,
+                    // What the reviewer read. Apply writes only over exactly
+                    // this text; a section edited since is left as edited.
+                    originalText: section.originalText,
                     proposedText: section.proposedText,
                   })),
                 })}

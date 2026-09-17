@@ -9,6 +9,8 @@ import {
 } from "@/lib/issues/metadata";
 import { loadDocumentAttachments } from "@/lib/pdf/document-attachments";
 import { mergeReportWithDocuments } from "@/lib/pdf/merge";
+import { describeMissingPhotos, missingPhotos } from "@/lib/pdf/missing-photos";
+import { photoReference } from "@/lib/pdf/photo-evidence";
 import { coverPhotoIdOf, pdfStyleOf } from "@/lib/pdf/presentation";
 import { photoLayoutOf } from "@/lib/pdf/photo-layout";
 import { renderReportPdf } from "@/lib/pdf/render";
@@ -30,7 +32,8 @@ import {
   loadReferencedDocuments,
   snapshotDocumentReferences,
 } from "@/lib/documents/snapshot";
-import { canReopen } from "@/lib/reports/lifecycle";
+import { dependentsOfDailyReport } from "@/lib/reports/dependents";
+import { canReopen, reopenBlockedBy } from "@/lib/reports/lifecycle";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
 
@@ -115,7 +118,9 @@ export async function finaliseReport(
   // Photo bytes are pulled here rather than fetched by the renderer: a signed
   // URL can expire mid-render, and an issued record must not depend on the
   // network holding up at the moment somebody presses the button. A photo that
-  // cannot be read is left out rather than printed as a broken box.
+  // cannot be read stops the issue: the file the client is sent must carry
+  // every photograph the report holds, and a plate quietly left out is
+  // evidence quietly lost.
   const photoRows = photos ?? [];
   const downloaded = new Map<string, Buffer>();
   for (const photo of photoRows) {
@@ -123,6 +128,10 @@ export async function finaliseReport(
       .from("site-photos")
       .download(photo.storage_path);
     if (file) downloaded.set(photo.storage_path, Buffer.from(await file.arrayBuffer()));
+  }
+  const unread = missingPhotos(photoRows, (photo) => downloaded.has(photo.storage_path));
+  if (unread.length > 0) {
+    return { error: describeMissingPhotos(unread, photoRows.length, photoReference) };
   }
 
   // Frozen immediately before the render, so the table printed in the PDF and
@@ -283,6 +292,12 @@ export async function reopenReport(
 
   const check = canReopen({ status: report.status, pdfPath: report.pdf_path });
   if (!check.ok) return { error: check.message };
+
+  // A Daily an issued Progress or Completion Report is built on is that
+  // document's evidence. Reopening it would let its text and photographs
+  // drift away from the file the client holds while the citation stays.
+  const blocked = reopenBlockedBy(await dependentsOfDailyReport(supabase, reportId));
+  if (blocked) return { error: blocked };
 
   const { data: updated, error: writeError } = await supabase
     .from("reports")

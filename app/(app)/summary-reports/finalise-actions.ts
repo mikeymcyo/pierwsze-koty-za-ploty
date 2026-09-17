@@ -13,6 +13,8 @@ import { snapshotDocumentReferences } from "@/lib/documents/snapshot";
 import { shouldIncludeDocuments } from "@/lib/reports/document-package";
 import { canReopen, nextRevision } from "@/lib/reports/lifecycle";
 import { canFinaliseSummary, summaryPdfFileName } from "@/lib/summary-reports/finalisation";
+import { describeMissingPhotos } from "@/lib/pdf/missing-photos";
+import { photoReference } from "@/lib/pdf/photo-evidence";
 import { loadSummaryPdfData } from "@/lib/summary-reports/pdf-data";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
@@ -78,6 +80,13 @@ export async function finaliseSummaryReport(
     issuedAt: formatDate(finalisedAt) ?? finalisedAt.toISOString().slice(0, 10),
   });
   if (!loaded.ok) return { error: loaded.error };
+  // Every plate or no file: an issued document with a photograph quietly
+  // missing is evidence quietly lost.
+  if (loaded.missingPhotos.length > 0) {
+    return {
+      error: describeMissingPhotos(loaded.missingPhotos, loaded.data.photos.length + loaded.missingPhotos.length, photoReference),
+    };
+  }
   const check = canFinaliseSummary({
     status: loaded.report.status,
     kind: loaded.data.kind,

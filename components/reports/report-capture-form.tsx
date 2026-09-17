@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { ChevronDown, Sparkles } from "lucide-react";
 
@@ -16,6 +16,7 @@ import { summariseDetails } from "@/lib/reports/details-summary";
 import { describeRegeneration } from "@/lib/reports/regeneration";
 import { formatDate } from "@/lib/utils";
 import type { PlantEntry, Report, WorkforceEntry } from "@/types/database";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 type ReportCaptureFormProps = {
   action: (state: ReportFormState, formData: FormData) => Promise<ReportFormState>;
@@ -141,8 +142,8 @@ export function ReportCaptureForm({
   plant,
   saved,
 }: ReportCaptureFormProps) {
-  const [state, formAction] = useActionState<ReportFormState, FormData>(action, {});
-  const [writeState, write, writing] = useActionState<WriteState, FormData>(
+  const [state, formAction] = useRecoverableActionState<ReportFormState, FormData>(action, {});
+  const [writeState, write, writing] = useRecoverableActionState<WriteState, FormData>(
     writeAction ?? noWriter,
     {},
   );
@@ -162,6 +163,10 @@ export function ReportCaptureForm({
         <div className="order-1 flex flex-col gap-4">
           {saved && !state.error ? <Alert tone="success">Draft saved.</Alert> : null}
           {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
+
+          {/* What this screen loaded, so a save cannot erase captures added
+              elsewhere since - see lib/reports/notes-cas.ts. */}
+          <input type="hidden" name="raw_notes_base" value={report.raw_notes ?? ""} />
 
           {/* The one thing somebody is here to do. No sentence under the
               label: the box, the microphone and the button say it. */}

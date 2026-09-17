@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { safeReturnPath } from "@/lib/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -12,7 +13,8 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const errorDescription = searchParams.get("error_description");
   const next = searchParams.get("next");
-  const destination = next?.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+  // Same rule as the login form: one leading slash, no backslash, no scheme.
+  const destination = safeReturnPath(next) ?? "/dashboard";
 
   if (errorDescription) {
     const url = new URL("/login", origin);

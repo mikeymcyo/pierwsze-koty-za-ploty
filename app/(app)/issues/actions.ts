@@ -13,6 +13,7 @@ import {
 } from "@/lib/issues/metadata";
 import { RESOLUTION_REQUIRED, fieldErrorsFrom } from "@/lib/issues/validation";
 import { safeReturnPath } from "@/lib/navigation";
+import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
 import { createClient } from "@/lib/supabase/server";
 
 /**
@@ -130,6 +131,19 @@ export async function createIssue(
   const supabase = await createClient();
   const input = parsed.data;
 
+  // An issue raised against a Daily is printed in that Daily. Once the Daily
+  // is issued, its PDF is the record and a new row would make the screen say
+  // more than the file the client holds.
+  if (input.reportId) {
+    const { data: report } = await supabase
+      .from("reports")
+      .select("status")
+      .eq("id", input.reportId)
+      .maybeSingle();
+    if (!report) return { error: "That report could not be found." };
+    if (report.status === "final") return { error: REPORT_IS_FINAL };
+  }
+
   const { error } = await supabase.from("issues").insert({
     company_id: session.companyId,
     project_id: input.projectId,
@@ -231,7 +245,11 @@ export async function setIssueStatus(formData: FormData) {
   if (parsed.data.status === "closed") return;
 
   const moved = await moveIssue(parsed.data.issueId, parsed.data.status, read(formData, "returnPath"));
-  if (moved.error) throw new Error(moved.error);
+  // A bare form action has nowhere to put an error, and throwing one hands
+  // the whole page to the error boundary. The screens use
+  // setIssueStatusFromReview, which returns it; this stays for any form
+  // that still posts here and simply leaves the issue where it was.
+  if (moved.error) console.error("[siteboss] issue status not changed:", moved.error);
 }
 
 export type IssueMoveState = { error?: string; status?: "open" | "in_progress" };

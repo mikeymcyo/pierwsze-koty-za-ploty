@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { BookOpen, FileCheck2, FileText } from "lucide-react";
 
@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { DEFAULT_PDF_STYLE, type PdfStyle } from "@/lib/pdf/presentation";
 import { DEFAULT_PHOTO_LAYOUT, type PhotoLayout } from "@/lib/pdf/photo-layout";
 import { describePackageChoice, documentsFlag } from "@/lib/reports/document-package";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 function IssueButton({ reissue }: { reissue: boolean }) {
   const { pending } = useFormStatus();
@@ -52,7 +53,7 @@ export function SummaryFinalise({
   shareName?: string;
 }) {
   const finalise = finaliseSummaryReport.bind(null, reportId);
-  const [state, action] = useActionState<SummaryFinaliseState, FormData>(finalise, {});
+  const [state, action] = useRecoverableActionState<SummaryFinaliseState, FormData>(finalise, {});
   const reopened = status === "draft" && hasPdf;
   // Default on: somebody who linked a drawing meant it to go with the report.
   const [includeDocuments, setIncludeDocuments] = useState(true);

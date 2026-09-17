@@ -1,12 +1,13 @@
 "use client";
 
-import { useActionState, useId, useState } from "react";
+import { useId, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Check, Sparkles } from "lucide-react";
 
 import { resolveIssue, type ResolveIssueState } from "@/app/(app)/issues/actions";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 function ConfirmButton() {
   const { pending } = useFormStatus();
@@ -40,7 +41,7 @@ export function ResolveIssue({
 }) {
   const suggested = suggestedNote !== undefined;
   const [open, setOpen] = useState(suggested);
-  const [state, action] = useActionState<ResolveIssueState, FormData>(resolveIssue, {});
+  const [state, action] = useRecoverableActionState<ResolveIssueState, FormData>(resolveIssue, {});
   const id = useId();
 
   if (state.resolved) return null;

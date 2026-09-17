@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { Sparkles } from "lucide-react";
 
@@ -14,6 +14,7 @@ import { PhotoDescriptionField } from "@/components/reports/photo-description-fi
 import { Button } from "@/components/ui/button";
 import { PHOTO_STATUSES, RETIRED_PHOTO_STATUSES } from "@/lib/photo-captions";
 import type { PhotoCategory } from "@/types/database";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 /**
  * What the caption box is doing, in three words or fewer.
@@ -76,8 +77,8 @@ export function PhotoDetails({
 }) {
   const save = savePhotoDetails.bind(null, photoId);
   const describe = describePhotoAction.bind(null, photoId);
-  const [state, action] = useActionState<PhotoDetailsState, FormData>(save, {});
-  const [suggestion, describeAction] = useActionState<PhotoDescriptionState, FormData>(describe, {});
+  const [state, action] = useRecoverableActionState<PhotoDetailsState, FormData>(save, {});
+  const [suggestion, describeAction] = useRecoverableActionState<PhotoDescriptionState, FormData>(describe, {});
 
   // Controlled so a suggestion can be dropped in without a save, and so the
   // user's own typing survives a regeneration.

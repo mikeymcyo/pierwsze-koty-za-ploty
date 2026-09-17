@@ -1,12 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { Mic, Play } from "lucide-react";
 
 import { prepareDaily, type PrepareState } from "@/app/(app)/reports/prepare-actions";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 /**
  * The one button, and the one or two questions it may ask first.
@@ -35,7 +35,7 @@ function PrepareButton({ label, force }: { label: string; force: boolean }) {
 }
 
 export function PrepareDaily({ reportId }: { reportId: string }) {
-  const [state, action] = useActionState<PrepareState, FormData>(
+  const [state, action] = useRecoverableActionState<PrepareState, FormData>(
     prepareDaily.bind(null, reportId),
     {},
   );

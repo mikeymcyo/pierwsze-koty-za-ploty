@@ -120,7 +120,7 @@ export function PhotoQueueRunner() {
   const running = useRef(false);
   const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  /** Rows landed; the server-rendered grids should show them. At most once a second or so. */
+  /** Rows landed; the server-rendered grids should show them. Once per drain, trailing. */
   const scheduleRefresh = useCallback(() => {
     if (refreshTimer.current) clearTimeout(refreshTimer.current);
     refreshTimer.current = setTimeout(() => {
@@ -143,10 +143,14 @@ export function PhotoQueueRunner() {
         online: isOnline,
         now: () => Date.now(),
         timeoutMs: UPLOAD_TIMEOUT_MS,
+        // Noted per photograph so the screen can say Uploaded; the server
+        // grids are refreshed once, when the drain ends, rather than after
+        // every photograph - a refresh re-renders the page under whoever is
+        // dictating into it, and twenty-five of them in a row is a page that
+        // will not hold still.
         onUploaded: (record) => {
           uploaded += 1;
           noteUploaded(record);
-          scheduleRefresh();
         },
       });
     } catch {

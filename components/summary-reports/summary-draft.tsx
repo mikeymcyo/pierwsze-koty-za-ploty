@@ -1,6 +1,5 @@
 "use client";
 
-import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { Sparkles } from "lucide-react";
 
@@ -13,6 +12,7 @@ import {
   type SourceCounts,
 } from "@/lib/summary-reports/source-summary";
 import type { SummaryReportSection } from "@/types/database";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 type Section = Pick<SummaryReportSection, "id" | "section_type" | "content" | "ai_generated">;
 
@@ -73,7 +73,7 @@ export function SummaryWriter({
   sources: SourceCounts;
 }) {
   const generate = generateSummaryReport.bind(null, reportId);
-  const [state, action] = useActionState<SummaryAiState, FormData>(generate, {});
+  const [state, action] = useRecoverableActionState<SummaryAiState, FormData>(generate, {});
   const hasContent = sections.some((section) => section.content?.trim());
   const consolidating = sources.daily.length + sources.progress.length > 0;
   // Sources ticked, nothing written yet: this is the whole job of the screen.

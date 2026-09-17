@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { env } from "@/lib/env";
+import { safeReturnPath } from "@/lib/navigation";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthFormState = {
@@ -26,10 +27,17 @@ function fieldErrorsOf(error: z.ZodError): Record<string, string> {
   return result;
 }
 
-/** Keeps an open redirect from being smuggled in through ?next=. */
+/**
+ * Keeps an open redirect from being smuggled in through ?next=.
+ *
+ * The same rule the in-app return paths use (lib/navigation.ts): a path that
+ * starts with one slash and carries no second slash, no backslash and no
+ * scheme. The backslash matters - a URL parser reads "/\evil.com" as
+ * "https://evil.com/", and a login link carrying it would sign somebody in
+ * on the real site and land them on a fake one.
+ */
 function safeRedirect(value: FormDataEntryValue | null): string {
-  const raw = typeof value === "string" ? value : "";
-  return raw.startsWith("/") && !raw.startsWith("//") ? raw : "/dashboard";
+  return safeReturnPath(typeof value === "string" ? value : null) ?? "/dashboard";
 }
 
 const passwordSchema = z

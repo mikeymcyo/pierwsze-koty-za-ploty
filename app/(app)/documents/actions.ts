@@ -7,6 +7,7 @@ import { requireSessionContext } from "@/lib/auth/session";
 import { DOCUMENT_BUCKET } from "@/lib/documents/metadata";
 import { dependentsOfDocument } from "@/lib/documents/dependents";
 import { canDelete } from "@/lib/reports/lifecycle";
+import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
 import { createClient } from "@/lib/supabase/server";
 
 export type DocumentFormState = {
@@ -116,11 +117,24 @@ export async function attachDocument(
   if (error) return { error: `Could not save the document: ${error.message}` };
 
   if (value.reportId) {
-    await supabase.from("report_documents").insert({
+    // An issued Daily's register was printed at issue; a link added after
+    // would show on the screen and not in the file. The document itself is
+    // kept - it belongs to the project - and only the link is refused.
+    const { data: report } = await supabase
+      .from("reports")
+      .select("status")
+      .eq("id", value.reportId)
+      .maybeSingle();
+    if (report?.status === "final") {
+      revalidatePath(`/projects/${value.projectId}`);
+      return { error: `${REPORT_IS_FINAL} The document was saved to the project but not linked to this report.` };
+    }
+    const { error: linkError } = await supabase.from("report_documents").insert({
       company_id: session.companyId,
       report_id: value.reportId,
       document_id: document.id,
     });
+    if (linkError) return { error: `The document was saved but could not be linked to the report: ${linkError.message}` };
     revalidatePath(`/reports/${value.reportId}`);
   }
   if (value.summaryReportId) {

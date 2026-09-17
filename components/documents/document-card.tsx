@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import { ExternalLink, FileText, Pencil, Trash2 } from "lucide-react";
 
@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DOCUMENT_TYPES, documentTypeLabel, formatFileSize } from "@/lib/documents/metadata";
 import type { DocumentType } from "@/types/database";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 export type DocumentCardData = {
   id: string;
@@ -57,8 +58,8 @@ export function DocumentCard({
 }) {
   const save = saveDocumentMetadata.bind(null, document.id);
   const remove = deleteDocument.bind(null, document.id);
-  const [state, action] = useActionState<DocumentFormState, FormData>(save, {});
-  const [removeState, removeAction] = useActionState<DocumentFormState, FormData>(remove, {});
+  const [state, action] = useRecoverableActionState<DocumentFormState, FormData>(save, {});
+  const [removeState, removeAction] = useRecoverableActionState<DocumentFormState, FormData>(remove, {});
   const [open, setOpen] = useState(false);
 
   const size = formatFileSize(document.fileSize);

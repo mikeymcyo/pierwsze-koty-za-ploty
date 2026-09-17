@@ -1,12 +1,12 @@
 "use client";
 
-import { useActionState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 
 import { deleteReport, type DeleteState } from "@/app/(app)/reports/actions";
 import { reopenReport, type FinaliseState } from "@/app/(app)/reports/finalise-actions";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { reopenWarning } from "@/lib/reports/lifecycle";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 /** Reopens an issued Daily Report so a correction can be made. */
 export function ReopenReport({
@@ -17,7 +17,7 @@ export function ReopenReport({
   finalisedAt: string | null;
 }) {
   const reopen = reopenReport.bind(null, reportId);
-  const [state, action] = useActionState<FinaliseState, FormData>(reopen, {});
+  const [state, action] = useRecoverableActionState<FinaliseState, FormData>(reopen, {});
   return (
     <ConfirmAction
       action={action}
@@ -47,7 +47,7 @@ export function DeleteReport({
   onCancel?: () => void;
 }) {
   const remove = deleteReport.bind(null, reportId);
-  const [state, action] = useActionState<DeleteState, FormData>(remove, {});
+  const [state, action] = useRecoverableActionState<DeleteState, FormData>(remove, {});
   const isFinal = status === "final";
   return (
     <ConfirmAction

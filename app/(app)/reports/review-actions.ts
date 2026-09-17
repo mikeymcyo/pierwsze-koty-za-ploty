@@ -10,8 +10,9 @@ import {
   collapseIssueWarnings,
   linkWarningsToIssues,
   reconcileReview,
-  sectionsToApply,
+  withoutStaleWrites,
   describeApplied,
+  describeConflicts,
   type MasterReview,
   type ReviewIssue,
 } from "@/lib/reports/master-review";
@@ -150,6 +151,8 @@ const payloadSchema = z.object({
   sections: z.array(
     z.object({
       sectionType: z.string().min(1),
+      /** What the reviewer read. Absent only from a screen loaded before this field existed. */
+      originalText: z.string().optional(),
       proposedText: z.string(),
     }),
   ),
@@ -193,7 +196,9 @@ async function applyReview(
   if ("error" in context) return { error: context.error };
 
   const review = reconcileReview(context.sections, payload.sections, [], "");
-  const writes = sectionsToApply(review, accepted);
+  // Written only over the text the reviewer actually read. A section edited
+  // since - here, in another tab, on another phone - keeps the edit.
+  const { writes, conflicts } = withoutStaleWrites(review, accepted, payload.sections);
 
   for (const write of writes) {
     // Safe to assert: reconcileReview above discards any section type the
@@ -217,5 +222,9 @@ async function applyReview(
   const path = kind === "daily" ? `/reports/${reportId}` : `/summary-reports/${reportId}`;
   revalidatePath(path);
   revalidatePath(`/projects/${report.project_id}`);
-  return { message: describeApplied(writes.length) };
+  return {
+    message: [describeApplied(writes.length), describeConflicts(conflicts)]
+      .filter((part): part is string => Boolean(part))
+      .join(" "),
+  };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { useFormStatus } from "react-dom";
 import Link from "next/link";
 
@@ -14,6 +14,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ISSUE_PRIORITIES, ISSUE_STATUSES } from "@/lib/issues/metadata";
 import type { Issue } from "@/types/database";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 type EditableIssue = Pick<
   Issue,
@@ -39,7 +40,7 @@ export function IssueForm({
   cancelHref: string;
 }) {
   const save = updateIssue.bind(null, issue.id);
-  const [state, formAction] = useActionState<IssueFormState, FormData>(save, {});
+  const [state, formAction] = useRecoverableActionState<IssueFormState, FormData>(save, {});
   const [status, setStatus] = useState(issue.status);
   const errors = state.fieldErrors ?? {};
 

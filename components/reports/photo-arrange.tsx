@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   Check,
@@ -36,6 +36,7 @@ import { Button } from "@/components/ui/button";
 import { photoReference } from "@/lib/pdf/photo-evidence";
 import { cssRotation, isQuarterTurn } from "@/lib/photos-rotation";
 import type { PhotoOrder } from "@/components/reports/photo-reorder";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 export type ArrangeablePhoto = {
   id: string;
@@ -256,7 +257,7 @@ function RotateButton({
   direction: "left" | "right";
 }) {
   const turn = rotatePhoto.bind(null, photoId);
-  const [state, action] = useActionState<PhotoRotationState, FormData>(turn, {});
+  const [state, action] = useRecoverableActionState<PhotoRotationState, FormData>(turn, {});
   const Icon = direction === "left" ? RotateCcw : RotateCw;
 
   return (

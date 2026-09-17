@@ -65,6 +65,7 @@
     "test:job-brief": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/job-brief-smoke.mjs",
     "test:capture-reliability": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/capture-reliability-smoke.mjs",
     "test:photo-order": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/photo-order-smoke.mjs",
+    "test:hardening": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/hardening-smoke.mjs",
     "test:photo-queue": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/photo-queue-smoke.mjs",
     "test:timing": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/report-timing-smoke.mjs",
     "test:viewer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/report-viewer-smoke.mjs",

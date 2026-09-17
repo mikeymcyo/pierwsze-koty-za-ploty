@@ -23,6 +23,7 @@ import {
 import {
   clearCaptureDraft,
   readCaptureDraft,
+  resetCaptureDraftSnapshots,
   subscribeToCaptureDraft,
   writeCaptureDraft,
 } from "../lib/capture-draft.ts";
@@ -120,7 +121,12 @@ globalThis.window = {
 
 check("nothing stored reads as nothing", readCaptureDraft("r1") === "");
 writeCaptureDraft("r1", "half a sentence about the sl");
-check("what was typed comes back", readCaptureDraft("r1") === "half a sentence about the sl");
+// The screen that is typing keeps the snapshot it was handed - the words
+// are on the phone, and a fresh screen (a reload, a discarded tab) reads
+// them back. See lib/capture-draft.ts.
+check("typing does not move the snapshot under the box", readCaptureDraft("r1") === "");
+resetCaptureDraftSnapshots();
+check("what was typed comes back to a fresh screen", readCaptureDraft("r1") === "half a sentence about the sl");
 check("and is kept per report", readCaptureDraft("r2") === "");
 
 let notified = 0;

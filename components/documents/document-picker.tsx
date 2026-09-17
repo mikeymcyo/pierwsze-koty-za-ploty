@@ -1,6 +1,5 @@
 "use client";
 
-import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 import { ExternalLink } from "lucide-react";
 
@@ -10,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { documentTypeLabel } from "@/lib/documents/metadata";
 import type { DocumentType } from "@/types/database";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 export type PickableDocument = {
   id: string;
@@ -48,7 +48,7 @@ export function DocumentPicker({
   action: (previous: DocumentFormState, formData: FormData) => Promise<DocumentFormState>;
   documents: PickableDocument[];
 }) {
-  const [state, formAction] = useActionState<DocumentFormState, FormData>(action, {});
+  const [state, formAction] = useRecoverableActionState<DocumentFormState, FormData>(action, {});
 
   if (documents.length === 0) {
     return (

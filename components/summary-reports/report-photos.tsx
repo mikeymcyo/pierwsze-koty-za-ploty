@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useState } from "react";
 import { ImageOff, Images, Plus, X } from "lucide-react";
 import { useFormStatus } from "react-dom";
 
@@ -20,6 +20,7 @@ import { photoReference } from "@/lib/pdf/photo-evidence";
 import { UNSET_PHOTO_STATUS, photoPickerLabel, photoStatusLabel } from "@/lib/photo-captions";
 import { cssRotation } from "@/lib/photos-rotation";
 import type { PhotoCategory } from "@/types/database";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 export type ReportPhoto = {
   id: string;
@@ -97,7 +98,7 @@ export function ReportPhotos({
   const [picking, setPicking] = useState(false);
   const [reordering, setReordering] = useState(false);
   const add = linkSummaryPhotos.bind(null, reportId);
-  const [addState, addAction] = useActionState<SummaryPhotoState, FormData>(add, {});
+  const [addState, addAction] = useRecoverableActionState<SummaryPhotoState, FormData>(add, {});
 
   const order = usePhotoOrder(
     photos.map((photo) => photo.id),
@@ -297,7 +298,7 @@ function AddButton() {
  */
 function RemovePhoto({ reportId, photoId }: { reportId: string; photoId: string }) {
   const remove = removeSummaryPhoto.bind(null, reportId);
-  const [state, action] = useActionState<SummaryPhotoState, FormData>(remove, {});
+  const [state, action] = useRecoverableActionState<SummaryPhotoState, FormData>(remove, {});
   return (
     <form action={action}>
       <input type="hidden" name="photoId" value={photoId} />

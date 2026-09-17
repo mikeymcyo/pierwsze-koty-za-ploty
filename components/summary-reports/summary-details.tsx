@@ -1,6 +1,5 @@
 "use client";
 
-import { useActionState } from "react";
 import { useFormStatus } from "react-dom";
 
 import { saveSummaryDetails, type SummaryFormState } from "@/app/(app)/summary-reports/actions";
@@ -8,6 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Field } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 function SaveButton() {
   const { pending } = useFormStatus();
@@ -22,7 +22,7 @@ export function SummaryDetails({
   title: string | null;
 }) {
   const save = saveSummaryDetails.bind(null, reportId);
-  const [state, action] = useActionState<SummaryFormState, FormData>(save, {});
+  const [state, action] = useRecoverableActionState<SummaryFormState, FormData>(save, {});
   const errors = state.fieldErrors ?? {};
   return (
     <form action={action} className="flex flex-col gap-5 rounded-2xl border border-line bg-surface p-5">

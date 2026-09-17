@@ -348,3 +348,45 @@ export function describeApplied(count: number): string {
 
 export const REVIEW_NEEDS_DRAFT =
   "This report has been issued. Reopen it before running a review, so the issued PDF and the record cannot drift apart.";
+
+/**
+ * Drops the writes whose section moved on after the review.
+ *
+ * `review` was reconciled against the report *now*, so each section's
+ * `originalText` is the current text. `reviewed` carries what the section
+ * said when the review ran. Where the two differ somebody edited the section
+ * in between - on this screen, on another, on another phone - and the
+ * reviewer's wording is advice about a paragraph that no longer exists. The
+ * person's edit stays; the conflict is named so they can run the review
+ * again if they want the advice refreshed.
+ */
+export function withoutStaleWrites(
+  review: MasterReview,
+  acceptedTypes: readonly string[],
+  reviewed: readonly { sectionType: string; originalText?: string }[],
+): { writes: { sectionType: string; content: string }[]; conflicts: string[] } {
+  const seen = new Map(
+    reviewed
+      .filter((entry) => typeof entry.originalText === "string")
+      .map((entry) => [entry.sectionType, normaliseText(entry.originalText)]),
+  );
+  const conflicts: string[] = [];
+  const writes = sectionsToApply(review, acceptedTypes).filter((write) => {
+    const reviewedText = seen.get(write.sectionType);
+    // A payload from before this check carries no original: written as before.
+    if (reviewedText === undefined) return true;
+    const current = review.sections.find((section) => section.sectionType === write.sectionType);
+    if (!current || current.originalText === reviewedText) return true;
+    conflicts.push(current.label);
+    return false;
+  });
+  return { writes, conflicts };
+}
+
+/** The line under the Apply button when some sections were left alone. */
+export function describeConflicts(conflicts: readonly string[]): string | null {
+  if (conflicts.length === 0) return null;
+  return `${conflicts.join(", ")} ${
+    conflicts.length === 1 ? "was" : "were"
+  } edited after this review ran, so the edit was kept and the suggestion was not applied. Run the review again to refresh it.`;
+}

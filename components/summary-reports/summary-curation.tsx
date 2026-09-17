@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useId, useState, useTransition } from "react";
+import { useEffect, useId, useState, useTransition } from "react";
 import { useFormStatus } from "react-dom";
 import { ImageOff, RotateCw, Sparkles } from "lucide-react";
 
@@ -15,6 +15,7 @@ import { ISSUE_PRIORITY_LABELS, ISSUE_STATUS_LABELS, ISSUE_STATUS_TONES } from "
 import { formatDate } from "@/lib/utils";
 import { photoStatusLabel } from "@/lib/photo-captions";
 import type { IssuePriority, IssueStatus, PhotoCategory } from "@/types/database";
+import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
 export type CuratedPhotoChoice = {
   id: string;
@@ -150,7 +151,7 @@ export function SummaryCuration({
   showPhotos?: boolean;
 }) {
   const save = saveSummaryCuration.bind(null, reportId);
-  const [state, action] = useActionState<SummaryFormState, FormData>(save, {});
+  const [state, action] = useRecoverableActionState<SummaryFormState, FormData>(save, {});
   // The issue rows sit outside the form element so each can carry its own
   // status controls - a form cannot be nested in a form - and their
   // checkboxes point back at it by id. `display: contents` on the form lets

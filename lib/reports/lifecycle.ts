@@ -112,6 +112,24 @@ export function deletionBlockedBy(
  * `dependents` blocks outright. A final report additionally needs the typed
  * confirmation; a draft does not.
  */
+/**
+ * Whether an issued Daily may be reopened.
+ *
+ * Only an *issued* dependent blocks it: a draft Progress Report is still
+ * being assembled and will read the Daily again when it is written, whereas
+ * an issued one has already printed what the Daily said.
+ */
+export function reopenBlockedBy(dependents: readonly DependentDocument[]): string | null {
+  const issued = dependents.filter((document) => !/\(draft\)$/.test(document.label));
+  if (issued.length === 0) return null;
+  const names = issued.map((document) => document.label).join(", ");
+  return `This report cannot be reopened: ${names} ${
+    issued.length === 1 ? "was" : "were"
+  } issued from it, and the issued document must keep saying what this report said. Reopen ${
+    issued.length === 1 ? "that report" : "those reports"
+  } first if the correction belongs there.`;
+}
+
 export function canDelete(input: {
   status: "draft" | "final";
   dependents: readonly DependentDocument[];
