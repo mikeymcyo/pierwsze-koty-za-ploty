@@ -4,7 +4,7 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Last updated:** 2026-09-16
+**Written:** 2026-08-26 · **Last updated:** 2026-09-17
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
 **Head:** `87733dd` - Supporting documents may be photographs; a photo becomes an A4 appendix page (plus the handoff commit on top of it)
@@ -688,6 +688,111 @@ and nothing that blocked the 14 September attempt has moved:
 The owner's instruction was to stop rather than improvise when the safe
 path is not available, and it is not. The runbook and rollback above stand
 as written. Nothing was changed on Vercel, Supabase or git for this check.
+
+### Reliability and integrity hardening after the independent audit, 2026-09-17
+
+An independent read of the whole codebase found ten proven ways to lose
+typed words or let an issued record drift. All ten are closed on head
+`7ab6ad1` with the smallest change each, and **no migration**. The suite is
+`npm run test:hardening` (`e2e/hardening-smoke.mjs`); the one storage-policy
+finding that needs a migration is written up below and deliberately not
+applied.
+
+1. **A failed request keeps the form and its text.** A rejected server
+   action used to throw into the root error boundary and replace the page,
+   typed text and all. Every form on a report screen now uses
+   `useRecoverableActionState` (`lib/hooks/use-recoverable-action-state.ts`
+   over `lib/actions/recover.ts`): a failure to reach or run the action
+   resolves to the form's own `error` line, the previous state is kept, and
+   the form stays mounted. Redirects still pass through. The one-tap issue
+   status move is `components/issues/move-issue-button.tsx`, which returns
+   its error; `setIssueStatus` no longer throws. `app/(app)/error.tsx` keeps
+   the shell if a page itself fails, as a backstop only.
+2. **A stale report screen cannot erase captures added elsewhere.** The
+   report page posts `raw_notes_base`, what it loaded; `lib/reports/notes-cas.ts`
+   decides the write: untouched notes are left out of the update entirely
+   (the date, weather, workforce and plant still save), a changed box is
+   written under a compare-and-set on the database's current value, and a
+   box changed on both sides is refused with `NOTES_CHANGED_ELSEWHERE`.
+   Write my report reads whatever the database holds after the save.
+3. **A photograph landing does not remount the dictation box.**
+   `lib/capture-draft.ts` now hands each screen a snapshot that changes only
+   when the draft is cleared or another tab writes it, so re-renders from
+   the photo queue or a document adoption no longer change the box's key.
+   The queue runner refreshes the page once per drain, not per photograph.
+4. **Finalising refuses when a plate could not be read.**
+   `lib/pdf/missing-photos.ts` names the count and the plates; both the
+   Daily and the summary finalise stop before rendering. `loadSummaryPdfData`
+   returns `missingPhotos` (a preview still prints around them).
+5. **Deleting a photograph is asked twice**, through `ConfirmAction` in
+   `components/reports/photo-grid.tsx`; the tile's icon only opens the question.
+6. **Issued and dependent evidence refuses to move.** `dependentsOfPhoto`
+   (`lib/reports/dependents.ts`) looks a photograph up by its own id, so a
+   project photograph or one added straight to a survey is found;
+   `deletePhoto` refuses on any summary that prints it, `savePhotoDetails`
+   and `rotatePhoto` on an issued one. `reopenReport` refuses when an
+   issued Progress or Completion cites the Daily (`reopenBlockedBy`).
+7. **A summary whose photo or issue links failed to save is deleted** and
+   the error returned, as the sources insert already did.
+8. **An issued Daily takes no new issue and no new document link**
+   (`createIssue`, `attachDocument`; the document itself is still saved to
+   the project).
+9. **Master Review's Apply writes only over the text the reviewer read.**
+   The payload carries `originalText`; `withoutStaleWrites` keeps a section
+   edited since and `describeConflicts` names it.
+10. **The login and email-link redirects use `safeReturnPath`**, which
+    rejects `//host`, any backslash and any scheme; `/\evil.com` used to
+    resolve to `https://evil.com/`.
+
+**Proved on the real build** (Preview `dpl_HTomgKm7nPpvfiQfVibuq8F2YifJ`,
+Chromium as an iPhone through the failing bridge, throwaway tenants deleted):
+typed notes survive a failed Save and save on the next tap; a stale report
+tab's Save is refused while a Site Capture added from another tab stays in
+the database; ten queued photographs land without the capture box being
+remounted or losing its text; the photo delete asks first and Cancel keeps
+it; `next=/\evil.com`, `//evil.com`, `/\evil.com/login` and `/%5Cevil.com`
+all land on this site after sign-in. Refused finalise, dependent-photo
+refusals, summary link failure, issued-Daily refusals and the review
+conflict are proved in the offline suite against the code paths.
+
+**Still needing a physical iPhone:** real dictation through the keyboard
+microphone while ten photographs upload (the emulator proves the box is
+not remounted; it cannot speak), and the lock/unlock resume of the queue.
+
+### The report-pdfs UPDATE policy - inspected, NOT applied
+
+`supabase/migrations/20260826000003_storage.sql` creates, for both buckets
+in one loop, `report-pdfs_select`, `_insert`, `_update` and `_delete` on
+`storage.objects`, each `to authenticated` and each gated only by
+`is_company_member(storage_company_id(name))`. The update policy is:
+
+```sql
+create policy "report-pdfs_update" on storage.objects
+  for update to authenticated
+  using (bucket_id = 'report-pdfs' and public.is_company_member(public.storage_company_id(name)))
+  with check (bucket_id = 'report-pdfs' and public.is_company_member(public.storage_company_id(name)));
+```
+
+Nothing in the application updates a PDF object. Both finalise actions
+upload with `upsert: false` under a timestamped name; re-issuing writes a
+new object; the only other operations are `download`, `createSignedUrl`
+and `remove` (delete on report, summary or project deletion, and the
+orphan cleanup on a finalise race). So the update grant exists only because
+the loop that made the photo policies made these too, and with it any
+company member can replace the bytes behind an issued report's `pdf_path`
+from the browser with the publishable key while the row stays `final`.
+
+Smallest migration, when approved (one statement, reversible by re-running
+the create from the original migration):
+
+```sql
+-- Issued PDFs are written once. Nothing updates them; nothing may.
+drop policy if exists "report-pdfs_update" on storage.objects;
+```
+
+Delete is left in place because the delete actions run through the user's
+client and need it; taking it away too would mean a service-role path for
+those three actions, which is a larger change than the finding warrants.
 
 ### Photo upload resilience: secured on the phone first, 2026-09-16
 
