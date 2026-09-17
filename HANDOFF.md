@@ -738,6 +738,17 @@ one Directions/Waze pair, used by the store page, the project's linked
 store card and each recent row; the hrefs are the unchanged plain Google
 Maps and Waze links, computed on the server as before.
 
+**Proved on the real build** (Preview `dpl_CNga154TBPYWPpY4sEALW8t3McMq`
+of `1617a15`, Chromium as an iPhone, two throwaway accounts, deleted
+afterwards): opening Store 0521 put "Croydon · Store 0521" under Recent
+locations; tapping Waze on Store 2158 - a tap that opens another app - put
+"Tilbury · Store 2158" first; reopening 0521 moved it back to the top with
+still two rows; each row carried Directions and Waze; searching hid the
+section; the cross removed a row and left the other. The second account's
+locator showed no section; its REST read of the table returned no rows;
+its insert carrying the first account's `user_id` was refused 403 ("new
+row violates row-level security policy"); an unauthenticated read got 401.
+
 **Tests.** `npm run test:recent-locations` (`e2e/recent-locations-smoke.mjs`):
 key validation, the twenty limit and order, the migration's self-only
 policies, session-derived `user_id`, the beacon path, and the locator
