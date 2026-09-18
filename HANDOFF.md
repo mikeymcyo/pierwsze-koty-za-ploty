@@ -4,7 +4,7 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Last updated:** 2026-09-17
+**Written:** 2026-08-26 · **Last updated:** 2026-09-18
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
 **Head:** `87733dd` - Supporting documents may be photographs; a photo becomes an A4 appendix page (plus the handoff commit on top of it)
@@ -823,6 +823,15 @@ conflict are proved in the offline suite against the code paths.
 **Still needing a physical iPhone:** real dictation through the keyboard
 microphone while ten photographs upload (the emulator proves the box is
 not remounted; it cannot speak), and the lock/unlock resume of the queue.
+
+**Re-verified 2026-09-18 on head d14882b** (after the recent-locations
+work landed on top of the hardening commit 7ab6ad1): `test:hardening` all
+ten sections pass, every offline suite passes, export parity, `eslint
+--max-warnings 0`, `tsc --noEmit` and `next build` are clean, and the head
+is deployed READY as Preview `dpl_D1W71835Q1YJdBTF9AoLtTMvdEqo` on the
+branch alias that `app.sitebosspro.co.uk` follows. No code changed in this
+pass. The live `report-pdfs_update` policy is still present (re-read from
+`pg_policies`); the migration below remains proposed, not applied.
 
 ### The report-pdfs UPDATE policy - inspected, NOT applied
 
