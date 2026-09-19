@@ -305,6 +305,17 @@ console.log("\n10. The login redirect cannot leave the site");
   check("and so does the email-link callback", /safeReturnPath\(next\) \?\? "\/dashboard"/.test(callback) && !/startsWith\("\/\/"\)/.test(callback));
 }
 
+console.log("\n11. An issued PDF cannot be replaced: the update policy is gone, and only that");
+
+const pdfPolicy = read("../supabase/migrations/20260918000001_report_pdfs_no_update.sql").replace(/^\s*--.*$/gm, "");
+check("the migration drops the report-pdfs update policy", /drop policy if exists "report-pdfs_update" on storage\.objects;/.test(pdfPolicy));
+check("and nothing else: no other drop, create, alter or grant", (pdfPolicy.match(/\b(drop|create|alter|grant|revoke)\b/gi) ?? []).length === 1);
+check("select, insert and delete on report-pdfs are not mentioned", !/report-pdfs_(select|insert|delete)/.test(pdfPolicy));
+check("the photo and document buckets are not touched", !/site-photos|project-documents/.test(pdfPolicy));
+const finaliseDaily = read("../app/(app)/reports/finalise-actions.ts"), finaliseSummary = read("../app/(app)/summary-reports/finalise-actions.ts");
+check("both finalise actions still write a fresh object, never over one", /upsert: false/.test(finaliseDaily) && /upsert: false/.test(finaliseSummary) && !/\.update\(\s*[^)]*\.pdf|\.upload\([^)]*upsert: true/.test(finaliseDaily + finaliseSummary));
+check("nothing in the app updates or moves a PDF object", !/from\(PDF_BUCKET\)\s*\.(update|move|copy)\(/.test([finaliseDaily, finaliseSummary, read("../app/(app)/reports/actions.ts"), read("../app/(app)/summary-reports/actions.ts"), read("../app/(app)/projects/actions.ts"), read("../lib/pdf/download.ts")].join("\n")));
+
 console.log("\n=== Result ===");
 if (failures.length === 0) {
   console.log("All checks passed.");

@@ -833,7 +833,55 @@ branch alias that `app.sitebosspro.co.uk` follows. No code changed in this
 pass. The live `report-pdfs_update` policy is still present (re-read from
 `pg_policies`); the migration below remains proposed, not applied.
 
-### The report-pdfs UPDATE policy - inspected, NOT applied
+### The report-pdfs UPDATE policy - APPLIED 2026-09-18 (approved)
+
+`supabase/migrations/20260918000001_report_pdfs_no_update.sql`, applied
+through the controlled `apply_migration` path after approval; the ledger
+lists it as `20260918165600 20260918000001_report_pdfs_no_update`. One
+statement: `drop policy if exists "report-pdfs_update" on storage.objects;`.
+Nothing else was changed.
+
+**Verified after applying.**
+- `pg_policies` on `storage.objects`: `report-pdfs_select`, `_insert` and
+  `_delete` remain with their original expressions; `report-pdfs_update` is
+  gone; the `site-photos` and `project-documents` policies (all four each)
+  are untouched.
+- On the real build (branch Preview, throwaway tenant, emulated iPhone,
+  scratchpad `pdf-policy-probe.mjs`): a new Daily finalised and stored its
+  PDF under the company folder; `/reports/{id}/file` served it as
+  `application/pdf` and View report opened; with the tenant's own token a
+  storage `PUT` on the object and a `POST` with `x-upsert` both came back
+  `403 new row violates row-level security policy`, a `move` came back
+  `404`, and the served bytes hashed the same afterwards; a fresh object
+  could still be written and removed (insert and delete untouched);
+  reopen left the issued file and its `pdf_path` in place; finalising
+  again wrote a second object under a new timestamped name and pointed the
+  row at it while the first object stayed; deleting the report removed the
+  row and the row's current PDF object (the database-backed list confirmed
+  it; a plain object `GET` still returned a CDN `HIT` for a few seconds
+  afterwards, which is the edge cache, not the bucket).
+- Live tenant Empire Interiors Ltd: 186 photographs, 6 issued reports with
+  a `pdf_path`, 22 objects in `report-pdfs`, the same before and after;
+  nothing of theirs was opened or touched. Existing issued PDFs are read
+  through `download`, which is the unchanged select policy.
+- `test:hardening` section 11 pins the migration to that one statement and
+  pins both finalise actions to `upsert: false` with no update, move or
+  copy of a PDF object anywhere in the app.
+- Throwaway tenant `Validation Co 1789750740457` removed: storage as its own
+  user, then the company and `auth.users` rows by id and exact name; zero
+  left.
+
+**Follow-up security items, not done now.**
+- `report-pdfs` DELETE stays intentionally available: the report, summary
+  and project delete actions run through the authenticated user's storage
+  client and need it. Later, review whether direct storage deletion should
+  be removed and deletion mediated through a guarded server-side path.
+- Review the unnecessary `authenticated` TRUNCATE / REFERENCES / TRIGGER
+  grants project-wide (Supabase default privileges on every public table).
+
+The original inspection, kept for the record:
+
+#### The report-pdfs UPDATE policy - as inspected before it was applied
 
 `supabase/migrations/20260826000003_storage.sql` creates, for both buckets
 in one loop, `report-pdfs_select`, `_insert`, `_update` and `_delete` on
