@@ -11,6 +11,7 @@ import { attachSummaryPhoto } from "@/app/(app)/summary-reports/photo-actions";
 import { env } from "@/lib/env";
 import { compressPhoto } from "@/lib/photo-compress";
 import {
+  UPLOAD_CONCURRENCY,
   UPLOAD_TIMEOUT_MS,
   nextRetryAt,
   nextToRun,
@@ -143,6 +144,7 @@ export function PhotoQueueRunner() {
         online: isOnline,
         now: () => Date.now(),
         timeoutMs: UPLOAD_TIMEOUT_MS,
+        concurrency: UPLOAD_CONCURRENCY,
         // Noted per photograph so the screen can say Uploaded; the server
         // grids are refreshed once, when the drain ends, rather than after
         // every photograph - a refresh re-renders the page under whoever is

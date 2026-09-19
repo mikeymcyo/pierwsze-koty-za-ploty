@@ -25,6 +25,8 @@ import { readFileSync, readdirSync } from "node:fs";
 import {
   KEEP_OPEN_NOTICE,
   StalledRequest,
+  UPLOAD_CONCURRENCY,
+  UnreadablePhoto,
   UPLOAD_STATE_LABELS,
   UPLOAD_TIMEOUT_MS,
   afterFailure,
@@ -189,6 +191,7 @@ check("a gateway 503 too", classifyFailure(Object.assign(new Error("Service Unav
 check("an issued report is a rejection", classifyFailure(new Error("This report has been issued and can no longer be changed.")) === "rejected");
 check("a refused path is a rejection", classifyFailure(new Error("That photo could not be attached - please try again.")) === "rejected");
 check("a 413 from the bucket is a rejection", classifyFailure(Object.assign(new Error("Payload too large"), { statusCode: 413 })) === "rejected");
+check("a photograph whose bytes cannot be read is a rejection, never a network fault", classifyFailure(new UnreadablePhoto()) === "rejected" && /choose it again/i.test(new UnreadablePhoto().message));
 check("a 403 from the bucket is a rejection", classifyFailure(Object.assign(new Error("new row violates row-level security policy"), { statusCode: "403" })) === "rejected");
 check("backoff doubles from two seconds", [1, 2, 3, 4, 5, 6, 9].map(backoffMs).join() === "2000,4000,8000,16000,32000,60000,60000");
 
@@ -401,6 +404,43 @@ console.log("\nJ. A request that never answers");
   check("and passes a prompt answer through", fine === "ok");
 }
 
+console.log("\n4b. Two at once: nothing taken twice, nothing lost, and they overlap");
+
+check("the runner works two photographs at once", UPLOAD_CONCURRENCY === 2 && /concurrency: UPLOAD_CONCURRENCY/.test(read("../components/photos/photo-queue-runner.tsx")));
+{
+  const store = memoryStore(twentyFive().slice(0, 7));
+  const srv = server();
+  let active = 0, peak = 0; const order = [];
+  const outcome = await drainQueue(
+    deps(store, srv, {
+      concurrency: 2,
+      compress: async (file) => { active += 1; peak = Math.max(peak, active); await new Promise((r) => setTimeout(r, 5)); active -= 1; return { blob: file, width: 1600, height: 1200, thumb: null }; },
+      upload: async (rec, compressed) => { order.push(rec.id); await new Promise((r) => setTimeout(r, 5)); return srv.upload(rec, compressed); },
+    }),
+  );
+  check("all seven uploaded, none waiting or failed", outcome.uploaded === 7 && outcome.waiting === 0 && outcome.failed === 0 && (await store.list()).length === 0, JSON.stringify(outcome));
+  check("each photograph uploaded and attached exactly once", srv.uploads === 7 && srv.attaches === 7 && srv.rows.size === 7 && new Set(order).size === 7, `${srv.uploads} uploads, ${srv.attaches} attaches`);
+  check("two were in hand at once", peak === 2, `peak ${peak}`);
+  check("oldest first still", order[0] === "photo-01" && order[1] === "photo-02", order.join(","));
+}
+{
+  const store = memoryStore(twentyFive().slice(0, 3));
+  const srv = server();
+  const outcome = await drainQueue(deps(store, srv));
+  check("one at a time when no concurrency is asked for", outcome.uploaded === 3 && srv.uploads === 3);
+}
+{
+  const unreadable = { size: 10, type: "image/jpeg", slice() { return { arrayBuffer: () => Promise.reject(new DOMException("The requested file could not be read", "NotReadableError")) }; } };
+  const store = memoryStore([record(1, { file: unreadable }), record(2)]);
+  const srv = server();
+  const outcome = await drainQueue(deps(store, srv, { concurrency: 2 }));
+  const left = await store.list();
+  check("a photograph whose bytes are gone is Failed with the reason, not retried as Waiting", outcome.failed === 1 && left.length === 1 && left[0].status === "failed" && /choose it again/i.test(left[0].lastError), JSON.stringify(left.map((r) => [r.id, r.status, r.lastError])));
+  check("and never reached the bucket", srv.uploads === 1 && srv.rows.size === 1);
+  const again = await drainQueue(deps(store, srv, { concurrency: 2 }));
+  check("a later drain leaves it alone", again.uploaded === 0 && again.failed === 0 && srv.uploads === 1);
+}
+
 console.log("\n5. A rejection stays Failed; Remove is asked for twice");
 
 {
@@ -430,7 +470,7 @@ check("Securing / secured / not secured all come from the queue's words", /secur
 check("'secured' is set only from the store's answer", /const \{ secured, reason \} = await securePhotos\(/.test(screen));
 check("one transaction for the whole selection, resolved on commit", /tx\.oncomplete = \(\) => resolve\(result\)/.test(store) && /for \(const record of records\) store\.put\(/.test(store));
 check("the picked files are released only after the phone has its copy", screen.indexOf("await securePhotos(") < screen.indexOf("resetInput(source);\n  }"));
-check("the original bytes are kept, not a compressed copy", /file: file\.slice\(0, file\.size, file\.type\)/.test(screen) && !/compress/.test(screenCode));
+check("the original bytes are copied into memory before securing, not referenced", /new Blob\(\[await file\.arrayBuffer\(\)\], \{ type: file\.type \}\)/.test(screen) && /file: copies\[index\]!/.test(screen) && !/file\.slice\(/.test(screenCode) && !/compress/.test(screenCode));
 check("the screen does no uploading of its own", !/\.storage\.|attachPhoto|attachSummaryPhoto/.test(screenCode));
 check("the honest notice is shown while anything is pending", /pending > 0 \? <p[^>]*>\{KEEP_OPEN_NOTICE\}<\/p>/.test(screen));
 check("Uploaded rows come only from confirmed rows", /noteUploaded\(record\)/.test(runnerUi) && /onUploaded: \(record\) =>/.test(runnerUi) && /deps\.onUploaded\?\.\(next\)/.test(read("../lib/photo-queue-runner.ts")));

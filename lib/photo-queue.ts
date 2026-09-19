@@ -98,6 +98,17 @@ export const UPLOAD_TIMEOUT_MS = 60_000;
 /** Retries are capped here; the `online` event and reopening the app come sooner anyway. */
 export const MAX_BACKOFF_MS = 60_000;
 
+/**
+ * How many photographs are worked at once.
+ *
+ * Two, measured rather than guessed: the phone compresses on its one main
+ * thread, so a second worker buys nothing there, but while one photograph's
+ * bytes are on the wire the next can be compressed and the row for the last
+ * attached. More than two only queues requests behind each other on one
+ * radio and makes the first photograph appear later, not sooner.
+ */
+export const UPLOAD_CONCURRENCY = 2;
+
 const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export function securingLabel(count: number): string {
@@ -122,6 +133,24 @@ export function waitingLabel(count: number): string {
 
 /** The kind of failure, which decides the next state. */
 export type FailureKind = "network" | "rejected";
+
+/**
+ * Thrown before compression when the bytes a record points at cannot be read.
+ *
+ * On an iPhone a File from the picker is a reference to a temporary file, and
+ * IndexedDB used to keep that reference rather than the bytes; once iOS had
+ * cleared the picker's copy every read failed as "Load failed", which read as
+ * a network fault and was retried for days. The bytes are copied at securing
+ * now, so this should not happen again - but if it ever does, it is not the
+ * network's fault and it is not retried: the person is told to choose the
+ * photograph again.
+ */
+export class UnreadablePhoto extends Error {
+  constructor() {
+    super("This photo is no longer on the phone. Please choose it again.");
+    this.name = "UnreadablePhoto";
+  }
+}
 
 /** Thrown by withTimeout when a step has gone quiet for too long. */
 export class StalledRequest extends Error {
@@ -151,6 +180,7 @@ const NETWORK_WORDS =
 export function classifyFailure(cause: unknown, online = true): FailureKind {
   if (!online) return "network";
   if (cause instanceof StalledRequest) return "network";
+  if (cause instanceof UnreadablePhoto) return "rejected";
 
   const status = statusOf(cause);
   if (status !== null) return status >= 500 ? "network" : "rejected";

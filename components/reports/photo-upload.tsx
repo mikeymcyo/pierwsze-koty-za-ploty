@@ -64,8 +64,16 @@ type Phase =
  * same path, which is what lets the server refuse a second row for a
  * photograph it already has. The original bytes go with it; compression
  * happens at upload, from them, every time.
+ *
+ * The bytes are read into memory here, before securing, and a fresh Blob is
+ * made from them. A File from the picker - and any slice of it - is only a
+ * reference to a temporary file on the phone, and on an iPhone IndexedDB
+ * kept that reference rather than the bytes: once iOS had cleared the
+ * picker's copy, every read of the "secured" photograph failed, quietly, for
+ * days. A Blob built from an ArrayBuffer is the bytes themselves and is
+ * stored as such. Seven photographs are read in well under a second.
  */
-function queueRecords(
+async function queueRecords(
   files: File[],
   where: {
     companyId: string;
@@ -74,8 +82,11 @@ function queueRecords(
     summaryReportId: string | null;
     category: PhotoCategory;
   },
-): QueuedPhoto[] {
+): Promise<QueuedPhoto[]> {
   const now = Date.now();
+  const copies = await Promise.all(
+    files.map(async (file) => new Blob([await file.arrayBuffer()], { type: file.type })),
+  );
   return files.map((file, index) => ({
     id: crypto.randomUUID(),
     companyId: where.companyId,
@@ -86,7 +97,7 @@ function queueRecords(
     path: `${photoPathPrefix(where.companyId, where.projectId)}${crypto.randomUUID()}.jpg`,
     name: file.name,
     type: file.type || "image/jpeg",
-    file: file.slice(0, file.size, file.type),
+    file: copies[index]!,
     status: "queued",
     attempts: 0,
     lastError: null,
@@ -225,7 +236,7 @@ export function PhotoUpload({
     setPhase({ kind: "securing", count: list.length });
 
     const { secured, reason } = await securePhotos(
-      queueRecords(list, { companyId, projectId, reportId, summaryReportId, category }),
+      await queueRecords(list, { companyId, projectId, reportId, summaryReportId, category }),
     );
     setPhase(
       secured

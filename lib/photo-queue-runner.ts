@@ -12,6 +12,7 @@
  */
 
 import {
+  UnreadablePhoto,
   afterFailure,
   nextToRun,
   reconcileAfterRestart,
@@ -45,6 +46,8 @@ export type RunnerDeps = {
   online(): boolean;
   now(): number;
   timeoutMs: number;
+  /** How many photographs to work at once. One when absent. */
+  concurrency?: number;
   /** The row exists. Only now may a screen say Uploaded. */
   onUploaded?(record: QueuedPhoto): void;
   /** Something about a record changed; a screen may want to re-read the store. */
@@ -61,14 +64,17 @@ export type DrainOutcome = {
 
 /**
  * One drain. Serialised by the caller - a Web Lock on a phone - so at most
- * one of these runs at a time across every tab SiteBoss is open in.
+ * one of these runs at a time across every tab SiteBoss is open in. Inside
+ * it, `concurrency` workers each take the oldest photograph nobody else is
+ * holding, so one photograph's upload overlaps the next one's compression.
  *
- * The order of the steps is the safety contract:
+ * The order of the steps, per photograph, is the safety contract:
  *
  *  1. the record is marked `uploading` (so a killed page leaves a trace that
  *     reconcileAfterRestart puts back in the queue);
- *  2. the bytes are compressed from the stored original, and the photograph
- *     and its thumbnail are written to the bucket at the record's own path;
+ *  2. the bytes are checked to be readable, compressed from the stored
+ *     original, and the photograph and its thumbnail are written to the
+ *     bucket at the record's own path;
  *  3. the row is attached, under the same deadline;
  *  4. only when the attach reply says the row exists is the record removed
  *     from the phone.
@@ -86,20 +92,25 @@ export async function drainQueue(deps: RunnerDeps): Promise<DrainOutcome> {
   }
   if (stale.length) deps.onChange?.();
 
-  for (;;) {
-    if (!deps.online()) {
-      outcome.offline = true;
-      break;
+  // Every attempt starts with the bytes themselves. A record whose blob can
+  // no longer be read is a rejection, not a network fault: nothing about a
+  // retry will bring the bytes back.
+  const readable = async (file: Blob) => {
+    try {
+      await file.slice(0, 1).arrayBuffer();
+    } catch {
+      throw new UnreadablePhoto();
     }
+  };
 
-    const records = await deps.store.list();
-    const next = nextToRun(records, deps.now());
-    if (!next) break;
+  const inFlight = new Set<string>();
 
+  const processOne = async (next: QueuedPhoto) => {
     await deps.store.update(next.id, { status: "uploading" });
     deps.onChange?.();
 
     try {
+      await readable(next.file);
       const compressed = await deps.compress(next.file);
       await withTimeout((signal) => deps.upload(next, compressed, signal), deps.timeoutMs);
       const result = await withTimeout(() => deps.attach(next, compressed), deps.timeoutMs);
@@ -116,7 +127,35 @@ export async function drainQueue(deps: RunnerDeps): Promise<DrainOutcome> {
       else outcome.failed += 1;
     }
     deps.onChange?.();
-  }
+  };
+
+  // Each worker takes the oldest due photograph nobody else holds. The pick
+  // and the claim happen in one synchronous step, so two workers reading the
+  // store at the same moment can never take the same record.
+  const worker = async () => {
+    for (;;) {
+      if (!deps.online()) {
+        outcome.offline = true;
+        break;
+      }
+
+      const records = await deps.store.list();
+      const next = nextToRun(
+        records.filter((record) => !inFlight.has(record.id)),
+        deps.now(),
+      );
+      if (!next) break;
+      inFlight.add(next.id);
+      try {
+        await processOne(next);
+      } finally {
+        inFlight.delete(next.id);
+      }
+    }
+  };
+
+  const workers = Math.max(1, Math.floor(deps.concurrency ?? 1));
+  await Promise.all(Array.from({ length: workers }, () => worker()));
 
   return outcome;
 }
