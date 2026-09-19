@@ -4,7 +4,7 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Last updated:** 2026-09-18
+**Written:** 2026-08-26 · **Last updated:** 2026-09-19
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
 **Head:** `87733dd` - Supporting documents may be photographs; a photo becomes an A4 appendix page (plus the handoff commit on top of it)
@@ -915,6 +915,83 @@ drop policy if exists "report-pdfs_update" on storage.objects;
 Delete is left in place because the delete actions run through the user's
 client and need it; taking it away too would mean a service-role path for
 those three actions, which is a larger change than the finding warrants.
+
+### Photo upload on the iPhone: the stall, and two at once, 2026-09-19
+
+**The field bug.** Seven photographs chosen on a real iPhone (iOS 18.7) sat
+at "7 photos secured · uploading…" / "Uploading · 7 to go" on good signal,
+with nothing arriving. Read from the Supabase edge logs for that phone
+rather than guessed: on 17 September the first photograph of a batch went
+up in two seconds (preflight, 737,764-byte POST, 91,273-byte thumbnail,
+row); every photograph after it sent only its CORS preflight, never the
+body, was silently retried eight minutes later, and again two days later
+with the same two photo ids still at the head of the phone's queue. Today's
+seven showed the same signature. A 3.8 MB project document from the same
+phone in the same minute uploaded in under a second. Zero site-photos
+objects and zero rows in the whole window.
+
+**The cause.** The queue stored `file.slice(0, file.size, file.type)` of
+the picker's File. On WebKit that is a reference to a temporary file, and
+IndexedDB kept the reference, not the bytes. The upload form resets the
+input straight after "secured", iOS clears the picker's copy, and from then
+on every read of the "secured" photograph failed: createImageBitmap
+rejected and fell back to the original, fetch sent the preflight and could
+not read the body, Safari said "Load failed", classifyFailure read that as
+the network's fault, and the record went to Waiting with no message,
+forever. The first photograph of a batch usually got through because it
+was read before the reset. Nothing in the pipeline was slow; it was stuck.
+
+**What changed (d39cb74).**
+- `queueRecords` reads each picked file with `arrayBuffer()` and stores a
+  Blob made from those bytes. An in-memory Blob is serialised by value, so
+  "secured" now means the bytes are on the phone. Seven 4.3 MB photographs
+  cost about 110 ms more before "secured".
+- Every attempt begins by reading one byte of its record. A record that
+  cannot be read throws `UnreadablePhoto`, classified as a rejection: it is
+  Failed with "This photo is no longer on the phone. Please choose it
+  again", never Waiting, never retried on its own. Remove clears it.
+- `drainQueue` takes `concurrency` (the shell passes `UPLOAD_CONCURRENCY`
+  = 2). Each worker takes the oldest due record nobody else holds; the pick
+  and the claim are one synchronous step, so no record is taken twice and
+  oldest still goes first. One photograph's bytes are on the wire while the
+  next is being compressed. The Web Lock still serialises drains across
+  tabs; reconcile-after-restart, the per-step order, the 60 s deadline,
+  the same-path upsert and the server's one-row-per-path rule are
+  unchanged. Two was measured, not guessed: compression is main-thread
+  work, so a third worker only queues requests behind each other.
+
+**Measured on the real build** (branch Preview, emulated iPhone viewport in
+Chromium, seven 4032×3024 JPEGs of 4.33 MB each, scratchpad
+`speed-probe.mjs`). These numbers measure the pipeline; the phone's
+compression is slower than the emulator's, and the iPhone "before" was
+effectively never.
+
+| | secured | first row | all seven | uploads |
+|---|---|---|---|---|
+| before (9429a9c) | 42 ms | 2.9 s | 16.6 s | 7 |
+| after (d39cb74) | 151 ms | 2.6 s | 8.8 s | 7 |
+
+The count on the screen fell 7 → 6 → … → 0 in step with the phone in both
+runs; no duplicates (seven uploads, seven rows, seven distinct tiles).
+
+**Recovery re-proved on the new build** with the existing queue probe:
+25 photographs with the signal cut after six (the rest Waiting, none
+failed, none lost), leaving the screen (the chip says so), a reload, the
+page killed and SiteBoss opened again (the same count still on the phone),
+offline (Waiting for signal, nothing lost), signal back (the rest resumed
+on their own, 30 s for 20 photographs, nobody pressing anything), no
+duplicates (25 tiles, the six from before the cut not uploaded again), a
+stalled upload (Uploading, then Waiting at the 60 s deadline rather than
+hanging, released retry landing on the same path), and a phone with no
+IndexedDB (told in capitals, still uploaded while the screen stayed open).
+27 photographs on the report, the phone holding none. ALL PASS. All three
+throwaway tenants removed afterwards, zero left.
+
+**Still needing the physical iPhone.** Choose seven photographs on the
+phone itself and watch the count fall; the two dead records from 17
+September still in that phone's queue will now read Failed with "choose it
+again" and can be removed. That is the only proof the WebKit reference
+behaviour is gone, because the emulator never had it.
 
 ### Photo upload resilience: secured on the phone first, 2026-09-16
 
