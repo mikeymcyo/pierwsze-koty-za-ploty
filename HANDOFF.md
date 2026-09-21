@@ -4,7 +4,7 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Last updated:** 2026-09-19
+**Written:** 2026-08-26 · **Last updated:** 2026-09-21
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
 **Head:** `87733dd` - Supporting documents may be photographs; a photo becomes an A4 appendix page (plus the handoff commit on top of it)
@@ -915,6 +915,62 @@ drop policy if exists "report-pdfs_update" on storage.objects;
 Delete is left in place because the delete actions run through the user's
 client and need it; taking it away too would mean a service-role path for
 those three actions, which is a larger change than the finding warrants.
+
+### Photo upload: from memory the moment it is chosen, 2026-09-21
+
+**The field report.** "Photos STILL do not upload" on the physical iPhone
+after d39cb74. The logs say what the phone did: it loaded the newest build
+at 02:17 UTC on 21 September, opened both capture screens, and sent no
+upload request of any kind to Supabase - not a preflight. On that build the
+nine records from 17 and 19 September fail locally before any network
+call, because their bytes never existed on the phone (the reference bug
+above); the screen shows them as Failed with "choose it again". Whether a
+fresh selection was also tried cannot be told from the server; no request
+for one arrived. The phone has not yet uploaded a photograph on any build
+since 17 September.
+
+**What changed (63d1ade).** The normal upload no longer touches the phone's
+database at all, which removes the one WebKit behaviour the emulator
+cannot reproduce from the path that matters. The screen copies the bytes,
+writes the copy to IndexedDB as the safety net, and then uploads the very
+records it has in hand - `uploadNow(records)` - two at a time, under the
+same Web Lock the shell's runner takes. Every status change and every
+removal is mirrored to the database copy as it happens, so a page that
+dies mid-way leaves exactly what is left for the runner to finish from the
+copy next time SiteBoss is open. The runner is unchanged in what it does;
+it is no longer on the normal path. `markDraining(true)` is set before the
+copy is written so the runner does not take the same photographs first.
+This is the pre-queue shape - compress and send from memory at selection -
+with the local copy kept only as protection.
+
+**Measured on the real build** (branch Preview, emulated iPhone viewport,
+seven 4.33 MB JPEGs, `speed-probe.mjs`; the emulator's compression is
+faster than the phone's, and it never had the WebKit reference bug):
+
+| | secured | first row | all seven |
+|---|---|---|---|
+| 9429a9c (queue, one at a time) | 42 ms | 2.9 s | 16.6 s |
+| d39cb74 (queue, two at a time) | 151 ms | 2.6 s | 8.8 s |
+| 63d1ade (from memory, two at a time) | 112 ms | 2.0 s | 7.2 s |
+
+Seven uploads, seven rows, no duplicates each time; the count fell
+7 → 6 → … → 0 in step with the phone.
+
+**Recovery re-proved on 63d1ade**, `queue-probe.mjs` ALL PASS: 25 secured
+in 64 ms; signal cut after six (20 Waiting, none failed, none lost);
+leaving the screen; reload; page killed and reopened (queue rebuilt from
+the phone's copy); offline; signal back (20 resumed on their own in 32 s,
+nobody pressing anything); no duplicates (25 tiles, the six from before the
+cut not re-uploaded); a stalled upload turning Waiting at the 60 s deadline
+and retrying on the same path; a phone with no IndexedDB still uploading
+while the screen stays open. 27 on the report, the phone holding none.
+
+**The nine dead records on the phone** cannot be recovered: they are
+references to picker files iOS removed on 17 and 19 September, not bytes.
+Remove (asked twice) clears them; the photographs must be chosen again.
+
+**Still needing the physical iPhone.** Choose seven photographs and watch
+the count fall. That is the only proof for WebKit.
 
 ### Photo upload on the iPhone: the stall, and two at once, 2026-09-19
 
