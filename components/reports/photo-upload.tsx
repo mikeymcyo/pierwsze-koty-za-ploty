@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useRouter } from "next/navigation";
 import { Camera, Check, FolderOpen, Images, Loader2, RotateCw, Trash2 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
@@ -21,10 +22,12 @@ import {
   targetKey,
   type QueuedPhoto,
 } from "@/lib/photo-queue";
+import { uploadNow } from "@/components/photos/photo-queue-runner";
 import {
   forgetUploaded,
   getQueueSnapshot,
   getServerQueueSnapshot,
+  markDraining,
   recordsFor,
   registerVisibleTarget,
   removeQueued,
@@ -178,6 +181,7 @@ export function PhotoUpload({
   // One ref per source: the attributes that decide what iOS opens are fixed on
   // each input rather than swapped on the shared one before a click.
   const inputRefs = useRef(new Map<PhotoSourceId, HTMLInputElement | null>());
+  const router = useRouter();
   const [category, setCategory] = useState<PhotoCategory>(defaultCategory);
   const [phase, setPhase] = useState<Phase | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -235,9 +239,11 @@ export function PhotoUpload({
 
     setPhase({ kind: "securing", count: list.length });
 
-    const { secured, reason } = await securePhotos(
-      await queueRecords(list, { companyId, projectId, reportId, summaryReportId, category }),
-    );
+    // Claimed for this screen before the copy is even written, so the shell's
+    // runner does not take the same photographs off the database first.
+    markDraining(true);
+    const records = await queueRecords(list, { companyId, projectId, reportId, summaryReportId, category });
+    const { secured, reason } = await securePhotos(records);
     setPhase(
       secured
         ? { kind: "secured", count: list.length }
@@ -247,6 +253,12 @@ export function PhotoUpload({
     // Cleared only now: the picked files stay readable until the phone has
     // its own copy of them.
     resetInput(source);
+
+    // Uploaded from memory, now. The database copy is the safety net for a
+    // page that dies before this finishes; the runner picks up from it.
+    void uploadNow(records, (uploaded) => {
+      if (uploaded > 0) router.refresh();
+    });
   }
 
   // Clearing the value is what lets the same photo be chosen twice running -

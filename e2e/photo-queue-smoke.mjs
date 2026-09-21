@@ -465,11 +465,16 @@ const store = read("../lib/photo-queue-store.ts");
 const runnerUi = read("../components/photos/photo-queue-runner.tsx");
 const layout = read("../app/(app)/layout.tsx");
 
-check("the selection is secured before anything else", /setPhase\(\{ kind: "securing"/.test(screen) && screen.indexOf("securePhotos(") < screen.indexOf("resetInput(source);\n  }"));
+check("the selection is secured before anything else", /setPhase\(\{ kind: "securing"/.test(screen) && screen.indexOf("securePhotos(") < screen.indexOf("resetInput(source);\n\n    // Uploaded from memory") && screen.indexOf("securePhotos(") < screen.indexOf("void uploadNow(records"));
 check("Securing / secured / not secured all come from the queue's words", /securingLabel\(phase\.count\)/.test(screen) && /securedLabel\(phase\.count\)/.test(screen) && /notSecuredLabel\(/.test(screen));
 check("'secured' is set only from the store's answer", /const \{ secured, reason \} = await securePhotos\(/.test(screen));
 check("one transaction for the whole selection, resolved on commit", /tx\.oncomplete = \(\) => resolve\(result\)/.test(store) && /for \(const record of records\) store\.put\(/.test(store));
-check("the picked files are released only after the phone has its copy", screen.indexOf("await securePhotos(") < screen.indexOf("resetInput(source);\n  }"));
+check("the picked files are released only after the phone has its copy", screen.indexOf("await securePhotos(") < screen.indexOf("resetInput(source);\n\n    // Uploaded from memory"));
+check("the selection is claimed for the screen before the copy is written", screen.indexOf("markDraining(true);") < screen.indexOf("await securePhotos(records)"));
+check("and uploaded from memory the moment it is secured, never re-read from the database", /void uploadNow\(records, \(uploaded\) => \{\s*if \(uploaded > 0\) router\.refresh\(\);/.test(screen));
+check("uploadNow drains a store made of the records in hand, under the queue's lock", /uploaded = await drainWith\(selectionStore\(records\)\)/.test(runnerUi) && /const ran = await underLock\(/.test(runnerUi));
+check("that store mirrors every change to the phone's copy", /held\.set\(id, \{ \.\.\.current, \.\.\.patch \}\);\s*await queueStore\.update\(id, patch\);/.test(store) && /held\.delete\(id\);\s*await queueStore\.remove\(id\);/.test(store));
+check("the runner is what is left: it drains the phone's copy under the same lock", /uploaded = await drainWith\(queueStore\)/.test(runnerUi) && /void underLock\(drain\)/.test(runnerUi));
 check("the original bytes are copied into memory before securing, not referenced", /new Blob\(\[await file\.arrayBuffer\(\)\], \{ type: file\.type \}\)/.test(screen) && /file: copies\[index\]!/.test(screen) && !/file\.slice\(/.test(screenCode) && !/compress/.test(screenCode));
 check("the screen does no uploading of its own", !/\.storage\.|attachPhoto|attachSummaryPhoto/.test(screenCode));
 check("the honest notice is shown while anything is pending", /pending > 0 \? <p[^>]*>\{KEEP_OPEN_NOTICE\}<\/p>/.test(screen));
@@ -481,7 +486,7 @@ check("no beforeunload prompt anywhere in the upload path", !/beforeunload/.test
 check("the runner is mounted once, in the signed-in shell", /<PhotoQueueRunner \/>/.test(layout) && /photo-queue-runner/.test(layout));
 check("it drains on mount, on signal, on coming to the front, and on a clock", /addEventListener\("online", kick\)/.test(runnerUi) && /visibilitychange/.test(runnerUi) && /pageshow/.test(runnerUi) && /setInterval\(kick, SAFETY_INTERVAL_MS\)/.test(runnerUi));
 check("under a Web Lock when the browser has one", /navigator\.locks/.test(runnerUi) && /ifAvailable: true/.test(runnerUi) && /typeof locks\.request === "function"/.test(runnerUi));
-check("with a fallback when it has not", /\} else \{\s*void drain\(\);/.test(runnerUi));
+check("with a fallback when it has not", /return work\(\)\.then\(\(\) => true\);/.test(runnerUi));
 check("storage persistence is asked for, feature-detected, and never assumed", /typeof storage\.persist !== "function"\) return null/.test(store) && /const granted = await storage\.persist\(\)/.test(store));
 check("the upload carries an abort signal into fetch", /fetch\(input, \{ \.\.\.init, signal \}\)/.test(runnerUi));
 check("under the one-minute deadline", /timeoutMs: UPLOAD_TIMEOUT_MS/.test(runnerUi));

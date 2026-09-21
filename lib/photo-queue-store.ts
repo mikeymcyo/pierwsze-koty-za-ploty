@@ -246,6 +246,32 @@ export const queueStore: QueueStore = {
   },
 };
 
+/**
+ * The store for one selection, uploaded from memory the moment it is chosen.
+ *
+ * The records handed in are the ones the screen just built - the bytes are
+ * already in memory - so the normal upload never reads the phone's database
+ * at all. Every status change and every removal is mirrored to the database
+ * as it happens, so the copy there is always the truth for a page that dies
+ * mid-way: whatever this store did not finish, the runner in the shell
+ * finishes from the phone's copy next time SiteBoss is open.
+ */
+export function selectionStore(records: QueuedPhoto[]): QueueStore {
+  const held = new Map(records.map((record) => [record.id, record]));
+  return {
+    list: async () => [...held.values()],
+    async update(id, patch) {
+      const current = held.get(id);
+      if (current) held.set(id, { ...current, ...patch });
+      await queueStore.update(id, patch);
+    },
+    async remove(id) {
+      held.delete(id);
+      await queueStore.remove(id);
+    },
+  };
+}
+
 /** Failed → queued, so the next drain picks it up. */
 export async function retryQueued(id: string): Promise<void> {
   await queueStore.update(id, { status: "queued", lastError: null, nextAttemptAt: 0 });

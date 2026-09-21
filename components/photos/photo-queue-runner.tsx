@@ -19,7 +19,7 @@ import {
   waitingLabel,
   type QueuedPhoto,
 } from "@/lib/photo-queue";
-import { drainQueue, type CompressedPhoto } from "@/lib/photo-queue-runner";
+import { drainQueue, type CompressedPhoto, type QueueStore } from "@/lib/photo-queue-runner";
 import {
   getQueueSnapshot,
   getServerQueueSnapshot,
@@ -28,6 +28,7 @@ import {
   pendingElsewhere,
   queueStore,
   requestPersistentStorage,
+  selectionStore,
   subscribeToQueue,
 } from "@/lib/photo-queue-store";
 import { PHOTO_BUCKET, thumbnailPath } from "@/lib/photos";
@@ -104,6 +105,88 @@ function isOnline(): boolean {
 }
 
 /**
+ * One drain of `store`, with the phone's compression, bucket and server.
+ * Resolves with how many photographs got their row. Shared by the shell's
+ * runner (the phone's database) and by a screen uploading its own selection
+ * from memory the moment it is chosen.
+ */
+async function drainWith(store: QueueStore): Promise<number> {
+  let uploaded = 0;
+  markDraining(true);
+  try {
+    await drainQueue({
+      store,
+      compress: compressPhoto,
+      upload: uploadToBucket,
+      attach: attachRecord,
+      online: isOnline,
+      now: () => Date.now(),
+      timeoutMs: UPLOAD_TIMEOUT_MS,
+      concurrency: UPLOAD_CONCURRENCY,
+      // Noted per photograph so the screen can say Uploaded; the server
+      // grids are refreshed once, when the drain ends, rather than after
+      // every photograph - a refresh re-renders the page under whoever is
+      // dictating into it, and twenty-five of them in a row is a page that
+      // will not hold still.
+      onUploaded: (record) => {
+        uploaded += 1;
+        noteUploaded(record);
+      },
+    });
+  } catch {
+    // The store itself failed mid-drain. Nothing was removed on the way in;
+    // the next trigger reads it again.
+  } finally {
+    markDraining(false);
+  }
+  return uploaded;
+}
+
+/**
+ * Takes the cross-tab lock if it is free and runs `work` under it. Where the
+ * Web Locks API is missing, `work` simply runs - a second tab is then a rare
+ * double attempt on one path, which the upsert and the attach both absorb.
+ * Resolves false when another tab holds the lock and nothing was run.
+ */
+function underLock(work: () => Promise<void>): Promise<boolean> {
+  if (typeof navigator === "undefined") return Promise.resolve(false);
+  const locks = navigator.locks;
+  if (locks && typeof locks.request === "function") {
+    return locks
+      .request(LOCK_NAME, { ifAvailable: true }, async (lock) => {
+        if (!lock) return false;
+        await work();
+        return true;
+      })
+      .then((ran: unknown) => ran === true)
+      .catch(() => false);
+  }
+  return work().then(() => true);
+}
+
+/**
+ * Uploads a selection now, from the records in memory, the moment they are
+ * chosen. This is the normal path: no read of the phone's database, no wait
+ * for anything. The database copy made a moment earlier is the safety net -
+ * every step is mirrored to it, so whatever this does not finish, the
+ * runner in the shell finishes from that copy when SiteBoss is next open.
+ *
+ * Under the same lock as the runner, so the two never work one photograph at
+ * once. If another tab holds the lock, that tab's runner has the records
+ * already and uploads them itself.
+ */
+export async function uploadNow(
+  records: QueuedPhoto[],
+  onDone?: (uploaded: number) => void,
+): Promise<void> {
+  let uploaded = 0;
+  const ran = await underLock(async () => {
+    uploaded = await drainWith(selectionStore(records));
+  });
+  if (ran) onDone?.(uploaded);
+}
+
+/**
  * The one place the photo queue is drained, mounted in the signed-in shell.
  *
  * It runs whenever the app is open: on mount, when the app comes back to the
@@ -133,58 +216,19 @@ export function PhotoQueueRunner() {
   const drain = useCallback(async () => {
     if (running.current) return;
     running.current = true;
-    markDraining(true);
     let uploaded = 0;
     try {
-      await drainQueue({
-        store: queueStore,
-        compress: compressPhoto,
-        upload: uploadToBucket,
-        attach: attachRecord,
-        online: isOnline,
-        now: () => Date.now(),
-        timeoutMs: UPLOAD_TIMEOUT_MS,
-        concurrency: UPLOAD_CONCURRENCY,
-        // Noted per photograph so the screen can say Uploaded; the server
-        // grids are refreshed once, when the drain ends, rather than after
-        // every photograph - a refresh re-renders the page under whoever is
-        // dictating into it, and twenty-five of them in a row is a page that
-        // will not hold still.
-        onUploaded: (record) => {
-          uploaded += 1;
-          noteUploaded(record);
-        },
-      });
-    } catch {
-      // The store itself failed mid-drain. Nothing was removed on the way in;
-      // the next trigger reads it again.
+      uploaded = await drainWith(queueStore);
     } finally {
       running.current = false;
-      markDraining(false);
       if (uploaded > 0) scheduleRefresh();
     }
   }, [scheduleRefresh]);
 
-  /**
-   * Takes the cross-tab lock if it is free and drains under it. Where the
-   * Web Locks API is missing, the per-tab flag above is the only guard - a
-   * second tab is then a rare double attempt on one path, which the upsert
-   * and the attach both absorb.
-   */
+  /** Drains the phone's database under the cross-tab lock, if it is free. */
   const kick = useCallback(() => {
     if (running.current) return;
-    if (typeof navigator === "undefined") return;
-    const locks = navigator.locks;
-    if (locks && typeof locks.request === "function") {
-      void locks
-        .request(LOCK_NAME, { ifAvailable: true }, async (lock) => {
-          if (!lock) return;
-          await drain();
-        })
-        .catch(() => undefined);
-    } else {
-      void drain();
-    }
+    void underLock(drain);
   }, [drain]);
 
   // The triggers: launch, front, signal, and a clock while anything waits.
