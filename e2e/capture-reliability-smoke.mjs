@@ -165,48 +165,30 @@ check(
   /parseCaptureLog\(report\.raw_notes\)/.test(read("../app/(app)/reports/[id]/capture/page.tsx")),
 );
 
-console.log("\n5. A photograph is secured on the phone first, and retried onto the same object");
-
-// The queue itself - twenty-five photographs, a dead page, a lost reply, a
-// stalled request - is driven in e2e/photo-queue-smoke.mjs. These are the
-// pins on the screen and the runner that use it.
-const runner = read("../components/photos/photo-queue-runner.tsx");
-const store = read("../lib/photo-queue-store.ts");
+console.log("\n5. A photograph that failed is kept, and retried onto the same object");
 
 check(
   "the storage path is minted once, when the file is chosen",
-  /path: `\$\{photoPathPrefix\(where\.companyId, where\.projectId\)\}\$\{crypto\.randomUUID\(\)\}\.jpg`/.test(upload),
+  /path: `\$\{photoPathPrefix\(companyId, projectId\)\}\$\{crypto\.randomUUID\(\)\}\.jpg`/.test(upload),
 );
 check(
   "and never again per attempt",
   (upload.match(/crypto\.randomUUID\(\)/g) ?? []).length === 2,
-  "one for the record id, one for the path",
+  "one for the item id, one for the path",
 );
-check(
-  "the selection is written to the phone before anything is uploaded",
-  /await securePhotos\(/.test(upload) && !/attachPhoto|\.storage\./.test(upload),
-);
-check(
-  "and 'secured' is said only once the transaction has committed",
-  /tx\.oncomplete = \(\) => resolve/.test(store) && /tx\.onabort = \(\) => reject/.test(store),
-);
-check("a retry writes the same object", /upsert: true/.test(runner));
-check(
-  "a failure keeps the bytes: nothing is removed on the way in",
-  /await deps\.store\.remove\(next\.id\)/.test(read("../lib/photo-queue-runner.ts")) &&
-    !/remove\(/.test(read("../lib/photo-queue-runner.ts").split("try {")[0].split("for (;;)")[1] ?? ""),
-);
-check("and a server refusal is offered back with Retry", /retryQueued\(record\.id\)/.test(upload));
+check("a retry writes the same object", /upsert: true/.test(upload));
+check("failures are kept with their bytes", /setFailed\(stillFailing\)/.test(upload));
+check("and offered back with a Try again", /onClick=\{\(\) => void send\(failed\)\}/.test(upload));
 check(
   "nothing is called uploaded until the row exists",
-  /if \(result && result\.error\) throw new Error\(result\.error\)/.test(read("../lib/photo-queue-runner.ts")),
+  /if \(result\?\.error\) throw new Error\(result\.error\)/.test(upload),
   "an object in the bucket with no row is not a photograph in the report",
 );
-check("uploading says so while it runs", /summariseQueue\(mine, snap\.online, snap\.draining\)/.test(upload));
+check("uploading says so while it runs", /Uploading \{busy\.done\} of \{busy\.total\}/.test(upload));
 check(
-  "and nobody is asked before leaving, because leaving no longer loses anything",
-  !/beforeunload/.test(upload),
-  "iOS Safari never fired that prompt anyway; the queue is what makes leaving safe",
+  "and leaving mid-upload asks first",
+  /beforeunload/.test(upload),
+  "the one thing that can be done about it without an offline queue",
 );
 
 console.log("\n6. A duplicate retry does not create a duplicate photograph");

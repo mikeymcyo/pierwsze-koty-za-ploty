@@ -7,7 +7,7 @@
  *   1. a failed request keeps the form and its text (lib/actions/recover.ts);
  *   2. a stale report screen cannot erase captures added elsewhere
  *      (lib/reports/notes-cas.ts);
- *   3. a photograph landing in the queue does not remount the dictation box
+ *   3. a photograph landing does not remount the dictation box
  *      (lib/capture-draft.ts snapshots, one refresh per drain);
  *   4. finalising refuses when a plate could not be read
  *      (lib/pdf/missing-photos.ts);
@@ -164,10 +164,9 @@ console.log("\n3. A photograph landing does not remount the dictation box");
 
   const form = read("../components/reports/site-capture-form.tsx");
   check("the box is still keyed on the restored draft, which now only changes when it should", /key=\{`\$\{entryCount\}:\$\{restored\.length\}`\}/.test(form));
-  const runner = read("../components/photos/photo-queue-runner.tsx");
-  const onUploaded = runner.slice(runner.indexOf("onUploaded: (record) => {"), runner.indexOf("});", runner.indexOf("onUploaded: (record) => {")));
-  check("the queue refreshes the page once per drain, not per photograph", !/scheduleRefresh|router\.refresh/.test(onUploaded) && /if \(uploaded > 0\) scheduleRefresh\(\);/.test(runner));
-  check("and still notes each photograph as Uploaded as it lands", /onUploaded: \(record\) => \{\s*uploaded \+= 1;\s*noteUploaded\(record\);\s*\}/.test(runner));
+  const uploader = read("../components/reports/photo-upload.tsx");
+  check("the uploader never refreshes the router itself; the attach action's revalidation is what shows the photograph", !/router\.refresh|useRouter/.test(uploader));
+  check("and it uploads one selection straight through: compress, object, thumbnail, row", /await compress\(file\)/.test(uploader) && uploader.indexOf("upload(item.path") < uploader.indexOf("thumbnailPath(item.path") && uploader.indexOf("thumbnailPath(item.path") < uploader.indexOf("attachPhoto({"));
 }
 
 console.log("\n4. Finalising refuses when a plate could not be read");

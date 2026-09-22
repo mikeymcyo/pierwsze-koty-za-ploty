@@ -273,10 +273,7 @@ check(
 );
 check(
   "one uploader, two destinations, one code path",
-  /record\.summaryReportId\s*\?\s*attachSummaryPhoto\(/.test(
-    read("../components/photos/photo-queue-runner.tsx").replace(/\n\s*/g, " "),
-  ),
-  "the queue runner attaches to a survey or a report from the same record",
+  /summaryReportId\s*\?\s*await attachSummaryPhoto/.test(read("../components/reports/photo-upload.tsx").replace(/\n\s*/g, " ")),
 );
 check(
   "captions and AI descriptions are the ones used everywhere else",

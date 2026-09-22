@@ -1,41 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { useRouter } from "next/navigation";
-import { Camera, Check, FolderOpen, Images, Loader2, RotateCw, Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Camera, FolderOpen, Images, Loader2, RotateCw } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { attachPhoto } from "@/app/(app)/reports/photo-actions";
+import { attachSummaryPhoto } from "@/app/(app)/summary-reports/photo-actions";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { ConfirmAction } from "@/components/ui/confirm-action";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { createClient } from "@/lib/supabase/client";
 import { UNSET_PHOTO_STATUS } from "@/lib/photo-captions";
+import { PHOTO_BUCKET, PHOTO_CATEGORIES, photoPathPrefix, thumbnailPath } from "@/lib/photos";
 import {
-  KEEP_OPEN_NOTICE,
-  UPLOAD_STATE_LABELS,
-  countPending,
-  notSecuredLabel,
-  securedLabel,
-  securingLabel,
-  summariseQueue,
-  targetKey,
-  type QueuedPhoto,
-} from "@/lib/photo-queue";
-import { uploadNow } from "@/components/photos/photo-queue-runner";
-import {
-  forgetUploaded,
-  getQueueSnapshot,
-  getServerQueueSnapshot,
-  markDraining,
-  recordsFor,
-  registerVisibleTarget,
-  removeQueued,
-  retryQueued,
-  securePhotos,
-  subscribeToQueue,
-} from "@/lib/photo-queue-store";
-import { PHOTO_CATEGORIES, photoPathPrefix } from "@/lib/photos";
+  JPEG_QUALITY,
+  THUMB_EDGE,
+  THUMB_QUALITY,
+  downscaleSteps,
+  targetSize,
+} from "@/lib/photo-quality";
 import {
   PHOTO_SOURCES,
   isSupportedImageFile,
@@ -50,93 +34,112 @@ const SOURCE_ICONS: Record<PhotoSourceId, LucideIcon> = {
   files: FolderOpen,
 };
 
-/**
- * What this screen has just done with a selection. The live states of the
- * photographs themselves come from the queue, not from here.
- */
-type Phase =
-  | { kind: "securing"; count: number }
-  | { kind: "secured"; count: number }
-  | { kind: "unsecured"; count: number; reason: string | null };
+type Compressed = { blob: Blob; width: number; height: number; thumb: Blob | null };
 
 /**
- * The queue records for one selection.
+ * One photograph on its way to the bucket.
  *
- * Each photograph is given its storage path here, once, before any attempt.
- * Every upload of it, however many, writes the same object and attaches the
- * same path, which is what lets the server refuse a second row for a
- * photograph it already has. The original bytes go with it; compression
- * happens at upload, from them, every time.
- *
- * The bytes are read into memory here, before securing, and a fresh Blob is
- * made from them. A File from the picker - and any slice of it - is only a
- * reference to a temporary file on the phone, and on an iPhone IndexedDB
- * kept that reference rather than the bytes: once iOS had cleared the
- * picker's copy, every read of the "secured" photograph failed, quietly, for
- * days. A Blob built from an ArrayBuffer is the bytes themselves and is
- * stored as such. Seven photographs are read in well under a second.
+ * The path is minted when the file is chosen and never again, which is what
+ * makes a retry write the same object instead of a second one.
  */
-async function queueRecords(
-  files: File[],
-  where: {
-    companyId: string;
-    projectId: string;
-    reportId: string | null;
-    summaryReportId: string | null;
-    category: PhotoCategory;
-  },
-): Promise<QueuedPhoto[]> {
-  const now = Date.now();
-  const copies = await Promise.all(
-    files.map(async (file) => new Blob([await file.arrayBuffer()], { type: file.type })),
-  );
-  return files.map((file, index) => ({
-    id: crypto.randomUUID(),
-    companyId: where.companyId,
-    projectId: where.projectId,
-    reportId: where.reportId,
-    summaryReportId: where.summaryReportId,
-    category: where.category,
-    path: `${photoPathPrefix(where.companyId, where.projectId)}${crypto.randomUUID()}.jpg`,
-    name: file.name,
-    type: file.type || "image/jpeg",
-    file: copies[index]!,
-    status: "queued",
-    attempts: 0,
-    lastError: null,
-    nextAttemptAt: 0,
-    createdAt: now + index,
-    secured: false,
-  }));
+type PendingUpload = {
+  id: string;
+  name: string;
+  blob: Blob;
+  width: number;
+  height: number;
+  path: string;
+  /** The small copy every screen shows. Null when the canvas could not make one. */
+  thumb: Blob | null;
+};
+
+/**
+ * Re-encodes a photo to a sensible size before upload, and makes the small
+ * copy the screens will use.
+ *
+ * The sizes and the quality are decided in lib/photo-quality.ts, which is
+ * where the reasoning lives. This function is only the canvas work: step down
+ * through the chain of sizes with the browser's best resampling, encode the
+ * photograph, then carry on down the same chain to the thumbnail and encode
+ * that. One decode, one chain, two files.
+ *
+ * The orientation is asked for explicitly. It is the default in every current
+ * browser, but a photograph whose EXIF orientation is dropped comes out on its
+ * side in the PDF, and that is not something to leave to a default.
+ *
+ * Falls back to the original file when anything about the canvas path fails -
+ * a large upload is much better than a lost photo, and the bucket enforces its
+ * own 15 MB ceiling anyway. A thumbnail is a convenience and never evidence,
+ * so a missing one is null rather than a failure; the route that serves them
+ * falls back to the photograph itself.
+ */
+async function compress(file: File): Promise<Compressed> {
+  const original: Compressed = { blob: file, width: 0, height: 0, thumb: null };
+
+  if (typeof createImageBitmap !== "function") return original;
+
+  try {
+    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
+    const source = { width: bitmap.width, height: bitmap.height };
+    const target = targetSize(source);
+
+    let drawn: CanvasImageSource = bitmap;
+    let canvas: HTMLCanvasElement | null = null;
+
+    function stepDown(from: { width: number; height: number }, to: { width: number; height: number }) {
+      for (const step of downscaleSteps(from, to)) {
+        const next = document.createElement("canvas");
+        next.width = step.width;
+        next.height = step.height;
+
+        const context = next.getContext("2d");
+        if (!context) return false;
+
+        // Without this a 4032px photograph is point-sampled down to 1600 and
+        // every fine detail in it is thrown away before the encoder ever runs.
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = "high";
+        context.drawImage(drawn, 0, 0, step.width, step.height);
+
+        drawn = next;
+        canvas = next;
+      }
+      return true;
+    }
+
+    if (!stepDown(source, target)) {
+      bitmap.close();
+      return { ...original, width: source.width, height: source.height };
+    }
+
+    bitmap.close();
+    if (!canvas) return { ...original, ...target };
+
+    const encode = (from: HTMLCanvasElement, quality: number) =>
+      new Promise<Blob | null>((resolve) => from.toBlob(resolve, "image/jpeg", quality));
+
+    const blob = await encode(canvas, JPEG_QUALITY);
+
+    // The thumbnail continues down the same chain rather than starting again
+    // from the bitmap, so it is resampled just as gently and costs one more
+    // pair of draws rather than a second decode. A photograph already smaller
+    // than a tile gets none: it would be no smaller, and the route serves the
+    // photograph itself when there is nothing beside it.
+    const thumbTarget = targetSize(target, THUMB_EDGE);
+    const worthIt = thumbTarget.width < target.width || thumbTarget.height < target.height;
+    const thumb =
+      worthIt && stepDown(target, thumbTarget) && canvas
+        ? await encode(canvas, THUMB_QUALITY)
+        : null;
+
+    return blob ? { blob, ...target, thumb } : { ...original, ...target, thumb };
+  } catch {
+    return original;
+  }
 }
 
 /**
  * Adds photos to a report, to a survey, or to the project itself.
- *
- * ## Secure first, then upload
- *
- * The moment the picker returns, every chosen photograph is written to the
- * phone's own database with the storage path it will always be uploaded to -
- * before it is compressed, before a byte goes over the air. "Securing 25
- * photos…" is on the screen while that write runs, and "25 photos secured"
- * only once it has committed. From then on the photographs belong to the
- * queue (lib/photo-queue.ts): the runner in the app shell uploads them one at
- * a time whenever SiteBoss is open, and this control only shows their state.
- * Leaving the screen, refreshing it, backgrounding the app, or having iOS
- * discard the page changes nothing about what is on the phone.
- *
- * A phone that will not keep the bytes - no local database, a full one - is
- * told so in as many words. Its photographs are still uploaded, from memory,
- * for as long as this screen is open; they just cannot be promised past it.
- *
- * ## What the words mean
- *
- * Uploading, Waiting for signal, Uploaded, Failed - and nothing else.
- * Uploaded is said only after the server has confirmed the row. A failure
- * that is the network's is Waiting for signal and retries itself; one that is
- * the server's - an issued report, a refused file - is Failed and waits for a
- * person to Retry or Remove it. Removing is asked for twice, because it
- * discards evidence that was secured on the phone.
  *
  * `reportId` is null on the project's Photos tab. The photos table allows it -
  * report_id is nullable and documented as "photos captured against the project
@@ -181,39 +184,30 @@ export function PhotoUpload({
   // One ref per source: the attributes that decide what iOS opens are fixed on
   // each input rather than swapped on the shared one before a click.
   const inputRefs = useRef(new Map<PhotoSourceId, HTMLInputElement | null>());
-  const router = useRouter();
   const [category, setCategory] = useState<PhotoCategory>(defaultCategory);
-  const [phase, setPhase] = useState<Phase | null>(null);
-  const [note, setNote] = useState<string | null>(null);
+  const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  /**
+   * Photographs that did not make it.
+   *
+   * The compressed bytes are kept, and so is the storage path minted when the
+   * file was chosen - not a fresh one per attempt. That is what makes a retry
+   * safe: it writes the same object again rather than a second copy, and
+   * attachPhoto refuses to insert a second row for a path it already has. So
+   * pressing Retry twice on one bar of signal cannot leave two of the same
+   * photograph in the report.
+   */
+  const [failed, setFailed] = useState<PendingUpload[]>([]);
 
-  const target = targetKey({ reportId, summaryReportId, projectId });
-  const snap = useSyncExternalStore(subscribeToQueue, getQueueSnapshot, getServerQueueSnapshot);
-  const mine = recordsFor(snap.records, target);
-  const uploaded = snap.uploaded.filter((entry) => entry.target === target);
-  const failed = mine.filter((record) => record.status === "failed");
-  const unsecured = mine.filter((record) => !record.secured);
-  const pending = countPending(mine);
-  const summary = summariseQueue(mine, snap.online, snap.draining);
-
-  // This screen shows its own list, so the app-wide chip need not count these.
-  useEffect(() => registerVisibleTarget(target), [target]);
-
-  // The Uploaded rows have said their piece once nothing of this screen's is
-  // still on its way; the grid above holds the photographs themselves now.
+  // A photograph half-way to the bucket is work in progress. Leaving the page
+  // now loses it, so the browser asks first - the one thing that can be done
+  // about it without an offline queue.
   useEffect(() => {
-    if (pending > 0 || uploaded.length === 0) return;
-    const timer = setTimeout(() => forgetUploaded(target), 6_000);
-    return () => clearTimeout(timer);
-  }, [pending, uploaded.length, target]);
-
-  // "25 photos secured · uploading…" becomes "25 photos uploaded" only once
-  // every one of them has a row - and never while one is still failed, since
-  // a failed photograph is still one of this screen's records.
-  const batchDone =
-    phase !== null &&
-    (phase.kind === "secured" || phase.kind === "unsecured") &&
-    snap.loaded &&
-    mine.length === 0;
+    if (!busy) return;
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [busy]);
 
   async function handleFiles(source: PhotoSourceId, files: FileList) {
     const chosen = Array.from(files);
@@ -225,40 +219,120 @@ export function PhotoUpload({
     const skipped = chosen.length - list.length;
     const skippedNote =
       skipped > 0
-        ? `${skipped} ${skipped === 1 ? "file was" : "files were"} not a photo and ${
+        ? ` ${skipped} ${skipped === 1 ? "file was" : "files were"} not a photo and ${
             skipped === 1 ? "was" : "were"
           } skipped.`
-        : null;
-    setNote(skippedNote);
+        : "";
 
     if (list.length === 0) {
-      setNote(`Nothing uploaded. ${skippedNote ?? ""}`.trim());
+      setError(`Nothing uploaded.${skippedNote}`.trim());
       resetInput(source);
       return;
     }
 
-    setPhase({ kind: "securing", count: list.length });
+    setError(null);
 
-    // Claimed for this screen before the copy is even written, so the shell's
-    // runner does not take the same photographs off the database first.
-    markDraining(true);
-    const records = await queueRecords(list, { companyId, projectId, reportId, summaryReportId, category });
-    const { secured, reason } = await securePhotos(records);
-    setPhase(
-      secured
-        ? { kind: "secured", count: list.length }
-        : { kind: "unsecured", count: list.length, reason },
-    );
+    // Compressed and given its storage path here, once, before any attempt.
+    // Every retry of this photograph then writes the same object.
+    const pending: PendingUpload[] = [];
+    for (const file of list) {
+      const { blob, width, height, thumb } = await compress(file);
+      pending.push({
+        id: crypto.randomUUID(),
+        name: file.name,
+        blob,
+        width,
+        height,
+        thumb,
+        path: `${photoPathPrefix(companyId, projectId)}${crypto.randomUUID()}.jpg`,
+      });
+    }
 
-    // Cleared only now: the picked files stay readable until the phone has
-    // its own copy of them.
     resetInput(source);
+    await send(pending, skippedNote);
+  }
 
-    // Uploaded from memory, now. The database copy is the safety net for a
-    // page that dies before this finishes; the runner picks up from it.
-    void uploadNow(records, (uploaded) => {
-      if (uploaded > 0) router.refresh();
-    });
+  /**
+   * Upload and attach, one at a time, keeping whatever failed.
+   *
+   * Nothing is reported as uploaded before the row exists: an object in the
+   * bucket with no row is not a photograph in the report, and saying it was
+   * would be the exact lie this pass exists to remove.
+   */
+  async function send(pending: PendingUpload[], skippedNote = "") {
+    setBusy({ done: 0, total: pending.length });
+    const supabase = createClient();
+    const stillFailing: PendingUpload[] = [];
+    let firstFailure: string | null = null;
+
+    for (const [index, item] of pending.entries()) {
+      try {
+        const { error: uploadError } = await supabase.storage
+          .from(PHOTO_BUCKET)
+          .upload(item.path, item.blob, {
+            contentType: item.blob.type || "image/jpeg",
+            // The same path on a retry. Upsert so an object left behind by a
+            // half-finished first attempt is replaced rather than refused,
+            // which is what used to turn a retry into a second photograph.
+            upsert: true,
+          });
+
+        if (uploadError) throw new Error(uploadError.message);
+
+        // Beside the photograph, and never in front of it. A screen with no
+        // thumbnail falls back to the photograph itself and looks identical -
+        // it just costs more to fetch - so a thumbnail that will not upload is
+        // not a reason to tell somebody their site photo did not save.
+        if (item.thumb) {
+          await supabase.storage
+            .from(PHOTO_BUCKET)
+            .upload(thumbnailPath(item.path), item.thumb, {
+              contentType: "image/jpeg",
+              upsert: true,
+            })
+            .catch(() => undefined);
+        }
+
+        const result = summaryReportId
+          ? await attachSummaryPhoto({
+              summaryReportId,
+              storagePath: item.path,
+              caption: null,
+              category,
+              width: item.width || null,
+              height: item.height || null,
+            })
+          : await attachPhoto({
+              projectId,
+              reportId,
+              storagePath: item.path,
+              caption: null,
+              category,
+              width: item.width || null,
+              height: item.height || null,
+            });
+        if (result?.error) throw new Error(result.error);
+      } catch (cause) {
+        stillFailing.push(item);
+        firstFailure ??= cause instanceof Error ? cause.message : "Upload failed";
+      }
+
+      setBusy({ done: index + 1, total: pending.length });
+    }
+
+    setBusy(null);
+    setFailed(stillFailing);
+
+    if (stillFailing.length) {
+      setError(
+        (stillFailing.length === pending.length
+          ? `Nothing uploaded. ${firstFailure}`
+          : `${pending.length - stillFailing.length} of ${pending.length} uploaded. ${firstFailure}`) +
+          skippedNote,
+      );
+    } else {
+      setError(skippedNote.trim() ? `Uploaded.${skippedNote}` : null);
+    }
   }
 
   // Clearing the value is what lets the same photo be chosen twice running -
@@ -268,7 +342,6 @@ export function PhotoUpload({
     if (input) input.value = "";
   }
 
-  const securing = phase?.kind === "securing";
   const simpleSource = PHOTO_SOURCES.find((source) => source.id === "files")!;
 
   return (
@@ -281,7 +354,7 @@ export function PhotoUpload({
             variant="secondary"
             className="w-full text-base"
             onClick={() => inputRefs.current.get("files")?.click()}
-            disabled={securing}
+            disabled={busy !== null}
             data-photo-source-button="simple"
           >
             <Camera aria-hidden />
@@ -340,7 +413,7 @@ export function PhotoUpload({
                 variant={source.id === "camera" ? "primary" : "secondary"}
                 className="w-full justify-start text-left text-base sm:justify-center sm:text-center"
                 onClick={() => inputRefs.current.get(source.id)?.click()}
-                disabled={securing}
+                disabled={busy !== null}
                 data-photo-source-button={source.id}
               >
                 <Icon aria-hidden />
@@ -375,113 +448,41 @@ export function PhotoUpload({
       </div>
       )}
 
-      {/* What just happened to the selection: securing, secured, or not. */}
-      {phase?.kind === "securing" ? (
+      {busy ? (
         <p role="status" className="flex items-center gap-2 text-sm font-semibold text-ink-muted">
           <Loader2 className="size-4 animate-spin" aria-hidden />
-          {securingLabel(phase.count)}
+          Uploading {busy.done} of {busy.total}…
         </p>
       ) : null}
-      {phase?.kind === "secured" && !batchDone ? (
-        <p role="status" className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <Check className="size-4 text-success" aria-hidden />
-          {securedLabel(phase.count)}
-        </p>
-      ) : null}
-      {batchDone ? (
-        <p role="status" className="flex items-center gap-2 text-sm font-semibold text-ink">
-          <Check className="size-4 text-success" aria-hidden />
-          {phase.count} {phase.count === 1 ? "photo" : "photos"} uploaded.
-        </p>
-      ) : null}
-      {unsecured.length > 0 || phase?.kind === "unsecured" ? (
-        <Alert tone="danger">
-          {notSecuredLabel(
-            unsecured.length || (phase?.kind === "unsecured" ? phase.count : 0),
-            phase?.kind === "unsecured" ? phase.reason : null,
-          )}
-        </Alert>
-      ) : null}
-      {note ? <Alert tone="info">{note}</Alert> : null}
 
-      {/* The live state of this screen's photographs, from the queue. */}
-      {summary ? (
-        <div className="flex flex-col gap-2" data-photo-queue-status={summary.state}>
-          <p role="status" className="flex items-center gap-2 text-sm font-semibold text-ink-muted">
-            {summary.state === "uploading" ? (
-              <Loader2 className="size-4 animate-spin" aria-hidden />
-            ) : null}
-            {summary.text}
+      {error ? <Alert tone="danger">{error}</Alert> : null}
+
+      {/* Kept, not lost. The bytes are still here and the storage path is the
+          one they were given when the photograph was chosen, so Try again
+          writes the same object rather than a second copy of it. */}
+      {failed.length > 0 && !busy ? (
+        <div className="flex flex-col gap-2 rounded-xl border border-danger/40 bg-surface p-3">
+          <p className="text-sm font-semibold text-ink">
+            {failed.length} {failed.length === 1 ? "photograph" : "photographs"} did not upload
           </p>
-          {pending > 0 ? <p className="text-xs text-ink-muted">{KEEP_OPEN_NOTICE}</p> : null}
+          <ul className="flex flex-col gap-1 text-xs text-ink-muted">
+            {failed.map((item) => (
+              <li key={item.id} className="truncate">
+                {item.name || "Site photograph"}
+              </li>
+            ))}
+          </ul>
+          <Button
+            type="button"
+            variant="secondary"
+            className="self-start"
+            onClick={() => void send(failed)}
+          >
+            <RotateCw aria-hidden />
+            Try again
+          </Button>
         </div>
       ) : null}
-
-      {uploaded.length > 0 || failed.length > 0 ? (
-        <ul className="flex flex-col gap-2">
-          {uploaded.map((entry) => (
-            <li
-              key={entry.id}
-              className="flex items-center gap-2 text-xs text-ink-muted"
-              data-photo-queue-row="uploaded"
-            >
-              <Check className="size-3.5 shrink-0 text-success" aria-hidden />
-              <span className="truncate">{entry.name || "Site photograph"}</span>
-              <span className="ml-auto shrink-0 font-semibold">{UPLOAD_STATE_LABELS.uploaded}</span>
-            </li>
-          ))}
-          {failed.map((record) => (
-            <FailedRow key={record.id} record={record} />
-          ))}
-        </ul>
-      ) : null}
     </div>
-  );
-}
-
-/**
- * A photograph the server refused. Its bytes are still on the phone.
- *
- * Retry puts it back in the queue as it was. Remove discards the secured copy,
- * which is the one thing on this screen that loses evidence, so it is asked
- * for twice through the same inline confirmation every other destructive
- * action uses.
- */
-function FailedRow({ record }: { record: QueuedPhoto }) {
-  return (
-    <li
-      className="flex flex-col gap-2 rounded-xl border border-danger/40 bg-surface p-3"
-      data-photo-queue-row="failed"
-    >
-      <div className="flex items-center gap-2 text-sm">
-        <span className="truncate font-semibold text-ink">{record.name || "Site photograph"}</span>
-        <span className="ml-auto shrink-0 text-xs font-semibold text-danger">
-          {UPLOAD_STATE_LABELS.failed}
-        </span>
-      </div>
-      {record.lastError ? <p className="text-xs text-ink-muted">{record.lastError}</p> : null}
-      <div className="flex flex-wrap items-start gap-2">
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          onClick={() => void retryQueued(record.id)}
-        >
-          <RotateCw aria-hidden />
-          Retry
-        </Button>
-        <ConfirmAction
-          action={async () => {
-            await removeQueued(record.id);
-          }}
-          trigger="Remove"
-          triggerIcon={<Trash2 aria-hidden />}
-          title="Remove this photo?"
-          description="It has not been uploaded. Removing it discards the copy secured on this phone, and it cannot be got back."
-          confirmLabel="Remove photo"
-          pendingLabel="Removing…"
-        />
-      </div>
-    </li>
   );
 }

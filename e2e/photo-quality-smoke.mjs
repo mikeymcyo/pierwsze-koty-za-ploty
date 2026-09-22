@@ -117,16 +117,9 @@ check("quality is above the point where a re-encode shows", JPEG_QUALITY >= 0.88
 // measured gain past this point is a fifth of a decibel.
 check("and not so high that every fetch pays for it", JPEG_QUALITY <= 0.92, String(JPEG_QUALITY));
 
-console.log("\n5. The upload path uses these rules rather than its own");
+console.log("\n5. The upload screen uses these rules rather than its own");
 
-// The canvas work lives in lib/photo-compress.ts now, run by the queue at
-// upload time from the original bytes the phone holds; the screen only
-// chooses files and shows their state.
-const upload = codeOf(read("../lib/photo-compress.ts"));
-check(
-  "the upload screen does no canvas work of its own",
-  !/toBlob|createImageBitmap|drawImage/.test(codeOf(read("../components/reports/photo-upload.tsx"))),
-);
+const upload = codeOf(read("../components/reports/photo-upload.tsx"));
 check("the constants live in one place", /from "@\/lib\/photo-quality"/.test(upload));
 check("no second ceiling is hard-coded on the screen", !/=\s*1600\b/.test(upload), upload.match(/=\s*1600\b.*/)?.[0] ?? "");
 check("no second quality is hard-coded either", !/toBlob\([^)]*0\.\d+\s*\)/.test(upload));
