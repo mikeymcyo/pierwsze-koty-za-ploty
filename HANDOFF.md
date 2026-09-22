@@ -4,7 +4,7 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Last updated:** 2026-09-21
+**Written:** 2026-08-26 · **Last updated:** 2026-09-22
 
 **Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
 **Head:** `87733dd` - Supporting documents may be photographs; a photo becomes an A4 appendix page (plus the handoff commit on top of it)
@@ -915,6 +915,57 @@ drop policy if exists "report-pdfs_update" on storage.objects;
 Delete is left in place because the delete actions run through the user's
 client and need it; taking it away too would mean a service-role path for
 those three actions, which is a larger change than the finding warrants.
+
+### Photo upload: the simple uploader is back, 2026-09-22
+
+**Decision, from the field.** The physical iPhone test on 63d1ade: seven
+chosen, one uploaded, six Failed with "This photo is no longer on the
+phone" while the screen still said "7 photos secured · uploading…". The
+owner's decision was to stop working on the queue and take it out of the
+normal path. Offline and poor-signal persistence is BACKLOG, to be designed
+later outside the normal upload path.
+
+**What was restored (87a3505).** `components/reports/photo-upload.tsx` and
+`app/(app)/layout.tsx` exactly as they were at ab01244, the last commit
+before the queue - the only commits that had touched either file since
+were the three queue commits, so nothing unrelated was lost. The flow is:
+choose, compress and downscale on the phone, upload the object, upload the
+thumbnail, attach the row, see the photograph; "Uploading 3 of 7…" while it
+runs; failures kept in memory with their bytes and offered back as Try
+again on the same storage path; the browser's own leave-page prompt while
+an upload is in flight. Site Capture's single "Add photos" button, captions,
+statuses, ordering, report and survey linking, thumbnails, compression
+rules and every later piece of hardening are untouched.
+
+**What was removed from the tree:** `lib/photo-queue.ts`,
+`lib/photo-queue-runner.ts`, `lib/photo-queue-store.ts`,
+`lib/photo-compress.ts` (the compression is inline in the uploader again,
+same rules from `lib/photo-quality.ts`), `components/photos/photo-queue-runner.tsx`,
+`e2e/photo-queue-smoke.mjs` and its `test:photo-queue` script. Out of the
+active path with them: IndexedDB, securing and "secured", the shell runner,
+recovery state, queue retry and failure UI, the Web Lock, the retry clock
+and backoff, and any requirement for a photograph to enter IndexedDB before
+upload. The five suites that had pinned the queue (capture-reliability,
+photo-egress, photo-quality, site-survey, hardening) pin the restored
+uploader again. A phone still holding records in the old
+`siteboss-photo-queue` database is never read; nothing opens it.
+
+**Measured on the real build** (branch Preview, emulated iPhone viewport,
+4.33 MB JPEGs, one report, scratchpad `plain-probe.mjs`), ALL PASS:
+
+| batch | first tile | all on screen | rows | uploads |
+|---|---|---|---|---|
+| 1 | 1.9 s | 1.9 s | 1 | 1 |
+| 7 | 3.7 s | 14.5 s | 7 | 7 |
+| 16 | 6.2 s | 32.7 s | 16 | 16 |
+
+24 rows in the order chosen, no duplicates, statuses as chosen, the report
+page showing all 24, and no `siteboss-photo-queue` database created. No
+"secured", "Securing", "no longer on the phone" or "to go" anywhere on the
+capture screen. Throwaway tenant removed, zero left.
+
+**Sections below this one about the queue are history**, kept for the
+record of what was tried and why it did not survive contact with WebKit.
 
 ### Photo upload: from memory the moment it is chosen, 2026-09-21
 
