@@ -203,6 +203,17 @@ check(
   UNSET_PHOTO_STATUS === "general",
 );
 
+console.log("\nA phone edits one photograph per row");
+
+{
+  const grid = read("../components/reports/photo-grid.tsx");
+  check("editable cards are one column on a phone and two from a tablet up", /editable\s*\?\s*"grid grid-cols-1 gap-3 sm:grid-cols-2"/.test(grid));
+  check("cards that are only looked at keep the two-column thumbnail grid", /:\s*"grid grid-cols-2 gap-3 sm:grid-cols-3"/.test(grid));
+  check("a card can never grow past its column", /className="flex min-w-0 flex-col gap-2\.5 overflow-hidden rounded-card/.test(grid));
+  check("a long suggestion wraps inside the card", /<p className="text-sm break-words text-ink">\{showing\}<\/p>/.test(read("../components/reports/photo-details.tsx")));
+  check("the caption box fills the card and wraps", /className="w-full resize-none[^"]*break-words whitespace-pre-wrap/.test(read("../components/reports/photo-description-field.tsx")));
+}
+
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL PHOTO CAPTION CHECKS PASSED");
 else {

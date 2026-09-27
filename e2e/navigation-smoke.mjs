@@ -256,6 +256,18 @@ check("the lists read the store link and the address with the project", (reports
 check("and resolve the store from the shipped directory, never a new column", /placeOfProject\(project\)/.test(reportsList) && /placeOfProject\(project\)/.test(dashboard) && /storeFor\(link\.directory, link\.code\)/.test(read("../lib/projects/place.ts")));
 check("a project's own page does not repeat its place on every row", (projectPage.match(/projectName: null, place: null/g) ?? []).length === 2);
 
+console.log("\n9. The bottom bar steps aside while somebody is typing");
+
+{
+  const nav = read("../components/nav/bottom-nav.tsx");
+  check("focus in a text field, a textarea, a select or an editable region counts as typing", /tag === "TEXTAREA" \|\| tag === "SELECT"/.test(nav) && /isContentEditable === true/.test(nav) && /"button", "submit", "checkbox", "radio", "file", "range", "hidden", "reset"/.test(nav));
+  check("it listens to focus moving anywhere in the document", /addEventListener\("focusin", update\)/.test(nav) && /addEventListener\("focusout", update\)/.test(nav));
+  check("and hides the bar - display none, so nothing sits over the field", /cn\("fixed inset-x-0 bottom-0 z-40 px-3 pb-safe md:hidden", typing && "hidden"\)/.test(nav));
+  check("the page still keeps its bottom padding for the bar and the safe area", /pb-32 md:px-8/.test(read("../app/(app)/layout.tsx")) && /pb-safe/.test(nav));
+  const navCode = nav.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  check("no keyboard management beyond that", !/visualViewport|resize|scrollIntoView|keyboard/i.test(navCode));
+}
+
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL NAVIGATION CHECKS PASSED");
 else {

@@ -180,7 +180,7 @@ export function PhotoDetails({
       {showing ? (
         <div className="flex flex-col gap-2 rounded-control bg-surface-muted p-3 ring-1 ring-brand/20 ring-inset animate-fade">
           <p className="text-xs font-semibold text-brand-ink">Suggested description</p>
-          <p className="text-sm text-ink">{showing}</p>
+          <p className="text-sm break-words text-ink">{showing}</p>
           <div className="flex flex-wrap gap-2">
             <Button
               type="button"

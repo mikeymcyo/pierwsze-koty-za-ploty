@@ -23,9 +23,16 @@ export type PhotoWithUrl = Pick<
 /**
  * Photos as a thumbnail grid.
  *
- * Two columns on a phone: big enough to tell one pour of concrete from another
- * with the screen at arm's length in daylight, which one column of full-width
- * images would scroll forever and three would make too small.
+ * Two columns on a phone when the photographs are only being looked at: big
+ * enough to tell one pour of concrete from another with the screen at arm's
+ * length in daylight, which one column of full-width images would scroll
+ * forever and three would make too small.
+ *
+ * One column on a phone when they are being edited. A caption box, a status
+ * menu and an AI suggestion do not fit in half of a 390px screen: the label
+ * wrapped onto three lines, the box was a strip, and the suggestion's buttons
+ * stacked. On a tablet or a desktop the editable cards go two abreast, where
+ * each still has a sensible width to type into.
  *
  * ## Putting them in order
  *
@@ -101,7 +108,12 @@ export function PhotoGrid({
       ) : null}
 
       <ul
-        className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        className={
+          editable
+            ? "grid grid-cols-1 gap-3 sm:grid-cols-2"
+            : "grid grid-cols-2 gap-3 sm:grid-cols-3"
+        }
+      >
         {ordered.map((photo, index) => {
           const label = photoPrintLabel(photo);
           const alt = photoPrintLabelText(photo);
@@ -109,7 +121,7 @@ export function PhotoGrid({
           return (
             <li
               key={photo.id}
-              className="flex flex-col gap-2.5 overflow-hidden rounded-card bg-surface p-2 shadow-card ring-1 ring-line/70 ring-inset"
+              className="flex min-w-0 flex-col gap-2.5 overflow-hidden rounded-card bg-surface p-2 shadow-card ring-1 ring-line/70 ring-inset"
             >
               <div className="relative aspect-square overflow-hidden rounded-[14px] bg-surface-muted">
                 {/* The plate number this will print as, in this order. */}

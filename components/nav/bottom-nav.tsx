@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
@@ -14,14 +15,47 @@ import { cn } from "@/lib/utils";
  * thing on the bar - gold, lifted, lit - because it is the one thing a site
  * manager opens the app to press. Every target is at least 56px tall so it
  * can be hit with gloves on.
+ *
+ * While somebody is typing - a caption, a note, a search - the bar steps
+ * aside. A fixed bar and the iPhone keyboard between them left a strip of
+ * screen for the box being typed into, and the bar sat over the field or
+ * the controls under it. Nobody navigates mid-word; the bar is back the
+ * moment the field is left. This is the whole of the keyboard handling.
  */
+function isTypingTarget(element: Element | null): boolean {
+  if (!element) return false;
+  const tag = element.tagName;
+  if (tag === "TEXTAREA" || tag === "SELECT") return true;
+  if (tag === "INPUT") {
+    const type = (element as HTMLInputElement).type;
+    return !["button", "submit", "checkbox", "radio", "file", "range", "hidden", "reset"].includes(type);
+  }
+  return (element as HTMLElement).isContentEditable === true;
+}
+
+function useTyping(): boolean {
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    const update = () => setTyping(isTypingTarget(document.activeElement));
+    document.addEventListener("focusin", update);
+    document.addEventListener("focusout", update);
+    update();
+    return () => {
+      document.removeEventListener("focusin", update);
+      document.removeEventListener("focusout", update);
+    };
+  }, []);
+  return typing;
+}
+
 export function BottomNav() {
   const pathname = usePathname();
+  const typing = useTyping();
 
   return (
     <nav
       aria-label="Primary"
-      className="fixed inset-x-0 bottom-0 z-40 px-3 pb-safe md:hidden"
+      className={cn("fixed inset-x-0 bottom-0 z-40 px-3 pb-safe md:hidden", typing && "hidden")}
     >
       <ul className="mx-auto mb-2.5 flex max-w-lg items-stretch rounded-[26px] glass px-1 shadow-nav ring-1 ring-line/80">
         {MOBILE_NAV_ITEMS.map((item) => {
