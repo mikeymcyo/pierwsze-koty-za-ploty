@@ -206,6 +206,7 @@ check(
 console.log("\nA phone edits one photograph per row");
 
 {
+  const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
   const grid = read("../components/reports/photo-grid.tsx");
   check("editable cards are one column on a phone and two from a tablet up", /editable\s*\?\s*"grid grid-cols-1 gap-3 sm:grid-cols-2"/.test(grid));
   check("cards that are only looked at keep the two-column thumbnail grid", /:\s*"grid grid-cols-2 gap-3 sm:grid-cols-3"/.test(grid));
