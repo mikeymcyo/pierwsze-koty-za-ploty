@@ -208,7 +208,7 @@ console.log("\nA phone edits one photograph per row");
 {
   const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
   const grid = read("../components/reports/photo-grid.tsx");
-  check("editable cards are one column on a phone and two from a tablet up", /editable\s*\?\s*"grid grid-cols-1 gap-3 sm:grid-cols-2"/.test(grid));
+  check("editable cards are one column on a phone, two only where each has room", /editable\s*\?\s*"grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2"/.test(grid));
   check("cards that are only looked at keep the two-column thumbnail grid", /:\s*"grid grid-cols-2 gap-3 sm:grid-cols-3"/.test(grid));
   check("a card can never grow past its column", /className="flex min-w-0 flex-col gap-2\.5 overflow-hidden rounded-card/.test(grid));
   check("a long suggestion wraps inside the card", /<p className="text-sm break-words text-ink">\{showing\}<\/p>/.test(read("../components/reports/photo-details.tsx")));

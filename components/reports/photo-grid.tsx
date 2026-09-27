@@ -31,8 +31,10 @@ export type PhotoWithUrl = Pick<
  * One column on a phone when they are being edited. A caption box, a status
  * menu and an AI suggestion do not fit in half of a 390px screen: the label
  * wrapped onto three lines, the box was a strip, and the suggestion's buttons
- * stacked. On a tablet or a desktop the editable cards go two abreast, where
- * each still has a sensible width to type into.
+ * stacked. The editable cards go two abreast only where each still has a
+ * sensible width to type into: a phone on its side, and a desktop from 1024px.
+ * Between the two the side navigation takes a third of the screen, and two
+ * cards in what is left were 202px each, so that range is one column too.
  *
  * ## Putting them in order
  *
@@ -110,7 +112,7 @@ export function PhotoGrid({
       <ul
         className={
           editable
-            ? "grid grid-cols-1 gap-3 sm:grid-cols-2"
+            ? "grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2"
             : "grid grid-cols-2 gap-3 sm:grid-cols-3"
         }
       >
