@@ -173,7 +173,7 @@ export default async function ProjectPage({
   const photoRows = photosResult.data ?? [];
   const photos: PhotoWithUrl[] = photoRows.map((photo) => ({
     ...photo,
-    url: photoThumbUrl(photo.id),
+    url: photoThumbUrl(photo.id, photo.storage_path),
   }));
 
   // Deliberately kept out of loadError above. If the documents migration has

@@ -34,7 +34,7 @@ const SOURCE_ICONS: Record<PhotoSourceId, LucideIcon> = {
   files: FolderOpen,
 };
 
-type Compressed = { blob: Blob; width: number; height: number; thumb: Blob | null };
+export type Compressed = { blob: Blob; width: number; height: number; thumb: Blob | null };
 
 /**
  * One photograph on its way to the bucket.
@@ -73,7 +73,7 @@ type PendingUpload = {
  * so a missing one is null rather than a failure; the route that serves them
  * falls back to the photograph itself.
  */
-async function compress(file: File): Promise<Compressed> {
+export async function compress(file: File): Promise<Compressed> {
   const original: Compressed = { blob: file, width: 0, height: 0, thumb: null };
 
   if (typeof createImageBitmap !== "function") return original;

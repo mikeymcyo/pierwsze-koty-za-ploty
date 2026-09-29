@@ -78,7 +78,7 @@ export default async function SiteCapturePage({
 
   const photos: PhotoWithUrl[] = (photoRows ?? []).map((photo) => ({
     ...photo,
-    url: photoThumbUrl(photo.id),
+    url: photoThumbUrl(photo.id, photo.storage_path),
   }));
 
   const entries = parseCaptureLog(report.raw_notes);

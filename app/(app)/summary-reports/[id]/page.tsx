@@ -209,7 +209,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
     caption: photo.caption,
     category: photo.category,
     rotation: photo.rotation,
-    url: photoThumbUrl(photo.id),
+    url: photoThumbUrl(photo.id, photo.storage_path),
     selected: selectedPhotoIds.has(photo.id),
     captionOverride: captionByPhotoId.get(photo.id) ?? null,
   }));

@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { ImageOff, Trash2 } from "lucide-react";
+import { ImageOff, RefreshCw, Trash2 } from "lucide-react";
 
 import { deletePhoto, reorderReportPhotos } from "@/app/(app)/reports/photo-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmAction } from "@/components/ui/confirm-action";
 import { PhotoDetails } from "@/components/reports/photo-details";
+import { PhotoReplace } from "@/components/reports/photo-replace";
 import { PhotoOrderBar, usePhotoOrder } from "@/components/reports/photo-reorder";
 import { PhotoArrangeView } from "@/components/reports/photo-arrange";
 import { photoPrintLabel, photoPrintLabelText } from "@/lib/photo-captions";
@@ -78,6 +79,8 @@ export function PhotoGrid({
   const [reordering, setReordering] = useState(false);
   // The photograph whose delete is being asked about, if any.
   const [confirming, setConfirming] = useState<string | null>(null);
+  // The photograph whose image is being replaced, if any.
+  const [replacing, setReplacing] = useState<string | null>(null);
   const order = usePhotoOrder(
     photos.map((photo) => photo.id),
     (ids) => reorderReportPhotos(reportId!, ids),
@@ -171,7 +174,30 @@ export function PhotoGrid({
                     <Trash2 aria-hidden />
                   </Button>
                 ) : null}
+
+                {editable && replacing !== photo.id ? (
+                  // For a photograph edited afterwards in the phone's Photos
+                  // app: the picture changes, the photograph stays.
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    aria-label={`Replace photo${alt ? `: ${alt}` : ""}`}
+                    className="absolute right-1.5 bottom-1.5 size-9 rounded-xl shadow-card opacity-90 transition-opacity hover:opacity-100"
+                    onClick={() => setReplacing(photo.id)}
+                  >
+                    <RefreshCw aria-hidden />
+                  </Button>
+                ) : null}
               </div>
+
+              {editable && replacing === photo.id ? (
+                <PhotoReplace
+                  photoId={photo.id}
+                  storagePath={photo.storage_path}
+                  onClose={() => setReplacing(null)}
+                />
+              ) : null}
 
               {deletable && confirming === photo.id ? (
                 <ConfirmAction
@@ -189,6 +215,8 @@ export function PhotoGrid({
 
               {editable ? (
                 <PhotoDetails
+                  // A new image drops any AI suggestion made from the old one.
+                  key={photo.storage_path}
                   photoId={photo.id}
                   caption={photo.caption}
                   category={photo.category}

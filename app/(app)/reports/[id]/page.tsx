@@ -179,7 +179,7 @@ export default async function ReportCapturePage({
   const photoRows = photosResult.data ?? [];
   const photos: PhotoWithUrl[] = photoRows.map((photo) => ({
     ...photo,
-    url: photoThumbUrl(photo.id),
+    url: photoThumbUrl(photo.id, photo.storage_path),
   }));
 
   // The report itself loaded, so the screen is still usable. Rather than blank

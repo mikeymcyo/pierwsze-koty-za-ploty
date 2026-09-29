@@ -11,7 +11,7 @@ import { photoStatusLabel } from "@/lib/photo-captions";
 import { rotateBy } from "@/lib/photos-rotation";
 import { createClient } from "@/lib/supabase/server";
 import { isSameSet, sortOrderValues } from "@/lib/photos-order";
-import { PHOTO_BUCKET, photoPathPrefix } from "@/lib/photos";
+import { PHOTO_BUCKET, photoPathPrefix, thumbnailPath } from "@/lib/photos";
 import { jobContextBlock } from "@/lib/ai/job-context";
 import { documentContextForProject } from "@/lib/documents/job-context";
 import { briefForPrompt } from "@/lib/projects/job-brief";
@@ -173,6 +173,105 @@ export async function deletePhoto(formData: FormData) {
 
   revalidatePath(`/projects/${photo.project_id}`);
   if (photo.report_id) revalidatePath(`/reports/${photo.report_id}`);
+}
+
+const replaceSchema = z.object({
+  storagePath: z.string().trim().min(1),
+  width: z.number().int().positive().nullable(),
+  height: z.number().int().positive().nullable(),
+});
+
+export type ReplacePhotoInput = z.input<typeof replaceSchema>;
+export type ReplacePhotoResult = { replaced?: boolean; error?: string };
+
+/** The one shape a replacement object may have: a fresh UUID file beside the old one. */
+const REPLACEMENT_NAME = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jpg$/;
+
+/**
+ * Swaps the image a photograph shows, and nothing else about it.
+ *
+ * The photograph is its row: id, report, project, position, caption, status,
+ * before/after pairing, the issues and consolidated reports that point at it.
+ * All of that stays. What changes is only what belongs to the pixels - which
+ * object is shown, its size, and the quarter turns that were correcting the
+ * old image (an edited photograph comes back upright, so an old turn applied
+ * to it would put it on its side).
+ *
+ * The browser has already uploaded the new image to a new path. This checks
+ * the new object is really there, then moves the row onto it in one update
+ * that only lands if the row still points at the image it was read with. So
+ * the row never points at a missing file, two replacements racing cannot
+ * leave one orphaned, and until that update succeeds the old image is the
+ * photograph. The old object is removed only afterwards, and failing to
+ * remove it leaves a stray file rather than a broken photograph.
+ *
+ * An error here always means the row was not changed.
+ */
+export async function replacePhoto(
+  photoId: string,
+  input: ReplacePhotoInput,
+): Promise<ReplacePhotoResult> {
+  if (!z.uuid().safeParse(photoId).success) return { error: "That photograph could not be found." };
+  const parsed = replaceSchema.safeParse(input);
+  if (!parsed.success) return { error: "That photo could not be replaced - please try again." };
+  const { storagePath, width, height } = parsed.data;
+
+  const session = await requireSessionContext();
+  const supabase = await createClient();
+
+  const { data: photo } = await supabase
+    .from("photos")
+    .select("id, project_id, report_id, storage_path, reports(status)")
+    .eq("id", photoId)
+    .maybeSingle();
+  if (!photo) return { error: "That photograph could not be found." };
+
+  // The same rules as a caption or a turn: an issued report's PDF already
+  // shows this image, and a document printed from it must not drift.
+  const owner = Array.isArray(photo.reports) ? photo.reports[0] : photo.reports;
+  if (owner?.status === "final") return { error: REPORT_IS_FINAL };
+  const issued = issuedDependents(await dependentsOfPhoto(supabase, photoId));
+  if (issued.length > 0) return { error: printedInIssued(issued) };
+
+  // Where the browser says it put the new image: this company's folder for
+  // this photograph's project, under a fresh name, and not the image it has.
+  const prefix = photoPathPrefix(session.companyId, photo.project_id);
+  const name = storagePath.slice(prefix.length);
+  if (!storagePath.startsWith(prefix) || !REPLACEMENT_NAME.test(name) || storagePath === photo.storage_path) {
+    return { error: "That photo could not be replaced - please try again." };
+  }
+
+  // The new object must exist before anything points at it.
+  const { data: listed, error: listError } = await supabase.storage
+    .from(PHOTO_BUCKET)
+    .list(prefix.replace(/\/$/, ""), { search: name, limit: 5 });
+  if (listError || !(listed ?? []).some((entry) => entry.name === name)) {
+    return { error: "The new photo did not finish uploading. The original is unchanged - please try again." };
+  }
+
+  const { data: moved, error: updateError } = await supabase
+    .from("photos")
+    .update({ storage_path: storagePath, width, height, rotation: 0 })
+    .eq("id", photoId)
+    .eq("storage_path", photo.storage_path)
+    .select("id")
+    .maybeSingle();
+  if (updateError) {
+    return { error: `Could not replace the photo: ${updateError.message}. The original is unchanged.` };
+  }
+  if (!moved) {
+    return { error: "This photo was changed somewhere else while uploading. The original is unchanged - reload and try again." };
+  }
+
+  // The row has moved on. The old image and its small copy are nothing's now.
+  await supabase.storage
+    .from(PHOTO_BUCKET)
+    .remove([photo.storage_path, thumbnailPath(photo.storage_path)])
+    .catch(() => undefined);
+
+  revalidatePath(`/projects/${photo.project_id}`);
+  if (photo.report_id) revalidatePath(`/reports/${photo.report_id}`);
+  return { replaced: true };
 }
 
 const detailsSchema = z.object({
