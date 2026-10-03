@@ -141,7 +141,8 @@ export default async function DashboardPage() {
         <span className="hidden md:inline"> · {session.companyName}</span>
       </p>
       <h1 className="text-[28px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
-        Hello, {displayName(session)}
+        {/* First name only: a greeting, not an address label. */}
+        Hello, {displayName(session).split(/\s+/)[0]}
       </h1>
     </header>
   );

@@ -21,7 +21,10 @@ export function ProjectTabs({
   const searchParams = useSearchParams();
 
   return (
-    <div className="-mx-4 overflow-x-auto px-4 md:mx-0 md:px-0">
+    // The right edge fades on a phone, so a row that runs off the screen
+    // reads as one that scrolls; the extra right padding lets the last tab
+    // come fully clear of the fade.
+    <div className="-mx-4 overflow-x-auto px-4 pr-10 [mask-image:linear-gradient(to_right,black_calc(100%-2.5rem),transparent)] [scrollbar-width:none] md:mx-0 md:px-0 md:pr-0 md:[mask-image:none] [&::-webkit-scrollbar]:hidden">
       <nav
         aria-label="Project sections"
         className="flex min-w-max gap-1 rounded-full bg-surface p-1 shadow-card ring-1 ring-line/70 ring-inset"

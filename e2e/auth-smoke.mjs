@@ -87,7 +87,7 @@ try {
 
   await page.waitForURL("**/dashboard", { timeout: COLD_COMPILE_TIMEOUT });
   await page
-    .getByRole("heading", { name: `Hello, ${NAME}` })
+    .getByRole("heading", { name: `Hello, ${NAME.split(" ")[0]}` })
     .waitFor({ timeout: COLD_COMPILE_TIMEOUT });
   check("lands on the dashboard", page.url().endsWith("/dashboard"));
   check("signup trigger created the company", await page.getByText(COMPANY).first().isVisible());

@@ -320,29 +320,58 @@ export default async function ProjectPage({
       ) : null}
 
       {!loadError && activeTab === "overview" ? (
-        <Card>
-          <CardContent>
-            <dl className="flex flex-col">
-              <DetailRow label="Client" value={project.client} />
-              <DetailRow label="Site address" value={project.site_address} />
-              <DetailRow label="Postcode" value={project.postcode} />
-              <DetailRow label="Project reference" value={project.project_reference} />
-              <DetailRow label="Site manager" value={project.site_manager} />
-              <DetailRow label="Start date" value={formatDate(project.start_date)} />
-              <DetailRow
-                label="Expected completion"
-                value={formatDate(project.expected_completion_date)}
-              />
-            </dl>
+        (() => {
+          // Only what has been recorded. Seven rows of dashes read as a form
+          // somebody failed to fill in; one line says the same and offers the
+          // way to fill it.
+          const details = [
+            { label: "Client", value: project.client },
+            { label: "Site address", value: project.site_address },
+            { label: "Postcode", value: project.postcode },
+            { label: "Project reference", value: project.project_reference },
+            { label: "Site manager", value: project.site_manager },
+            { label: "Start date", value: formatDate(project.start_date) },
+            { label: "Expected completion", value: formatDate(project.expected_completion_date) },
+          ].filter((detail) => Boolean(detail.value));
 
-            {project.description ? (
-              <div className="mt-5 border-t border-line pt-5">
-                <h2 className="text-sm font-semibold text-ink-muted">Description</h2>
-                <p className="mt-2 whitespace-pre-wrap text-ink">{project.description}</p>
+          if (details.length === 0 && !project.description) {
+            return (
+              <div className="flex items-center justify-between gap-3 rounded-card bg-surface/60 px-5 py-4 ring-1 ring-line/70 ring-inset">
+                <p className="text-sm text-ink-muted">
+                  No client, address or dates recorded yet.
+                </p>
+                <Link
+                  href={`/projects/${project.id}/edit`}
+                  className="inline-flex shrink-0 items-center gap-1.5 text-sm font-semibold text-brand-ink hover:underline"
+                >
+                  <Pencil className="size-4" aria-hidden />
+                  Add details
+                </Link>
               </div>
-            ) : null}
-          </CardContent>
-        </Card>
+            );
+          }
+
+          return (
+            <Card>
+              <CardContent>
+                {details.length > 0 ? (
+                  <dl className="flex flex-col">
+                    {details.map((detail) => (
+                      <DetailRow key={detail.label} label={detail.label} value={detail.value} />
+                    ))}
+                  </dl>
+                ) : null}
+
+                {project.description ? (
+                  <div className={details.length > 0 ? "mt-5 border-t border-line pt-5" : undefined}>
+                    <h2 className="text-sm font-semibold text-ink-muted">Description</h2>
+                    <p className="mt-2 whitespace-pre-wrap text-ink">{project.description}</p>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
+          );
+        })()
       ) : null}
 
       {!loadError && activeTab === "reports" ? (

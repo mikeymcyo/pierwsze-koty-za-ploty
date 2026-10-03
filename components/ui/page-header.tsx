@@ -26,21 +26,26 @@ export function PageHeader({
 }) {
   return (
     <header className={cn("flex flex-col gap-3", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3">
-          {Icon ? (
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-soft text-brand-ink ring-1 ring-brand/20">
-              <Icon className="size-5" aria-hidden />
-            </span>
-          ) : null}
-          <div className="min-w-0">
+      <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-4">
+        <div className="min-w-0 flex-1 basis-64">
+          {/* The icon belongs to the title, not to the paragraph under it: on
+              a phone a two-line description used to pull the icon down beside
+              it, and the title sat off to the right of nothing. */}
+          <div className="flex min-w-0 items-center gap-3">
+            {Icon ? (
+              <span className="grid size-10 shrink-0 place-items-center rounded-[14px] bg-brand-soft text-brand-ink ring-1 ring-brand/20 md:size-11 md:rounded-2xl">
+                <Icon className="size-5" aria-hidden />
+              </span>
+            ) : null}
             <h1 className="truncate text-[26px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
               {title}
             </h1>
-            {description ? (
-              <p className="mt-1 text-sm text-ink-muted">{description}</p>
-            ) : null}
           </div>
+          {description ? (
+            <p className="mt-2 max-w-prose text-sm leading-relaxed text-pretty text-ink-muted">
+              {description}
+            </p>
+          ) : null}
         </div>
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
       </div>

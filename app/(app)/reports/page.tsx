@@ -37,12 +37,13 @@ export default async function ReportsPage() {
         description="Daily records, client updates, completion documents and site surveys. Swipe a report left, or use its menu, for its actions."
         icon={FileText}
         actions={
-          <>
+          // An even two by two on a phone rather than three and an orphan.
+          <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:flex-wrap">
           <Button asChild variant="secondary" size="sm"><Link href="/reports/new"><Plus aria-hidden />Daily</Link></Button>
           <Button asChild variant="secondary" size="sm"><Link href="/summary-reports/new?kind=progress"><Plus aria-hidden />Progress</Link></Button>
           <Button asChild variant="secondary" size="sm"><Link href="/summary-reports/new?kind=completion"><Plus aria-hidden />Completion</Link></Button>
           <Button asChild variant="secondary" size="sm"><Link href="/surveys/new"><Plus aria-hidden />Survey</Link></Button>
-          </>
+          </div>
         }
       />
 

@@ -113,7 +113,7 @@ export function SwipeRow({
         onPointerMove={onPointerMove}
         onPointerUp={endGesture}
         onPointerCancel={endGesture}
-        className="relative flex items-center gap-3 rounded-card bg-surface p-4 shadow-card ring-1 ring-line/70 ring-inset transition-colors duration-200 hover:bg-surface-raised"
+        className="relative flex items-center gap-3 rounded-card bg-surface p-4 shadow-card ring-1 ring-line/70 ring-inset transition-colors duration-200 hover:bg-surface-raised active:bg-surface-raised active:ring-line-strong"
       >
         <Link
           href={href}
