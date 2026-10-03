@@ -28,7 +28,27 @@ function isTransientClockError(error: PostgrestError | null): boolean {
   return /issued at future|not yet valid|iat.*future/i.test(message);
 }
 
-type Query<T> = () => PromiseLike<{ data: T; error: PostgrestError | null }>;
+type Answer<T> = PromiseLike<{ data: T; error: PostgrestError | null }>;
+// A Supabase query builder carries abortSignal; a plain promise does not.
+type Query<T> = () => Answer<T> & { abortSignal?: (signal: AbortSignal) => Answer<T> };
+
+/**
+ * The query again, as a request Next.js has not seen yet.
+ *
+ * Next memoizes identical GET requests for the length of one server render, so
+ * asking again with the same URL and headers is handed the response it already
+ * has - the same rejection, instantly, never reaching Supabase. That is how a
+ * brand-new account sat through the whole budget and still got the error: on
+ * 3 October every retry in the logs was a replay and the dashboard took twenty
+ * seconds to say it could not load. A signal is Next's documented opt-out, so
+ * each retry gets one of its own.
+ */
+function freshly<T>(query: Query<T>): Answer<T> {
+  const builder = query();
+  return typeof builder.abortSignal === "function"
+    ? builder.abortSignal(new AbortController().signal)
+    : builder;
+}
 
 const DEFAULT_BUDGET_MS = 20_000;
 const FIRST_DELAY_MS = 200;
@@ -53,7 +73,7 @@ export async function withClockSkewRetry<T>(
 
   while (isTransientClockError(result.error) && Date.now() + delay < deadline) {
     await new Promise((resolve) => setTimeout(resolve, delay));
-    result = await query();
+    result = await freshly(query);
     delay = Math.min(delay * 2, MAX_DELAY_MS);
   }
 

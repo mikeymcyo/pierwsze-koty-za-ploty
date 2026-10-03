@@ -70,8 +70,12 @@ export default async function NewReportPage() {
                       {[project.client, project.site_address].filter(Boolean).join(" · ") ||
                         "No client or address recorded"}
                     </p>
+                    {/* Under the name rather than beside it, so a phone shows
+                        the site's name instead of "Lidl Croy...". */}
+                    <div className="mt-2">
+                      <ProjectStatusBadge status={project.status} />
+                    </div>
                   </div>
-                  <ProjectStatusBadge status={project.status} />
                   <Button type="submit" size="md" className="shrink-0">
                     <Mic aria-hidden />
                     Capture

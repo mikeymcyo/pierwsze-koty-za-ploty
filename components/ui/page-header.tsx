@@ -47,7 +47,7 @@ export function PageHeader({
             </p>
           ) : null}
         </div>
-        {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+        {actions ? <div className="flex w-full flex-wrap gap-2 sm:w-auto">{actions}</div> : null}
       </div>
       {/* The gold stub against a hairline: the brand rule from the mark. */}
       <div className="h-px brand-rule" />

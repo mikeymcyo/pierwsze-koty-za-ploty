@@ -8,8 +8,9 @@
  * all on the screen right after sign-in, the last one past a six-second budget.
  *
  * What is checked: only that error is retried, it stops the moment the answer
- * arrives, every other error surfaces at once, the budget is honoured, and the
- * budget the app ships with is wide enough for the skew that has been seen.
+ * arrives, every other error surfaces at once, the budget is honoured, the
+ * budget the app ships with is wide enough for the skew that has been seen, and
+ * every retry is a request Next.js cannot answer from its render memo.
  *
  * Needs no Supabase, no dev server and no API key:
  *
@@ -82,6 +83,29 @@ check("a default budget is declared", Number.isFinite(budget), String(budget));
 check("it is longer than the six seconds that was not enough", budget > 6_000, String(budget));
 check("and not so long it outlives a serverless function", budget <= 25_000, String(budget));
 check("the first screen after sign-in still uses it", /withClockSkewRetry\(/.test(read("../lib/auth/session.ts")));
+
+console.log("\n5. A retry is a new request, not a replay");
+{
+  // Next memoizes identical GETs within a render; a signal opts a fetch out.
+  // A builder stands in for Supabase's: abortSignal records what it was given.
+  const signals = [];
+  let calls = 0;
+  const builder = () => {
+    const attempt = ++calls;
+    const answer = Promise.resolve(attempt < 3 ? { data: null, error: skew } : { data: 1, error: null });
+    return Object.assign(answer, {
+      abortSignal(signal) {
+        signals.push(signal);
+        return answer;
+      },
+    });
+  };
+  const result = await withClockSkewRetry(builder, { budgetMs: 5_000 });
+  check("the answer still arrives", result.error === null && result.data === 1);
+  check("every retry carries a signal", signals.length === calls - 1, `${signals.length} of ${calls - 1}`);
+  check("each its own", new Set(signals).size === signals.length);
+  check("and none of them aborted", signals.every((s) => s instanceof AbortSignal && !s.aborted));
+}
 
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL CLOCK SKEW CHECKS PASSED");
