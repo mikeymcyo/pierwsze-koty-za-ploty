@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "
 
 import {
   NOTHING_HEARD_MESSAGE,
+  SPEECH_SERVICE_REFUSED_MESSAGE,
   RESTART_REFUSED_MESSAGE,
   decideRestart,
   endSession,
@@ -214,11 +215,16 @@ export function useSpeechInput({
       // reporting them as failures would train people to ignore errors.
       if (event.error === "no-speech" || event.error === "aborted") return;
 
-      const blocked = event.error === "not-allowed" || event.error === "service-not-allowed";
+      // "not-allowed" is the microphone permission. "service-not-allowed" is
+      // the device declining speech recognition for this page - on iPhone
+      // that is typically an app opened from the Home Screen, where no
+      // setting will change it but the keyboard's own microphone still works.
       setError(
-        blocked
+        event.error === "not-allowed"
           ? "Microphone access was blocked. Allow it in your browser settings, or type instead."
-          : "Dictation stopped unexpectedly. You can keep typing.",
+          : event.error === "service-not-allowed"
+            ? SPEECH_SERVICE_REFUSED_MESSAGE
+            : "Dictation stopped unexpectedly. You can keep typing.",
       );
       // A real fault ends the attempt: onend must not restart into it. onend
       // still follows and hands over anything already heard.

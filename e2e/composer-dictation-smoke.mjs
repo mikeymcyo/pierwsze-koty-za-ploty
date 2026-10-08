@@ -51,6 +51,15 @@ function fakeIosRecognition() {
       r.onresult?.({ results: { length: 1, 0: { isFinal: false, 0: { transcript: r._phrase } } } });
       return true;
     },
+    // A finished phrase delivered on its own, in a fresh list at position 0 -
+    // the shape some iOS versions use - followed by nothing pending.
+    sayFinal(words) {
+      const r = control.current;
+      if (!r) return false;
+      r._phrase = "";
+      r.onresult?.({ results: { length: 1, 0: { isFinal: true, 0: { transcript: words } } } });
+      return true;
+    },
     // A pause long enough for iOS to close the session by itself, with the
     // phrase in flight never marked final.
     end() {
@@ -193,6 +202,24 @@ try {
   await page.waitForFunction(() => /2 notes/.test(document.body.innerText), null, { timeout: 30_000 });
   check("and send as said", (await timeline.innerText()).includes("Skip swapped at 11."));
 
+  console.log("\n5b. Each phrase in a fresh list: none is dropped");
+  await speech(() => { window.__speech.stopMode = "final"; });
+  await mic.click();
+  for (const phrase of ["Ceiling grid up in bay 3.", "Lights first fixed.", "Snagging tomorrow."]) {
+    await speech((p) => window.__speech.sayFinal(p), phrase);
+  }
+  await page.waitForFunction(() => /Snagging tomorrow/.test(document.querySelector('[name="capture_text"]').value));
+  await stopButton.click();
+  await page.waitForFunction(() => !document.querySelector('[name="capture_text"]').readOnly, null, { timeout: 6000 });
+  check(
+    "all three phrases are in the box, in order",
+    (await box.inputValue()) === "Ceiling grid up in bay 3. Lights first fixed. Snagging tomorrow.",
+    await box.inputValue(),
+  );
+  await arrow.click();
+  await page.waitForFunction(() => /3 notes/.test(document.body.innerText), null, { timeout: 30_000 });
+  check("and all three are saved as one note", (await timeline.innerText()).includes("Ceiling grid up in bay 3. Lights first fixed. Snagging tomorrow."));
+
   console.log("\n6. Nothing heard is said so, and nothing is sent");
   await speech(() => { window.__speech.stopMode = "empty"; });
   await mic.click();
@@ -201,7 +228,7 @@ try {
   check("a clear error is shown", await page.getByText(/No words were picked up, so nothing was added/).isVisible());
   check("the box is empty", (await box.inputValue()) === "");
   check("the arrow cannot send", await arrow.isDisabled());
-  check("no note was added", /2 notes/.test(await page.locator("body").innerText()));
+  check("no note was added", /3 notes/.test(await page.locator("body").innerText()));
 } catch (error) {
   failures.push(`crashed: ${String(error).slice(0, 300)}`);
   console.log("CRASH", String(error).slice(0, 300));

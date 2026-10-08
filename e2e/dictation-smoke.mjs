@@ -17,16 +17,21 @@
  * from a timer rather than a tap. That is what the refusal path exists for.
  */
 
+import { readFileSync } from "node:fs";
+
 import {
   MAX_EMPTY_RESTARTS,
   RESTART_DELAYS_MS,
   RESTART_REFUSED_MESSAGE,
+  SPEECH_SERVICE_REFUSED_MESSAGE,
   decideRestart,
   endSession,
   joinTranscript,
   newSession,
   receive,
 } from "../lib/speech/transcript.ts";
+
+const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 
 const failures = [];
 function check(label, ok, detail = "") {
@@ -175,6 +180,42 @@ const grown = dictate([
   { userStops: true },
 ]);
 check("a growing results array reads once through", grown.text === "One. Two. Three.", grown.text);
+
+console.log("\n4b. A fresh list for every phrase (as some iOS versions send it)");
+// Each final arrives alone at position 0. Counting positions alone took the
+// first phrase and dropped every one after it, silently.
+let freshList = newSession();
+const p1 = receive(freshList, event(["Stripped out the old counters."]));
+freshList = p1.state;
+const between = receive(freshList, event([], "two electr"));
+freshList = between.state;
+const p2 = receive(freshList, event(["Two electricians from seven."]));
+freshList = p2.state;
+const p2again = receive(freshList, event(["Two electricians from seven."]));
+freshList = p2again.state;
+const p3 = receive(freshList, event(["Skip swapped at eleven."]));
+check("the first phrase is taken", p1.append === "Stripped out the old counters.");
+check("an interim between phrases adds nothing and loses nothing", between.append === "" && between.state.committed === 1);
+check("the second phrase is taken although it sits at position 0", p2.append === "Two electricians from seven.", JSON.stringify(p2.append));
+check("the same phrase delivered again is not doubled", p2again.append === "", JSON.stringify(p2again.append));
+check("and the third is taken too", p3.append === "Skip swapped at eleven.", JSON.stringify(p3.append));
+const freshDay = dictate([
+  { speak: { finals: ["One."] } },
+  { speak: { finals: ["Two."] } },
+  { speak: { finals: ["Three."] } },
+  { userStops: true },
+]);
+check("a whole session of fresh lists reads once through, in order", freshDay.text === "One. Two. Three.", freshDay.text);
+
+{
+  const hook = read("../lib/hooks/use-speech-input.ts");
+  check(
+    "a refused speech service points at the keyboard microphone, not at settings",
+    /service-not-allowed"\s*\?\s*SPEECH_SERVICE_REFUSED_MESSAGE/.test(hook) &&
+      /keyboard/.test(SPEECH_SERVICE_REFUSED_MESSAGE) && !/settings/.test(SPEECH_SERVICE_REFUSED_MESSAGE),
+  );
+  check("a blocked microphone still says to allow it", /"not-allowed"\s*\?\s*"Microphone access was blocked/.test(hook));
+}
 
 console.log("\n5. Stopping means stopping");
 const stopped = dictate([

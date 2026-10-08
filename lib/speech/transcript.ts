@@ -42,11 +42,27 @@ export type SpeechEventLike = {
 export type TranscriptState = {
   committed: number;
   pending: string;
+  /**
+   * The final texts already handed over this session, in order. Kept so a
+   * results list that is not the one we have been counting - a fresh list
+   * holding only the newest phrase - is recognised as such, rather than its
+   * phrases being skipped because their positions were already counted.
+   */
+  taken?: string[];
 };
 
 /** A session's results start again at index 0, so its state must start fresh too. */
 export function newSession(): TranscriptState {
-  return { committed: 0, pending: "" };
+  return { committed: 0, pending: "", taken: [] };
+}
+
+/** How many leading items of `next` repeat the last items of `previous`. */
+function overlap(previous: string[], next: string[]): number {
+  for (let size = Math.min(previous.length, next.length); size > 0; size -= 1) {
+    const tail = previous.slice(previous.length - size);
+    if (tail.every((text, index) => text === next[index])) return size;
+  }
+  return 0;
 }
 
 /**
@@ -56,6 +72,14 @@ export function newSession(): TranscriptState {
  * engines differ on whether that index means "new since last event" or is
  * simply zero every time, and counting finals against a watermark is correct
  * under both readings. Anything already handed over is never handed over twice.
+ *
+ * Engines also differ on whether the list grows through a session or starts
+ * again with each phrase. Counting positions alone is right for the first and
+ * silently drops every phrase after the first for the second: the new phrase
+ * sits at position 0, which was already counted. So the texts are compared
+ * too. A list that begins with exactly what was taken is the growing kind; any
+ * other list is a fresh one, and everything in it that does not merely repeat
+ * the last phrases taken is new.
  */
 export function receive(
   state: TranscriptState,
@@ -75,10 +99,15 @@ export function receive(
     }
   }
 
-  const append = finals.slice(state.committed).join(" ").trim();
+  const taken = state.taken ?? [];
+  const growing =
+    finals.length >= taken.length && taken.every((text, index) => finals[index] === text);
+  const fresh = growing ? finals.slice(taken.length) : finals.slice(overlap(taken, finals));
+  const nextTaken = [...taken, ...fresh];
+
   return {
-    state: { committed: finals.length, pending: pending.trim() },
-    append,
+    state: { committed: nextTaken.length, pending: pending.trim(), taken: nextTaken },
+    append: fresh.join(" ").trim(),
   };
 }
 
@@ -184,6 +213,14 @@ export function canSendCapture({
 }): boolean {
   return text.trim().length > 0 && !listening && !settling && !pending && !busy;
 }
+
+/**
+ * The device will not run speech recognition for this page. On iPhone that is
+ * usually the app opened from the Home Screen. The keyboard microphone types
+ * into the same box and is the way through.
+ */
+export const SPEECH_SERVICE_REFUSED_MESSAGE =
+  "This phone won't run dictation inside the app. Tap the box and use the microphone on your keyboard instead - it types straight in.";
 
 /** Shown when dictation cannot carry on by itself. Never leave a stop invisible. */
 export const RESTART_REFUSED_MESSAGE = "Dictation stopped - tap Dictate to continue.";
