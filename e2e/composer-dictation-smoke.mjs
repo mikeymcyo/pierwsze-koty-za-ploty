@@ -91,6 +91,10 @@ function fakeIosRecognition() {
       setTimeout(() => this.onend?.(), 0);
     }
   }
+  // Both names: recent Chromium exposes the unprefixed one too, and the hook
+  // prefers it - replacing only the webkit name would leave a real recogniser
+  // with no microphone behind it.
+  window.SpeechRecognition = FakeRecognition;
   window.webkitSpeechRecognition = FakeRecognition;
   window.__speech = control;
 }
