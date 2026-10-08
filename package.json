@@ -66,6 +66,7 @@
     "test:job-brief": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/job-brief-smoke.mjs",
     "test:capture-reliability": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/capture-reliability-smoke.mjs",
     "test:capture-composer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/capture-composer-smoke.mjs",
+    "test:composer-dictation": "node e2e/composer-dictation-smoke.mjs",
     "test:photo-order": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/photo-order-smoke.mjs",
     "test:recent-locations": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/recent-locations-smoke.mjs",
     "test:hardening": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/hardening-smoke.mjs",

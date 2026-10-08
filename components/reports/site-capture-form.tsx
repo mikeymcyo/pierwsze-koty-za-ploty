@@ -12,6 +12,7 @@ import {
   readCaptureBusy,
   readCaptureDraft,
   setCaptureBusy,
+  setCaptureDictating,
   subscribeToCaptureDraft,
   writeCaptureDraft,
 } from "@/lib/capture-draft";
@@ -121,6 +122,7 @@ export function SiteCaptureForm({
         label="What happened on site?"
         value={text}
         onValueChange={(value) => writeCaptureDraft(reportId, value)}
+        onActiveChange={(active) => setCaptureDictating(reportId, active)}
         rows={3}
         disabled={busy}
         startLabel="Speak"

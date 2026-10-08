@@ -76,7 +76,7 @@ check(
 check("an empty log blocks nothing", !alreadyEnded(null, "anything", "08:00"));
 check(
   "the arrow goes dead for the round trip",
-  /disabled=\{empty \|\| pending \|\| disabled\}/.test(dictation),
+  /disabled=\{!canSendCapture\(\{ text, listening, settling, pending, busy: disabled \}\)\}/.test(dictation),
   "two taps on one bar of signal used to be two entries",
 );
 

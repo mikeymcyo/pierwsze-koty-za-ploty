@@ -11,6 +11,7 @@ import { describeActionFailure } from "@/lib/actions/recover";
 import {
   clearCaptureDraft,
   readCaptureBusy,
+  readCaptureDictating,
   readCaptureDraft,
   setCaptureBusy,
   subscribeToCaptureDraft,
@@ -65,6 +66,13 @@ export function PrepareDaily({ reportId }: { reportId: string }) {
   const busy = useSyncExternalStore(
     subscribeToCaptureDraft,
     () => readCaptureBusy(reportId),
+    () => false,
+  );
+  // The microphone is on, or still handing over its last words: the box is
+  // not finished yet, and adding it now would leave the rest behind.
+  const dictating = useSyncExternalStore(
+    subscribeToCaptureDraft,
+    () => readCaptureDictating(reportId),
     () => false,
   );
   const unsent = useSyncExternalStore(
@@ -128,15 +136,17 @@ export function PrepareDaily({ reportId }: { reportId: string }) {
           </p>
           <form action={action}>
             <input type="hidden" name="force" value="1" />
-            <PrepareButton label="Prepare Daily anyway" force pending={pending} disabled={busy} saving={saving} />
+            <PrepareButton label="Prepare Daily anyway" force pending={pending} disabled={busy || dictating} saving={saving} />
           </form>
         </div>
       ) : null}
 
       <form action={action}>
-        <PrepareButton label="Prepare Daily" force={false} pending={pending} disabled={busy} saving={saving} />
+        <PrepareButton label="Prepare Daily" force={false} pending={pending} disabled={busy || dictating} saving={saving} />
       </form>
-      {unsent && !pending ? (
+      {dictating && !pending ? (
+        <p className="px-1 text-xs text-ink-subtle">Stop the microphone first.</p>
+      ) : unsent && !pending ? (
         <p className="px-1 text-xs text-ink-subtle">
           The words still in the box go in first.
         </p>

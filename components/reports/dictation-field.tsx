@@ -8,7 +8,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useSpeechInput } from "@/lib/hooks/use-speech-input";
-import { joinTranscript } from "@/lib/speech/transcript";
+import { canSendCapture, composerDisplay, joinTranscript } from "@/lib/speech/transcript";
 import { cn } from "@/lib/utils";
 
 /** The composer grows with what is said, up to about eleven lines. */
@@ -35,6 +35,7 @@ export function DictationField({
   disabled = false,
   value,
   onValueChange,
+  onActiveChange,
   startLabel = "Dictate",
   stopLabel = "Stop dictating",
 }: {
@@ -71,6 +72,8 @@ export function DictationField({
   composer?: boolean;
   /** Composer only: another request on this report is in flight. */
   disabled?: boolean;
+  /** Told when the microphone comes on and when its last words are in. */
+  onActiveChange?: (active: boolean) => void;
 }) {
   const [own, setOwn] = useState(defaultValue ?? "");
   const controlled = value !== undefined;
@@ -92,13 +95,23 @@ export function DictationField({
     onValueChange?.(next);
   };
 
-  const { supported, listening, error, start, stop } = useSpeechInput({
+  const { supported, listening, settling, interim, error, start, stop } = useSpeechInput({
     // Through setText, the same as a keystroke: a spoken chunk reaches the
     // caller's onValueChange, which on Site Capture is what keeps the words
     // on the phone. Dictation used to bypass it, and a tab iOS discarded
     // mid-sentence lost everything spoken.
     onText: (chunk) => setText(joinTranscript(latest.current, chunk)),
   });
+
+  const active = listening || settling;
+  const onActiveChangeRef = useRef(onActiveChange);
+  useEffect(() => {
+    onActiveChangeRef.current = onActiveChange;
+  }, [onActiveChange]);
+  useEffect(() => {
+    onActiveChangeRef.current?.(active);
+  }, [active]);
+  useEffect(() => () => onActiveChangeRef.current?.(false), []);
 
   if (composer) {
     return (
@@ -110,7 +123,7 @@ export function DictationField({
         placeholder={placeholder}
         rows={rows}
         disabled={disabled}
-        dictation={{ supported, listening, error, start, stop, startLabel, stopLabel }}
+        dictation={{ supported, listening, settling, interim, error, start, stop, startLabel, stopLabel }}
       />
     );
   }
@@ -180,13 +193,23 @@ export function DictationField({
  * signal is one request - and addCapture refuses a repeat of the entry it
  * already wrote, so neither the finger nor the network can double it.
  */
-function SendButton({ empty, disabled }: { empty: boolean; disabled: boolean }) {
+function SendButton({
+  text,
+  listening,
+  settling,
+  disabled,
+}: {
+  text: string;
+  listening: boolean;
+  settling: boolean;
+  disabled: boolean;
+}) {
   const { pending } = useFormStatus();
   return (
     <button
       type="submit"
       aria-label={pending ? "Adding your note" : "Add note"}
-      disabled={empty || pending || disabled}
+      disabled={!canSendCapture({ text, listening, settling, pending, busy: disabled })}
       data-composer-send
       className={cn(
         "grid size-11 shrink-0 place-items-center rounded-full bg-brand text-ink-inverse shadow-glow transition-[transform,opacity,filter] duration-200 ease-out active:scale-95",
@@ -229,6 +252,8 @@ function Composer({
   dictation: {
     supported: boolean;
     listening: boolean;
+    settling: boolean;
+    interim: string;
     error: string | null;
     start: () => void;
     stop: () => void;
@@ -247,9 +272,15 @@ function Composer({
     element.style.height = `${Math.min(element.scrollHeight, COMPOSER_MAX_HEIGHT_PX)}px`;
   }, []);
 
-  useEffect(grow, [grow, text]);
+  const { supported, listening, settling, interim, error, start, stop, startLabel, stopLabel } = dictation;
+  // While the microphone is working the box shows the settled words and the
+  // ones still being heard after them, so speaking visibly fills the box. It
+  // is read-only until the last words are in: an edit made mid-phrase would
+  // be overwritten by the phrase arriving. Then it is the person's to fix.
+  const active = listening || settling;
+  const shown = composerDisplay(text, interim, active);
 
-  const { supported, listening, error, start, stop, startLabel, stopLabel } = dictation;
+  useEffect(grow, [grow, shown]);
 
   return (
     <div className="flex flex-col gap-2">
@@ -266,8 +297,11 @@ function Composer({
           id={name}
           name={name}
           aria-label={label}
-          value={text}
-          onChange={(event) => setText(event.target.value)}
+          value={shown}
+          readOnly={active}
+          onChange={(event) => {
+            if (!active) setText(event.target.value);
+          }}
           onInput={grow}
           rows={rows}
           placeholder={placeholder}
@@ -283,10 +317,11 @@ function Composer({
             <button
               type="button"
               onClick={listening ? stop : start}
+              disabled={settling}
               aria-pressed={listening}
               aria-label={listening ? stopLabel : startLabel}
               className={cn(
-                "grid size-11 shrink-0 place-items-center rounded-full transition-colors duration-200 active:scale-95",
+                "grid size-11 shrink-0 place-items-center rounded-full transition-colors duration-200 active:scale-95 disabled:opacity-50",
                 listening
                   ? "bg-danger-strong text-white"
                   : "bg-surface-raised text-ink ring-1 ring-line-strong/80 ring-inset hover:bg-surface-muted",
@@ -300,8 +335,10 @@ function Composer({
             {listening ? (
               <span className="flex items-center gap-2 font-semibold text-ink-muted">
                 <span className="size-2 shrink-0 animate-pulse rounded-full bg-danger" aria-hidden />
-                Listening - keeps going while you pause
+                Listening - tap stop when done
               </span>
+            ) : settling ? (
+              <span className="font-semibold text-ink-muted">Finishing…</span>
             ) : supported ? null : (
               // iOS Safari without the API: the keyboard microphone types into
               // this same box, so the workflow is intact.
@@ -309,7 +346,7 @@ function Composer({
             )}
           </span>
 
-          <SendButton empty={!text.trim()} disabled={disabled} />
+          <SendButton text={text} listening={listening} settling={settling} disabled={disabled} />
         </div>
       </div>
 

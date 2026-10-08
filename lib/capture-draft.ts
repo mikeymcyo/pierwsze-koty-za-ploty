@@ -39,6 +39,9 @@ const live = new Map<string, string>();
 /** Which reports have a capture or a Prepare Daily in flight right now. */
 const busy = new Map<string, boolean>();
 
+/** Which reports have the microphone on, or still handing over its last words. */
+const dictating = new Map<string, boolean>();
+
 function notify(): void {
   for (const listener of listeners) listener();
 }
@@ -116,6 +119,24 @@ export function setCaptureBusy(reportId: string, value: boolean): void {
   notify();
 }
 
+/** Whether the microphone on this report's box is on or still finishing. */
+export function readCaptureDictating(reportId: string): boolean {
+  return dictating.get(reportId) === true;
+}
+
+/**
+ * The microphone came on, or has handed over its last words.
+ *
+ * Prepare Daily waits while it is on: it adds what is in the box, and words
+ * still arriving would land in a box that had just been emptied.
+ */
+export function setCaptureDictating(reportId: string, value: boolean): void {
+  if (readCaptureDictating(reportId) === value) return;
+  if (value) dictating.set(reportId, true);
+  else dictating.delete(reportId);
+  notify();
+}
+
 /**
  * Another tab on the same phone wrote or cleared a draft: take its value.
  *
@@ -147,4 +168,5 @@ export function subscribeToCaptureDraft(listener: () => void): () => void {
 export function resetCaptureDraftSnapshots(): void {
   live.clear();
   busy.clear();
+  dictating.clear();
 }

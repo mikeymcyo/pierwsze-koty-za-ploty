@@ -145,6 +145,46 @@ export function decideRestart({
   return { restart: true, delayMs };
 }
 
+/**
+ * Shown when the microphone was on and nothing at all came back. Nothing is
+ * put in the box, so nothing can be sent as though it had been heard.
+ */
+export const NOTHING_HEARD_MESSAGE =
+  "No words were picked up, so nothing was added. Tap the microphone and try again, or type instead.";
+
+/**
+ * What the box shows: the settled text, and while the microphone is working
+ * the words still being heard after it. Only the settled text is ever kept or
+ * sent - the rest is shown so somebody speaking can see it is working.
+ */
+export function composerDisplay(text: string, interim: string, active: boolean): string {
+  if (!active || !interim.trim()) return text;
+  return joinTranscript(text, interim);
+}
+
+/**
+ * Whether the arrow may send.
+ *
+ * Not while the microphone is on or still handing over its last words: what
+ * is in the box then is not what was said yet, and a capture saved mid-phrase
+ * would be cleared from under the words still arriving.
+ */
+export function canSendCapture({
+  text,
+  listening,
+  settling,
+  pending,
+  busy,
+}: {
+  text: string;
+  listening: boolean;
+  settling: boolean;
+  pending: boolean;
+  busy: boolean;
+}): boolean {
+  return text.trim().length > 0 && !listening && !settling && !pending && !busy;
+}
+
 /** Shown when dictation cannot carry on by itself. Never leave a stop invisible. */
 export const RESTART_REFUSED_MESSAGE = "Dictation stopped - tap Dictate to continue.";
 

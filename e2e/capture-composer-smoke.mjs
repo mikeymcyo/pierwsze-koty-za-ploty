@@ -28,6 +28,7 @@ import {
   writeCaptureDraft,
 } from "../lib/capture-draft.ts";
 import { UNSENT_NOT_SAVED, clockNow, saveUnsentThenPrepare } from "../lib/reports/prepare-with-pending.ts";
+import { NOTHING_HEARD_MESSAGE, canSendCapture, composerDisplay } from "../lib/speech/transcript.ts";
 
 const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
 const failures = [];
@@ -168,7 +169,10 @@ console.log("\n8. The composer, read from source");
   const composer = dictation.slice(dictation.indexOf("function Composer("));
   const send = dictation.slice(dictation.indexOf("function SendButton("), dictation.indexOf("function Composer("));
   check("the arrow is the form's submit", /type="submit"/.test(send) && /data-composer-send/.test(send));
-  check("dead with nothing to send, while sending, and while the report is busy", /disabled=\{empty \|\| pending \|\| disabled\}/.test(send));
+  check(
+    "dead with nothing to send, while sending, while busy, and while dictation is unfinished",
+    /disabled=\{!canSendCapture\(\{ text, listening, settling, pending, busy: disabled \}\)\}/.test(send),
+  );
   check("it reads the form it sits in", /useFormStatus\(\)/.test(send));
   check("yellow, and a thumb's size", /bg-brand/.test(send) && /size-11/.test(send));
   check("the microphone is inside the box too, a thumb's size", /aria-pressed=\{listening\}/.test(composer) && /size-11/.test(composer));
@@ -205,13 +209,47 @@ console.log("\n9. Site Capture wired as the one box");
   check("as a capture_text with the phone's clock", /capture\.set\("capture_text", text\)/.test(prepare) && /capture\.set\("captured_at", at\)/.test(prepare));
   check("clearing the phone's copy only through the tested order", /clearDraft: \(\) => clearCaptureDraft\(reportId\)/.test(prepare) && !/clearCaptureDraft\(reportId\)\s*;/.test(prepare.replace(/clearDraft: \(\) => clearCaptureDraft\(reportId\),/, "")));
   check("both buttons share one pending flag", /const \[state, action, pending\] = useRecoverableActionState/.test(prepare) && (prepare.match(/pending=\{pending\}/g) ?? []).length === 2);
-  check("and both wait while the arrow's capture is on its way", (prepare.match(/disabled=\{busy\}/g) ?? []).length === 2);
+  check("and both wait while the arrow's capture is on its way", (prepare.match(/disabled=\{busy \|\| dictating\}/g) ?? []).length === 2);
   check("the questions point at the box", /Answer in the box at the top/.test(prepare));
 
   check("the capture action is untouched: the same append, the same refusal of a repeat", /alreadyEnded\(current\.raw_notes, parsed\.data\.text, parsed\.data\.at\)/.test(actions) && /APPEND_ATTEMPTS/.test(actions));
   check("the page hands the form only its action and report", /<SiteCaptureForm action=\{addCapture\.bind\(null, report\.id\)\} reportId=\{report\.id\} \/>/.test(page));
   check("Prepare Daily is still the last thing on the screen", page.lastIndexOf("<PrepareDaily") > page.lastIndexOf("<DocumentUpload"));
   check("the day so far is still read from the server, never the phone", /parseCaptureLog\(report\.raw_notes\)/.test(page));
+}
+
+console.log("\n10. What the box shows while the microphone is on (real iPhone, 8 October)");
+{
+  // On iOS nearly everything said arrives as interim until the session ends.
+  // The box used to show only final text, so a whole sentence looked lost.
+  check("interim words are shown after the settled ones", composerDisplay("Stripped out the counters.", "Two electricians", true) === "Stripped out the counters. Two electricians");
+  check("with nothing settled yet, the interim words are the box", composerDisplay("", "Stripped out", true) === "Stripped out");
+  check("once the microphone is off, only the kept text is shown", composerDisplay("Kept.", "stale interim", false) === "Kept.");
+  check("an empty interim adds nothing", composerDisplay("Kept.", "  ", true) === "Kept.");
+
+  const base = { text: "Skip swapped at 11.", listening: false, settling: false, pending: false, busy: false };
+  check("a finished note can be sent", canSendCapture(base));
+  check("not while listening", !canSendCapture({ ...base, listening: true }));
+  check("not while the last words are still on their way", !canSendCapture({ ...base, settling: true }));
+  check("not while a send is pending", !canSendCapture({ ...base, pending: true }));
+  check("not while Prepare Daily is adding it", !canSendCapture({ ...base, busy: true }));
+  check("not with nothing in it", !canSendCapture({ ...base, text: "  " }));
+  check("nothing heard says nothing was added", /nothing was added/.test(NOTHING_HEARD_MESSAGE) && !/saved|captured/i.test(NOTHING_HEARD_MESSAGE));
+
+  const hook = read("../lib/hooks/use-speech-input.ts");
+  const dictation = read("../components/reports/dictation-field.tsx");
+  const prepare = read("../components/reports/prepare-daily.tsx");
+  const page = read("../app/(app)/reports/[id]/capture/page.tsx");
+  check("the hook hands out what it is hearing", /setInterim\(state\.pending\)/.test(hook) && /interim, error, start, stop/.test(hook));
+  check("stop waits for the last words rather than declaring itself done", /setSettling\(true\);\s*recognition\.stop\(\);/.test(hook));
+  check("and cannot hang if the recogniser never ends", /SETTLE_TIMEOUT_MS/.test(hook) && /endSession\(sessionRef\.current\)/.test(hook.slice(hook.indexOf("settleTimerRef.current = setTimeout"))));
+  check("nothing heard across a whole press is reported", /heardSinceStartRef/.test(hook) && /current \?\? NOTHING_HEARD_MESSAGE/.test(hook));
+  check("without hiding a permission error", (hook.match(/current \?\? NOTHING_HEARD_MESSAGE/g) ?? []).length === 2);
+  check("the composer shows the live words and is read-only meanwhile", /value=\{shown\}/.test(dictation) && /readOnly=\{active\}/.test(dictation));
+  check("the arrow asks canSendCapture", /disabled=\{!canSendCapture\(/.test(dictation));
+  check("Prepare Daily waits while the microphone is on", (prepare.match(/disabled=\{busy \|\| dictating\}/g) ?? []).length === 2);
+  check("Today so far opens once there is a note", /open=\{entries\.length > 0\}/.test(page));
+  check("and shows each note in full, not a 160-character preview", /\{entry\.text\}/.test(page) && !/capturePreview\(/.test(page));
 }
 
 console.log("\n=== Result ===");

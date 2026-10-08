@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
+  NOTHING_HEARD_MESSAGE,
   RESTART_REFUSED_MESSAGE,
   decideRestart,
   endSession,
@@ -40,6 +41,9 @@ import {
 
 type SpeechRecognitionErrorEventLike = { error: string };
 
+/** How long to wait for the recogniser's last words after stop is pressed. */
+const SETTLE_TIMEOUT_MS = 2500;
+
 type SpeechRecognitionLike = {
   lang: string;
   continuous: boolean;
@@ -72,6 +76,18 @@ export type SpeechInput = {
   /** False until confirmed after mount, so server and client markup agree. */
   supported: boolean;
   listening: boolean;
+  /**
+   * Stop was pressed and the recogniser has not handed over its last words
+   * yet. iOS delivers the final phrase only as the session closes, so until
+   * this is false the text is not complete and must not be sent.
+   */
+  settling: boolean;
+  /**
+   * What is being heard right now and has not settled. Shown, never stored:
+   * on iOS nearly everything said arrives like this until the session ends,
+   * and showing nothing until then is how a whole sentence looked lost.
+   */
+  interim: string;
   /** Set only for faults worth showing; silence is not an error. */
   error: string | null;
   start: () => void;
@@ -86,6 +102,8 @@ export function useSpeechInput({
   lang?: string;
 }): SpeechInput {
   const [listening, setListening] = useState(false);
+  const [settling, setSettling] = useState(false);
+  const [interim, setInterim] = useState("");
   const [error, setError] = useState<string | null>(null);
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
 
@@ -95,7 +113,11 @@ export function useSpeechInput({
   const sessionRef = useRef<TranscriptState>(newSession());
   const producedTextRef = useRef(false);
   const emptyEndsRef = useRef(0);
+  // Whether anything at all was heard since the person pressed the mic, across
+  // every automatic restart. Nothing heard is said so, never passed off as done.
+  const heardSinceStartRef = useRef(false);
   const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const settleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Held in a ref so restarting recognition is never needed just because the
   // caller re-rendered with a new closure.
@@ -123,6 +145,10 @@ export function useSpeechInput({
       clearTimeout(restartTimerRef.current);
       restartTimerRef.current = null;
     }
+    if (settleTimerRef.current) {
+      clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = null;
+    }
     // Cleared before aborting: abort fires onend, and that handler must see
     // itself as superseded rather than act on a hook that is going away.
     const abandoned = recognitionRef.current;
@@ -131,6 +157,15 @@ export function useSpeechInput({
   }, []);
 
   useEffect(() => teardown, [teardown]);
+
+  /** The last words are in (or never will be): the text is complete again. */
+  const finishSettling = useCallback(() => {
+    if (settleTimerRef.current) {
+      clearTimeout(settleTimerRef.current);
+      settleTimerRef.current = null;
+    }
+    setSettling(false);
+  }, []);
 
   // Declared as a ref so onend can start the next session without the two
   // functions having to reference each other before either exists.
@@ -164,10 +199,12 @@ export function useSpeechInput({
       if (!isCurrent()) return;
       const { state, append } = receive(sessionRef.current, event);
       sessionRef.current = state;
+      if (append || state.pending) heardSinceStartRef.current = true;
       if (append) {
         producedTextRef.current = true;
         onTextRef.current(append);
       }
+      setInterim(state.pending);
     };
 
     recognition.onerror = (event) => {
@@ -183,7 +220,8 @@ export function useSpeechInput({
           ? "Microphone access was blocked. Allow it in your browser settings, or type instead."
           : "Dictation stopped unexpectedly. You can keep typing.",
       );
-      // A real fault ends the attempt: onend must not restart into it.
+      // A real fault ends the attempt: onend must not restart into it. onend
+      // still follows and hands over anything already heard.
       intentRef.current = false;
       setListening(false);
     };
@@ -193,7 +231,9 @@ export function useSpeechInput({
       // Whatever never settled is the only copy of those words there is.
       const { append } = endSession(sessionRef.current);
       sessionRef.current = newSession();
+      setInterim("");
       if (append) {
+        heardSinceStartRef.current = true;
         producedTextRef.current = true;
         onTextRef.current(append);
       }
@@ -218,9 +258,12 @@ export function useSpeechInput({
 
       recognitionRef.current = null;
       intentRef.current = false;
+      finishSettling();
       setListening(false);
-      // "stopped" is the user pressing stop, which needs no explanation.
+      // "stopped" is the user pressing stop, which needs no explanation -
+      // unless nothing at all was heard, which must never pass for a capture.
       if (decision.reason === "exhausted") setError(RESTART_REFUSED_MESSAGE);
+      else if (!heardSinceStartRef.current) setError((current) => current ?? NOTHING_HEARD_MESSAGE);
     };
 
     recognitionRef.current = recognition;
@@ -233,7 +276,7 @@ export function useSpeechInput({
       // surfaces as an immediate empty onend instead, and the empty-end
       // counter is what turns a run of those into a visible message.
     }
-  }, [lang]);
+  }, [lang, finishSettling]);
 
   useEffect(() => {
     launchRef.current = launch;
@@ -246,9 +289,33 @@ export function useSpeechInput({
       clearTimeout(restartTimerRef.current);
       restartTimerRef.current = null;
     }
-    // stop(), not abort() - abort discards results that have not been delivered.
-    recognitionRef.current?.stop();
+    const recognition = recognitionRef.current;
     setListening(false);
+    if (!recognition) return;
+
+    // stop(), not abort() - abort discards results that have not been
+    // delivered. On iOS the last phrase arrives only now, in the final result
+    // and onend that follow, so the text is not complete until onend.
+    setSettling(true);
+    recognition.stop();
+
+    // A session that had already ended (stop pressed in the gap between two
+    // automatic sessions) never fires onend again. Whatever it was holding is
+    // handed over here instead, so settling can never hang.
+    settleTimerRef.current = setTimeout(() => {
+      settleTimerRef.current = null;
+      if (recognitionRef.current !== recognition) return;
+      recognitionRef.current = null;
+      const { append } = endSession(sessionRef.current);
+      sessionRef.current = newSession();
+      setInterim("");
+      if (append) {
+        heardSinceStartRef.current = true;
+        onTextRef.current(append);
+      }
+      setSettling(false);
+      if (!heardSinceStartRef.current) setError((current) => current ?? NOTHING_HEARD_MESSAGE);
+    }, SETTLE_TIMEOUT_MS);
   }, []);
 
   const start = useCallback(() => {
@@ -261,11 +328,14 @@ export function useSpeechInput({
     abandoned?.abort();
 
     setError(null);
+    finishSettling();
+    setInterim("");
     intentRef.current = true;
     emptyEndsRef.current = 0;
+    heardSinceStartRef.current = false;
     setListening(true);
     launch();
-  }, [launch]);
+  }, [launch, finishSettling]);
 
-  return { supported, listening, error, start, stop };
+  return { supported, listening, settling, interim, error, start, stop };
 }

@@ -12,7 +12,7 @@ import { SiteCaptureForm } from "@/components/reports/site-capture-form";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardContent } from "@/components/ui/card";
 import { requireSessionContext } from "@/lib/auth/session";
-import { capturePreview, captureSpan, parseCaptureLog } from "@/lib/reports/capture-log";
+import { captureSpan, parseCaptureLog } from "@/lib/reports/capture-log";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
 import { formatDate } from "@/lib/utils";
@@ -166,9 +166,12 @@ export default async function SiteCapturePage({
         </CardContent>
       </Card>
 
-      {/* What has landed. Counts on the line; the notes themselves one tap
-          away, because a worker came here to talk, not to read a timeline. */}
-      <details className="group rounded-card bg-surface px-4 py-3 shadow-card ring-1 ring-line/70 ring-inset">
+      {/* What has landed, open once there is something in it: a note sent
+          from the box has to be seen here, word for word, or nobody can tell
+          that what they said is what was kept. Still one tap to fold away. */}
+      <details
+        open={entries.length > 0}
+        className="group rounded-card bg-surface px-4 py-3 shadow-card ring-1 ring-line/70 ring-inset">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span>Today so far: {plural(entries.length, "note")} · {plural(photos.length, "photo")} · {plural(documents, "document")}</span>
@@ -185,7 +188,7 @@ export default async function SiteCapturePage({
                 <span className="w-12 shrink-0 font-mono text-xs text-ink-subtle">
                   {entry.at ?? "—"}
                 </span>
-                <span className="text-ink-muted">{capturePreview(entry.text)}</span>
+                <span className="min-w-0 break-words whitespace-pre-wrap text-ink-muted">{entry.text}</span>
               </li>
             ))}
           </ul>
