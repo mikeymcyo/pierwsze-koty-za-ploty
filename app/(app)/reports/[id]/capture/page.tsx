@@ -112,11 +112,7 @@ export default async function SiteCapturePage({
           <h2 aria-hidden className="text-xl font-bold tracking-tight text-ink">
             What happened on site?
           </h2>
-          <SiteCaptureForm
-            action={addCapture.bind(null, report.id)}
-            entryCount={entries.length}
-            reportId={report.id}
-          />
+          <SiteCaptureForm action={addCapture.bind(null, report.id)} reportId={report.id} />
         </CardContent>
       </Card>
 

@@ -156,14 +156,14 @@ console.log("\n3. A photograph landing does not remount the dictation box");
   writeCaptureDraft("r1", "Poured the slab in the north bay");
   writeCaptureDraft("r1", "Poured the slab in the north bay, two loads");
   const again = readCaptureDraft("r1");
-  check("the snapshot a screen was handed does not move as the person types", first === "Poured the slab" && again === first);
+  check("the box's value follows the person as they type", first === "Poured the slab" && again === "Poured the slab in the north bay, two loads");
   check("while the phone still holds every word", store.get("siteboss:capture:r1") === "Poured the slab in the north bay, two loads");
   clearCaptureDraft("r1");
   check("clearing - the server has it - is what empties the snapshot", readCaptureDraft("r1") === "" && !store.has("siteboss:capture:r1"));
   delete globalThis.window;
 
   const form = read("../components/reports/site-capture-form.tsx");
-  check("the box is still keyed on the restored draft, which now only changes when it should", /key=\{`\$\{entryCount\}:\$\{restored\.length\}`\}/.test(form));
+  check("the box is controlled from that value rather than keyed on it, so nothing remounts under a dictation", /value=\{text\}/.test(form) && !/key=\{/.test(form));
   const uploader = read("../components/reports/photo-upload.tsx");
   check("the uploader never refreshes the router itself; the attach action's revalidation is what shows the photograph", !/router\.refresh|useRouter/.test(uploader));
   check("and it uploads one selection straight through: compress, object, thumbnail, row", /await compress\(file\)/.test(uploader) && uploader.indexOf("upload(item.path") < uploader.indexOf("thumbnailPath(item.path") && uploader.indexOf("thumbnailPath(item.path") < uploader.indexOf("attachPhoto({"));

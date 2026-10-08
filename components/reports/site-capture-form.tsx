@@ -2,47 +2,21 @@
 
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useFormStatus } from "react-dom";
-import { Check, RotateCw } from "lucide-react";
+import { Check } from "lucide-react";
 
 import type { CaptureState } from "@/app/(app)/reports/capture-actions";
 import { DictationField } from "@/components/reports/dictation-field";
 import { Alert } from "@/components/ui/alert";
 import {
   clearCaptureDraft,
+  readCaptureBusy,
   readCaptureDraft,
+  setCaptureBusy,
   subscribeToCaptureDraft,
   writeCaptureDraft,
 } from "@/lib/capture-draft";
-import { Button } from "@/components/ui/button";
+import { clockNow } from "@/lib/reports/prepare-with-pending";
 import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
-
-function SaveButton({ retry }: { retry: boolean }) {
-  const { pending } = useFormStatus();
-  return (
-    <Button
-      type="submit"
-      size="lg"
-      variant="secondary"
-      className="h-14 w-full text-base"
-      loading={pending}
-      // Two taps on one bar of signal used to be two entries. The button goes
-      // dead for the round trip, and addCapture refuses a repeat of the entry
-      // it already wrote, so neither the finger nor the network can double it.
-      disabled={pending}
-    >
-      {pending ? (
-        "Adding…"
-      ) : retry ? (
-        <>
-          <RotateCw aria-hidden />
-          Try again
-        </>
-      ) : (
-        "Add note"
-      )}
-    </Button>
-  );
-}
 
 /** Saving… / Saved / nothing. Never "saved" before the server says so. */
 function SaveStatus({ savedAt, failed }: { savedAt?: string; failed: boolean }) {
@@ -53,10 +27,23 @@ function SaveStatus({ savedAt, failed }: { savedAt?: string; failed: boolean }) 
     return (
       <span className="flex items-center gap-1 text-xs text-ink-muted">
         <Check aria-hidden className="size-3.5" />
-        Saved{savedAt ? ` at ${savedAt}` : ""}
+        Added{savedAt ? ` at ${savedAt}` : ""}. It all goes on the same report.
       </span>
     );
   }
+  return null;
+}
+
+/**
+ * Tells the store while this form's capture is on its way, so Prepare Daily
+ * on the same screen waits for it rather than appending alongside it.
+ */
+function BusyMirror({ reportId }: { reportId: string }) {
+  const { pending } = useFormStatus();
+  useEffect(() => {
+    setCaptureBusy(reportId, pending);
+    return () => setCaptureBusy(reportId, false);
+  }, [pending, reportId]);
   return null;
 }
 
@@ -68,43 +55,49 @@ function SaveStatus({ savedAt, failed }: { savedAt?: string; failed: boolean }) 
  * overwrite even if it has been sitting open on a phone in a van since eight
  * o'clock - see addCapture.
  *
- * `entryCount` is what clears the box. It comes from the server and only
- * changes when a capture actually landed, so a successful save starts a fresh
- * transcript and a failed one leaves every word where the user left it.
+ * The text lives in lib/capture-draft.ts, not here: that is what keeps it on
+ * the phone through a failed request or a discarded tab, and what lets Prepare
+ * Daily at the bottom of the screen add whatever is still in the box before it
+ * writes. The box is emptied only when the server has confirmed the capture.
  */
 export function SiteCaptureForm({
   action,
-  entryCount,
   reportId,
 }: {
   action: (state: CaptureState, formData: FormData) => Promise<CaptureState>;
-  entryCount: number;
   reportId: string;
 }) {
   const [state, formAction] = useRecoverableActionState<CaptureState, FormData>(action, {});
   const capturedAt = useRef<HTMLInputElement>(null);
 
   /**
-   * Anything a failed request or a discarded tab left on this phone.
+   * What is in the box: anything typed or spoken, and anything a failed
+   * request or a discarded tab left on this phone.
    *
    * Read through the store rather than in an effect: the server snapshot is
    * empty, the client picks the text up straight after hydration, and no state
    * is written on mount. See lib/capture-draft.ts.
    */
-  const restored = useSyncExternalStore(
+  const text = useSyncExternalStore(
     subscribeToCaptureDraft,
     () => readCaptureDraft(reportId),
     () => "",
   );
+  const busy = useSyncExternalStore(
+    subscribeToCaptureDraft,
+    () => readCaptureBusy(reportId),
+    () => false,
+  );
 
   /**
    * The server has it. Only now may the local copy go - and clearing it is
-   * what empties the box, because the field is keyed on it.
+   * what empties the box. Keyed on the result itself, so a second identical
+   * note (which the server answers "already saved") clears the box too.
    */
   const landed = !state.error && state.savedAt !== undefined;
   useEffect(() => {
     if (landed) clearCaptureDraft(reportId);
-  }, [landed, entryCount, reportId]);
+  }, [state, landed, reportId]);
 
   return (
     <form
@@ -113,51 +106,29 @@ export function SiteCaptureForm({
       // made at 08:14 on a British site should read 08:14 whatever timezone the
       // database happens to be in.
       onSubmit={() => {
-        if (!capturedAt.current) return;
-        const now = new Date();
-        capturedAt.current.value = `${String(now.getHours()).padStart(2, "0")}:${String(
-          now.getMinutes(),
-        ).padStart(2, "0")}`;
+        if (capturedAt.current) capturedAt.current.value = clockNow();
       }}
-      className="flex flex-col gap-4"
+      className="flex flex-col gap-3"
     >
       <input type="hidden" name="captured_at" ref={capturedAt} />
+      <BusyMirror reportId={reportId} />
 
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
-      {restored && !landed ? (
-        <Alert tone="info">
-          Words you had not added yet were still on this phone. They are back in the box - add
-          them when you are ready.
-        </Alert>
-      ) : null}
-      {!state.error && state.savedAt !== undefined ? (
-        <Alert tone="success">
-          <span className="flex items-center gap-2">
-            <Check aria-hidden className="size-4 shrink-0" />
-            Added{state.savedAt ? ` at ${state.savedAt}` : ""}. Come back any time - it all
-            goes on the same report.
-          </span>
-        </Alert>
-      ) : null}
 
       <DictationField
-        // Keyed on the stored draft, so the box is rebuilt when the phone hands
-        // one back after hydration and again - empty - the moment a capture
-        // lands. A failed save changes neither, so every word stays put.
-        key={`${entryCount}:${restored.length}`}
+        composer
         name="capture_text"
         label="What happened on site?"
-        defaultValue={restored}
+        value={text}
         onValueChange={(value) => writeCaptureDraft(reportId, value)}
-        rows={8}
-        prominent
+        rows={3}
+        disabled={busy}
         startLabel="Speak"
         stopLabel="Stop"
         placeholder="Tap the mic and talk, or type here. What got done, who was here, deliveries, hold-ups."
       />
 
-      <SaveButton retry={Boolean(state.error)} />
-      <div className="min-h-4">
+      <div className="min-h-4 px-1">
         <SaveStatus savedAt={state.error ? undefined : state.savedAt} failed={Boolean(state.error)} />
       </div>
     </form>

@@ -256,20 +256,24 @@ console.log("\n8. The screen a site manager holds");
 
 const page = read("../app/(app)/reports/[id]/capture/page.tsx");
 const form = read("../components/reports/site-capture-form.tsx");
+const dictation = read("../components/reports/dictation-field.tsx");
 
 check("it is called Site Capture", /Site Capture/.test(page));
 check("it dictates with the one dictation component", /DictationField/.test(form));
-check("and asks for the large control", /prominent/.test(form));
+check(
+  "laid out as a composer: the microphone and the arrow inside the one box",
+  /<DictationField\s+composer/.test(form) && /data-composer-send/.test(dictation),
+);
 check(
   "the box holds only the new capture",
-  /defaultValue=\{restored\}/.test(form),
+  /value=\{text\}/.test(form) && /readCaptureDraft\(reportId\)/.test(form),
   "the day so far stays on the server; the box carries what has not been sent",
 );
 check(
   "and is cleared only when a capture actually landed",
-  // Keyed on the server's entry count and on the unsent draft, and the draft
-  // is cleared only where the server confirmed. See the reliability pass.
-  /key=\{`\$\{entryCount\}:\$\{restored\.length\}`\}/.test(form) &&
+  // Controlled from the phone's copy, which is cleared only where the server
+  // confirmed. See the reliability pass.
+  /const landed = !state\.error && state\.savedAt !== undefined/.test(form) &&
     /if \(landed\) clearCaptureDraft\(reportId\)/.test(form),
   "a failed save must leave the words in the box",
 );
@@ -284,7 +288,10 @@ check(
     page.indexOf("<DocumentUpload") < page.indexOf("<PrepareDaily"),
 );
 check("the microphone says Speak", /startLabel="Speak"/.test(form));
-check("the save button says Add note", /"Add note"/.test(form));
+check(
+  "there is no Add note button: the arrow in the box sends",
+  !/Add note/.test(form) && /type="submit"/.test(dictation.slice(dictation.indexOf("function SendButton"))),
+);
 check("one Add photos button that leaves the choice to the phone", /simple/.test(page) && /data-photo-source-button="simple"/.test(read("../components/reports/photo-upload.tsx")));
 check("one Add document button, marked optional", /label="Add document"/.test(page) && /Optional\. An order, drawing, survey or instruction/.test(read("../components/documents/document-upload.tsx")));
 check("adding a document makes it job context with no second question", /onAttached=\{adoptJobDocument\.bind/.test(page));

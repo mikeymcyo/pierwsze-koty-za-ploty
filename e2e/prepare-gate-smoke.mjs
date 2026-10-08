@@ -81,7 +81,7 @@ check("the draft opens the report", /redirect\(`\/reports\/\$\{reportId\}`\)/.te
 check("unread job documents are read first, best effort", action.indexOf("runExtraction(") < action.indexOf("prepareQuestions(") && /could not be read, so today's Daily is written without it/.test(action));
 check("only documents added as job context are read - never the whole Documents tab", /from\("job_context_documents"\)/.test(action) && !/from\("documents"\)\s*\.select/.test(action));
 check("Prepare Daily anyway is always offered", /Prepare Daily anyway/.test(button) && /name="force" value="1"/.test(button));
-check("the questions point at the microphone on the same screen", /Use the microphone at the top/.test(button));
+check("the questions point at the box on the same screen, and say the unsent words go in first", /Answer in the box at the top/.test(button) && /Anything still in the\s+box is added first/.test(button));
 check("Site Capture ends with it", page.lastIndexOf("<PrepareDaily") > page.lastIndexOf("<DocumentUpload"));
 
 console.log("\n=== Result ===");

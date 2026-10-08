@@ -38,6 +38,7 @@ function check(label, ok, detail = "") {
 
 const actions = read("../app/(app)/reports/capture-actions.ts");
 const form = read("../components/reports/site-capture-form.tsx");
+const dictation = read("../components/reports/dictation-field.tsx");
 const upload = read("../components/reports/photo-upload.tsx");
 const photoActions = read("../app/(app)/reports/photo-actions.ts");
 const summaryPhotoActions = read("../app/(app)/summary-reports/photo-actions.ts");
@@ -74,15 +75,19 @@ check(
 );
 check("an empty log blocks nothing", !alreadyEnded(null, "anything", "08:00"));
 check(
-  "the button goes dead for the round trip",
-  /disabled=\{pending\}/.test(form),
+  "the arrow goes dead for the round trip",
+  /disabled=\{empty \|\| pending \|\| disabled\}/.test(dictation),
   "two taps on one bar of signal used to be two entries",
 );
 
 console.log("\n3. A failed append is obvious, keeps the words, and can be retried");
 
 check("the failure is shown", /state\.error \? <Alert tone="danger">/.test(form));
-check("the button becomes Try again", /retry \? \(/.test(form) && /Try again/.test(form));
+check(
+  "and the arrow stays live for another try",
+  !/state\.error/.test(dictation),
+  "nothing about a failure disables it; the words are still in the box",
+);
 check(
   "and the status says the words are safe",
   /Not saved - your words are safe here/.test(form),
@@ -120,30 +125,30 @@ globalThis.window = {
 };
 
 check("nothing stored reads as nothing", readCaptureDraft("r1") === "");
+// The box is controlled from this value: every keystroke and every spoken
+// chunk moves it, and the screen is told so it shows them. A fresh screen
+// (a reload, a discarded tab) reads the same words back from the phone.
+let notified = 0;
+const stop = subscribeToCaptureDraft(() => (notified += 1));
 writeCaptureDraft("r1", "half a sentence about the sl");
-// The screen that is typing keeps the snapshot it was handed - the words
-// are on the phone, and a fresh screen (a reload, a discarded tab) reads
-// them back. See lib/capture-draft.ts.
-check("typing does not move the snapshot under the box", readCaptureDraft("r1") === "");
+check("typing moves the box's value at once", readCaptureDraft("r1") === "half a sentence about the sl");
+check("and tells the screen, which is what shows it", notified === 1);
+writeCaptureDraft("r1", "half a sentence about the sl");
+check("the same value again says nothing", notified === 1);
 resetCaptureDraftSnapshots();
 check("what was typed comes back to a fresh screen", readCaptureDraft("r1") === "half a sentence about the sl");
 check("and is kept per report", readCaptureDraft("r2") === "");
 
-let notified = 0;
-const stop = subscribeToCaptureDraft(() => (notified += 1));
-writeCaptureDraft("r1", "half a sentence about the slab");
-check(
-  "typing does not rebuild the box under a thumb",
-  notified === 0,
-  "the box already holds those words",
-);
+notified = 0;
 clearCaptureDraft("r1");
-check("but a landed capture empties it", readCaptureDraft("r1") === "");
+check("a landed capture empties it", readCaptureDraft("r1") === "");
 check("and says so, so the box comes back empty", notified === 1);
 stop();
 
 writeCaptureDraft("r1", "   ");
-check("whitespace is not a draft", readCaptureDraft("r1") === "");
+check("the box shows the space that was typed", readCaptureDraft("r1") === "   ");
+resetCaptureDraftSnapshots();
+check("but whitespace alone is not kept as a draft", readCaptureDraft("r1") === "");
 
 check(
   "the screen reads it without writing state on mount",
@@ -152,8 +157,9 @@ check(
 );
 check("the server renders empty", /\(\) => "",/.test(form));
 check(
-  "and the box is rebuilt only when the stored draft or the count changes",
-  /key=\{`\$\{entryCount\}:\$\{restored\.length\}`\}/.test(form),
+  "and the box is controlled from the store, never keyed and remounted",
+  /value=\{text\}/.test(form) && !/key=\{/.test(form),
+  "a remount mid-sentence is what aborted a dictation",
 );
 check(
   "a store that throws does not take the screen with it",
