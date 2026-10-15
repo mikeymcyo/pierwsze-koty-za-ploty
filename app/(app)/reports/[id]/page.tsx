@@ -32,6 +32,7 @@ import { documentTypeLabel } from "@/lib/documents/metadata";
 import { signDocumentUrls } from "@/lib/documents/signing";
 import { isReopened } from "@/lib/reports/lifecycle";
 import { issuedPdfFileName } from "@/lib/pdf/presentation";
+import { presentationFromSearch } from "@/lib/pdf/presentation-query";
 import { photoPrintLabelText } from "@/lib/photo-captions";
 import { photoPickerLabel } from "@/lib/photo-captions";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
@@ -84,9 +85,21 @@ export default async function ReportCapturePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string; resolve?: string }>;
+  searchParams: Promise<{
+    saved?: string;
+    resolve?: string;
+    style?: string;
+    layout?: string;
+    cover?: string;
+    documents?: string;
+  }>;
 }) {
-  const [{ id }, { saved, resolve }] = await Promise.all([params, searchParams]);
+  const [{ id }, search] = await Promise.all([params, searchParams]);
+  const { saved, resolve } = search;
+  // The presentation choices this page was opened with - carried back from
+  // Preview by the viewer's Close, or by the browser's Back onto the address
+  // the card kept current. See lib/pdf/presentation-query.ts.
+  const presentation = presentationFromSearch(search);
 
   const session = await requireSessionContext();
   const supabase = await createClient();
@@ -289,6 +302,7 @@ export default async function ReportCapturePage({
   const finaliseCard = (
     <FinaliseReport
       reportId={report.id}
+      initial={presentation}
       status={report.status}
       hasPdf={Boolean(report.pdf_path)}
       documentCount={referencedDocuments.length}

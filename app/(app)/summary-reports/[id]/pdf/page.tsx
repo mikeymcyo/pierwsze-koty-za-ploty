@@ -6,6 +6,7 @@ import { requireSessionContext } from "@/lib/auth/session";
 import { issuedPdfFileName } from "@/lib/pdf/presentation";
 import { coverPhotoIdOf, pdfStyleOf } from "@/lib/pdf/presentation";
 import { photoLayoutOf } from "@/lib/pdf/photo-layout";
+import { presentationFromSearch, presentationQuery } from "@/lib/pdf/presentation-query";
 import { viewerSource } from "@/lib/pdf/viewer-source";
 import { isReopened } from "@/lib/reports/lifecycle";
 import { SUMMARY_KIND_LABELS } from "@/lib/summary-reports/sections";
@@ -63,7 +64,10 @@ export default async function SummaryReportPdfPage({
     <PdfViewer
       src={src}
       title={report.title || `${SUMMARY_KIND_LABELS[report.kind]} ${formatReportNumber(report.number)}`}
-      backHref={`/summary-reports/${id}`}
+      // A draft preview's Close returns the presentation choices it was opened
+      // with, so the finalise card starts from them again. An issued PDF has
+      // nothing to carry: its presentation is baked into the file.
+      backHref={`/summary-reports/${id}${wantsDraft ? presentationQuery(presentationFromSearch(search)) : ""}`}
       backLabel="Back to the report"
       note={note}
       // Only the stored file is offered for sharing, and only when one exists.

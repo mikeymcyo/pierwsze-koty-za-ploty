@@ -33,6 +33,7 @@ import { signDocumentUrls } from "@/lib/documents/signing";
 import { isReopened } from "@/lib/reports/lifecycle";
 import { requireSessionContext } from "@/lib/auth/session";
 import { issuedPdfFileName } from "@/lib/pdf/presentation";
+import { presentationFromSearch } from "@/lib/pdf/presentation-query";
 import { photoPrintLabelText } from "@/lib/photo-captions";
 import { groupSections, reportStructure, runInLabel, type ReportGroup } from "@/lib/report-structure";
 import { describeProvenance, isStandalone } from "@/lib/summary-reports/provenance";
@@ -91,8 +92,17 @@ function SectionProse({
 
 export const metadata: Metadata = { title: "Consolidated report" };
 
-export default async function SummaryReportPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
+export default async function SummaryReportPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ style?: string; layout?: string; cover?: string; documents?: string }>;
+}) {
+  const [{ id }, search] = await Promise.all([params, searchParams]);
+  // The presentation choices this page was opened with - carried back from
+  // Preview by Close or by Back. See lib/pdf/presentation-query.ts.
+  const presentation = presentationFromSearch(search);
   const session = await requireSessionContext();
   const supabase = await createClient();
   const { data: report, error } = await withClockSkewRetry(() =>
@@ -357,6 +367,7 @@ export default async function SummaryReportPage({ params }: { params: Promise<{ 
   const finaliseCard = (
     <SummaryFinalise
       reportId={id}
+      initial={presentation}
       status={report.status}
       hasPdf={Boolean(report.pdf_path)}
       documentCount={referencedDocuments.length}

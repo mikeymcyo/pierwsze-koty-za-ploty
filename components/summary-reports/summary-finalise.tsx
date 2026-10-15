@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { BookOpen, FileCheck2, FileText } from "lucide-react";
 
@@ -16,6 +16,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DEFAULT_PDF_STYLE, type PdfStyle } from "@/lib/pdf/presentation";
 import { DEFAULT_PHOTO_LAYOUT, type PhotoLayout } from "@/lib/pdf/photo-layout";
+import { DEFAULT_PRESENTATION, applyPresentationToUrl, type PresentationChoice } from "@/lib/pdf/presentation-query";
 import { describePackageChoice, documentsFlag } from "@/lib/reports/document-package";
 import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
@@ -37,6 +38,7 @@ export function SummaryFinalise({
   documentCount = 0,
   photos = [],
   shareName,
+  initial = DEFAULT_PRESENTATION,
 }: {
   reportId: string;
   status: "draft" | "final";
@@ -51,20 +53,33 @@ export function SummaryFinalise({
   photos?: CoverChoice[];
   /** What the shared file is called on the device that receives it. */
   shareName?: string;
+  /** The choices the page was opened with - see lib/pdf/presentation-query.ts. */
+  initial?: PresentationChoice;
 }) {
   const finalise = finaliseSummaryReport.bind(null, reportId);
   const [state, action] = useRecoverableActionState<SummaryFinaliseState, FormData>(finalise, {});
   const reopened = status === "draft" && hasPdf;
   // Default on: somebody who linked a drawing meant it to go with the report.
-  const [includeDocuments, setIncludeDocuments] = useState(true);
+  const [includeDocuments, setIncludeDocuments] = useState(initial.includeDocuments);
   // The house style and no cover: the report as SiteBoss has always issued it.
-  // A different choice is deliberate, never the default.
-  const [style, setStyle] = useState<PdfStyle>(DEFAULT_PDF_STYLE);
-  const [cover, setCover] = useState<string | null>(null);
+  // A different choice is deliberate, never the default - and a choice already
+  // made is kept: the page's URL carries it back from Preview, whether by the
+  // viewer's Close or the browser's Back. See lib/pdf/presentation-query.ts.
+  const [style, setStyle] = useState<PdfStyle>(initial.style ?? DEFAULT_PDF_STYLE);
+  const [cover, setCover] = useState<string | null>(initial.cover);
   // Standard unless somebody asks otherwise, so every report prints the same
   // way by default and the choice is a deliberate one.
-  const [layout, setLayout] = useState<PhotoLayout>(DEFAULT_PHOTO_LAYOUT);
+  const [layout, setLayout] = useState<PhotoLayout>(initial.layout ?? DEFAULT_PHOTO_LAYOUT);
   const presentation = `&style=${style}&layout=${layout}${cover ? `&cover=${cover}` : ""}`;
+
+  // The choices into this page's own address as they are made - no
+  // navigation, no reload - so Back from the preview lands on a URL that
+  // holds them. A default clears its key, so the ordinary address stays
+  // ordinary, and nothing else on the URL is touched.
+  useEffect(() => {
+    const url = applyPresentationToUrl(new URL(window.location.href), { style, layout, cover, includeDocuments });
+    if (url.href !== window.location.href) window.history.replaceState(null, "", url);
+  }, [style, layout, cover, includeDocuments]);
 
   if (status === "final") {
     return (

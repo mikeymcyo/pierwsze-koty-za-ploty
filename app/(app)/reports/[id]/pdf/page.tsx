@@ -6,6 +6,7 @@ import { requireSessionContext } from "@/lib/auth/session";
 import { issuedPdfFileName } from "@/lib/pdf/presentation";
 import { coverPhotoIdOf, pdfStyleOf } from "@/lib/pdf/presentation";
 import { photoLayoutOf } from "@/lib/pdf/photo-layout";
+import { presentationFromSearch, presentationQuery } from "@/lib/pdf/presentation-query";
 import { reportNumberLabel } from "@/lib/pdf/report-data";
 import { viewerSource } from "@/lib/pdf/viewer-source";
 import { isReopened } from "@/lib/reports/lifecycle";
@@ -64,7 +65,10 @@ export default async function ReportPdfPage({
     <PdfViewer
       src={src}
       title={`Daily Report ${reportNumberLabel(report.report_number)} · ${formatDate(report.report_date) ?? report.report_date}`}
-      backHref={`/reports/${id}`}
+      // A draft preview's Close returns the presentation choices it was opened
+      // with, so the finalise card starts from them again. An issued PDF has
+      // nothing to carry: its presentation is baked into the file.
+      backHref={`/reports/${id}${wantsDraft ? presentationQuery(presentationFromSearch(search)) : ""}`}
       backLabel="Back to the report"
       note={note}
       // Only the stored file is offered for sharing, and only when one exists.

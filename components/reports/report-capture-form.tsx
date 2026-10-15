@@ -160,6 +160,14 @@ export function ReportCaptureForm({
   return (
     <div className="flex flex-col gap-6">
       <form action={formAction} className="contents">
+        {/* The form's default button. Enter or Go in any field below presses
+            the first submit button in the form, and that used to be Write my
+            report: a tap of the keyboard's Go in Weather started an AI
+            rewrite. This one comes first now, carries no formAction, and so
+            Go saves the draft - the quiet action, the one a keyboard should
+            do. Hidden, not disabled: a disabled default button would block
+            implicit submission altogether. */}
+        <button type="submit" hidden tabIndex={-1} aria-hidden data-default-submit />
         <div className="order-1 flex flex-col gap-4">
           {saved && !state.error ? <Alert tone="success">Draft saved.</Alert> : null}
           {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
