@@ -60,6 +60,18 @@
   --color-danger: #f45b69;
   --color-danger-soft: #2e161b;
   --color-danger-strong: #d8404f;
+
+  /* Empire Interiors' house colours, used on the Open Jobs page only. Fixed in
+     both themes: the page reads as Empire's, not as SiteBoss. */
+  --color-empire-forest: #152218;
+  --color-empire-olive: #4e5c3b;
+  --color-empire-sage: #c3cbb6;
+  --color-empire-rose: #f0a3a3;
+  /* Open Jobs priority groups: a fixed attendance, late, this week, later. */
+  --color-job-fixed: #d64545;
+  --color-job-overdue: #e8821e;
+  --color-job-week: #f6b800;
+  --color-job-later: #8a8f98;
   --color-info: #4da3ff;
   --color-info-soft: #122239;
 

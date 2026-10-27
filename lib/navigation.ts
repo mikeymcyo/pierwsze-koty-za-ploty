@@ -1,4 +1,4 @@
-import { FileText, FolderKanban, LayoutDashboard, Plus, Settings, Store } from "lucide-react";
+import { ClipboardList, FileText, FolderKanban, LayoutDashboard, Plus, Settings, Store } from "lucide-react";
 
 export type NavItem = {
   href: string;
@@ -20,6 +20,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/reports/new", label: "Create", icon: Plus, primary: true },
   { href: "/stores", label: "Stores", icon: Store },
   { href: "/reports", label: "Reports", icon: FileText },
+  { href: "/jobs", label: "Jobs", icon: ClipboardList, deskOnly: true },
   { href: "/profile", label: "Settings", icon: Settings, deskOnly: true },
 ];
 

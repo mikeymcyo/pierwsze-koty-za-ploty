@@ -1,18 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import {
-  AlertTriangle,
-  ChevronRight,
-  FileCheck2,
-  FilePen,
-  FileText,
-  FolderKanban,
-  HardHat,
-  MapPin,
-  Mic,
-  Plus,
-  Store,
-} from "lucide-react";
+import { AlertTriangle, ChevronRight, ClipboardList, FileCheck2, FilePen, FileText, FolderKanban, HardHat, MapPin, Mic, Plus, Store } from "lucide-react";
 
 import { CaptureInProgress } from "@/components/reports/capture-in-progress";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
@@ -173,10 +161,11 @@ export default async function DashboardPage() {
           opened the app for. */}
       {inProgress ? <CaptureInProgress draft={inProgress} /> : null}
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <QuickAction href="/reports/new" icon={<Mic aria-hidden />} label="Site Capture" primary />
         <QuickAction href="/projects/new" icon={<Plus aria-hidden />} label="New project" />
         <QuickAction href="/stores" icon={<Store aria-hidden />} label="Store locator" />
+        <QuickAction href="/jobs" icon={<ClipboardList aria-hidden />} label="Open Jobs" />
       </div>
 
       {otherDrafts.length > 0 ? (
