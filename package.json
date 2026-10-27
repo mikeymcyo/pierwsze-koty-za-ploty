@@ -76,7 +76,8 @@
     "test:timing": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/report-timing-smoke.mjs",
     "test:viewer": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/report-viewer-smoke.mjs",
     "test:activity": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON e2e/activity-smoke.mjs",
-    "test:pdf": "node e2e/pdf-smoke.mjs"
+    "test:pdf": "node e2e/pdf-smoke.mjs",
+    "test:job-po-files": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./e2e/support/register-tsx.mjs e2e/job-po-files-smoke.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

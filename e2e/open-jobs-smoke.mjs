@@ -112,7 +112,7 @@ console.log("\n6. Wired into the app, and the database shaped for the feed later
   const migration = read("../supabase/migrations/20261026000014_jobs.sql");
   const page = read("../app/(app)/jobs/page.tsx");
   const card = read("../components/jobs/job-card.tsx");
-  const actions = read("../app/(app)/jobs/actions.ts");
+  const attachment = read("../lib/jobs/attach-po.ts");
   const route = read("../app/(app)/jobs/[id]/po/[poId]/file/route.ts");
   check("jobs and their POs are tables, with RLS by company", /create table public\.jobs/.test(migration) && /create table public\.job_pos/.test(migration) && /foreach t in array array\['jobs', 'job_pos'\]/.test(migration) && /enable row level security/.test(migration));
   check("a PO keeps the portal's file id for the feed later", /po_file_id bigint/.test(migration));
@@ -120,10 +120,12 @@ console.log("\n6. Wired into the app, and the database shaped for the feed later
   check("with no update policy, like report PDFs", /job-pos_select/.test(migration) && /job-pos_insert/.test(migration) && /job-pos_delete/.test(migration) && !/job-pos_update/.test(migration));
   check("the page groups from today's working day", /workingDay\(\)/.test(page) && /sortJobs\(jobs, today\)/.test(page) && /groupOf\(job, today\)/.test(page));
   check("done jobs leave the main list", /\.eq\("status", showDone \? "done" : "open"\)/.test(page) && /Show done jobs/.test(page));
+  check("a failed PO read is shown as an error, never as missing POs", /error: poError/.test(page) && /error \|\| poError/.test(page));
   check("the card has Waze, Google Maps and the PO PDF", /wazeUrl\(/.test(card) && /googleMapsUrl\(/.test(card) && /\/jobs\/\$\{job\.id\}\/po\/\$\{po\.id\}\/file/.test(card));
   check("a PDF is attached from the phone into the company's own folder", /\$\{companyId\}\/\$\{jobId\}\//.test(card) && /accept="application\/pdf,\.pdf"/.test(card));
-  check("and the server refuses a path outside that folder", /storagePath\.startsWith\(`\$\{session\.companyId\}\/`\)/.test(actions));
+  check("and the server binds the upload to its company, job and PO", /\$\{companyId\}\/\$\{existing\.job_id\}/.test(attachment) && /\$\{folder\}\/\$\{poId\}-/.test(attachment));
   check("the PDF opens inline, to scan the QR on the screen", /content-disposition": `inline;/.test(route));
+  check("a replaced PDF is fetched again instead of served stale", /"cache-control": "private, no-store"/.test(route));
   check("Empire's colours, as tokens, not SiteBoss gold", /bg-empire-forest/.test(card) && /bg-empire-olive/.test(card) && /text-empire-sage/.test(card) && /--color-empire-forest: #152218/.test(read("../app/globals.css")));
   check("the phone reaches it from the dashboard", /href="\/jobs"/.test(read("../app/(app)/dashboard/page.tsx")));
   check("the photo uploader is untouched", !/job/.test(read("../components/reports/photo-upload.tsx")));

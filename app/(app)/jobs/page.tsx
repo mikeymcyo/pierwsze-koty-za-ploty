@@ -35,15 +35,17 @@ export default async function OpenJobsPage({
 
   // Two reads rather than one embedded select: the jobs, then every PO of
   // the company's jobs. RLS scopes both to the caller's company.
-  const [{ data, error }, { data: poRows }] = await Promise.all([
+  const [{ data, error }, { data: poRows, error: poError }] = await Promise.all([
     withClockSkewRetry(() =>
       supabase
         .from("jobs")
         .select("id, store_name, store_code, fixed_date, fixed_time, fixed_note, target_date, work, crew, address, lat, lng, notes, status")
+        .eq("company_id", session.companyId)
         .eq("status", showDone ? "done" : "open"),
     ),
     withClockSkewRetry(() =>
-      supabase.from("job_pos").select("id, job_id, po_number, po_file_id, storage_path").order("created_at", { ascending: true }),
+      supabase.from("job_pos").select("id, job_id, po_number, po_file_id, storage_path")
+        .eq("company_id", session.companyId).order("created_at", { ascending: true }),
     ),
   ]);
 
@@ -86,8 +88,8 @@ export default async function OpenJobsPage({
         </div>
       </header>
 
-      {error ? (
-        <LoadError what="your jobs" code={error.code} />
+      {error || poError ? (
+        <LoadError what="your jobs" code={(error ?? poError)!.code} />
       ) : ordered.length === 0 ? (
         <p className="rounded-card bg-surface p-5 text-sm text-ink-muted shadow-card ring-1 ring-line/70 ring-inset">
           {showDone ? "Nothing marked done yet." : "No open jobs."}

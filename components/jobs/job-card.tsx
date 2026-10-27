@@ -9,6 +9,7 @@ import { attachJobPo, setJobStatus, type JobActionState } from "@/app/(app)/jobs
 import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 import { JOB_GROUP_LABELS, JOB_PO_BUCKET, googleMapsUrl, wazeUrl, whenLabel, type JobGroup } from "@/lib/jobs/jobs";
 import { createClient } from "@/lib/supabase/client";
+import { validatePoPdf } from "@/lib/jobs/po-files";
 import { cn } from "@/lib/utils";
 
 /** The priority stripe and pill, one colour per group. */
@@ -66,7 +67,7 @@ function StatusButton({ done }: { done: boolean }) {
  * the button says so; afterwards the page is refreshed so the PO PDF button
  * appears. The upload is PDF only - that is what Lidl issues.
  */
-function PoAttach({ jobId, poId, companyId, hasFile }: { jobId: string; poId: string; companyId: string; hasFile: boolean }) {
+function PoAttach({ jobId, poId, companyId, storagePath }: { jobId: string; poId: string; companyId: string; storagePath: string | null }) {
   const input = useRef<HTMLInputElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,6 +78,11 @@ function PoAttach({ jobId, poId, companyId, hasFile }: { jobId: string; poId: st
     setError(null);
     setBusy(true);
     try {
+      const validationError = await validatePoPdf(file);
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
       const supabase = createClient();
       const path = `${companyId}/${jobId}/${poId}-${crypto.randomUUID()}.pdf`;
       const { error: uploadError } = await supabase.storage
@@ -86,7 +92,7 @@ function PoAttach({ jobId, poId, companyId, hasFile }: { jobId: string; poId: st
         setError(`${file.name} could not be uploaded. ${uploadError.message}`);
         return;
       }
-      const result = await attachJobPo({ poId, storagePath: path, originalFilename: file.name, fileSize: file.size });
+      const result = await attachJobPo({ poId, storagePath: path, expectedStoragePath: storagePath, originalFilename: file.name, fileSize: file.size });
       if (result.error) setError(result.error);
       else router.refresh();
     } catch (cause) {
@@ -113,7 +119,7 @@ function PoAttach({ jobId, poId, companyId, hasFile }: { jobId: string; poId: st
         className="inline-flex min-h-11 items-center gap-2 rounded-full px-4 text-sm font-semibold text-empire-sage ring-1 ring-empire-olive ring-inset transition-colors hover:bg-empire-olive/40 disabled:opacity-50"
       >
         <Paperclip aria-hidden className="size-4" />
-        {busy ? "Attaching…" : hasFile ? "Replace PDF" : "Attach PDF"}
+        {busy ? "Attaching…" : storagePath ? "Replace PDF" : "Attach PDF"}
       </button>
       {error ? <p role="alert" className="basis-full text-sm text-empire-rose">{error}</p> : null}
     </>
@@ -228,7 +234,7 @@ export function JobCard({ job, group, companyId }: { job: JobCardData; group: Jo
               ) : (
                 <span className="text-sm text-empire-sage/70">PO {po.po_number}: no PDF yet</span>
               )}
-              <PoAttach jobId={job.id} poId={po.id} companyId={companyId} hasFile={Boolean(po.storage_path)} />
+              <PoAttach jobId={job.id} poId={po.id} companyId={companyId} storagePath={po.storage_path} />
             </li>
           ))}
         </ul>

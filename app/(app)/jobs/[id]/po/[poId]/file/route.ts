@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireSessionContext } from "@/lib/auth/session";
 import { createClient } from "@/lib/supabase/server";
+import { poPdfFilename } from "@/lib/jobs/po-files";
 
 const BUCKET = "job-pos";
 
@@ -18,12 +19,13 @@ export async function GET(
   { params }: { params: Promise<{ id: string; poId: string }> },
 ) {
   const { id, poId } = await params;
-  await requireSessionContext();
+  const session = await requireSessionContext();
   const supabase = await createClient();
 
   const { data: po } = await supabase
     .from("job_pos")
     .select("id, po_number, storage_path, job_id")
+    .eq("company_id", session.companyId)
     .eq("id", poId)
     .eq("job_id", id)
     .maybeSingle();
@@ -35,8 +37,9 @@ export async function GET(
   return new NextResponse(new Uint8Array(await blob.arrayBuffer()), {
     headers: {
       "content-type": "application/pdf",
-      "content-disposition": `inline; filename="PO ${po.po_number}.pdf"`,
-      "cache-control": "private, max-age=300",
+      "content-disposition": `inline; filename="${poPdfFilename(po.po_number)}"`,
+      "cache-control": "private, no-store",
+      "x-content-type-options": "nosniff",
     },
   });
 }
