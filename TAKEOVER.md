@@ -5,7 +5,7 @@
 The owner confirmed Claude has stopped and authorised Codex to take over.
 Development continues on `codex/open-jobs-finish`, based on
 `feature/open-jobs` at `be07772`, itself one commit after `c406bda`.
-Do not treat the historical head/date below as the current release.
+The historical HANDOFF.md head/date is not the current release.
 
 - GitHub records a successful **Production** deployment of `c406bda` on
   16 October, and a successful **Preview** of `be07772` on 27 October.
@@ -27,10 +27,17 @@ Do not treat the historical head/date below as the current release.
   photo replacement, Capture Composer and presentation round-trip checks,
   lint, typecheck and the production build pass. A clean checkout needs
   `next typegen` or a build before typecheck generates `LayoutProps`.
-- The existing jobs migration and seed have **not** been applied or
-  verified against hosted Supabase in this session. No hosted data was
-  written. Authenticated Open Jobs behaviour, tenant isolation against the
-  database and the physical iPhone workflow remain acceptance requirements.
+- On 27 October, after explicit owner approval, the jobs migration and seed
+  were applied together in one transaction through the authenticated Supabase
+  SQL editor. Migration history records version `20261026000014`, name
+  `jobs`. The approved company and owner were checked before writing.
+  Verified: 13 jobs, 16 PO records, private PDF-only bucket with a 25 MB limit,
+  RLS enabled on both tables, full authenticated CRUD privileges and no anon
+  privileges. Under the owner's authenticated claims all 13 jobs/16 POs were
+  visible; under a non-member's claims both counts were zero.
+  Preview and Production share this database. No app promotion was performed.
+  Authenticated browser behaviour, actual PO PDF upload/replacement and the
+  physical iPhone workflow remain acceptance requirements.
 - The ordinary photo uploader, Replace Photo and Capture Composer are
   unchanged. No Empire system was accessed. Production stays untouched
   until the owner approves the preview on a physical iPhone.
