@@ -1,5 +1,34 @@
 # SiteBoss Pro - Codex takeover
 
+## Dashboard recovery - 28 October 2026
+
+- Re-fetched remote refs: Production still `c406bda`; the latest successful
+  Preview before this change was `85031dc`. Work remains on the existing
+  `codex/open-jobs-finish` preview branch / draft PR #2.
+- Clock-skew retries now attach a fresh AbortSignal to the Supabase builder.
+  Next otherwise memoizes the rejected GET for the entire render, so the
+  20-second retry budget can expire without another database request. Normal
+  first reads retain deduplication. Only clock-skew messages are retried;
+  expired JWTs and unrelated PGRST303 failures are not retried blindly.
+- Load-error panels now have a Reload screen button with pending feedback.
+  Both error boundaries use Next 16.3's `retry` prop (refetch + render),
+  replacing `reset` (render only). Installed Next docs verified this API.
+- Real Supabase-builder regression checks pass, including fresh signals
+  reaching fetch and successful recovery before the test budget expires.
+  An isolated local Next app imported the actual components: both Reload
+  screen and Try again recovered after a simulated server failure was cleared.
+  No live data or authentication checks were bypassed for these tests.
+- Lint, typecheck, clean production build, clock-skew, Open Jobs, PO files,
+  photo replacement and Capture Composer checks pass. A stale local Turbopack
+  cache caused a worker-start failure; preserving it outside the repository
+  and rebuilding cleanly succeeded. Existing PDF worker warning remains.
+- This fixes a reproducible retry defect, not a confirmed diagnosis of the
+  owner's specific phone error. The reported code sounded like PGRST303;
+  the exact server error and signed-in phone performance remain unverified.
+  Owner needs to complete password recovery and test the new Preview.
+  Production remains gated on physical iPhone approval. No hosting/billing
+  changes: Vercel configuration already uses Frankfurt beside Supabase.
+
 ## Takeover verification - 27 October 2026
 
 The owner confirmed Claude has stopped and authorised Codex to take over.
