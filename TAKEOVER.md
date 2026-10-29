@@ -1,5 +1,21 @@
 # SiteBoss Pro - Codex takeover
 
+## Photo-field polish - 29 October 2026
+
+- Caption and photo-status controls now enforce a 16px minimum font even
+  with the app's Small text setting. This replaces utility classes that
+  overrode the existing base-layer input font floor.
+- Status controls use the shared touch-target token (48px normally, 60px
+  in glove mode). Caption labels wrap on narrow screens; helper text is a
+  separate accessible description. The caption's six-line height limit now
+  follows its computed line height and padding, including text-size settings.
+- Save feedback has reserved space and a polite live region. Upload,
+  replacement, caption autosave and AI acceptance logic are unchanged.
+- Photo caption and Replace Photo checks pass. Browser verification was
+  unavailable because local browser use is disabled in Work settings. A
+  physical iPhone check of focus/zoom, text size, typing and saving remains
+  required before production promotion.
+
 ## Dashboard recovery - 28 October 2026
 
 - Re-fetched remote refs: Production still `c406bda`; the latest successful

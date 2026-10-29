@@ -155,7 +155,7 @@ export function PhotoDetails({
             // A status is a decision, not a draft: saved as soon as it changes.
             setFlush((count) => count + 1);
           }}
-          className="min-h-10 w-full rounded-full bg-surface-muted px-3 text-xs font-semibold text-ink-muted ring-1 ring-line/60 ring-inset transition-colors hover:text-ink focus:ring-2 focus:ring-brand/60 focus:outline-none"
+          className="min-h-(--ui-control-min) w-full rounded-full bg-surface-muted px-3 text-[length:max(16px,1rem)] font-semibold text-ink-muted ring-1 ring-line/60 ring-inset transition-colors hover:text-ink focus:ring-2 focus:ring-brand/60 focus:outline-none"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -164,7 +164,7 @@ export function PhotoDetails({
           ))}
         </select>
 
-        <div className="flex items-center gap-2">
+        <div role="status" aria-live="polite" aria-atomic="true" className="flex min-h-4 items-center gap-2">
           <SaveState saved={Boolean(state.saved)} error={state.error} />
         </div>
       </form>
