@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 /**
  * The top of a screen, the same on every screen.
  *
- * Title, a line about what this is, and the actions - with a gold rule under
+ * Title, a line about what this is, and the actions - with a marine rule under
  * it that ties the page back to the mark. Every list and detail page uses this
  * rather than assembling its own heading, so the spacing and the type scale
  * cannot drift apart between Projects, Reports, Stores and the rest.
@@ -34,7 +34,7 @@ export function PageHeader({
             </span>
           ) : null}
           <div className="min-w-0">
-            <h1 className="truncate text-[26px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
+            <h1 className="text-balance font-display text-[32px] leading-tight font-bold tracking-tight text-ink md:text-4xl">
               {title}
             </h1>
             {description ? (

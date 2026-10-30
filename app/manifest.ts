@@ -5,7 +5,7 @@ import type { MetadataRoute } from "next";
  *
  * SiteBoss is added to the home screen on site and opened like an app, so it
  * declares its own name, icons and colours rather than borrowing Safari's. The
- * charcoal theme colour is what makes the status bar and the splash match the
+ * blue-grey theme colour is what makes the status bar and the splash match the
  * application instead of flashing white on launch.
  */
 export default function manifest(): MetadataRoute.Manifest {
@@ -18,8 +18,8 @@ export default function manifest(): MetadataRoute.Manifest {
     scope: "/",
     display: "standalone",
     orientation: "portrait",
-    background_color: "#0e1116",
-    theme_color: "#0e1116",
+    background_color: "#1b2d3a",
+    theme_color: "#1b2d3a",
     categories: ["business", "productivity"],
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },

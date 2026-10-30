@@ -8,11 +8,11 @@ import { MOBILE_NAV_ITEMS, isNavItemActive } from "@/lib/navigation";
 import { cn } from "@/lib/utils";
 
 /**
- * Primary navigation on phones: a floating bar with a raised centre action.
+ * Primary navigation on phones: a compact dock with a clearly marked capture action.
  *
  * It floats clear of the screen edge on glass, so the page reads through it
  * and it never looks bolted on. The centre Create button is the one sculpted
- * thing on the bar - gold, lifted, lit - because it is the one thing a site
+ * thing on the bar - marine and contained - because it is the one thing a site
  * manager opens the app to press. Every target is at least 56px tall so it
  * can be hit with gloves on.
  *
@@ -57,7 +57,7 @@ export function BottomNav() {
       aria-label="Primary"
       className={cn("fixed inset-x-0 bottom-0 z-40 px-3 pb-safe md:hidden", typing && "hidden")}
     >
-      <ul className="mx-auto mb-2.5 flex max-w-lg items-stretch rounded-[26px] glass px-1 shadow-nav ring-1 ring-line/80">
+      <ul className="mx-auto mb-2.5 flex max-w-lg items-stretch rounded-card bg-surface px-1 shadow-nav ring-1 ring-line/80">
         {MOBILE_NAV_ITEMS.map((item) => {
           const active = isNavItemActive(item, pathname);
           const Icon = item.icon;
@@ -67,14 +67,15 @@ export function BottomNav() {
               <li key={item.href} className="flex flex-1 justify-center">
                 <Link
                   href={item.href}
-                  className="-mt-6 flex flex-col items-center gap-1 px-2 pb-1.5"
+                  aria-current={active ? "page" : undefined}
+                  className="flex min-h-16 flex-col items-center justify-center gap-1 px-2 py-2"
                 >
                   <span
                     className={cn(
-                      "grid size-[58px] place-items-center rounded-full bg-primary text-ink-inverse shadow-glow ring-4 ring-surface-sunken transition-[transform,box-shadow] duration-200 ease-out active:scale-95",
+                      "grid h-8 w-12 place-items-center rounded-control bg-primary text-ink-inverse transition-colors duration-150 hover:bg-primary-hover",
                     )}
                   >
-                    <Icon className="size-7" aria-hidden strokeWidth={2.75} />
+                    <Icon className="size-5" aria-hidden strokeWidth={2.75} />
                   </span>
                   <span className="text-[11px] font-semibold text-ink-muted">{item.label}</span>
                 </Link>
@@ -88,7 +89,7 @@ export function BottomNav() {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "group flex min-h-14 flex-col items-center justify-center gap-1 px-1 py-2 transition-colors duration-200",
+                  "group flex min-h-16 flex-col items-center justify-center gap-1 px-1 py-2 transition-colors duration-200",
                   active ? "text-brand-ink" : "text-ink-subtle hover:text-ink-muted",
                 )}
               >
@@ -100,7 +101,7 @@ export function BottomNav() {
                 >
                   <Icon className="size-[22px]" aria-hidden strokeWidth={active ? 2.5 : 2} />
                 </span>
-                <span className="text-[11px] font-semibold">{item.label}</span>
+                <span className="text-[11px] font-semibold">{item.href === "/dashboard" ? "Home" : item.label}</span>
               </Link>
             </li>
           );

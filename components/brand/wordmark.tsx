@@ -12,7 +12,7 @@ type WordmarkProps = {
 /**
  * SiteBoss Pro, as it is signed.
  *
- * The mark and the name, with PRO set beneath in gold - the lock-up from the
+ * The mark and the name, with PRO set beneath in marine - the lock-up from the
  * brand sheet rather than three separate treatments across the application.
  */
 export function Wordmark({ className, markOnly = false, size = "sm" }: WordmarkProps) {
@@ -27,8 +27,8 @@ export function Wordmark({ className, markOnly = false, size = "sm" }: WordmarkP
         <span className="flex flex-col leading-none">
           <span
             className={cn(
-              "font-black tracking-tight text-ink",
-              large ? "text-3xl" : "text-lg",
+              "font-display font-bold tracking-tight text-ink",
+              large ? "text-4xl" : "text-xl",
             )}
           >
             SITE<span className="text-brand-ink">BOSS</span>

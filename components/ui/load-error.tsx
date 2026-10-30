@@ -1,4 +1,5 @@
 import { Alert } from "@/components/ui/alert";
+import { RetryLoad } from "@/components/ui/retry-load";
 
 /**
  * Shown in place of content that could not be loaded.
@@ -29,14 +30,15 @@ export function LoadError({
       <div className="flex flex-col gap-2">
         <p className="font-semibold">Could not load {what}.</p>
         <p className="font-normal">
-          This is usually temporary. Reload the page, and if it keeps happening
-          {code ? " quote the code below" : " let us know"} - it says why.
+          Try reloading this screen. If it still won&rsquo;t load,
+          {code ? " let us know the code below." : " let us know."}
         </p>
         {code ? (
           <p className="font-mono text-xs">
             Code: <span className="font-semibold">{code}</span>
           </p>
         ) : null}
+        <RetryLoad />
       </div>
     </Alert>
   );
