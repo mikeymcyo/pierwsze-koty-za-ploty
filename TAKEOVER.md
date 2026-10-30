@@ -1,5 +1,32 @@
 # SiteBoss Pro - Codex takeover
 
+## Site desk redesign - 30 October 2026
+
+Owner explicitly requested replacing yellow/black and authorised layout changes.
+The direction is a working site desk: deep steel #1b2d3a, slate #243b49,
+mineral #eef3f5, marine #246879, glacier #b7d8dd and white. Dark/light/system
+preferences remain intact. Native condensed display typography (Avenir Next
+Condensed on supported Apple devices, Bahnschrift/Arial Narrow fallbacks),
+existing Inter body and Geist Mono utility text add hierarchy without another
+font download. The visual signature is a clearly ranked daily work surface,
+not decorative construction stripes or yellow glows.
+
+- Dashboard: Your site day header, full-width Site Capture and Open Jobs,
+  smaller New project/Store locator actions. An existing capture keeps priority;
+  starting another report becomes secondary. All four destinations remain.
+- Navigation: contained central action, no protruding glowing button; Home
+  label fits small screens. Keyboard hiding, routes, safe areas and return
+  paths remain. Shared headers wrap titles and use the display type.
+- Palette reaches shared components, auth screens, wordmark, SVG and raster
+  install icons, manifest and browser colour. Empire's distinct job-card
+  palette remains. Existing issued PDFs and document styling are separate.
+- Contrast regression checks exercise 19 text/background pairs in each of
+  dark, light and system-dark, all >=4.5:1. Brand, settings, navigation, jobs,
+  Replace Photo, Capture Composer and presentation-roundtrip checks pass.
+- Browser access remains disabled in Work settings. No rendered visual or
+  physical iPhone approval is claimed for this redesign. Production must
+  remain at its approved release until those checks are completed.
+
 ## Photo-field polish - 29 October 2026
 
 - Caption and photo-status controls now enforce a 16px minimum font even

@@ -13,8 +13,8 @@ import { SettingsLink } from "@/components/nav/settings-link";
  */
 export function TopBar({ companyName }: { companyName: React.ReactNode }) {
   return (
-    <header className="sticky top-0 z-30 glass pt-safe shadow-[0_1px_0_0_var(--color-line)] md:hidden">
-      <div className="flex min-h-[52px] items-center justify-between gap-3 px-4">
+    <header className="sticky top-0 z-30 bg-surface pt-safe shadow-[0_1px_0_0_var(--color-line)] md:hidden">
+      <div className="flex min-h-[64px] items-center justify-between gap-3 px-4">
         <Link href="/dashboard" aria-label="SiteBoss Pro dashboard" className="shrink-0">
           <Wordmark />
         </Link>

@@ -33,21 +33,21 @@ const sources = [...walk("app"), ...walk("components")];
 console.log("\n1. The palette is the brand sheet's");
 const css = read("app/globals.css");
 for (const [name, value] of [
-  ["charcoal", "#0e1116"],
-  ["dark grey", "#151a22"],
-  ["medium grey", "#1f2733"],
-  ["SiteBoss gold", "#f6b800"],
+  ["blue-grey", "#1b2d3a"],
+  ["dark grey", "#243b49"],
+  ["medium grey", "#314d5c"],
+  ["SiteBoss marine", "#b7d8dd"],
   ["white", "#ffffff"],
 ]) {
   check(`${name} ${value} is a token`, css.includes(value), value);
 }
-check("the page is charcoal", /--color-surface-sunken:\s*#0e1116/.test(css));
-check("a card is the dark grey", /--color-surface:\s*#151a22/.test(css));
-check("gold is the brand", /--color-brand:\s*#f6b800/.test(css));
-check("and the one primary action", /--color-primary:\s*#f6b800/.test(css));
-check("text on gold is charcoal, never white", /--color-ink-inverse:\s*#0e1116/.test(css));
+check("the page is blue-grey", /--color-surface-sunken:\s*#1b2d3a/.test(css));
+check("a card is the dark grey", /--color-surface:\s*#243b49/.test(css));
+check("marine is the brand", /--color-brand:\s*#b7d8dd/.test(css));
+check("and the one primary action", /--color-primary:\s*#b7d8dd/.test(css));
+check("text on marine is blue-grey, never white", /--color-ink-inverse:\s*#1b2d3a/.test(css));
 check("the browser draws its own furniture dark", /color-scheme:\s*dark/.test(css));
-check("focus is gold, so it is findable on charcoal", /:focus-visible[\s\S]{0,80}var\(--color-brand\)/.test(css));
+check("focus is marine, so it is findable on blue-grey", /:focus-visible[\s\S]{0,80}var\(--color-brand\)/.test(css));
 
 console.log("\n2. No screen picks its own colours");
 const HEX = /(?:bg|text|border|ring|fill|stroke|from|to|via|shadow|accent|outline|decoration|divide)-\[#[0-9a-fA-F]{3,8}\]/;
@@ -68,22 +68,22 @@ for (const file of sources) {
 check("no hard-coded hex utility anywhere", offenders.length === 0, offenders.slice(0, 4).join(", "));
 check("something was actually scanned", sources.length > 40, String(sources.length));
 
-console.log("\n3. Gold is an accent, not a background");
-// A gold fill is legitimate on exactly two things: the one primary action per
+console.log("\n3. Marine is an accent, not a background");
+// A marine fill is legitimate on exactly two things: the one primary action per
 // screen, and the mark. Anything else would be a field of yellow.
-const goldFills = sources.flatMap((file) => {
+const marineFills = sources.flatMap((file) => {
   const source = read(file);
   return [...source.matchAll(/className="[^"]*\bbg-(?:brand|primary)\b[^"]*"/g)].map(
     () => file,
   );
 });
 check(
-  "gold fills are few and deliberate",
-  goldFills.length <= 8,
-  `${goldFills.length}: ${[...new Set(goldFills)].join(", ")}`,
+  "marine fills are few and deliberate",
+  marineFills.length <= 8,
+  `${marineFills.length}: ${[...new Set(marineFills)].join(", ")}`,
 );
 check(
-  "and nothing puts white type on gold",
+  "and nothing puts white type on marine",
   !sources.some((file) =>
     /bg-(?:brand|primary)(?![-a-z])[^"]*text-ink(?![-a-z])/.test(read(file)),
   ),
@@ -92,17 +92,17 @@ check(
 console.log("\n4. The mark reads as SB");
 const monogram = read("components/brand/monogram.tsx");
 check("it is drawn, not set in a font", !/<text/.test(monogram) && /<path/.test(monogram));
-// White on the charcoal plate; the page's own ink when it stands on the page,
+// White on the blue-grey plate; the page's own ink when it stands on the page,
 // so the light theme gets the dark-S mark the brand sheet draws.
 check("the S is white on the plate", /plate \? "#ffffff"/.test(monogram));
 check("and follows the ink without it", /var\(--color-ink, #ffffff\)/.test(monogram));
-check("the B is gold, so the two letters cannot merge", /fill="#f6b800"/.test(monogram));
+check("the B is marine, so the two letters cannot merge", /plate \? "#b7d8dd"/.test(monogram));
 check("and it carries the three bars", (monogram.match(/M\d+ 100h18/g) ?? []).length === 3);
 check("it names itself for a screen reader", /aria-label=\{title\}/.test(monogram));
 const wordmark = read("components/brand/wordmark.tsx");
 check("the wordmark uses the mark rather than a second drawing", /<Monogram/.test(wordmark));
 check(
-  "SITE takes the ink and BOSS the gold",
+  "SITE takes the ink and BOSS the marine",
   /SITE<span className="text-brand-ink">BOSS<\/span>/.test(wordmark),
 );
 check("and the strapline is the company's", /REPORT IT\. PROVE IT\. MOVE FORWARD\./.test(wordmark));
@@ -112,10 +112,10 @@ const manifest = read("app/manifest.ts");
 check("there is a manifest", /export default function manifest/.test(manifest));
 check("it is called SiteBoss", /short_name: "SiteBoss"/.test(manifest));
 check("it opens standalone, not in a tab", /display: "standalone"/.test(manifest));
-check("on charcoal, so it does not flash white", /background_color: "#0e1116"/.test(manifest));
+check("on blue-grey, so it does not flash white", /background_color: "#1b2d3a"/.test(manifest));
 check("with a maskable icon for Android", /purpose: "maskable"/.test(manifest));
 const layout = read("app/layout.tsx");
-check("the status bar matches the app", /themeColor: "#0e1116"/.test(layout));
+check("the status bar matches the app", /themeColor: "#1b2d3a"/.test(layout));
 check("iOS treats it as an app", /appleWebApp/.test(layout));
 for (const icon of [
   "app/icon.svg",
@@ -143,7 +143,7 @@ check(
   /loading && !disabled && "disabled:opacity-100"/.test(read("components/ui/button.tsx")),
 );
 check(
-  "a destructive button is red, not gold",
+  "a destructive button is red, not marine",
   /danger: "bg-danger-strong text-white/.test(read("components/ui/button.tsx")),
 );
 check(

@@ -24,7 +24,7 @@ export const metadata: Metadata = {
     "Turn site photographs and a voice note into a professional construction progress report, from your phone.",
   applicationName: "SiteBoss Pro",
   // Added to the home screen on site, so it opens like an app rather than a
-  // tab: no Safari chrome, the charcoal status bar, and the SB mark.
+  // tab: no Safari chrome, the blue-grey status bar, and the SB mark.
   appleWebApp: {
     capable: true,
     title: "SiteBoss",
@@ -36,9 +36,9 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   // viewportFit lets the bottom nav sit above the iPhone home indicator.
   viewportFit: "cover",
-  // The charcoal the application is drawn on, so the browser furniture and the
+  // The blue-grey the application is drawn on, so the browser furniture and the
   // launch splash match it instead of flashing white.
-  themeColor: "#0e1116",
+  themeColor: "#1b2d3a",
   colorScheme: "dark",
 };
 

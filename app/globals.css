@@ -1,55 +1,46 @@
 @import "tailwindcss";
 
-/*
- * SiteBoss Pro design tokens.
- *
- * Dark by design. The brand is charcoal and white with a restrained gold, and
- * on a phone held at arm's length under a site hi-vis the dark ground is what
- * makes the gold and the white type carry. Everything in the application draws
- * from these tokens - no screen picks its own colours - so the identity is
- * changed here and nowhere else.
- *
- * Gold is an accent: an active state, a mark, a single primary action per
- * screen. It is never a large field of colour behind content.
- */
+/* Site desk: mineral surfaces, marine accents and clear working hierarchy.
+ * Shared tokens carry the identity through light, dark and system modes. */
 @theme {
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: "Avenir Next Condensed", "Bahnschrift Condensed", "Arial Narrow", var(--font-inter), sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
   /* Surfaces. Sunken is the page, surface is a card, raised is a card on a
      card or anything that has to come forward. Muted is a fill inside a card:
      a chip, a hover, a quiet panel. */
-  --color-surface: #151a22;
-  --color-surface-sunken: #0e1116;
-  --color-surface-muted: #1f2733;
-  --color-surface-raised: #1b212c;
+  --color-surface: #243b49;
+  --color-surface-sunken: #1b2d3a;
+  --color-surface-muted: #314d5c;
+  --color-surface-raised: #2b4352;
 
   /* Lines. A hairline by default, and mostly replaced by layering and space;
      strong is for a control that has to read as one. */
-  --color-line: #232b38;
-  --color-line-strong: #2a3342;
+  --color-line: #3a5361;
+  --color-line-strong: #54707d;
 
   /* Text */
-  --color-ink: #f3f5f7;
-  --color-ink-muted: #a7b0bd;
-  --color-ink-subtle: #76818f;
-  /* What goes on top of gold or white - never white on gold. */
-  --color-ink-inverse: #0e1116;
+  --color-ink: #f0f5f7;
+  --color-ink-muted: #c1cfd6;
+  --color-ink-subtle: #b1c3cc;
+  /* What goes on top of marine or white - never white on marine. */
+  --color-ink-inverse: #1b2d3a;
 
   /* Brand */
-  --color-brand: #f6b800;
-  --color-brand-strong: #ffc928;
-  --color-brand-soft: #2a230e;
-  /* Gold as words rather than as a fill. On charcoal that is the gold itself;
+  --color-brand: #b7d8dd;
+  --color-brand-strong: #d2e8eb;
+  --color-brand-soft: #314d5c;
+  /* Marine as words rather than as a fill. On blue-grey that is the marine itself;
      on white it has to darken or it cannot be read. */
-  --color-brand-ink: #f6b800;
+  --color-brand-ink: #b7d8dd;
 
   /* The single primary action on a screen. */
-  --color-primary: #f6b800;
-  --color-primary-hover: #ffc928;
+  --color-primary: #b7d8dd;
+  --color-primary-hover: #d2e8eb;
 
   /*
-   * Status. Each is a light tint that reads as text on charcoal, with a dark
+   * Status. Each is a light tint that reads as text on blue-grey, with a dark
    * companion for the chip behind it. Danger has a filled variant as well,
    * because a destructive button has to look like one.
    */
@@ -70,25 +61,25 @@
   /* Open Jobs priority groups: a fixed attendance, late, this week, later. */
   --color-job-fixed: #d64545;
   --color-job-overdue: #e8821e;
-  --color-job-week: #f6b800;
+  --color-job-week: #b7d8dd;
   --color-job-later: #8a8f98;
   --color-info: #4da3ff;
   --color-info-soft: #122239;
 
   /* Corners. Cards are generous; controls a step tighter so they nest. */
-  --radius-card: 20px;
-  --radius-control: 16px;
+  --radius-card: 16px;
+  --radius-control: 12px;
 
   /* Depth. Soft and low, never a hard drop: the cards are lit, not stacked. */
   --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 10px 30px -18px rgb(0 0 0 / 0.7);
   --shadow-raised: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 18px 40px -20px rgb(0 0 0 / 0.75);
-  --shadow-glow: 0 12px 30px -12px rgb(246 184 0 / 0.55);
+  --shadow-glow: 0 4px 12px -6px rgb(20 43 54 / 0.3);
   --shadow-nav: 0 -1px 0 0 rgb(255 255 255 / 0.03) inset, 0 16px 40px -12px rgb(0 0 0 / 0.8);
 
   /* Motion. One curve, two speeds. */
   --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
   --animate-rise: rise 420ms var(--ease-out-soft) both;
-  --animate-fade: fade 240ms ease-out both;
+  --animate-fade: fade 140ms ease-out both;
 
   @keyframes rise {
     from {
@@ -143,36 +134,37 @@
 /*
  * Light.
  *
- * The same brand, not a different one: charcoal type on white, the same gold,
- * and the mark unchanged. Gold darkens where it has to carry as text.
+ * The same brand, not a different one: blue-grey type on white, the same marine,
+ * and the mark unchanged. Marine darkens where it has to carry as text.
  */
 :root[data-theme="light"],
 :root[data-theme="system"] {
   --color-surface: #ffffff;
-  --color-surface-sunken: #f2f4f7;
-  --color-surface-muted: #e9ecf1;
-  --color-surface-raised: #fafbfc;
+  --color-surface-sunken: #eef3f5;
+  --color-surface-muted: #e2ebef;
+  --color-surface-raised: #f7fafb;
 
-  --color-line: #e3e7ed;
-  --color-line-strong: #cbd2dc;
+  --color-line: #d4e1e6;
+  --color-line-strong: #a9bfc9;
 
-  --color-ink: #14171c;
-  --color-ink-muted: #4d5560;
-  --color-ink-subtle: #7a828e;
-  /* Still what goes on top of gold, so it darkens rather than inverting. */
-  --color-ink-inverse: #14171c;
+  --color-ink: #203748;
+  --color-ink-muted: #4c6573;
+  --color-ink-subtle: #496574;
+  /* Still what goes on top of marine, so it darkens rather than inverting. */
+  --color-ink-inverse: #ffffff;
 
-  --color-brand-strong: #b45309;
-  --color-brand-soft: #fff5d6;
-  --color-brand-ink: #9a6b00;
+  --color-brand: #246879;
+  --color-brand-strong: #1b5362;
+  --color-brand-soft: #e0eef1;
+  --color-brand-ink: #246879;
 
-  /* Gold is the primary action in both themes - it is the brand's button. */
-  --color-primary: #f6b800;
-  --color-primary-hover: #e9ae00;
+  /* Marine is the primary action in both themes - it is the brand's button. */
+  --color-primary: #246879;
+  --color-primary-hover: #1b5362;
 
   --color-success: #0f7a52;
   --color-success-soft: #e3f6ee;
-  --color-warning: #a2620b;
+  --color-warning: #8f5408;
   --color-warning-soft: #fdf2dc;
   --color-danger: #c0392f;
   --color-danger-soft: #fdeceb;
@@ -188,25 +180,26 @@
 /* "System" is light only where the device actually asks for light. */
 @media (prefers-color-scheme: dark) {
   :root[data-theme="system"] {
-    --color-surface: #151a22;
-    --color-surface-sunken: #0e1116;
-    --color-surface-muted: #1f2733;
-    --color-surface-raised: #1b212c;
+    --color-surface: #243b49;
+    --color-surface-sunken: #1b2d3a;
+    --color-surface-muted: #314d5c;
+    --color-surface-raised: #2b4352;
 
-    --color-line: #232b38;
-    --color-line-strong: #2a3342;
+    --color-line: #3a5361;
+    --color-line-strong: #54707d;
 
-    --color-ink: #f3f5f7;
-    --color-ink-muted: #a7b0bd;
-    --color-ink-subtle: #76818f;
-    --color-ink-inverse: #0e1116;
+    --color-ink: #f0f5f7;
+    --color-ink-muted: #c1cfd6;
+    --color-ink-subtle: #b1c3cc;
+    --color-ink-inverse: #1b2d3a;
 
-    --color-brand-strong: #ffc928;
-    --color-brand-soft: #2a230e;
-    --color-brand-ink: #f6b800;
+    --color-brand: #b7d8dd;
+    --color-brand-strong: #d2e8eb;
+    --color-brand-soft: #314d5c;
+    --color-brand-ink: #b7d8dd;
 
-    --color-primary: #f6b800;
-    --color-primary-hover: #ffc928;
+    --color-primary: #b7d8dd;
+    --color-primary-hover: #d2e8eb;
 
     --color-success: #23c16b;
     --color-success-soft: #10271b;
@@ -277,7 +270,7 @@
     font-size: max(16px, 1rem);
   }
 
-  /* Gold, because on charcoal a white ring is hard to separate from the text
+  /* Marine, because on blue-grey a white ring is hard to separate from the text
      it surrounds and this has to be obvious with gloves on. */
   :focus-visible {
     outline: 2px solid var(--color-brand);
@@ -304,7 +297,7 @@
   margin-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-/* The gold hairline under the brand bar, and the top edge of a header. */
+/* The marine hairline under the brand bar, and the top edge of a header. */
 @utility brand-rule {
   background-image: linear-gradient(
     to right,

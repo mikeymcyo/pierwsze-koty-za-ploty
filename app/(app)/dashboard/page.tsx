@@ -122,15 +122,16 @@ export default async function DashboardPage() {
   });
 
   const greeting = (
-    <header className="flex flex-col gap-1">
-      <p className="text-sm font-semibold text-ink-muted">
+    <header className="flex flex-col gap-2 border-b border-line pb-5">
+      <p className="font-mono text-xs text-ink-muted">
         {todayLabel}
         {/* The mobile top bar already carries the company name. */}
         <span className="hidden md:inline"> · {session.companyName}</span>
       </p>
-      <h1 className="text-[28px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
-        Hello, {displayName(session)}
+      <h1 className="font-display text-4xl leading-tight font-bold tracking-tight text-ink md:text-5xl">
+        Your site day
       </h1>
+      <p className="text-sm text-ink-muted">Welcome back, {displayName(session)}.</p>
     </header>
   );
 
@@ -161,12 +162,12 @@ export default async function DashboardPage() {
           opened the app for. */}
       {inProgress ? <CaptureInProgress draft={inProgress} /> : null}
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <QuickAction href="/reports/new" icon={<Mic aria-hidden />} label="Site Capture" primary />
+      <section aria-label="Site tools" className="grid grid-cols-2 gap-3">
+        <QuickAction href="/reports/new" icon={<Mic aria-hidden />} label="Site Capture" description={inProgress ? "Start another daily report" : "Photos, notes and today's report"} primary={!inProgress} wide />
+        <QuickAction href="/jobs" icon={<ClipboardList aria-hidden />} label="Open Jobs" description="Visits, directions and purchase orders" wide />
         <QuickAction href="/projects/new" icon={<Plus aria-hidden />} label="New project" />
         <QuickAction href="/stores" icon={<Store aria-hidden />} label="Store locator" />
-        <QuickAction href="/jobs" icon={<ClipboardList aria-hidden />} label="Open Jobs" />
-      </div>
+      </section>
 
       {otherDrafts.length > 0 ? (
         <section className="flex flex-col gap-3">
@@ -396,24 +397,32 @@ function QuickAction({
   href,
   icon,
   label,
+  description,
   primary,
+  wide,
 }: {
   href: string;
   icon: React.ReactNode;
   label: string;
+  description?: string;
   primary?: boolean;
+  wide?: boolean;
 }) {
   return (
     <Link
       href={href}
       className={
         primary
-          ? "flex min-h-24 flex-col items-center justify-center gap-2 rounded-card bg-primary p-3 text-center text-sm font-bold text-ink-inverse shadow-glow transition-[transform,filter] duration-200 active:scale-[0.98] [&_svg]:size-6"
-          : "flex min-h-24 flex-col items-center justify-center gap-2 rounded-card bg-surface p-3 text-center text-sm font-semibold text-ink shadow-card ring-1 ring-line/70 ring-inset transition-[transform,background-color] duration-200 hover:bg-surface-raised active:scale-[0.98] [&_svg]:size-6 [&_svg]:text-brand"
+          ? "col-span-2 flex min-h-28 items-center gap-4 rounded-card bg-primary p-5 text-ink-inverse transition-colors hover:bg-primary-hover [&_svg]:size-7"
+          : `${wide ? "col-span-2" : ""} flex min-h-20 items-center gap-3 rounded-card border border-line bg-surface p-4 text-ink transition-colors hover:bg-surface-raised [&_svg]:size-5`
       }
     >
-      {icon}
-      {label}
+      <span className="shrink-0" aria-hidden>{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className={primary ? "block font-display text-2xl font-bold" : "block text-sm font-semibold"}>{label}</span>
+        {description ? <span className={`mt-1 block text-sm ${primary ? "" : "text-ink-muted"}`}>{description}</span> : null}
+      </span>
+      {primary || wide ? <ChevronRight className="shrink-0" aria-hidden /> : null}
     </Link>
   );
 }
