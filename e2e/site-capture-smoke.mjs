@@ -316,7 +316,7 @@ check(
 );
 check("and no longer offers a second way to start today's report", !/startReport/.test(project));
 check("picking a site opens today's report", /action=\{openSiteCapture\}/.test(chooser));
-check("the dashboard leads with it", /label="Site Capture"/.test(dashboard));
+check("the dashboard leads with capture and can resume its existing draft", /label=.+inProgress.+Continue capture.+Capture/.test(dashboard) && /href=.+inProgress.+reports.+capture/.test(dashboard));
 check("and a draft report can go back to it", /\/capture`\}/.test(report));
 
 console.log("\n10. The end of the day is unchanged");

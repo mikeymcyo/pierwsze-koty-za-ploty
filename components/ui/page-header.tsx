@@ -3,14 +3,7 @@ import type { ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
-/**
- * The top of a screen, the same on every screen.
- *
- * Title, a line about what this is, and the actions - with a gold rule under
- * it that ties the page back to the mark. Every list and detail page uses this
- * rather than assembling its own heading, so the spacing and the type scale
- * cannot drift apart between Projects, Reports, Stores and the rest.
- */
+/** Shared work-screen title, context and actions on a solid midnight surface. */
 export function PageHeader({
   title,
   description,
@@ -25,16 +18,16 @@ export function PageHeader({
   className?: string;
 }) {
   return (
-    <header className={cn("flex flex-col gap-3", className)}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <header className={cn("work-header flex flex-col gap-5 rounded-[24px] p-5 sm:p-6", className)}>
+      <div className="flex flex-col items-start justify-between gap-5 sm:flex-row">
         <div className="flex min-w-0 items-center gap-3">
           {Icon ? (
-            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-soft text-brand-ink ring-1 ring-brand/20">
+            <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-info-soft text-info ring-1 ring-info/25">
               <Icon className="size-5" aria-hidden />
             </span>
           ) : null}
           <div className="min-w-0">
-            <h1 className="truncate text-[26px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
+            <h1 className="break-words text-[30px] leading-tight font-semibold tracking-tight text-ink md:text-3xl">
               {title}
             </h1>
             {description ? (
@@ -42,10 +35,8 @@ export function PageHeader({
             ) : null}
           </div>
         </div>
-        {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+        {actions ? <div className="flex w-full flex-wrap gap-2 sm:w-auto">{actions}</div> : null}
       </div>
-      {/* The gold stub against a hairline: the brand rule from the mark. */}
-      <div className="h-px brand-rule" />
     </header>
   );
 }
