@@ -38,7 +38,7 @@ export const viewport: Viewport = {
   viewportFit: "cover",
   // The charcoal the application is drawn on, so the browser furniture and the
   // launch splash match it instead of flashing white.
-  themeColor: "#0e1116",
+  themeColor: "#070b10",
   colorScheme: "dark",
 };
 

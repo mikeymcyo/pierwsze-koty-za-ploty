@@ -166,10 +166,10 @@ check(
 );
 
 console.log("\n6. The brand is the brand in both");
-check("gold is the same value in light", (css.match(/#f6b800/g) ?? []).length >= 1);
+check("gold is the same value in light", (css.match(/#e3b34a/g) ?? []).length >= 1);
 check(
   "gold as text darkens where it must be read on white",
-  /--color-brand-ink: #9a6b00/.test(css) && /--color-brand-ink: #f6b800/.test(css),
+  /--color-brand-ink: #9a6b00/.test(css) && /--color-brand-ink: #e3b34a/.test(css),
 );
 check(
   "and the wordmark uses it rather than the fill",
@@ -177,7 +177,7 @@ check(
 );
 check(
   "the mark itself is fixed, so it is the same object either way",
-  /fill="#0e1116"/.test(read("../components/brand/monogram.tsx")),
+  /fill="#070b10"/.test(read("../components/brand/monogram.tsx")),
 );
 
 console.log("\n7. None of it reaches an issued PDF");
