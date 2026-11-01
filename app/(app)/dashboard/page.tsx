@@ -103,14 +103,7 @@ export default async function DashboardPage() {
   // taking the dashboard down with it.
   const drafts = draftsResult.data ?? [];
 
-  /**
-   * The Daily somebody is part-way through, lifted above the quick actions.
-   *
-   * It used to sit below them, linking at the report rather than at the
-   * microphone, saying nothing about how much had been captured or when. The
-   * first thing a site manager opens the app for is the thing he did not
-   * finish, and Site Capture is where he finishes it.
-   */
+  // Preserve the existing draft selection and direct capture links.
   const openDrafts: DraftDaily[] = drafts.map((draft) => {
     const project = Array.isArray(draft.projects) ? draft.projects[0] : draft.projects;
     return {
@@ -128,21 +121,25 @@ export default async function DashboardPage() {
 
   const today = new Date();
   const todayLabel = today.toLocaleDateString("en-GB", {
+    timeZone: "Europe/London",
     weekday: "long",
     day: "numeric",
     month: "long",
   });
 
   const greeting = (
-    <header className="flex flex-col gap-1">
-      <p className="text-sm font-semibold text-ink-muted">
+    <header className="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <p className="mb-1 text-sm text-ink-muted">Welcome back</p>
+        <h1 className="text-[30px] leading-tight font-semibold tracking-tight text-ink md:text-4xl">
+          {displayName(session)}
+        </h1>
+      </div>
+      <p className="pb-1 text-xs font-medium tabular-nums text-ink-muted">
         {todayLabel}
         {/* The mobile top bar already carries the company name. */}
         <span className="hidden md:inline"> · {session.companyName}</span>
       </p>
-      <h1 className="text-[28px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
-        Hello, {displayName(session)}
-      </h1>
     </header>
   );
 
@@ -161,23 +158,37 @@ export default async function DashboardPage() {
   }
 
   const otherDrafts = drafts.filter((draft) => draft.id !== inProgress?.id);
+  const activeSite = projects.find((project) => project.id === inProgress?.projectId) ?? projects[0];
 
   return (
-    <div className="flex flex-col gap-8">
+    <div className="flex flex-col gap-6">
       {greeting}
 
-      {/* The three things somebody opens this app to do, one tap from the top
-          of the screen rather than found through a menu. */}
-      {/* Before the quick actions, not after them. Starting a new capture is
-          one tap away below; finishing the one already open is what somebody
-          opened the app for. */}
-      {inProgress ? <CaptureInProgress draft={inProgress} /> : null}
+      {activeSite ? (
+        <Link href={`/projects/${activeSite.id}`} className="midnight-site group relative flex min-h-36 items-center gap-4 overflow-hidden rounded-card p-5">
+          <div className="min-w-0 flex-1">
+            <p className="mb-2 text-xs font-semibold tracking-wide text-info">
+              {activeSite.id === inProgress?.projectId ? "Current capture site" : "Latest active site"}
+            </p>
+            <h2 className="text-xl leading-snug font-semibold tracking-tight text-ink">{activeSite.name}</h2>
+            {activeSite.site_address || activeSite.client ? (
+              <p className="mt-2 flex items-start gap-1.5 text-sm text-ink-muted"><MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />{activeSite.site_address || activeSite.client}</p>
+            ) : null}
+            <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-brand-ink">Open site <ChevronRight className="size-4" aria-hidden /></span>
+          </div>
+          <span className="grid size-14 shrink-0 place-items-center rounded-2xl border border-info/20 bg-info/10 text-info"><HardHat className="size-7" strokeWidth={1.5} aria-hidden /></span>
+        </Link>
+      ) : null}
 
-      <div className="grid grid-cols-3 gap-3">
-        <QuickAction href="/reports/new" icon={<Mic aria-hidden />} label="Site Capture" primary />
-        <QuickAction href="/projects/new" icon={<Plus aria-hidden />} label="New project" />
-        <QuickAction href="/stores" icon={<Store aria-hidden />} label="Store locator" />
-      </div>
+      {/* Keep all shortcuts on existing, working routes. */}
+      <nav aria-label="Dashboard actions" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <QuickAction href={inProgress ? `/reports/${inProgress.id}/capture` : "/reports/new"} icon={<Mic aria-hidden />} label="Capture" detail={inProgress ? "Continue your daily" : "Photos & voice notes"} primary />
+        <QuickAction href="/reports" icon={<FileText aria-hidden />} label="Reports" detail="Drafts & issued reports" />
+        <QuickAction href="/projects" icon={<FolderKanban aria-hidden />} label="Sites" detail="Your active projects" />
+        <QuickAction href="#dashboard-issues" icon={<AlertTriangle aria-hidden />} label="Issues" detail="Needs attention" />
+      </nav>
+
+      {inProgress ? <CaptureInProgress draft={inProgress} /> : null}
 
       {otherDrafts.length > 0 ? (
         <section className="flex flex-col gap-3">
@@ -210,8 +221,9 @@ export default async function DashboardPage() {
         </section>
       ) : null}
 
-      {openIssues.length > 0 ? (
-        <section className="flex flex-col gap-3">
+      <section id="dashboard-issues" className="flex scroll-mt-24 flex-col gap-3">
+      {issuesResult.error ? <LoadError what="outstanding issues" code={issuesResult.error.code} /> : openIssues.length > 0 ? (
+        <>
           <SectionHeading count={openIssues.length}>Needs attention</SectionHeading>
           <ul className="flex flex-col gap-3">
             {openIssues.map((issue) => {
@@ -238,8 +250,14 @@ export default async function DashboardPage() {
               );
             })}
           </ul>
-        </section>
-      ) : null}
+        </>
+      ) : <div className="midnight-panel flex items-center gap-3 rounded-card p-4"><FileCheck2 className="size-5 shrink-0 text-success" aria-hidden /><p className="text-sm text-ink-muted">No high-priority issues requiring attention.</p></div>}
+      </section>
+
+      <div className="flex flex-wrap gap-2">
+
+        <Button asChild variant="ghost" size="sm"><Link href="/stores"><Store aria-hidden />Store locator</Link></Button>
+      </div>
 
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4">
@@ -402,16 +420,18 @@ function SectionHeading({ children, count }: { children: string; count?: number 
   );
 }
 
-/** One of the three things worth a tap from the top of the dashboard. */
+/** A thumb-sized shortcut using the shared Midnight Glass surfaces. */
 function QuickAction({
   href,
   icon,
   label,
+  detail,
   primary,
 }: {
   href: string;
   icon: React.ReactNode;
   label: string;
+  detail: string;
   primary?: boolean;
 }) {
   return (
@@ -419,12 +439,12 @@ function QuickAction({
       href={href}
       className={
         primary
-          ? "flex min-h-24 flex-col items-center justify-center gap-2 rounded-card bg-primary p-3 text-center text-sm font-bold text-ink-inverse shadow-glow transition-[transform,filter] duration-200 active:scale-[0.98] [&_svg]:size-6"
-          : "flex min-h-24 flex-col items-center justify-center gap-2 rounded-card bg-surface p-3 text-center text-sm font-semibold text-ink shadow-card ring-1 ring-line/70 ring-inset transition-[transform,background-color] duration-200 hover:bg-surface-raised active:scale-[0.98] [&_svg]:size-6 [&_svg]:text-brand"
+          ? "midnight-action flex min-h-32 flex-col items-start justify-center gap-3 rounded-card p-4 text-brand-ink transition-colors hover:bg-surface-raised [&_svg]:size-6"
+          : "midnight-panel flex min-h-32 flex-col items-start justify-center gap-3 rounded-card p-4 text-info transition-colors hover:bg-surface-raised [&_svg]:size-6"
       }
     >
       {icon}
-      {label}
+      <span><span className="block text-base font-semibold text-ink">{label}</span><span className="mt-1 block text-xs leading-relaxed text-ink-muted">{detail}</span></span>
     </Link>
   );
 }

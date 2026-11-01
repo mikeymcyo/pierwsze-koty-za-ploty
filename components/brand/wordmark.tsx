@@ -27,7 +27,7 @@ export function Wordmark({ className, markOnly = false, size = "sm" }: WordmarkP
         <span className="flex flex-col leading-none">
           <span
             className={cn(
-              "font-black tracking-tight text-ink",
+              "font-semibold tracking-tight text-ink",
               large ? "text-3xl" : "text-lg",
             )}
           >
@@ -36,7 +36,7 @@ export function Wordmark({ className, markOnly = false, size = "sm" }: WordmarkP
           <span
             className={cn(
               "font-semibold tracking-[0.35em] text-ink-subtle",
-              large ? "mt-1.5 text-xs" : "mt-0.5 text-[9px]",
+              large ? "mt-1.5 text-xs" : "mt-1 text-[10px]",
             )}
           >
             PRO

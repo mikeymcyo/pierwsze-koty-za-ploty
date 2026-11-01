@@ -13,15 +13,15 @@ import { SettingsLink } from "@/components/nav/settings-link";
  */
 export function TopBar({ companyName }: { companyName: React.ReactNode }) {
   return (
-    <header className="sticky top-0 z-30 glass pt-safe shadow-[0_1px_0_0_var(--color-line)] md:hidden">
-      <div className="flex min-h-[52px] items-center justify-between gap-3 px-4">
+    <header className="sticky top-0 z-30 bg-surface-sunken pt-safe shadow-[0_1px_0_0_var(--color-line)] md:hidden">
+      <div className="flex min-h-[64px] items-center justify-between gap-3 px-4">
         <Link href="/dashboard" aria-label="SiteBoss Pro dashboard" className="shrink-0">
           <Wordmark />
         </Link>
         <div className="flex min-w-0 items-center gap-1.5">
           {/* Streams in after the shell - see app/(app)/layout.tsx - so the
               chip keeps its shape while the name is on its way. */}
-          <span className="min-h-[26px] min-w-12 truncate rounded-full bg-surface-muted/80 px-3 py-1 text-xs font-semibold text-ink-muted">
+          <span className="min-h-[26px] min-w-12 truncate rounded-lg border border-line/70 bg-surface px-2.5 py-1.5 text-xs font-medium text-ink-muted">
             {companyName}
           </span>
           {/* Settings lives here rather than in the bottom bar, and carries
