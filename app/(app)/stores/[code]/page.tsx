@@ -11,6 +11,9 @@ import {
 } from "lucide-react";
 
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
+import { StoreVisionStreetView } from "@/components/stores/storevision-streetview";
+import { streetViewFor } from "@/lib/stores/storevision-streetview";
+import viewpoints from "@/lib/stores/storevision-viewpoints.json";
 import { DirectionsLinks } from "@/components/stores/directions-links";
 import { RecentRecorder } from "@/components/stores/recent-recorder";
 import { Button } from "@/components/ui/button";
@@ -60,6 +63,11 @@ export default async function StorePage({
   const store = findStoreAnywhere(code);
   if (!store) notFound();
 
+  const streetView = streetViewFor(viewpoints, store.directoryId, store.code, {
+    VERCEL_ENV: process.env.VERCEL_ENV,
+    STOREVISION_ENABLED: process.env.STOREVISION_ENABLED,
+    GOOGLE_MAPS_EMBED_BROWSER_KEY: process.env.GOOGLE_MAPS_EMBED_BROWSER_KEY,
+  });
   const directions = directionsUrl(store);
   const waze = wazeUrl(store);
 
@@ -292,6 +300,8 @@ export default async function StorePage({
           </ul>
         )}
       </section>
+
+      {streetView ? <StoreVisionStreetView key={store.code} storeName={store.displayName} {...streetView} /> : null}
     </div>
   );
 }
