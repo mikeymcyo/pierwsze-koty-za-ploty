@@ -98,7 +98,10 @@ export async function attachPhoto(input: AttachPhotoInput) {
     .maybeSingle();
   if (existing) {
     revalidatePath(`/projects/${projectId}`);
-    if (reportId) revalidatePath(`/reports/${reportId}`);
+    if (reportId) {
+      revalidatePath(`/reports/${reportId}`);
+      revalidatePath(`/reports/${reportId}/capture`);
+    }
     return {};
   }
 
@@ -120,7 +123,10 @@ export async function attachPhoto(input: AttachPhotoInput) {
   if (error) return { error: `Could not attach the photo: ${error.message}` };
 
   revalidatePath(`/projects/${projectId}`);
-  if (reportId) revalidatePath(`/reports/${reportId}`);
+  if (reportId) {
+    revalidatePath(`/reports/${reportId}`);
+    revalidatePath(`/reports/${reportId}/capture`);
+  }
   return {};
 }
 

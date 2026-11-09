@@ -255,6 +255,7 @@ check("and nothing deletes", !/\.delete\(/.test(actions));
 console.log("\n8. The screen a site manager holds");
 
 const page = read("../app/(app)/reports/[id]/capture/page.tsx");
+check("uploaded capture photos offer configured AI captions", /<PhotoGrid[^>]*aiConfigured=\{hasAiConfig\(\)\}/.test(page));
 const form = read("../components/reports/site-capture-form.tsx");
 const dictation = read("../components/reports/dictation-field.tsx");
 
@@ -316,7 +317,7 @@ check(
 );
 check("and no longer offers a second way to start today's report", !/startReport/.test(project));
 check("picking a site opens today's report", /action=\{openSiteCapture\}/.test(chooser));
-check("the dashboard leads with it", /label="Site Capture"/.test(dashboard));
+check("the dashboard leads with capture", /<QuickAction[^\n]*label="Capture"[^\n]* primary/.test(dashboard));
 check("and a draft report can go back to it", /\/capture`\}/.test(report));
 
 console.log("\n10. The end of the day is unchanged");

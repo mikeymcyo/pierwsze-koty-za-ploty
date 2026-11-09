@@ -11,6 +11,7 @@ import { PrepareDaily } from "@/components/reports/prepare-daily";
 import { SiteCaptureForm } from "@/components/reports/site-capture-form";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardContent } from "@/components/ui/card";
+import { hasAiConfig } from "@/lib/ai/report-generation";
 import { requireSessionContext } from "@/lib/auth/session";
 import { captureSpan, parseCaptureLog } from "@/lib/reports/capture-log";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
@@ -28,10 +29,8 @@ export const maxDuration = 60;
  * Site Capture: what a site operative holds.
  *
  * Four things, in the order somebody new would guess them: say what happened,
- * add photos, add a document if one turned up, Prepare Daily. Nothing on this
- * screen mentions the AI, the job context, a reading, a status or a report
- * number. The clever parts - the brief, the paperwork, what was read out of
- * it, the two-pass writer - all run underneath Prepare Daily.
+ * add photos, add a document if one turned up, Prepare Daily. Each uploaded
+ * photo can have a suggested caption reviewed and saved here.
  *
  * Ten seconds, no training: that is the test this screen is held to.
  */
@@ -135,9 +134,7 @@ export default async function SiteCapturePage({
             simple
           />
           {photos.length > 0 ? (
-            // No AI caption buttons here. Captions are proposed on the report,
-            // if at all; this screen shows what was taken and nothing else.
-            <PhotoGrid photos={photos} reportId={report.id} aiConfigured={false} />
+            <PhotoGrid photos={photos} reportId={report.id} aiConfigured={hasAiConfig()} />
           ) : null}
         </CardContent>
       </Card>
