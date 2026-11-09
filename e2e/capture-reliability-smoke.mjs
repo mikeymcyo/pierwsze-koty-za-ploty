@@ -14,6 +14,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { remainingPhotoRetries } from "../lib/photo-retries.ts";
 
 import {
   alreadyEnded,
@@ -183,7 +184,14 @@ check(
   "one for the item id, one for the path",
 );
 check("a retry writes the same object", /upsert: true/.test(upload));
-check("failures are kept with their bytes", /setFailed\(stillFailing\)/.test(upload));
+const firstPhoto = { id: "first", blob: new Blob(["first photo"]), category: "before" };
+const secondPhoto = { id: "second", blob: new Blob(["second photo"]), category: "after" };
+const bothFailed = remainingPhotoRetries([firstPhoto], [secondPhoto], [secondPhoto]);
+check("a second failed batch keeps both photographs", bothFailed[0] === firstPhoto && bothFailed[1] === secondPhoto);
+check("a later successful batch preserves earlier failures", remainingPhotoRetries([firstPhoto], [secondPhoto], [])[0] === firstPhoto);
+const retry = remainingPhotoRetries(bothFailed, bothFailed, [secondPhoto]);
+check("a partial retry keeps only its failed original", retry.length === 1 && retry[0] === secondPhoto);
+check("a successful retry clears the remaining photograph", remainingPhotoRetries(retry, retry, []).length === 0);
 check("and offered back with a Try again", /onClick=\{\(\) => void send\(failed\)\}/.test(upload));
 check(
   "nothing is called uploaded until the row exists",

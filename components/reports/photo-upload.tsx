@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { UNSET_PHOTO_STATUS } from "@/lib/photo-captions";
+import { remainingPhotoRetries } from "@/lib/photo-retries";
 import { PHOTO_BUCKET, PHOTO_CATEGORIES, photoPathPrefix, thumbnailPath } from "@/lib/photos";
 import {
   JPEG_QUALITY,
@@ -43,6 +44,7 @@ export type Compressed = { blob: Blob; width: number; height: number; thumb: Blo
  * makes a retry write the same object instead of a second one.
  */
 type PendingUpload = {
+  category: PhotoCategory;
   id: string;
   name: string;
   blob: Blob;
@@ -203,11 +205,11 @@ export function PhotoUpload({
   // now loses it, so the browser asks first - the one thing that can be done
   // about it without an offline queue.
   useEffect(() => {
-    if (!busy) return;
+    if (!busy && !failed.length) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
     window.addEventListener("beforeunload", warn);
     return () => window.removeEventListener("beforeunload", warn);
-  }, [busy]);
+  }, [busy, failed.length]);
 
   async function handleFiles(source: PhotoSourceId, files: FileList) {
     const chosen = Array.from(files);
@@ -231,6 +233,7 @@ export function PhotoUpload({
     }
 
     setError(null);
+    setBusy({ done: 0, total: list.length });
 
     // Compressed and given its storage path here, once, before any attempt.
     // Every retry of this photograph then writes the same object.
@@ -238,6 +241,7 @@ export function PhotoUpload({
     for (const file of list) {
       const { blob, width, height, thumb } = await compress(file);
       pending.push({
+        category,
         id: crypto.randomUUID(),
         name: file.name,
         blob,
@@ -261,12 +265,12 @@ export function PhotoUpload({
    */
   async function send(pending: PendingUpload[], skippedNote = "") {
     setBusy({ done: 0, total: pending.length });
-    const supabase = createClient();
     const stillFailing: PendingUpload[] = [];
     let firstFailure: string | null = null;
 
     for (const [index, item] of pending.entries()) {
       try {
+        const supabase = createClient();
         const { error: uploadError } = await supabase.storage
           .from(PHOTO_BUCKET)
           .upload(item.path, item.blob, {
@@ -298,7 +302,7 @@ export function PhotoUpload({
               summaryReportId,
               storagePath: item.path,
               caption: null,
-              category,
+              category: item.category,
               width: item.width || null,
               height: item.height || null,
             })
@@ -307,7 +311,7 @@ export function PhotoUpload({
               reportId,
               storagePath: item.path,
               caption: null,
-              category,
+              category: item.category,
               width: item.width || null,
               height: item.height || null,
             });
@@ -321,7 +325,7 @@ export function PhotoUpload({
     }
 
     setBusy(null);
-    setFailed(stillFailing);
+    setFailed((previous) => remainingPhotoRetries(previous, pending, stillFailing));
 
     if (stillFailing.length) {
       setError(
