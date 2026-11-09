@@ -31,9 +31,26 @@ together. Prioritise work that closes a field or release criterion.
 
 ### Store release criteria
 
-The current preview is a mobile web app with home-screen icons and a manifest.
-This checkout has no iOS or Android app project. Developer account access,
-signing arrangements and existing store listings have not been verified.
+The mobile field-test clients live in `mobile/android` and `mobile/ios`.
+The native launch screen opens Site Capture, Dashboard or Reports on the
+stable preview using Android Custom Tabs or the iOS Safari view controller.
+Sign-in, camera, report generation and PDF sharing run through the existing
+web app. These builds require a connection. Both use the test identifier
+`uk.co.sitebosspro.fieldtest`. Publisher identifiers and signing access
+still need confirmation for store distribution.
+
+The SiteBoss field test builds workflow produces an Android debug APK, an
+unsigned Android release bundle, an iOS simulator app and an unsigned iOS
+device archive. Download the APK for direct Android testing. The runner's
+debug certificate may change between builds. For Play internal testing,
+use the publisher's registered package and upload signing key.
+
+On a Mac, unzip the simulator app and install it with
+`xcrun simctl install booted SiteBossTest.app`. For a connected iPhone,
+generate the Xcode project with `xcodegen generate` in `mobile/ios`, open
+it, select the Apple development team and the connected device, then Run.
+For TestFlight, archive with the publisher's team and distribute through
+App Store Connect. Keep credentials in the signing environment.
 
 1. **First installable builds.** Select a packaging approach against the existing
    server-rendered app and authenticated routes. Produce a signed TestFlight
