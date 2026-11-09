@@ -1,0 +1,22 @@
+name: SiteBossTest
+options:
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  SiteBossTest:
+    type: application
+    platform: iOS
+    sources: [SiteBossTest]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: uk.co.sitebosspro.fieldtest
+        PRODUCT_NAME: SiteBossTest
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: SiteBoss Test
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        TARGETED_DEVICE_FAMILY: "1,2"
+        SWIFT_VERSION: "5.0"
