@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 
 import { CaptureInProgress } from "@/components/reports/capture-in-progress";
+import { FirstReportGuide } from "@/components/reports/first-report-guide";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { captureCount } from "@/lib/reports/capture-log";
 import { captureInProgress, type DraftDaily } from "@/lib/reports/continuity";
@@ -119,6 +120,8 @@ export default async function DashboardPage() {
     <div className="flex flex-col gap-6">
       {greeting}
 
+      {!activeSite && <FirstReportGuide hasActiveSite={false} />}
+
       {activeSite ? (
         <Link href={`/projects/${activeSite.id}`} className="midnight-site group relative flex min-h-36 items-center gap-4 overflow-hidden rounded-card p-5">
           <div className="min-w-0 flex-1">
@@ -144,6 +147,8 @@ export default async function DashboardPage() {
       </nav>
 
       {inProgress ? <CaptureInProgress draft={inProgress} /> : null}
+
+      {activeSite && <FirstReportGuide hasActiveSite />}
 
       {otherDrafts.length > 0 ? (
         <section className="flex flex-col gap-3">
@@ -187,34 +192,18 @@ export default async function DashboardPage() {
         <Button asChild variant="ghost" size="sm"><Link href="/stores"><Store aria-hidden />Store locator</Link></Button>
       </div>
 
+      {projects.length > 0 && (
       <section className="flex flex-col gap-3">
         <div className="flex items-center justify-between gap-4">
           <SectionHeading count={projects.length}>Active projects</SectionHeading>
-          {projects.length > 0 ? (
             <Button asChild variant="ghost" size="sm">
               <Link href="/projects/new">
                 <Plus aria-hidden />
                 New project
               </Link>
             </Button>
-          ) : null}
         </div>
 
-        {projects.length === 0 ? (
-          <EmptyState
-            icon={HardHat}
-            title="No active projects yet"
-            description="A project holds the site details, and every report and photo belongs to one. Start here."
-            action={
-              <Button asChild size="lg">
-                <Link href="/projects/new">
-                  <Plus aria-hidden />
-                  Create your first project
-                </Link>
-              </Button>
-            }
-          />
-        ) : (
           <ul className="flex flex-col gap-3">
             {projects.map((project) => (
               <li key={project.id}>
@@ -248,8 +237,8 @@ export default async function DashboardPage() {
               </li>
             ))}
           </ul>
-        )}
       </section>
+      )}
 
       <Suspense fallback={<p role="status" className="text-sm text-ink-muted">Loading recent reports…</p>}>
         <RecentReports result={recentReports} />
