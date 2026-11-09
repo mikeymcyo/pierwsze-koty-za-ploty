@@ -12,12 +12,10 @@ it says so explicitly - treat that distinction as load-bearing.
 
 ## SITEBOSS V1 — HURRICANE FINISH MODE
 
-**From 2026-09-06 the real Southampton shopfitting project is the acceptance
-test.** Nothing else decides whether v1 is done. Until the next field-test
-result comes back there is no new feature work, no architecture work, no
-refactoring, no cosmetic tinkering, no speculative improvement and no more
-test architecture. Anything that does not block one of the seven criteria
-below goes to v1.1.
+**Release direction, 9 November 2026.** Hurricane covers a finished SiteBoss Pro
+for the Apple App Store and Google Play. The Southampton shopfitting project
+remains the field acceptance test. Track field readiness and store readiness
+together. Prioritise work that closes a field or release criterion.
 
 ### V1 pass criteria
 
@@ -30,6 +28,38 @@ below goes to v1.1.
 5. Photos/documents remain usable and professional.
 6. Preview/PDF/share workflow works reliably on iPhone/iPad.
 7. No data loss, tenant/security issue or destructive behaviour.
+
+### Store release criteria
+
+The current preview is a mobile web app with home-screen icons and a manifest.
+This checkout has no iOS or Android app project. Developer account access,
+signing arrangements and existing store listings have not been verified.
+
+1. **First installable builds.** Select a packaging approach against the existing
+   server-rendered app and authenticated routes. Produce a signed TestFlight
+   build and a Google Play internal-test build. Verify login, password reset
+   and return to the intended report on a physical iPhone and Android phone.
+2. **Field workflow on both platforms.** Take a site photo, interrupt and retry
+   the upload, accept or edit its caption, save a Daily, close the app, reopen
+   the report and share its PDF. Check camera denial and weak connectivity.
+   Record device, build and outcome for each platform.
+3. **Privacy and accounts.** Inventory actual data flows for account details,
+   notes, photos and AI processing. Verify disclosure and permission before
+   sending personal data to third-party AI. Publish a privacy policy and support
+   contact. Provide account deletion in the app and a public deletion request
+   route for Google Play. Define treatment of shared company records first.
+4. **Submission package.** Confirm publisher ownership, app identifiers and
+   signing access. Prepare store descriptions, device screenshots, privacy
+   declarations and reviewer access using sample site data. Check current
+   SDK and any account-specific testing requirements in each store console.
+
+Record internal builds, submission and store approval as separate milestones.
+The release target is ready to submit on both stores. Public release timing
+remains a publisher decision.
+
+Review references: [Apple App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/),
+[Google Play account deletion](https://support.google.com/googleplay/android-developer/answer/13327111)
+and [Google Play testing requirements for new personal accounts](https://support.google.com/googleplay/android-developer/answer/14151465).
 
 ### What was finished and proved on the real build before stopping
 
