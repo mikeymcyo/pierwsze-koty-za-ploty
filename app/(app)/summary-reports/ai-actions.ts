@@ -238,18 +238,22 @@ export async function generateSummaryReport(
     )
     .join("\n");
 
-  const { data: selectedPhotos } = await supabase
+  const { data: selectedPhotos, error: selectionError } = await supabase
     .from("summary_report_photos")
     .select("photo_id, caption_override")
     .eq("summary_report_id", reportId)
     .order("sort_order", { ascending: true });
   const selectedPhotoIds = (selectedPhotos ?? []).map((row) => row.photo_id);
-  const { data: photos } = selectedPhotoIds.length
+  if (selectionError) return { error: "Could not load the photo selection. Please try again." };
+  const { data: photos, error: photoReadError } = selectedPhotoIds.length
     ? await supabase
         .from("photos")
         .select("id, category, caption")
         .in("id", selectedPhotoIds)
-    : { data: [] };
+    : { data: [], error: null };
+  if (photoReadError || photos?.length !== selectedPhotoIds.length) {
+    return { error: "Could not load every selected photo. Check the photo selection and try again." };
+  }
   const photoById = new Map((photos ?? []).map((photo) => [photo.id, photo]));
   // The photographs in the order they will print, so a plate number the model
   // writes resolves to the plate the reader is looking at. photoManifest and

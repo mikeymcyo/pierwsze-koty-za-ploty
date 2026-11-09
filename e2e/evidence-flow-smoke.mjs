@@ -17,6 +17,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { loadSummaryPdfData } from "../lib/summary-reports/pdf-data.ts";
 
 import {
   RAW_NOTES_THRESHOLD,
@@ -341,6 +342,31 @@ check("cleanup still runs before drafting", actions.indexOf("cleanedSectionsFor"
 check("the cleanup pass reads the same evidence", /source: evidence/.test(actions));
 check("photograph curation still feeds captions", /photoCaptions/.test(actions));
 check("no service-role client appears", !/service_role|SERVICE_ROLE/.test(actions));
+
+for (const [scenario, photoResponse] of [
+  ["photo lookup failed", { data: null, error: { message: "connection interrupted" } }],
+  ["one selected photo is missing", { data: [{ id: "first" }], error: null }],
+]) {
+  const client = {
+    from(table) {
+      const responses = {
+        summary_reports: { data: { id: "report", kind: "progress" }, error: null },
+        summary_report_photos: { data: [{ photo_id: "first" }, { photo_id: "second" }], error: null },
+        photos: photoResponse,
+      };
+      const response = responses[table] ?? { data: [], error: null };
+      return {
+        select() { return this; },
+        eq() { return this; },
+        maybeSingle() { return Promise.resolve(response); },
+        order() { return Promise.resolve(response); },
+        in() { return Promise.resolve(response); },
+      };
+    },
+  };
+  const loaded = await loadSummaryPdfData(client, "report", {});
+  check(`PDF preparation stops when ${scenario}`, !loaded.ok && loaded.error.includes("selected photo"));
+}
 
 console.log("\n=== Result ===");
 if (failures.length === 0) {

@@ -81,12 +81,15 @@ export async function loadSummaryPdfData(
 
   const photoLinks = photoLinksResult.data ?? [];
   const photoIds = photoLinks.map((row) => row.photo_id);
-  const { data: photoRows } = photoIds.length
+  const { data: photoRows, error: photoReadError } = photoIds.length
     ? await supabase
         .from("photos")
         .select("id, caption, category, storage_path, rotation")
         .in("id", photoIds)
-    : { data: [] };
+    : { data: [], error: null };
+  if (photoReadError || photoRows?.length !== photoIds.length) {
+    return { ok: false, error: "Could not load every selected photo. Check the photo selection and try again." };
+  }
   const photoById = new Map((photoRows ?? []).map((photo) => [photo.id, photo]));
   const downloaded = new Map<string, Buffer>();
   for (const link of photoLinks) {

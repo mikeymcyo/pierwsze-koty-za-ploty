@@ -287,6 +287,16 @@ export async function startSummaryReport(
     return { error: noSourcesMessage(input.kind) };
   }
 
+  const sourceDailyIds = daily.map((report) => report.id);
+  const { data: photos, error: photoReadError } = sourceDailyIds.length
+    ? await supabase
+        .from("photos")
+        .select("id")
+        .in("report_id", sourceDailyIds)
+        .order("created_at", { ascending: true })
+    : { data: [], error: null };
+  if (photoReadError) return { error: "Could not load the Daily photos. Please try again." };
+
   const { data: summary, error: createError } = await supabase
     .from("summary_reports")
     .insert({
@@ -366,28 +376,20 @@ export async function startSummaryReport(
     return { error: `Could not prepare the report sections: ${sectionsError.message}` };
   }
 
-  const sourceDailyIds = daily.map((report) => report.id);
-  if (sourceDailyIds.length > 0) {
-    const { data: photos } = await supabase
-      .from("photos")
-      .select("id")
-      .in("report_id", sourceDailyIds)
-      .order("created_at", { ascending: true });
-    if (photos?.length) {
-      const { error: photosError } = await supabase.from("summary_report_photos").insert(
-        photos.map((photo, index) => ({
-          company_id: session.companyId,
-          summary_report_id: summary.id,
-          photo_id: photo.id,
-          sort_order: index,
-        })),
-      );
-      // A report that silently lost its photographs at birth would be drafted
-      // from thin evidence and say so to nobody. Same answer as the sources.
-      if (photosError) {
-        await supabase.from("summary_reports").delete().eq("id", summary.id);
-        return { error: `Could not link the photographs: ${photosError.message}` };
-      }
+  if (photos?.length) {
+    const { error: photosError } = await supabase.from("summary_report_photos").insert(
+      photos.map((photo, index) => ({
+        company_id: session.companyId,
+        summary_report_id: summary.id,
+        photo_id: photo.id,
+        sort_order: index,
+      })),
+    );
+    // A report that silently lost its photographs at birth would be drafted
+    // from thin evidence and say so to nobody. Same answer as the sources.
+    if (photosError) {
+      await supabase.from("summary_reports").delete().eq("id", summary.id);
+      return { error: `Could not link the photographs: ${photosError.message}` };
     }
   }
 

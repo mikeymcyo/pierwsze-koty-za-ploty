@@ -75,6 +75,9 @@ export async function resolve(specifier, context, next) {
 }
 
 export async function load(url, context, next) {
+  if (url.startsWith("file:") && url.endsWith(".json")) {
+    return next(url, { ...context, importAttributes: { ...context.importAttributes, type: "json" } });
+  }
   if (url.startsWith("file:") && /\.tsx?$/.test(url)) {
     const filename = fileURLToPath(url);
     const { code } = await transform(readFileSync(filename, "utf8"), {
