@@ -50,7 +50,7 @@ import {
 } from "../lib/reports/master-review.ts";
 import { NOTES_CHANGED_ELSEWHERE, decideNotesWrite } from "../lib/reports/notes-cas.ts";
 
-const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8");
+const read = (path) => readFileSync(new URL(path, import.meta.url), "utf8").replaceAll("\r\n", "\n");
 const codeOf = (source) => source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
 
 const failures = [];
