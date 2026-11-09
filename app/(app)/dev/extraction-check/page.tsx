@@ -45,8 +45,8 @@ export default async function ExtractionCheckPage() {
         <Card>
           <CardContent>
             <p className="text-sm text-ink">
-              No OPENAI_API_KEY is set on this deployment, so nothing was called. Set it under
-              Settings &rarr; Environments for this environment and reload.
+              Set ANTHROPIC_API_KEY or OPENAI_API_KEY in this environment’s deployment settings,
+              then redeploy to enable the extraction check.
             </p>
           </CardContent>
         </Card>

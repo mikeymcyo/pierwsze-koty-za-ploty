@@ -1,6 +1,6 @@
 import "server-only";
 
-import OpenAI from "openai";
+import { aiClient, aiModel } from "@/lib/ai/provider";
 
 import {
   INSTRUCTED_WORKS_JSON_SCHEMA,
@@ -42,13 +42,12 @@ export async function generateInstructedWorks(
   input: InstructedWorksPromptInput,
   plateCount: number,
 ): Promise<InstructedWorksResult> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return { ok: false, error: "AI drafting is not configured on this deployment." };
+  const client = aiClient();
+  if (!client) return { ok: false, error: "AI drafting is not configured on this deployment." };
 
   try {
-    const client = new OpenAI({ apiKey });
     const completion = await client.chat.completions.create({
-      model: process.env.OPENAI_MODEL?.trim() || "gpt-5.5",
+      model: aiModel(),
       messages: [
         { role: "system", content: INSTRUCTED_WORKS_SYSTEM_PROMPT },
         { role: "user", content: buildInstructedWorksPrompt(input) },

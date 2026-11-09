@@ -1,6 +1,6 @@
 import "server-only";
 
-import OpenAI from "openai";
+import { aiClient, aiModel, hasAiCredentials } from "@/lib/ai/provider";
 import { z } from "zod";
 
 import { SYSTEM_PROMPT, buildPrompt, type GenerationInput } from "@/lib/ai/prompt";
@@ -29,10 +29,10 @@ import { describeAiFailure } from "@/lib/ai/failure";
  * output, so the user can always check what was written against what they said.
  */
 
-export const AI_MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-5.5";
+export const AI_MODEL = aiModel();
 
 export function hasAiConfig(): boolean {
-  return Boolean(process.env.OPENAI_API_KEY?.trim());
+  return hasAiCredentials();
 }
 
 const sectionsSchema = z.object(
@@ -57,8 +57,8 @@ export async function generateSections(
   input: GenerationInput,
   options: { baseURL?: string } = {},
 ): Promise<GenerationResult> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) {
+  const client = aiClient(options.baseURL);
+  if (!client) {
     return { ok: false, error: "AI drafting is not configured on this deployment." };
   }
 
@@ -68,11 +68,6 @@ export async function generateSections(
       error: "Add some notes about the day's work first - there is nothing to write up yet.",
     };
   }
-
-  const client = new OpenAI({
-    apiKey,
-    baseURL: options.baseURL ?? (process.env.OPENAI_BASE_URL?.trim() || undefined),
-  });
 
   const properties = Object.fromEntries(
     DAILY_DRAFTED_SECTIONS.map((section) => [

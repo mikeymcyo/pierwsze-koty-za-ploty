@@ -13,10 +13,9 @@
 
 import { runExtractionCheck } from "../lib/documents/extraction-check.ts";
 
-if (!process.env.OPENAI_API_KEY?.trim()) {
+if (!process.env.ANTHROPIC_API_KEY?.trim() && !process.env.OPENAI_API_KEY?.trim()) {
   console.error(
-    "\nNo OPENAI_API_KEY in the environment.\n\n" +
-      "  OPENAI_API_KEY=sk-... npm run check:live-extraction\n\n" +
+    "\nSet ANTHROPIC_API_KEY or OPENAI_API_KEY before running the live extraction check.\n\n" +
       "Nothing was called and nothing was written.",
   );
   process.exit(2);

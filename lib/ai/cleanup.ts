@@ -1,6 +1,6 @@
 import "server-only";
 
-import OpenAI from "openai";
+import { aiClient, aiModel } from "@/lib/ai/provider";
 
 import { glossaryBlock, statusDisciplineBlock } from "@/lib/ai/glossary";
 import {
@@ -34,7 +34,7 @@ import { describeAiFailure } from "@/lib/ai/failure";
  *
  * A cleanup that cannot run leaves the pipeline exactly as it was before this
  * layer existed: the review pass reads the raw material, as it always has, and
- * the user gets their report. No deployment without OPENAI_API_KEY changes
+ * the user gets their report. No deployment without AI credentials changes
  * behaviour, and no outage of this call costs anybody their notes.
  */
 
@@ -44,9 +44,7 @@ export type CleanupResult =
   | { ok: true; sections: CleanupSections }
   | { ok: false; error: string };
 
-export const CLEANUP_MODEL = process.env.OPENAI_CLEANUP_MODEL?.trim() ||
-  process.env.OPENAI_MODEL?.trim() ||
-  "gpt-5.5";
+export const CLEANUP_MODEL = aiModel("cleanup");
 
 export { formatCleanedSections };
 
@@ -54,14 +52,9 @@ export async function cleanupSections(
   input: CleanupInput,
   options: { baseURL?: string } = {},
 ): Promise<CleanupResult> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return { ok: false, error: "AI cleanup is not configured on this deployment." };
+  const client = aiClient(options.baseURL);
+  if (!client) return { ok: false, error: "AI cleanup is not configured on this deployment." };
   if (!input.source.trim()) return { ok: false, error: "There is nothing to clean up yet." };
-
-  const client = new OpenAI({
-    apiKey,
-    baseURL: options.baseURL ?? (process.env.OPENAI_BASE_URL?.trim() || undefined),
-  });
 
   try {
     const completion = await client.chat.completions.create(

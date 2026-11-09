@@ -1,6 +1,6 @@
 import "server-only";
 
-import OpenAI from "openai";
+import { aiClient, aiModel } from "@/lib/ai/provider";
 
 import {
   PHOTO_DESCRIPTION_SYSTEM_PROMPT,
@@ -28,14 +28,14 @@ export type PhotoDescriptionResult =
 
 /** Vision needs a model that accepts images; the text model is not assumed to. */
 export const PHOTO_AI_MODEL =
-  process.env.OPENAI_VISION_MODEL?.trim() || process.env.OPENAI_MODEL?.trim() || "gpt-5.5";
+  aiModel("vision");
 
 export async function describePhotograph(
   image: { data: Buffer; mimeType: string },
   context: PhotoDescriptionInput,
 ): Promise<PhotoDescriptionResult> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return { ok: false, error: "AI drafting is not configured on this deployment." };
+  const client = aiClient();
+  if (!client) return { ok: false, error: "AI drafting is not configured on this deployment." };
 
   // Sent inline rather than as a link. The bucket is private, so an external
   // fetcher has nothing to fetch, and a signed URL that expired mid-request
@@ -43,7 +43,6 @@ export async function describePhotograph(
   const dataUrl = `data:${image.mimeType};base64,${image.data.toString("base64")}`;
 
   try {
-    const client = new OpenAI({ apiKey });
     const completion = await client.chat.completions.create({
       model: PHOTO_AI_MODEL,
       messages: [

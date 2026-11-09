@@ -1,6 +1,6 @@
 import "server-only";
 
-import OpenAI from "openai";
+import { aiClient, aiModel } from "@/lib/ai/provider";
 import { z } from "zod";
 
 import {
@@ -59,8 +59,8 @@ const replySchema = z.object({
 export async function reviewReportAsWhole(
   input: MasterReviewInput,
 ): Promise<MasterReviewResult> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return { ok: false, error: "AI drafting is not configured on this deployment." };
+  const client = aiClient();
+  if (!client) return { ok: false, error: "AI drafting is not configured on this deployment." };
 
   const written = input.sections.filter((section) => section.content.trim());
   if (written.length === 0) {
@@ -71,9 +71,8 @@ export async function reviewReportAsWhole(
   }
 
   try {
-    const client = new OpenAI({ apiKey });
     const completion = await client.chat.completions.create({
-      model: process.env.OPENAI_MODEL?.trim() || "gpt-5.5",
+      model: aiModel(),
       messages: [
         { role: "system", content: MASTER_REVIEW_SYSTEM_PROMPT },
         { role: "user", content: buildMasterReviewPrompt(input) },

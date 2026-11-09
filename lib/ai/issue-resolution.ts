@@ -1,6 +1,6 @@
 import "server-only";
 
-import OpenAI from "openai";
+import { aiClient, aiModel } from "@/lib/ai/provider";
 import { z } from "zod";
 
 import type { ResolutionSuggestion } from "@/lib/issues/metadata";
@@ -45,8 +45,8 @@ export async function suggestResolvedIssues(input: {
   notes: string[];
   issues: { id: string; title: string; description: string | null }[];
 }): Promise<ResolutionSuggestionResult> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return { ok: false, error: "AI drafting is not configured on this deployment." };
+  const client = aiClient();
+  if (!client) return { ok: false, error: "AI drafting is not configured on this deployment." };
   if (input.issues.length === 0 || input.notes.every((note) => !note.trim())) {
     return { ok: true, suggestions: [] };
   }
@@ -62,9 +62,8 @@ export async function suggestResolvedIssues(input: {
   ].join("\n");
 
   try {
-    const client = new OpenAI({ apiKey });
     const completion = await client.chat.completions.create({
-      model: process.env.OPENAI_MODEL?.trim() || "gpt-5.5",
+      model: aiModel(),
       messages: [
         { role: "system", content: SYSTEM_PROMPT },
         { role: "user", content: userPrompt },

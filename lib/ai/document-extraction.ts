@@ -1,6 +1,6 @@
 import "server-only";
 
-import OpenAI from "openai";
+import { aiClient, aiModel, hasAiCredentials } from "@/lib/ai/provider";
 
 import {
   EXTRACTION_PROMPT_VERSION,
@@ -28,10 +28,10 @@ import { describeAiFailure } from "@/lib/ai/failure";
  * function owns the call and the check.
  */
 
-export const EXTRACTION_MODEL = process.env.OPENAI_MODEL?.trim() || "gpt-5.5";
+export const EXTRACTION_MODEL = aiModel();
 
 export function hasExtractionConfig(): boolean {
-  return Boolean(process.env.OPENAI_API_KEY?.trim());
+  return hasAiCredentials();
 }
 
 export type ExtractionCallResult =
@@ -57,11 +57,10 @@ export async function extractFromDocument(
   input: ExtractionPromptInput,
   pages: DocumentPage[],
 ): Promise<ExtractionCallResult> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return { ok: false, error: "AI reading is not configured on this deployment." };
+  const client = aiClient();
+  if (!client) return { ok: false, error: "AI reading is not configured on this deployment." };
 
   try {
-    const client = new OpenAI({ apiKey });
     const completion = await client.chat.completions.create({
       model: EXTRACTION_MODEL,
       messages: [

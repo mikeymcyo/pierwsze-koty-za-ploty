@@ -16,9 +16,9 @@
  * same way, so nothing depends on the SDK's class.
  */
 export const AI_OUT_OF_CREDIT =
-  "The AI account has run out of credit. Add credit to the OpenAI API billing account, then try again.";
+  "The AI account has run out of credit. Add credit in your AI provider’s billing settings, then try again.";
 
-export const AI_KEY_REJECTED = "The AI key was rejected. Check OPENAI_API_KEY.";
+export const AI_KEY_REJECTED = "The AI provider rejected the key. Check the API key in the deployment settings.";
 
 type ErrorLike = {
   message?: unknown;
@@ -36,7 +36,7 @@ export function isOutOfCredit(cause: unknown): boolean {
   const { message, status, code, type } = fields(cause);
   if (code === "credit_balance_exhausted" || type === "insufficient_quota") return true;
   const text = typeof message === "string" ? message : "";
-  if (/insufficient_quota|credit_balance_exhausted|no credits remaining/i.test(text)) return true;
+  if (/insufficient_quota|credit_balance_exhausted|no credits remaining|credit balance is too low/i.test(text)) return true;
   return status === 429 && /quota|credit|billing/i.test(text);
 }
 
@@ -45,7 +45,7 @@ export function isKeyRejected(cause: unknown): boolean {
   const { message, status } = fields(cause);
   if (status === 401) return true;
   const text = typeof message === "string" ? message : "";
-  return /api key|401|invalid/i.test(text);
+  return /api[ _-]?key|\b401\b/i.test(text);
 }
 
 /**

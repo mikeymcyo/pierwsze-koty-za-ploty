@@ -1,6 +1,6 @@
 import "server-only";
 
-import OpenAI from "openai";
+import { aiClient, aiModel } from "@/lib/ai/provider";
 import { z } from "zod";
 
 import { CLEANED_SECTIONS_LABEL } from "@/lib/ai/prompt";
@@ -50,8 +50,8 @@ export type SummaryGenerationResult =
 export async function generateSummarySections(
   input: SummaryGenerationInput,
 ): Promise<SummaryGenerationResult> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim();
-  if (!apiKey) return { ok: false, error: "AI drafting is not configured on this deployment." };
+  const client = aiClient();
+  if (!client) return { ok: false, error: "AI drafting is not configured on this deployment." };
 
   if (!input.evidence.trim()) {
     return {
@@ -117,9 +117,8 @@ export async function generateSummarySections(
     .join("\n");
 
   try {
-    const client = new OpenAI({ apiKey });
     const completion = await client.chat.completions.create({
-      model: process.env.OPENAI_MODEL?.trim() || "gpt-5.5",
+      model: aiModel(),
       messages: [
         { role: "system", content: SUMMARY_SYSTEM_PROMPT },
         { role: "user", content: prompt },
