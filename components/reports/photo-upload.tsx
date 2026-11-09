@@ -364,6 +364,9 @@ export function PhotoUpload({
             <Camera aria-hidden />
             Add photos
           </Button>
+          <p className="text-xs text-ink-muted">
+            Weak signal? Take photos in Camera first, then choose Photo Library here so you keep the originals.
+          </p>
           <input
             ref={(node) => {
               inputRefs.current.set("files", node);
@@ -476,6 +479,9 @@ export function PhotoUpload({
               </li>
             ))}
           </ul>
+          <p className="text-sm text-ink-muted">
+            Keep this screen open and tap Try again when you have signal.
+          </p>
           <Button
             type="button"
             variant="secondary"

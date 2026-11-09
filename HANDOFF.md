@@ -4,13 +4,28 @@ For a Claude Code session with no prior context. Every claim here was checked
 against the repository or by running something. Where something is unverified,
 it says so explicitly - treat that distinction as load-bearing.
 
-**Written:** 2026-08-26 · **Last updated:** 2026-09-22
+**Written:** 2026-08-26 · **Last updated:** 2026-11-09
 
-**Branch:** `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
-**Head:** `87733dd` - Supporting documents may be photographs; a photo becomes an A4 appendix page (plus the handoff commit on top of it)
+**Current field-test branch:** `feature/claude-api`
+**Historical September baseline:** `87733dd`
 **Recovery head:** `fe6bf7f` - AI photo descriptions and supporting documents
 
 ## SITEBOSS V1 — HURRICANE FINISH MODE
+
+### 10 November field test
+
+Open the existing SiteBoss iPhone Home Screen icon while connected. Check the
+build under Settings/Profile, then open Site Capture on a test job. Take a
+photo in Camera and add it from Photo Library. Add a note, wait for the
+upload and save, close the app and reopen the same report. Check the caption
+against the photo before accepting it. Open the PDF and check both appear.
+Use one device for this first trial. The app needs signal and holds failed
+uploads in memory until retry. Keep the original photo on the phone.
+
+Claude independently reviewed source for this pilot. Its long-note finding
+led to using the report update timestamp for concurrency checks. Storage
+policies in source check company membership. Cross-company denial on the
+hosted database and a physical iPhone close/reopen still need field verification.
 
 **Release direction, 9 November 2026.** Hurricane covers a finished SiteBoss Pro
 for the Apple App Store and Google Play. The Southampton shopfitting project

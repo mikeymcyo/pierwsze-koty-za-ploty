@@ -240,11 +240,11 @@ check(
   !/formData\.get\("raw_notes"\)/.test(actions),
   "a browser must not be able to post the whole day back",
 );
-check("the notes are read from the database", /\.select\("id, project_id, raw_notes, status"\)/.test(add));
+check("the notes are read from the database", /\.select\("id, project_id, raw_notes, status, updated_at"\)/.test(add));
 check("and the new text is appended to them", /appendCapture\(current\.raw_notes/.test(add));
 check(
   "the write refuses if somebody else got there first",
-  /\.eq\("raw_notes", current\.raw_notes\)/.test(add) && /\.is\("raw_notes", null\)/.test(add),
+  /\.eq\("updated_at", current\.updated_at\)/.test(add) && !/\.eq\("raw_notes",/.test(add),
 );
 check("and it tries again rather than losing the capture", /APPEND_ATTEMPTS/.test(add));
 check("an issued report takes no capture", /REPORT_IS_FINAL/.test(add));

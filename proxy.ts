@@ -4,6 +4,9 @@ import { hasSupabaseConfig } from "@/lib/env";
 import { updateSession } from "@/lib/supabase/proxy";
 
 export async function proxy(request: NextRequest) {
+  if (request.nextUrl.pathname === "/manifest.webmanifest") {
+    return NextResponse.next();
+  }
   // Without credentials there is no session to refresh, and any page that talks
   // to Supabase would throw. Send everything to the landing page, which explains
   // what to configure, rather than letting it fail with a 500.

@@ -107,7 +107,7 @@ check(
 );
 check(
   "and the write still refuses to overwrite somebody else's append",
-  /\.eq\("raw_notes", current\.raw_notes\)/.test(actions) && /APPEND_ATTEMPTS/.test(actions),
+  /\.eq\("updated_at", current\.updated_at\)/.test(actions) && /APPEND_ATTEMPTS/.test(actions),
 );
 
 console.log("\n4. Refresh, reopen, or a tab iOS threw away");
@@ -245,7 +245,7 @@ check(
   "Site Capture still appends rather than replaces",
   /appendCapture\(current\.raw_notes/.test(actions),
 );
-check("and still reads the notes from the database", /\.select\("id, project_id, raw_notes, status"\)/.test(actions));
+check("and still reads the notes from the database", /\.select\("id, project_id, raw_notes, status, updated_at"\)/.test(actions));
 
 console.log("\n=== Result ===");
 if (failures.length === 0) {

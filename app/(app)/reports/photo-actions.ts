@@ -80,10 +80,12 @@ export async function attachPhoto(input: AttachPhotoInput) {
   if (reportId) {
     const { data: report } = await supabase
       .from("reports")
-      .select("status")
+      .select("status, project_id")
       .eq("id", reportId)
+      .eq("company_id", session.companyId)
       .maybeSingle();
-    if (report?.status === "final") return { error: REPORT_IS_FINAL };
+    if (!report || report.project_id !== projectId) return { error: "That report could not be found for this project." };
+    if (report.status === "final") return { error: REPORT_IS_FINAL };
   }
 
   // Already attached. A photograph whose upload succeeded but whose row failed -

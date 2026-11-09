@@ -47,7 +47,7 @@ export async function openSiteCapture(formData: FormData) {
 
   const date = workingDay();
 
-  const { data: existing } = await supabase
+  const { data: existing, error: lookupError } = await supabase
     .from("reports")
     .select("id")
     .eq("project_id", projectId)
@@ -57,6 +57,7 @@ export async function openSiteCapture(formData: FormData) {
     .limit(1)
     .maybeSingle();
 
+  if (lookupError) throw new Error("Could not check today's report. Please retry.");
   if (existing) redirect(`/reports/${existing.id}/capture`);
 
   const { data: report, error } = await supabase
@@ -104,7 +105,7 @@ const APPEND_ATTEMPTS = 3;
  * can do is add its text late.
  *
  * The write is conditional on the notes still being what was just read
- * (`.eq("raw_notes", …)`, or `.is(…, null)` for the first capture of the day).
+ * (the database-managed update timestamp must still match).
  * PostgREST cannot express `set raw_notes = raw_notes || $1`, so this is the
  * honest alternative: if two devices append at the same instant one of them
  * finds the row changed underneath it, re-reads and appends again, rather than
@@ -132,7 +133,7 @@ export async function addCapture(
   for (let attempt = 0; attempt < APPEND_ATTEMPTS; attempt += 1) {
     const { data: current, error: readError } = await supabase
       .from("reports")
-      .select("id, project_id, raw_notes, status")
+      .select("id, project_id, raw_notes, status, updated_at")
       .eq("id", reportId)
       .maybeSingle();
 
@@ -150,11 +151,11 @@ export async function addCapture(
     const next = appendCapture(current.raw_notes, parsed.data.text, parsed.data.at);
     if (next === (current.raw_notes ?? "")) return { error: "Say or type something first" };
 
-    const write = supabase.from("reports").update({ raw_notes: next }).eq("id", reportId).eq("status", "draft");
-    const { data: saved, error: writeError } = await (current.raw_notes === null
-      ? write.is("raw_notes", null)
-      : write.eq("raw_notes", current.raw_notes)
-    )
+    const { data: saved, error: writeError } = await supabase.from("reports")
+      .update({ raw_notes: next })
+      .eq("id", reportId)
+      .eq("status", "draft")
+      .eq("updated_at", current.updated_at)
       .select("id")
       .maybeSingle();
 
