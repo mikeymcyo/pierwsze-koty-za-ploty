@@ -177,7 +177,7 @@ export default async function DashboardPage() {
       ) : null}
 
       <section id="dashboard-issues" className="flex scroll-mt-24 flex-col gap-3">
-        <Suspense fallback={<p role="status" className="text-sm text-ink-muted">Loading outstanding issues…</p>}>
+        <Suspense fallback={<p role="status" className="text-sm text-ink-muted">Loading outstanding issuesâ€¦</p>}>
           <DashboardIssues result={issues} />
         </Suspense>
       </section>
@@ -251,7 +251,7 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      <Suspense fallback={<p role="status" className="text-sm text-ink-muted">Loading recent reports…</p>}>
+      <Suspense fallback={<p role="status" className="text-sm text-ink-muted">Loading recent reportsâ€¦</p>}>
         <RecentReports result={recentReports} />
       </Suspense>
     </div>
