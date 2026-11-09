@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import {
@@ -37,14 +38,10 @@ export const metadata: Metadata = { title: "Dashboard" };
 export default async function DashboardPage() {
   const supabase = await createClient();
 
-  // The session and the dashboard's own reads in one round trip, not two.
-  // Nothing below needs the company id - row-level security scopes every
-  // query to the caller - and the session is resolved once per request (see
-  // lib/auth/session.ts), so the page starts its reads the moment it starts.
-  // A request with no session still ends in the redirect; its reads return
-  // nothing under RLS and are discarded with it.
-  const [session, projectsResult, reportsResult, summaryReportsResult, draftsResult, issuesResult] =
-    await Promise.all([
+  // Start independent reads together. Only site and draft data gate the capture shortcut.
+  const recentReports = loadRecentReports(supabase);
+  const issues = loadIssues(supabase);
+  const [session, projectsResult, draftsResult] = await Promise.all([
     requireSessionContext(),
     withClockSkewRetry(() =>
       supabase
@@ -57,50 +54,13 @@ export default async function DashboardPage() {
     withClockSkewRetry(() =>
       supabase
         .from("reports")
-        .select("id, report_number, report_date, status, projects(name, site_address, postcode, location_directory, location_code)")
-        .order("report_date", { ascending: false })
-        .order("report_number", { ascending: false })
-        .limit(5),
-    ),
-    withClockSkewRetry(() =>
-      supabase
-        .from("summary_reports")
-        .select("id, kind, number, title, period_start, period_end, status, created_at, projects(name, site_address, postcode, location_directory, location_code)")
-        .order("created_at", { ascending: false })
-        .limit(5),
-    ),
-    // What somebody started and did not finish. This is the first thing they
-    // want on a Monday morning and the thing that is otherwise three taps and
-    // a guess away.
-    withClockSkewRetry(() =>
-      supabase
-        .from("reports")
         .select("id, project_id, report_number, report_date, updated_at, raw_notes, projects(name)")
         .eq("status", "draft")
         .order("updated_at", { ascending: false })
         .limit(3),
     ),
-    // What is still outstanding, worst first.
-    withClockSkewRetry(() =>
-      supabase
-        .from("issues")
-        .select("id, title, priority, status, project_id, projects(name)")
-        .neq("status", "closed")
-        .in("priority", ["critical", "high"])
-        .order("priority", { ascending: true })
-        .order("created_at", { ascending: false })
-        .limit(4),
-    ),
   ]);
-
-  const loadError = projectsResult.error ?? reportsResult.error ?? summaryReportsResult.error;
-
   const projects = projectsResult.data ?? [];
-  const reports = reportsResult.data ?? [];
-  const summaryReports = summaryReportsResult.data ?? [];
-  // Both are additions to the page rather than the page itself: if either
-  // query fails the section is simply not shown, which is honest, instead of
-  // taking the dashboard down with it.
   const drafts = draftsResult.data ?? [];
 
   // Preserve the existing draft selection and direct capture links.
@@ -117,7 +77,6 @@ export default async function DashboardPage() {
     };
   });
   const inProgress = captureInProgress(openDrafts, workingDay());
-  const openIssues = issuesResult.data ?? [];
 
   const today = new Date();
   const todayLabel = today.toLocaleDateString("en-GB", {
@@ -143,16 +102,12 @@ export default async function DashboardPage() {
     </header>
   );
 
-  // Shown in place rather than thrown, so the shell and navigation survive and
-  // the user gets a code they can quote - see LoadError. Both sections are
-  // dropped rather than left to render their empty states: with the queries
-  // failed we do not know that there are no projects, and saying so would be
-  // telling the user something we have not established.
-  if (loadError) {
+  // A failed projects read must not look like an empty account.
+  if (projectsResult.error) {
     return (
       <div className="flex flex-col gap-8">
         {greeting}
-        <LoadError what="your dashboard" code={loadError.code} />
+        <LoadError what="your dashboard" code={projectsResult.error.code} />
       </div>
     );
   }
@@ -222,36 +177,9 @@ export default async function DashboardPage() {
       ) : null}
 
       <section id="dashboard-issues" className="flex scroll-mt-24 flex-col gap-3">
-      {issuesResult.error ? <LoadError what="outstanding issues" code={issuesResult.error.code} /> : openIssues.length > 0 ? (
-        <>
-          <SectionHeading count={openIssues.length}>Needs attention</SectionHeading>
-          <ul className="flex flex-col gap-3">
-            {openIssues.map((issue) => {
-              const project = Array.isArray(issue.projects) ? issue.projects[0] : issue.projects;
-              return (
-                <li key={issue.id}>
-                  <Card className="transition-colors duration-200 hover:bg-surface-raised">
-                    <Link href={`/issues/${issue.id}`} className="flex items-center gap-4 p-4">
-                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-warning-soft">
-                        <AlertTriangle className="size-5 text-warning" aria-hidden />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold text-ink">{issue.title}</p>
-                        <p className="truncate text-sm text-ink-muted">
-                          {project?.name ?? "Unknown project"}
-                        </p>
-                      </div>
-                      <Badge tone={ISSUE_PRIORITY_TONES[issue.priority]}>
-                        {ISSUE_PRIORITY_LABELS[issue.priority]}
-                      </Badge>
-                    </Link>
-                  </Card>
-                </li>
-              );
-            })}
-          </ul>
-        </>
-      ) : <div className="midnight-panel flex items-center gap-3 rounded-card p-4"><FileCheck2 className="size-5 shrink-0 text-success" aria-hidden /><p className="text-sm text-ink-muted">No high-priority issues requiring attention.</p></div>}
+        <Suspense fallback={<p role="status" className="text-sm text-ink-muted">Loading outstanding issues�</p>}>
+          <DashboardIssues result={issues} />
+        </Suspense>
       </section>
 
       <div className="flex flex-wrap gap-2">
@@ -323,76 +251,54 @@ export default async function DashboardPage() {
         )}
       </section>
 
-      <section className="flex flex-col gap-3">
-        <SectionHeading count={reports.length + summaryReports.length}>Recent reports</SectionHeading>
+      <Suspense fallback={<p role="status" className="text-sm text-ink-muted">Loading recent reports�</p>}>
+        <RecentReports result={recentReports} />
+      </Suspense>
+    </div>
+  );
+}
 
-        {reports.length === 0 && summaryReports.length === 0 ? (
-          <EmptyState
-            icon={FileText}
-            title="No reports yet"
-            description="Once you have a project, you'll be able to add photos, dictate an update and generate a client-ready report."
-          />
-        ) : (
+type DashboardClient = Awaited<ReturnType<typeof createClient>>;
+
+function loadIssues(supabase: DashboardClient) {
+  return withClockSkewRetry(() =>
+    supabase
+      .from("issues")
+      .select("id, title, priority, status, project_id, projects(name)")
+      .neq("status", "closed")
+      .in("priority", ["critical", "high"])
+      .order("priority", { ascending: true })
+      .order("created_at", { ascending: false })
+      .limit(4),
+  );
+}
+
+async function DashboardIssues({ result }: { result: ReturnType<typeof loadIssues> }) {
+  const issuesResult = await result;
+  const openIssues = issuesResult.data ?? [];
+  return (
+    <>
+      {issuesResult.error ? <LoadError what="outstanding issues" code={issuesResult.error.code} /> : openIssues.length > 0 ? (
+        <>
+          <SectionHeading count={openIssues.length}>Needs attention</SectionHeading>
           <ul className="flex flex-col gap-3">
-            {summaryReports.map((report) => {
-              const project = Array.isArray(report.projects)
-                ? report.projects[0]
-                : report.projects;
+            {openIssues.map((issue) => {
+              const project = Array.isArray(issue.projects) ? issue.projects[0] : issue.projects;
               return (
-                <li key={report.id}>
+                <li key={issue.id}>
                   <Card className="transition-colors duration-200 hover:bg-surface-raised">
-                    <Link href={`/summary-reports/${report.id}`} className="flex items-center gap-4 p-4">
-                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-info-soft">
-                        <FileCheck2 className="size-5 text-info" aria-hidden />
+                    <Link href={`/issues/${issue.id}`} className="flex items-center gap-4 p-4">
+                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-warning-soft">
+                        <AlertTriangle className="size-5 text-warning" aria-hidden />
                       </span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold text-ink">
-                          {report.title || `${SUMMARY_KIND_LABELS[report.kind]} ${formatReportNumber(report.number)}`}
-                        </p>
+                        <p className="truncate font-semibold text-ink">{issue.title}</p>
                         <p className="truncate text-sm text-ink-muted">
-                          {project?.name ?? "Unknown project"} · {report.period_start && report.period_end ? `${formatDate(report.period_start)} to ${formatDate(report.period_end)}` : "Whole project"}
+                          {project?.name ?? "Unknown project"}
                         </p>
-                        {placeOfProject(project) ? (
-                          <p className="truncate text-xs text-ink-subtle">{placeOfProject(project)}</p>
-                        ) : null}
                       </div>
-                      <Badge tone={report.status === "final" ? "success" : "neutral"}>
-                        {report.status === "final" ? "Issued" : "Draft"}
-                      </Badge>
-                    </Link>
-                  </Card>
-                </li>
-              );
-            })}
-            {reports.map((report) => {
-              const project = Array.isArray(report.projects)
-                ? report.projects[0]
-                : report.projects;
-
-              return (
-                <li key={report.id}>
-                  <Card className="transition-colors duration-200 hover:bg-surface-raised">
-                    <Link
-                      href={`/reports/${report.id}`}
-                      className="flex items-center gap-4 p-4"
-                    >
-                      <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-surface-muted">
-                        <FolderKanban className="size-5 text-ink-muted" aria-hidden />
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold text-ink">
-                          Report {formatReportNumber(report.report_number)}
-                        </p>
-                        <p className="truncate text-sm text-ink-muted">
-                          {project?.name ?? "Unknown project"} ·{" "}
-                          {formatDate(report.report_date)}
-                        </p>
-                        {placeOfProject(project) ? (
-                          <p className="truncate text-xs text-ink-subtle">{placeOfProject(project)}</p>
-                        ) : null}
-                      </div>
-                      <Badge tone={report.status === "final" ? "success" : "neutral"}>
-                        {report.status === "final" ? "Issued" : "Draft"}
+                      <Badge tone={ISSUE_PRIORITY_TONES[issue.priority]}>
+                        {ISSUE_PRIORITY_LABELS[issue.priority]}
                       </Badge>
                     </Link>
                   </Card>
@@ -400,9 +306,118 @@ export default async function DashboardPage() {
               );
             })}
           </ul>
-        )}
-      </section>
-    </div>
+        </>
+      ) : <div className="midnight-panel flex items-center gap-3 rounded-card p-4"><FileCheck2 className="size-5 shrink-0 text-success" aria-hidden /><p className="text-sm text-ink-muted">No high-priority issues requiring attention.</p></div>}
+    </>
+  );
+}
+
+function loadRecentReports(supabase: DashboardClient) {
+  return Promise.all([
+    withClockSkewRetry(() =>
+      supabase
+        .from("reports")
+        .select("id, report_number, report_date, status, projects(name, site_address, postcode, location_directory, location_code)")
+        .order("report_date", { ascending: false })
+        .order("report_number", { ascending: false })
+        .limit(5),
+    ),
+    withClockSkewRetry(() =>
+      supabase
+        .from("summary_reports")
+        .select("id, kind, number, title, period_start, period_end, status, created_at, projects(name, site_address, postcode, location_directory, location_code)")
+        .order("created_at", { ascending: false })
+        .limit(5),
+    ),
+  ]);
+}
+
+async function RecentReports({ result }: { result: ReturnType<typeof loadRecentReports> }) {
+  const [daily, summaries] = await result;
+  const error = daily.error ?? summaries.error;
+  if (error) return <LoadError what="recent reports" code={error.code} />;
+  const reports = daily.data ?? [];
+  const summaryReports = summaries.data ?? [];
+  return (
+    <section className="flex flex-col gap-3">
+      <SectionHeading count={reports.length + summaryReports.length}>Recent reports</SectionHeading>
+
+      {reports.length === 0 && summaryReports.length === 0 ? (
+        <EmptyState
+          icon={FileText}
+          title="No reports yet"
+          description="Once you have a project, you'll be able to add photos, dictate an update and generate a client-ready report."
+        />
+      ) : (
+        <ul className="flex flex-col gap-3">
+          {summaryReports.map((report) => {
+            const project = Array.isArray(report.projects)
+              ? report.projects[0]
+              : report.projects;
+            return (
+              <li key={report.id}>
+                <Card className="transition-colors duration-200 hover:bg-surface-raised">
+                  <Link href={`/summary-reports/${report.id}`} className="flex items-center gap-4 p-4">
+                    <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-info-soft">
+                      <FileCheck2 className="size-5 text-info" aria-hidden />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-ink">
+                        {report.title || `${SUMMARY_KIND_LABELS[report.kind]} ${formatReportNumber(report.number)}`}
+                      </p>
+                      <p className="truncate text-sm text-ink-muted">
+                        {project?.name ?? "Unknown project"} · {report.period_start && report.period_end ? `${formatDate(report.period_start)} to ${formatDate(report.period_end)}` : "Whole project"}
+                      </p>
+                      {placeOfProject(project) ? (
+                        <p className="truncate text-xs text-ink-subtle">{placeOfProject(project)}</p>
+                      ) : null}
+                    </div>
+                    <Badge tone={report.status === "final" ? "success" : "neutral"}>
+                      {report.status === "final" ? "Issued" : "Draft"}
+                    </Badge>
+                  </Link>
+                </Card>
+              </li>
+            );
+          })}
+          {reports.map((report) => {
+            const project = Array.isArray(report.projects)
+              ? report.projects[0]
+              : report.projects;
+
+            return (
+              <li key={report.id}>
+                <Card className="transition-colors duration-200 hover:bg-surface-raised">
+                  <Link
+                    href={`/reports/${report.id}`}
+                    className="flex items-center gap-4 p-4"
+                  >
+                    <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-surface-muted">
+                      <FolderKanban className="size-5 text-ink-muted" aria-hidden />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-ink">
+                        Report {formatReportNumber(report.report_number)}
+                      </p>
+                      <p className="truncate text-sm text-ink-muted">
+                        {project?.name ?? "Unknown project"} ·{" "}
+                        {formatDate(report.report_date)}
+                      </p>
+                      {placeOfProject(project) ? (
+                        <p className="truncate text-xs text-ink-subtle">{placeOfProject(project)}</p>
+                      ) : null}
+                    </div>
+                    <Badge tone={report.status === "final" ? "success" : "neutral"}>
+                      {report.status === "final" ? "Issued" : "Draft"}
+                    </Badge>
+                  </Link>
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
   );
 }
 

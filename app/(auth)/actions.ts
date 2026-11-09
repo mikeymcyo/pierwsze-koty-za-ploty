@@ -135,7 +135,8 @@ export async function signIn(
     return { error: error.message };
   }
 
-  revalidatePath("/", "layout");
+  // The session cookie update refreshes the router for this user. Signing in
+  // does not change shared site data or require invalidating the entire app.
   redirect(safeRedirect(formData.get("next")));
 }
 
