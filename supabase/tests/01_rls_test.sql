@@ -301,6 +301,12 @@ $$;
 
 begin;
 set local role authenticated;
+set local request.jwt.claims = '{"sub":"22222222-2222-2222-2222-222222222222"}';
+select set_config('test.bob_company', company_id::text, true)
+from public.company_members where user_id = auth.uid();
+insert into storage.objects (bucket_id, name)
+values ('site-photos', current_setting('test.bob_company') || '/project/photo.jpg');
+set local role authenticated;
 set local request.jwt.claims = '{"sub":"11111111-1111-1111-1111-111111111111"}';
 
 do $$
@@ -309,12 +315,24 @@ declare
   bob_company uuid;
 begin
   select company_id into alice_company from public.company_members where user_id = auth.uid();
-  select company_id into bob_company
-    from public.company_members
-   where user_id = '22222222-2222-2222-2222-222222222222';
+  bob_company := current_setting('test.bob_company')::uuid;
+  if bob_company is null or alice_company is null or bob_company = alice_company then
+    raise exception 'FAIL storage: expected two distinct companies';
+  end if;
 
   insert into storage.objects (bucket_id, name)
   values ('site-photos', alice_company || '/project/photo.jpg');
+
+  if not exists (select 1 from storage.objects where bucket_id = 'site-photos' and name = alice_company || '/project/photo.jpg') then
+    raise exception 'FAIL storage: Alice cannot read her own photo';
+  end if;
+  if exists (select 1 from storage.objects where bucket_id = 'site-photos' and name = bob_company || '/project/photo.jpg') then
+    raise exception 'FAIL storage: Alice can read Bob''s photo';
+  end if;
+  update storage.objects set name = name where bucket_id = 'site-photos' and name = bob_company || '/project/photo.jpg';
+  if found then raise exception 'FAIL storage: Alice can update Bob''s photo'; end if;
+  delete from storage.objects where bucket_id = 'site-photos' and name = bob_company || '/project/photo.jpg';
+  if found then raise exception 'FAIL storage: Alice can delete Bob''s photo'; end if;
 
   begin
     insert into storage.objects (bucket_id, name)
