@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { createClient } from "@/lib/supabase/client";
 import { UNSET_PHOTO_STATUS } from "@/lib/photo-captions";
+import { keepPendingPhoto, pendingPhotos, removePendingPhoto, type PendingUpload } from "@/lib/pending-site-photos";
 import { remainingPhotoRetries } from "@/lib/photo-retries";
 import { PHOTO_BUCKET, PHOTO_CATEGORIES, photoPathPrefix, thumbnailPath } from "@/lib/photos";
 import {
@@ -36,24 +37,6 @@ const SOURCE_ICONS: Record<PhotoSourceId, LucideIcon> = {
 };
 
 export type Compressed = { blob: Blob; width: number; height: number; thumb: Blob | null };
-
-/**
- * One photograph on its way to the bucket.
- *
- * The path is minted when the file is chosen and never again, which is what
- * makes a retry write the same object instead of a second one.
- */
-type PendingUpload = {
-  category: PhotoCategory;
-  id: string;
-  name: string;
-  blob: Blob;
-  width: number;
-  height: number;
-  path: string;
-  /** The small copy every screen shows. Null when the canvas could not make one. */
-  thumb: Blob | null;
-};
 
 /**
  * Re-encodes a photo to a sensible size before upload, and makes the small
@@ -158,6 +141,7 @@ export function PhotoUpload({
   projectId,
   reportId,
   summaryReportId = null,
+  captureUserId,
   defaultCategory = UNSET_PHOTO_STATUS,
   simple = false,
 }: {
@@ -175,6 +159,7 @@ export function PhotoUpload({
    * No status menu either: a status is chosen on the report, if at all.
    */
   simple?: boolean;
+  captureUserId?: string;
   /**
    * What the menu starts on. No status, unless the caller has a reason - a
    * survey documents what is there now, so it starts on Before. Twenty-five
@@ -200,6 +185,18 @@ export function PhotoUpload({
    * photograph in the report.
    */
   const [failed, setFailed] = useState<PendingUpload[]>([]);
+  const scope = captureUserId && reportId ? [captureUserId, companyId, projectId, reportId].join(":") : null;
+  const [restoring, setRestoring] = useState(Boolean(scope));
+  const [storageWarning, setStorageWarning] = useState(false);
+  useEffect(() => {
+    if (!scope) return;
+    let active = true;
+    pendingPhotos(scope)
+      .then(photos => { if (active) setFailed(photos); })
+      .catch(() => { if (active) setStorageWarning(true); })
+      .finally(() => { if (active) setRestoring(false); });
+    return () => { active = false; };
+  }, [scope]);
 
   // A photograph half-way to the bucket is work in progress. Leaving the page
   // now loses it, so the browser asks first - the one thing that can be done
@@ -240,7 +237,7 @@ export function PhotoUpload({
     const pending: PendingUpload[] = [];
     for (const file of list) {
       const { blob, width, height, thumb } = await compress(file);
-      pending.push({
+      const item = {
         category,
         id: crypto.randomUUID(),
         name: file.name,
@@ -249,7 +246,15 @@ export function PhotoUpload({
         height,
         thumb,
         path: `${photoPathPrefix(companyId, projectId)}${crypto.randomUUID()}.jpg`,
-      });
+      };
+      if (scope) {
+        try {
+          await keepPendingPhoto(scope, item);
+        } catch {
+          setStorageWarning(true);
+        }
+      }
+      pending.push(item);
     }
 
     resetInput(source);
@@ -316,6 +321,7 @@ export function PhotoUpload({
               height: item.height || null,
             });
         if (result?.error) throw new Error(result.error);
+        if (scope) await removePendingPhoto(scope, item.id).catch(() => setStorageWarning(true));
       } catch (cause) {
         stillFailing.push(item);
         firstFailure ??= cause instanceof Error ? cause.message : "Upload failed";
@@ -358,7 +364,7 @@ export function PhotoUpload({
             variant="secondary"
             className="w-full text-base"
             onClick={() => inputRefs.current.get("files")?.click()}
-            disabled={busy !== null}
+            disabled={busy !== null || restoring}
             data-photo-source-button="simple"
           >
             <Camera aria-hidden />
@@ -462,6 +468,7 @@ export function PhotoUpload({
         </p>
       ) : null}
 
+      {storageWarning ? <Alert tone="danger">Phone storage is unavailable. Keep your originals and stay on this screen until uploads finish.</Alert> : null}
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
       {/* Kept, not lost. The bytes are still here and the storage path is the
@@ -470,7 +477,7 @@ export function PhotoUpload({
       {failed.length > 0 && !busy ? (
         <div className="flex flex-col gap-2 rounded-xl border border-danger/40 bg-surface p-3">
           <p className="text-sm font-semibold text-ink">
-            {failed.length} {failed.length === 1 ? "photograph" : "photographs"} did not upload
+            {failed.length} {failed.length === 1 ? "photograph needs" : "photographs need"} another upload attempt
           </p>
           <ul className="flex flex-col gap-1 text-xs text-ink-muted">
             {failed.map((item) => (

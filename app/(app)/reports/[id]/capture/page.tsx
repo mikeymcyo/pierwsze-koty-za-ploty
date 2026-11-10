@@ -128,6 +128,8 @@ export default async function SiteCapturePage({
             </div>
           </div>
           <PhotoUpload
+            key={`${session.userId}:${session.companyId}:${report.id}`}
+            captureUserId={session.userId}
             companyId={session.companyId}
             projectId={report.project_id}
             reportId={report.id}
