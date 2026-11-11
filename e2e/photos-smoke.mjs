@@ -2,7 +2,7 @@
  * End-to-end test for Phase 4: photo capture.
  *
  * Drives a real file through the browser: compression, the direct upload to
- * Supabase Storage, the photos row, the signed thumbnail URL, and deletion.
+ * Supabase Storage, the photos row, the authenticated thumbnail URL, and deletion.
  *
  * Also covers the mobile media-source UX: the three explicit choices, the
  * attributes each one puts in the live DOM, a real multi-photo selection, and
@@ -41,7 +41,7 @@ if (process.env.PLAYWRIGHT_CHROMIUM_PATH) {
 // A real 2x2 PNG. Small, but it exercises the same decode/canvas/upload path a
 // phone photo takes - the compressor is size-independent.
 const PNG_2X2 = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR42mP8z8BQz0AEYBxVSF+FABJADveWkH6oAAAAAElFTkSuQmCC",
+  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAE0lEQVR4nGP4z8DwHwwZGP6DAQBJyAn3FGMynQAAAABJRU5ErkJggg==",
   "base64",
 );
 
@@ -52,6 +52,7 @@ const context = await browser.newContext({
   hasTouch: true,
 });
 const page = await context.newPage();
+page.setDefaultTimeout(20_000);
 page.on("console", (m) => m.type() === "error" && consoleErrors.push(m.text()));
 page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
 
@@ -71,58 +72,17 @@ try {
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
   const projectUrl = page.url();
 
-  await page.getByRole("button", { name: "New report" }).click();
+  await page.getByRole("button", { name: "Start Site Capture" }).click();
   await page.waitForURL(/\/reports\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
-  const reportUrl = page.url();
+  const reportUrl = page.url().replace(/\/capture$/, "");
+  await page.goto(reportUrl);
   check("reached a draft report", true);
 
   console.log("\n2. The capture screen offers photo upload");
-  await page.getByRole("heading", { name: "Photos" }).waitFor({ timeout: TIMEOUT });
-  check("photos section is present", true);
-  check(
-    "category can be chosen before shooting",
-    await page.getByLabel("Tag these as").isVisible(),
-  );
+  const picker = page.locator('input[data-photo-source="simple"]');
+  check("the report offers the native multi-photo picker", await page.getByRole("button", { name: "Add photos" }).isVisible() && await picker.evaluate(el => el.multiple && !el.hasAttribute("capture")));
 
-  // The choice is made in the app, before iOS shows a sheet - not left to a
-  // single input that would go straight to the camera and stay there.
-  for (const label of ["Take Photo", "Choose from Photo Library", "Choose File"]) {
-    check(`"${label}" is offered`, await page.getByRole("button", { name: label }).isVisible());
-  }
-
-  // What the browser actually parsed on the live page, which is what decides
-  // where an iPhone goes.
-  const liveAttributes = await page.evaluate(() =>
-    Object.fromEntries(
-      [...document.querySelectorAll("input[data-photo-source]")].map((el) => [
-        el.dataset.photoSource,
-        { accept: el.accept, multiple: el.multiple, capture: el.getAttribute("capture") },
-      ]),
-    ),
-  );
-
-  check(
-    "the camera input asks for the rear camera",
-    liveAttributes.camera?.capture === "environment",
-    JSON.stringify(liveAttributes.camera),
-  );
-  check("the camera input takes one shot", liveAttributes.camera?.multiple === false);
-  check(
-    "the library input does NOT force the camera",
-    liveAttributes.library?.capture === null,
-    JSON.stringify(liveAttributes.library),
-  );
-  check("the library input is multi-select", liveAttributes.library?.multiple === true);
-  check(
-    "the Choose File input does NOT force the camera",
-    liveAttributes.files?.capture === null,
-    JSON.stringify(liveAttributes.files),
-  );
-  check("the Choose File input is multi-select", liveAttributes.files?.multiple === true);
-
-  console.log("\n3. Upload a photo");
-  await page.getByLabel("Tag these as").selectOption("safety");
-  await page.locator('input[data-photo-source="library"]').setInputFiles({
+  await page.locator('input[data-photo-source="simple"]').setInputFiles({
     name: "site.png",
     mimeType: "image/png",
     buffer: PNG_2X2,
@@ -132,30 +92,34 @@ try {
   await page.getByRole("button", { name: /Delete photo/ }).first().waitFor({ timeout: TIMEOUT });
   check("photo appears on the capture screen", true);
 
-  // Scoped to the grid tile: "Safety" is also one of the <option>s in the
-  // category picker, and matching that instead would prove nothing.
+  // Save a status on the uploaded photograph, then check it again after a reload.
   const tile = page
     .getByRole("listitem")
     .filter({ has: page.getByRole("button", { name: /Delete photo/ }) })
     .first();
+  await tile.getByLabel("Status for this photograph").selectOption("defect");
+  await tile.getByText("Saved", { exact: true }).waitFor();
   check(
     "it carries the chosen category",
-    (await tile.innerText()).includes("Safety"),
+    (await tile.getByLabel("Status for this photograph").inputValue()) === "defect",
     (await tile.innerText()).replace(/\n/g, " | "),
   );
 
-  const img = page.locator("main img").first();
+  const img = tile.locator("img");
   await img.waitFor({ timeout: TIMEOUT });
   const src = await img.getAttribute("src");
-  check("thumbnail uses a signed URL, not a public one", Boolean(src && src.includes("token=")), String(src).slice(0, 120));
+  check("thumbnail uses an authenticated thumbnail URL, not a public one", Boolean(src && /^\/photos\/[\da-f-]+\/thumb/.test(src)), String(src).slice(0, 120));
 
+  await img.scrollIntoViewIfNeeded();
+  await img.evaluate(el => el.decode());
   const loaded = await img.evaluate((el) => el.complete && el.naturalWidth > 0);
-  check("the signed URL actually renders", loaded);
+  check("the authenticated thumbnail renders", loaded);
 
   console.log("\n4. It survives a reload and shows on the project");
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByRole("button", { name: /Delete photo/ }).first().waitFor({ timeout: TIMEOUT });
   const afterReload = await page.getByRole("button", { name: /Delete photo/ }).count();
+  check("the saved status survives reload", (await page.getByLabel("Status for this photograph").inputValue()) === "defect");
   check("still there after reload", afterReload === 1, `saw ${afterReload}`);
 
   await page.goto(`${projectUrl}?tab=photos`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
@@ -166,7 +130,8 @@ try {
   console.log("\n5. Delete removes it");
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByRole("button", { name: /Delete photo/ }).first().click();
-  await page.waitForTimeout(2500);
+  await page.getByRole("button", { name: "Delete photo", exact: true }).click();
+  await page.getByRole("button", { name: /Delete photo/ }).waitFor({ state: "detached" });
   check(
     "photo is gone from the capture screen",
     (await page.getByRole("button", { name: /Delete photo/ }).count()) === 0,
@@ -178,7 +143,7 @@ try {
 
   console.log("\n6. The library picks several photos in one go");
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
-  await page.locator('input[data-photo-source="library"]').setInputFiles([
+  await page.locator('input[data-photo-source="simple"]').setInputFiles([
     { name: "one.png", mimeType: "image/png", buffer: PNG_2X2 },
     { name: "two.png", mimeType: "image/png", buffer: PNG_2X2 },
     { name: "three.png", mimeType: "image/png", buffer: PNG_2X2 },
@@ -202,7 +167,14 @@ try {
     await page.getByRole("button", { name: "Choose from Photo Library" }).isVisible(),
   );
 
-  await page.getByLabel("Tag these as").selectOption("delivery");
+  const capture = page.locator('input[data-photo-source="camera"]');
+  check("the camera requests one rear-camera shot", await capture.evaluate(el => el.capture === "environment" && !el.multiple));
+  for (const id of ["library", "files"]) {
+    const input = page.locator('input[data-photo-source="' + id + '"]');
+    check(id + " supports multi-select without forcing the camera", await input.evaluate(el => el.multiple && !el.hasAttribute("capture")));
+  }
+
+  await page.getByLabel("Status (optional)").selectOption("delivery");
   await page.locator('input[data-photo-source="library"]').setInputFiles({
     name: "project-level.png",
     mimeType: "image/png",
@@ -218,15 +190,15 @@ try {
 
   const projectTile = page
     .getByRole("listitem")
-    .filter({ hasText: "Delivery" })
+    .filter({ has: page.locator('option[value="delivery"]:checked') })
     .first();
   check("tagging still works with no report", await projectTile.isVisible());
 
   const projectImg = projectTile.locator("img");
   await projectImg.waitFor({ timeout: TIMEOUT });
   check(
-    "a project photo is served by a signed URL too",
-    ((await projectImg.getAttribute("src")) ?? "").includes("token="),
+    "a project photo is served by an authenticated thumbnail URL too",
+    ((await projectImg.getAttribute("src")) ?? "").includes("/thumb"),
   );
 
   // A project photo carries no report_id, so it must not turn up on the

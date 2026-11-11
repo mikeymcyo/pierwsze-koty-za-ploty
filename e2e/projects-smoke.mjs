@@ -47,9 +47,13 @@ const context = await browser.newContext({
   hasTouch: true,
 });
 const page = await context.newPage();
+page.setDefaultTimeout(20_000);
 
+const missingUrl = BASE + "/projects/00000000-0000-0000-0000-000000000000";
 page.on("console", (msg) => {
-  if (msg.type() === "error") consoleErrors.push(msg.text());
+  if (msg.type() !== "error") return;
+  if (msg.location().url === missingUrl && /Failed to load resource:.*404/.test(msg.text())) return;
+  consoleErrors.push(msg.text());
 });
 page.on("pageerror", (err) => consoleErrors.push(`pageerror: ${err.message}`));
 
@@ -62,11 +66,11 @@ try {
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL("**/dashboard", { timeout: TIMEOUT });
-  await page.getByRole("heading", { name: /Hello,/ }).waitFor({ timeout: TIMEOUT });
+  await page.getByRole("heading", { name: "Maciej Korzeniak", exact: true }).waitFor({ timeout: TIMEOUT });
   check("reaches the dashboard", true);
 
   console.log("\n2. Empty state offers project creation");
-  const firstProjectCta = page.getByRole("link", { name: "Create your first project" });
+  const firstProjectCta = page.getByRole("link", { name: "Create project", exact: true });
   check("dashboard shows a real create action", await firstProjectCta.isVisible());
 
   console.log("\n3. Create a project");
@@ -166,7 +170,7 @@ try {
   check("list item links to the detail page", true);
 
   console.log("\n10. A missing project 404s rather than erroring");
-  await page.goto(`${BASE}/projects/00000000-0000-0000-0000-000000000000`, {
+  await page.goto(missingUrl, {
     waitUntil: "domcontentloaded",
     timeout: TIMEOUT,
   });

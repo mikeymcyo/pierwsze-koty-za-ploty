@@ -44,6 +44,7 @@ const context = await browser.newContext({
   hasTouch: true,
 });
 const page = await context.newPage();
+page.setDefaultTimeout(20_000);
 
 page.on("console", (msg) => {
   if (msg.type() === "error") consoleErrors.push(msg.text());
@@ -70,7 +71,7 @@ try {
 
   console.log("\n1. Landing page");
   await page.goto(BASE, { waitUntil: "networkidle" });
-  check("shows the wordmark", await page.getByText("SiteBoss").first().isVisible());
+  check("shows the wordmark", await page.getByRole("banner").getByRole("img", { name: "SiteBoss Pro", exact: true }).isVisible());
   check(
     "offers account creation",
     await page.getByRole("link", { name: "Create an account" }).isVisible(),
@@ -87,12 +88,13 @@ try {
 
   await page.waitForURL("**/dashboard", { timeout: COLD_COMPILE_TIMEOUT });
   await page
-    .getByRole("heading", { name: `Hello, ${NAME}` })
+    .getByRole("heading", { name: NAME, exact: true })
     .waitFor({ timeout: COLD_COMPILE_TIMEOUT });
   check("lands on the dashboard", page.url().endsWith("/dashboard"));
-  check("signup trigger created the company", await page.getByText(COMPANY).first().isVisible());
-  check("shows the empty projects state", await page.getByText("No active projects yet").isVisible());
-  check("shows the empty reports state", await page.getByText("No reports yet").isVisible());
+  check("signup trigger created the company", await page.getByText(COMPANY, { exact: true }).filter({ visible: true }).isVisible());
+  check("shows the empty projects state", await page.getByText("No active sites yet").isVisible());
+  await page.getByText("Your reports will appear here").waitFor();
+  check("shows the empty reports state", await page.getByText("Your reports will appear here").isVisible());
 
   console.log("\n3. Bottom navigation reaches every destination");
   const nav = page.getByRole("navigation", { name: "Primary" });
@@ -100,9 +102,9 @@ try {
 
   for (const [label, path, heading] of [
     ["Projects", "/projects", "Projects"],
-    ["Create", "/reports/new", "Create report"],
+    ["Create", "/reports/new", "Site Capture"],
     ["Reports", "/reports", "Reports"],
-    ["Profile", "/profile", "Profile"],
+    ["Stores", "/stores", "Store locator"],
   ]) {
     await nav.getByRole("link", { name: label }).click();
     await page.waitForURL(`**${path}`, { timeout: COLD_COMPILE_TIMEOUT });
@@ -114,8 +116,10 @@ try {
   }
 
   console.log("\n4. Profile shows the real session");
+  await page.getByRole("link", { name: "Settings", exact: true }).click();
+  await page.getByRole("heading", { name: "Settings", exact: true }).waitFor();
   check("shows the email", await page.getByText(EMAIL).isVisible());
-  check("shows the company", await page.getByText(COMPANY).first().isVisible());
+  check("shows the company", (await page.getByLabel("Company name").inputValue()) === COMPANY);
   check("shows the owner role", await page.getByText("Owner", { exact: true }).isVisible());
 
   console.log("\n5. Sign out clears the session");

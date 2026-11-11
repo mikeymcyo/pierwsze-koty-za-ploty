@@ -4,6 +4,9 @@ on:
     branches: [integrate-redesign-android-fix]
 permissions:
   contents: read
+concurrency:
+  group: integration-browser-checks
+  cancel-in-progress: true
 jobs:
   browser:
     runs-on: ubuntu-24.04
@@ -39,11 +42,21 @@ jobs:
           npm start > "$RUNNER_TEMP/siteboss.log" 2>&1 &
           curl --retry 20 --retry-connrefused --retry-delay 1 -fsS http://localhost:3000/login >/dev/null
           failed=0
-          npm run test:ai || failed=1
-          node --import ./e2e/support/register-tsx.mjs e2e/stub-openai.mjs &
-          for suite in e2e projects isolation reports photos composer-dictation presentation-browser pdf; do
+          run_suite() {
+            local suite="$1" result=0
+            timeout 4m npm run "test:$suite" > "$RUNNER_TEMP/$suite.log" 2>&1 || result=$?
             echo "::group::$suite"
-            npm run "test:$suite" || failed=1
+            cat "$RUNNER_TEMP/$suite.log"
             echo "::endgroup::"
-          done
+            if (( result != 0 )); then
+              { grep -E 'FAILED:|\[FAIL\]|CRASH |waiting for (getBy|locator)|Error:' "$RUNNER_TEMP/$suite.log" | head -20 || true; } > "$RUNNER_TEMP/$suite.failure"
+              echo "::error title=$suite::$(tr '\n' ' ' < "$RUNNER_TEMP/$suite.failure" | cut -c1-2800) (exit $result)"
+            fi
+            return "$result"
+          }
+          run_suite ai || failed=1
+          node --import ./e2e/support/register-tsx.mjs e2e/stub-openai.mjs &
+          export -f run_suite
+          printf '%s\n' e2e projects isolation reports photos composer-dictation presentation-browser pdf |
+            xargs -P 3 -n 1 bash -c 'run_suite "$1"' _ || failed=1
           exit "$failed"

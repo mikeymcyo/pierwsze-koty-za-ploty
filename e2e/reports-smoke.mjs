@@ -56,9 +56,13 @@ const context = await browser.newContext({
   hasTouch: true,
 });
 const page = await context.newPage();
+page.setDefaultTimeout(20_000);
 
+const missingUrl = BASE + "/reports/00000000-0000-0000-0000-000000000000";
 page.on("console", (msg) => {
-  if (msg.type() === "error") consoleErrors.push(msg.text());
+  if (msg.type() !== "error") return;
+  if (msg.location().url === missingUrl && /Failed to load resource:.*404/.test(msg.text())) return;
+  consoleErrors.push(msg.text());
 });
 page.on("pageerror", (err) => consoleErrors.push(`pageerror: ${err.message}`));
 
@@ -97,26 +101,34 @@ try {
   check("project created", true);
 
   console.log("\n2. The project page offers a real New report action");
-  const newReport = page.getByRole("button", { name: "New report" });
-  check("New report button is present", await newReport.isVisible());
+  const newReport = page.getByRole("button", { name: "Start Site Capture" });
+  await newReport.waitFor();
+  check("Start Site Capture is available", await newReport.isVisible());
 
   console.log("\n3. Starting a report opens a numbered draft");
   await newReport.click();
   await page.waitForURL(reportUrlPattern, { timeout: TIMEOUT });
+  await page.goto(page.url().replace(/\/capture$/, ""));
   await page.getByRole("heading", { name: /^Report 001$/ }).waitFor({ timeout: TIMEOUT });
   const firstReportUrl = page.url();
   check("first report is numbered 001 by the database trigger", true);
   check("shows the author name", await page.getByText("Maciej Korzeniak").isVisible());
   check("shows a Draft badge", await page.getByText("Draft", { exact: true }).isVisible());
 
-  const dateValue = await page.getByLabel("Date").inputValue();
-  check("date is pre-filled with today", /^\d{4}-\d{2}-\d{2}$/.test(dateValue), dateValue);
+  const dateValue = await page.getByLabel("Date", { exact: true }).inputValue();
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
+  check("date is pre-filled with today", dateValue === today, dateValue);
 
   console.log("\n4. Dictation degrades to a usable field");
   const notesBox = page.getByLabel("Work completed");
   check("work completed field is present and editable", await notesBox.isEditable());
 
   console.log("\n5. Fill and save the draft");
+  await page.getByText("Date, weather, workforce and plant", { exact: true }).click();
+  // Once the first draft belongs to yesterday, starting today creates a new Daily.
+  const previousDay = new Date(dateValue);
+  previousDay.setUTCDate(previousDay.getUTCDate() - 1);
+  await page.getByLabel("Date", { exact: true }).fill(previousDay.toISOString().slice(0, 10));
   await fillCapture({
     weather: "Dry, 12C, windy",
     workforce: WORKFORCE,
@@ -167,8 +179,9 @@ try {
 
   console.log("\n8. A second report numbers up and carries the crew over");
   await page.goto(projectUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
-  await page.getByRole("button", { name: "New report" }).click();
+  await page.getByRole("button", { name: "Start Site Capture" }).click();
   await page.waitForURL(reportUrlPattern, { timeout: TIMEOUT });
+  await page.goto(page.url().replace(/\/capture$/, ""));
   await page.getByRole("heading", { name: /^Report 002$/ }).waitFor({ timeout: TIMEOUT });
   const secondReportUrl = page.url();
   check("second report is numbered 002", true);
@@ -187,6 +200,7 @@ try {
   );
 
   console.log("\n9. Rows can be added and removed");
+  await page.getByText("Date, weather, workforce and plant", { exact: true }).click();
   await page.getByRole("button", { name: "Add company" }).click();
   const companyCount = await page.getByLabel("Company").count();
   check("adding a workforce row works", companyCount === 2, `saw ${companyCount}`);
@@ -197,13 +211,14 @@ try {
   console.log("\n10. A draft can be deleted");
   await page.goto(secondReportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByRole("button", { name: "Delete this draft" }).click();
+  await page.getByRole("button", { name: "Delete report", exact: true }).click();
   await page.waitForURL("**/reports", { timeout: TIMEOUT });
   const stillThere = await page.getByText("Report 002").count();
   check("deleted draft is gone from the list", stillThere === 0, `saw ${stillThere}`);
   check("the first report survived", (await page.getByText("Report 001").count()) > 0);
 
   console.log("\n11. An unknown report id 404s rather than erroring");
-  await page.goto(`${BASE}/reports/00000000-0000-0000-0000-000000000000`, {
+  await page.goto(missingUrl, {
     waitUntil: "domcontentloaded",
     timeout: TIMEOUT,
   });
