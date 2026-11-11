@@ -78,7 +78,7 @@ try {
   await page.waitForURL(url => url.pathname === "/projects/new", { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByRole("heading", { name: "New project" }).waitFor({ timeout: TIMEOUT });
 
-  await page.waitForLoadState("networkidle");
+  await page.getByLabel("Project name").waitFor();
   check("the dashboard opens the project form", new URL(page.url()).pathname === "/projects/new");
   await page.getByLabel("Project name").fill(PROJECT.name);
   await page.getByLabel("Client").fill(PROJECT.client);
@@ -89,9 +89,10 @@ try {
   await page.getByLabel("Start date").fill("2026-08-01");
   await page.getByLabel("Expected completion").fill("2026-12-18");
   await page.getByLabel("Expected completion").press("Tab");
+  check("the form retains the project name before submission", (await page.getByLabel("Project name").inputValue()) === PROJECT.name);
   await page.getByRole("button", { name: "Create project" }).click();
 
-  await page.waitForURL(/\/projects\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
+  await page.waitForURL(/\/projects\/[0-9a-f-]{36}/, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByRole("heading", { name: PROJECT.name }).waitFor({ timeout: TIMEOUT });
   const projectUrl = page.url();
   check("lands on the new project's page", /\/projects\/[0-9a-f-]{36}$/.test(projectUrl));

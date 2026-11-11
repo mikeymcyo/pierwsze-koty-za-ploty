@@ -150,6 +150,7 @@ try {
   check("the preview renders a PDF", preview.headers()["content-type"]?.includes("application/pdf"));
   const previewBody = await preview.body();
   check("which really is one", previewBody.subarray(0, 5).toString() === "%PDF-");
+  await page.getByText("Draft", { exact: true }).waitFor();
   check(
     "previewing does not finalise anything",
     (await page.locator("main").innerText()).includes("Draft"),

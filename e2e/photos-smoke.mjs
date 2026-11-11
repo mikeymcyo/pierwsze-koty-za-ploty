@@ -146,7 +146,8 @@ try {
 
   console.log("\n6. The library picks several photos in one go");
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
-  await page.locator('input[data-photo-source="simple"]').setInputFiles([
+  const [batchPicker] = await Promise.all([page.waitForEvent("filechooser"), addPhotos.click()]);
+  await batchPicker.setFiles([
     { name: "one.png", mimeType: "image/png", buffer: PNG_2X2 },
     { name: "two.png", mimeType: "image/png", buffer: PNG_2X2 },
     { name: "three.png", mimeType: "image/png", buffer: PNG_2X2 },
@@ -179,7 +180,11 @@ try {
   }
 
   await page.getByLabel("Status (optional)").selectOption("delivery");
-  await page.locator('input[data-photo-source="library"]').setInputFiles({
+  const [libraryPicker] = await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button", { name: "Choose from Photo Library" }).click(),
+  ]);
+  await libraryPicker.setFiles({
     name: "project-level.png",
     mimeType: "image/png",
     buffer: PNG_2X2,
