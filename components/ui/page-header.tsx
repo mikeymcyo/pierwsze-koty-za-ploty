@@ -27,7 +27,7 @@ export function PageHeader({
             </span>
           ) : null}
           <div className="min-w-0">
-            <h1 className="break-words text-[30px] leading-tight font-semibold tracking-tight text-ink md:text-3xl">
+            <h1 className="break-words text-balance text-[30px] leading-tight font-semibold tracking-tight text-ink md:text-3xl">
               {title}
             </h1>
             {description ? (

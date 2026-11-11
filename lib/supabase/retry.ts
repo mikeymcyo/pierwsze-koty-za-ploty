@@ -28,7 +28,18 @@ function isTransientClockError(error: PostgrestError | null): boolean {
   return /issued at future|not yet valid|iat.*future/i.test(message);
 }
 
-type Query<T> = () => PromiseLike<{ data: T; error: PostgrestError | null }>;
+type Answer<T> = PromiseLike<{ data: T; error: PostgrestError | null }>;
+type Query<T> = () => Answer<T> & { abortSignal?: (signal: AbortSignal) => Answer<T> };
+
+function freshRead<T>(query: Query<T>): Answer<T> {
+  const builder = query();
+  // Next memoizes identical GETs within a render, including rejected JWTs.
+  // A fresh signal opts the retry out, so it actually reaches the database.
+  // Keep the first read memoized and retain compatibility with plain promises.
+  return typeof builder.abortSignal === "function"
+    ? builder.abortSignal(new AbortController().signal)
+    : builder;
+}
 
 const DEFAULT_BUDGET_MS = 20_000;
 const FIRST_DELAY_MS = 200;
@@ -53,7 +64,7 @@ export async function withClockSkewRetry<T>(
 
   while (isTransientClockError(result.error) && Date.now() + delay < deadline) {
     await new Promise((resolve) => setTimeout(resolve, delay));
-    result = await query();
+    result = await freshRead(query);
     delay = Math.min(delay * 2, MAX_DELAY_MS);
   }
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import {
   AlertTriangle,
   ChevronRight,
+  ClipboardList,
   FileCheck2,
   FilePen,
   FileText,
@@ -125,6 +126,8 @@ export default async function DashboardPage() {
 
       <nav aria-label="Dashboard actions" className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         <QuickAction href={inProgress ? `/reports/${inProgress.id}/capture` : "/reports/new"} icon={<Mic aria-hidden />} label={inProgress ? "Continue capture" : "Capture"} detail="Photos & voice notes" primary />
+        <QuickAction href="/jobs" icon={<ClipboardList aria-hidden />} label="Open Jobs" detail="Visits, directions & POs" />
+        {inProgress && <QuickAction href="/reports/new" icon={<Plus aria-hidden />} label="Start another capture" detail="New daily report" />}
         <QuickAction href="/reports" icon={<FileText aria-hidden />} label="Reports" detail="Drafts & issued" />
         <QuickAction href="/projects" icon={<FolderKanban aria-hidden />} label="Sites" detail="Your projects" />
         <QuickAction href="#dashboard-issues" icon={<AlertTriangle aria-hidden />} label="Issues" detail="Needs attention" />

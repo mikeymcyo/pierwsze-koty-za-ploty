@@ -64,7 +64,7 @@ export function BottomNav() {
                 <Link
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className="flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2"
+                  className="flex min-h-16 flex-col items-center justify-center gap-1 px-2 py-2"
                 >
                   <span
                     className={cn(
@@ -85,7 +85,7 @@ export function BottomNav() {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "group flex min-h-14 flex-col items-center justify-center gap-1 px-1 py-2 transition-colors duration-200",
+                  "group flex min-h-16 flex-col items-center justify-center gap-1 px-1 py-2 transition-colors duration-200",
                   active ? "text-brand-ink" : "text-ink-subtle hover:text-ink-muted",
                 )}
               >
@@ -97,7 +97,7 @@ export function BottomNav() {
                 >
                   <Icon className="size-[22px]" aria-hidden strokeWidth={active ? 2 : 1.75} />
                 </span>
-                <span className="text-xs font-semibold">{item.label}</span>
+                <span className="text-xs font-semibold">{item.href === "/dashboard" ? "Home" : item.label}</span>
               </Link>
             </li>
           );

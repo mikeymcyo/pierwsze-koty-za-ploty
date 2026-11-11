@@ -13,6 +13,18 @@
  * screen. It is never a large field of colour behind content.
  */
 @theme {
+  /* Empire Interiors' house colours, used on the Open Jobs page only. Fixed in
+     both themes: the page reads as Empire's, not as SiteBoss. */
+  --color-empire-forest: #152218;
+  --color-empire-olive: #4e5c3b;
+  --color-empire-sage: #c3cbb6;
+  --color-empire-rose: #f0a3a3;
+  /* Open Jobs priority groups: a fixed attendance, late, this week, later. */
+  --color-job-fixed: #d64545;
+  --color-job-overdue: #e8821e;
+  --color-job-week: #b7d8dd;
+  --color-job-later: #8a8f98;
+
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
