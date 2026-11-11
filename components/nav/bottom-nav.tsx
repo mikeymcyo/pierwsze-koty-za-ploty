@@ -32,11 +32,37 @@ function isTypingTarget(element: Element | null): boolean {
 function useTyping(): boolean {
   const [typing, setTyping] = useState(false);
   useEffect(() => {
-    const update = () => setTyping(isTypingTarget(document.activeElement));
+    let heldPointer: number | null = null;
+    let releaseTimer: number | undefined;
+    const update = () => {
+      if (heldPointer === null) setTyping(isTypingTarget(document.activeElement));
+    };
+    // A form button near the bottom can lose its click if the dock reappears
+    // over it between pointerdown (which blurs the field) and pointerup.
+    const holdDock = (event: PointerEvent) => {
+      if (event.isPrimary && isTypingTarget(document.activeElement)) {
+        window.clearTimeout(releaseTimer);
+        heldPointer = event.pointerId;
+      }
+    };
+    const releaseDock = (event: PointerEvent) => {
+      if (event.pointerId !== heldPointer) return;
+      releaseTimer = window.setTimeout(() => {
+        heldPointer = null;
+        update();
+      }, 0);
+    };
+    document.addEventListener("pointerdown", holdDock, true);
+    document.addEventListener("pointerup", releaseDock, true);
+    document.addEventListener("pointercancel", releaseDock, true);
     document.addEventListener("focusin", update);
     document.addEventListener("focusout", update);
     update();
     return () => {
+      window.clearTimeout(releaseTimer);
+      document.removeEventListener("pointerdown", holdDock, true);
+      document.removeEventListener("pointerup", releaseDock, true);
+      document.removeEventListener("pointercancel", releaseDock, true);
       document.removeEventListener("focusin", update);
       document.removeEventListener("focusout", update);
     };
