@@ -49,6 +49,14 @@ const context = await browser.newContext({
 const page = await context.newPage();
 page.setDefaultTimeout(20_000);
 
+const formEvents = [];
+page.on("request", request => {
+  if (request.method() === "POST") formEvents.push("POST " + new URL(request.url()).pathname);
+});
+page.on("response", response => {
+  if (response.request().method() === "POST") formEvents.push("Response " + response.status() + " " + (response.headers()["x-action-redirect"] ?? ""));
+});
+
 const missingUrl = BASE + "/projects/00000000-0000-0000-0000-000000000000";
 page.on("console", (msg) => {
   if (msg.type() !== "error") return;
@@ -90,7 +98,9 @@ try {
   await page.getByLabel("Expected completion").fill("2026-12-18");
   await page.getByLabel("Expected completion").press("Tab");
   check("the form retains the project name before submission", (await page.getByLabel("Project name").inputValue()) === PROJECT.name);
-  await page.getByRole("button", { name: "Create project" }).click();
+  const create = page.getByRole("button", { name: "Create project" });
+  await create.evaluate(button => button.scrollIntoView({ block: "center" }));
+  await create.tap();
 
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}/, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByRole("heading", { name: PROJECT.name }).waitFor({ timeout: TIMEOUT });
@@ -183,7 +193,7 @@ try {
 } catch (error) {
   const detail = await page.locator("main").innerText().catch(() => "");
   const invalid = await page.locator("main input:invalid").evaluateAll(fields => fields.map(field => field.name + ": " + field.validationMessage));
-  failures.push(`at ${new URL(page.url()).pathname}: ${error.message} | ${invalid.join(", ")} | ${detail.replace(/\s+/g, " ").slice(0, 1500)}`);
+  failures.push(`at ${new URL(page.url()).pathname}: ${error.message} | ${formEvents.join(", ")} | ${invalid.join(", ")} | ${detail.replace(/\s+/g, " ").slice(0, 1500)}`);
   console.log(`\n  [FAIL] ${error.message}`);
 } finally {
   await browser.close();
