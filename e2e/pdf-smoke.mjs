@@ -92,6 +92,7 @@ try {
   check("raising an issue keeps the site manager on the report", new URL(page.url()).pathname === new URL(reportUrl).pathname);
 
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await page.getByText(title, { exact: true }).waitFor();
   check(
     "it is listed on the report it was raised from",
     (await page.locator("main").innerText()).includes(title),
@@ -99,6 +100,7 @@ try {
 
   console.log("\n3. It appears under Project - Open Issues");
   await page.goto(`${projectUrl}?tab=issues`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await page.getByText(title, { exact: true }).waitFor();
   const projectIssues = await page.locator("main").innerText();
   check("the issue is on the project tab", projectIssues.includes(title));
   check("with its priority", /High/.test(projectIssues));
@@ -114,13 +116,14 @@ try {
   await page.getByRole("button", { name: "Confirm resolved" }).click();
   await page.waitForTimeout(1500);
   await page.goto(`${projectUrl}?tab=issues`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await page.getByRole("heading", { name: "No open issues" }).waitFor();
   check(
     "a closed issue leaves the open list",
     !(await page.locator("main").innerText()).includes(title),
   );
 
   await page.getByRole("link", { name: /Show closed issues too/ }).click();
-  await page.waitForLoadState("domcontentloaded");
+  await page.getByText(title, { exact: true }).waitFor();
   check(
     "but is still reachable",
     (await page.locator("main").innerText()).includes(title),
@@ -135,6 +138,7 @@ try {
   await page.getByRole("button", { name: "Raise issue" }).click();
   await page.waitForTimeout(1500);
   await page.goto(`${projectUrl}?tab=issues`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await page.getByText(projectOnly, { exact: true }).waitFor();
   check(
     "issues.report_id is nullable, so this works",
     (await page.locator("main").innerText()).includes(projectOnly),
@@ -153,8 +157,9 @@ try {
 
   console.log("\n7. Finalising issues the report");
   await page.getByRole("button", { name: "Finalise report" }).click();
-  await page.getByText(/issued/i).first().waitFor({ timeout: TIMEOUT });
+  await page.getByRole("heading", { name: "Issued report", exact: true }).waitFor({ timeout: TIMEOUT });
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await page.getByRole("heading", { name: "Issued report", exact: true }).waitFor();
   const afterFinal = await page.locator("main").innerText();
 
   check("the report is marked final", afterFinal.includes("Issued report"));
@@ -201,6 +206,7 @@ try {
     waitUntil: "domcontentloaded",
     timeout: TIMEOUT,
   });
+  await page.getByText(title, { exact: true }).waitFor();
   check(
     "issues raised on it survive finalisation",
     (await page.locator("main").innerText()).includes(title),

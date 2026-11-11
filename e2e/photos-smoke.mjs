@@ -161,6 +161,7 @@ try {
 
   console.log("\n7. Photos can be added to the project itself");
   await page.goto(`${projectUrl}?tab=photos`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  await page.getByRole("button", { name: "Take Photo" }).waitFor();
   check(
     "the Photos tab offers Take Photo",
     await page.getByRole("button", { name: "Take Photo" }).isVisible(),
@@ -171,7 +172,7 @@ try {
   );
 
   const capture = page.locator('input[data-photo-source="camera"]');
-  check("the camera requests one rear-camera shot", await capture.evaluate(el => el.capture === "environment" && !el.multiple));
+  check("the camera requests one rear-camera shot", await capture.evaluate(el => el.getAttribute("capture") === "environment" && !el.multiple));
   for (const id of ["library", "files"]) {
     const input = page.locator('input[data-photo-source="' + id + '"]');
     check(id + " supports multi-select without forcing the camera", await input.evaluate(el => el.multiple && !el.hasAttribute("capture")));

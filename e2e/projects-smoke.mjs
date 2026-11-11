@@ -75,9 +75,11 @@ try {
 
   console.log("\n3. Create a project");
   await firstProjectCta.click();
-  await page.waitForURL("**/projects/new", { timeout: TIMEOUT });
+  await page.waitForURL(url => url.pathname === "/projects/new", { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByRole("heading", { name: "New project" }).waitFor({ timeout: TIMEOUT });
 
+  await page.waitForLoadState("networkidle");
+  check("the dashboard opens the project form", new URL(page.url()).pathname === "/projects/new");
   await page.getByLabel("Project name").fill(PROJECT.name);
   await page.getByLabel("Client").fill(PROJECT.client);
   await page.getByLabel("Site address").fill(PROJECT.address);
@@ -86,6 +88,7 @@ try {
   await page.getByLabel("Site manager").fill(PROJECT.manager);
   await page.getByLabel("Start date").fill("2026-08-01");
   await page.getByLabel("Expected completion").fill("2026-12-18");
+  await page.getByLabel("Expected completion").press("Tab");
   await page.getByRole("button", { name: "Create project" }).click();
 
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
@@ -177,7 +180,9 @@ try {
   await page.getByText("Page not found").waitFor({ timeout: TIMEOUT });
   check("unknown project id shows the not-found page", true);
 } catch (error) {
-  failures.push(`threw: ${error.message}`);
+  const detail = await page.locator("main").innerText().catch(() => "");
+  const invalid = await page.locator("main input:invalid").evaluateAll(fields => fields.map(field => field.name + ": " + field.validationMessage));
+  failures.push(`at ${new URL(page.url()).pathname}: ${error.message} | ${invalid.join(", ")} | ${detail.replace(/\s+/g, " ").slice(0, 1500)}`);
   console.log(`\n  [FAIL] ${error.message}`);
 } finally {
   await browser.close();

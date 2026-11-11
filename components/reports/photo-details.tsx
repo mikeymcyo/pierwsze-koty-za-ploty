@@ -130,7 +130,8 @@ export function PhotoDetails({
 
   return (
     <div className="flex flex-col gap-2">
-      <form ref={formRef} action={action} className="flex flex-col gap-2">
+      {/* React resets successful action forms. Keep these autosaved controls on the values just saved. */}
+      <form ref={formRef} action={action} onReset={(event) => event.preventDefault()} className="flex flex-col gap-2">
         {/* The same box as the one a consolidated report's caption is typed
             in - see components/reports/photo-description-field.tsx. Leaving it
             saves now, which covers the case the debounce was written for: a
