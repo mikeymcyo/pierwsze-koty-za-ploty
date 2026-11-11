@@ -158,13 +158,13 @@
 
   --color-ink: #14171c;
   --color-ink-muted: #4d5560;
-  --color-ink-subtle: #7a828e;
+  --color-ink-subtle: #606875;
   /* Still what goes on top of gold, so it darkens rather than inverting. */
   --color-ink-inverse: #14171c;
 
   --color-brand-strong: #b45309;
   --color-brand-soft: #fff5d6;
-  --color-brand-ink: #9a6b00;
+  --color-brand-ink: #926500;
 
   /* Gold is the primary action in both themes - it is the brand's button. */
   --color-primary: #e3b34a;
@@ -172,7 +172,7 @@
 
   --color-success: #0f7a52;
   --color-success-soft: #e3f6ee;
-  --color-warning: #a2620b;
+  --color-warning: #995c09;
   --color-warning-soft: #fdf2dc;
   --color-danger: #c0392f;
   --color-danger-soft: #fdeceb;

@@ -299,7 +299,7 @@ check(
 check(
   "only sectionsToApply reaches the database, filtered against what the reviewer read",
   /withoutStaleWrites\(review, accepted, payload\.sections\)/.test(actions) &&
-    /sectionsToApply\(review, acceptedTypes\)/.test(read("../lib/reports/master-review.ts")),
+    /sectionsToApply\(review, acceptedTypes\)/.test(readFileSync(new URL("../lib/reports/master-review.ts", import.meta.url), "utf8")),
 );
 
 console.log("\n12. Consolidated provenance is summarised, not fed twice");

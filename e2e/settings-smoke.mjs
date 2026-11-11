@@ -169,7 +169,7 @@ console.log("\n6. The brand is the brand in both");
 check("gold is the same value in light", (css.match(/#e3b34a/g) ?? []).length >= 1);
 check(
   "gold as text darkens where it must be read on white",
-  /--color-brand-ink: #9a6b00/.test(css) && /--color-brand-ink: #e3b34a/.test(css),
+  /--color-brand-ink: #926500/.test(css) && /--color-brand-ink: #e3b34a/.test(css),
 );
 check(
   "and the wordmark uses it rather than the fill",

@@ -298,7 +298,7 @@ check("Write my report sits with the notes, and Master Review is in the open bef
   const captureForm = read("../components/reports/report-capture-form.tsx");
   return /<MasterReviewPanel/.test(reportPage) && !/More tools/.test(reportPage) && !/ReportWriter/.test(reportPage) && /writeAction=\{hasAiConfig\(\) \? write : undefined\}/.test(reportPage) && /Write my report/.test(captureForm);
 })());
-check("photograph AI captions are off on Site Capture", /aiConfigured=\{false\}/.test(capturePage));
+check("photograph AI captions require a configured provider on Site Capture", /aiConfigured=\{hasAiConfig\(\)\}/.test(capturePage));
 check("only documents added as job context reach the AI", /from\("job_context_documents"\)/.test(read("../lib/documents/job-context.ts")) && /\.is\("removed_at", null\)/.test(read("../lib/documents/job-context.ts")));
 
 console.log("\n=== Result ===");

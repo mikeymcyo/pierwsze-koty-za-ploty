@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { CaptureInProgress } from "@/components/reports/capture-in-progress";
 import { FirstReportGuide } from "@/components/reports/first-report-guide";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -76,6 +77,7 @@ export default async function DashboardPage() {
   });
   const inProgress = captureInProgress(openDrafts, workingDay());
 
+  const otherDrafts = drafts.filter((draft) => draft.id !== inProgress?.id);
   const todayLabel = new Date().toLocaleDateString("en-GB", {
     timeZone: "Europe/London", weekday: "short", day: "numeric", month: "short",
   });
@@ -114,12 +116,7 @@ export default async function DashboardPage() {
         ) : (
           <div className="p-6"><HardHat className="mb-4 size-8 text-info" aria-hidden /><h2 className="text-2xl font-semibold">Your first site starts here</h2><p className="mt-2 text-sm text-ink-muted">Keep site details, captures and reports together.</p><Button asChild className="mt-5"><Link href="/projects/new"><Plus aria-hidden />Create project</Link></Button></div>
         )}
-        {inProgress ? (
-          <div className="flex items-center gap-3 border-t border-line/70 bg-surface-sunken/45 px-5 py-3">
-            <span className="size-1.5 shrink-0 rounded-full bg-brand" aria-hidden />
-            <p className="min-w-0 text-xs leading-relaxed text-ink-muted"><span className="font-medium text-ink">Report {formatReportNumber(inProgress.reportNumber)}</span> · {formatDate(inProgress.reportDate)} · {inProgress.captureCount} {inProgress.captureCount === 1 ? "note" : "notes"} captured{activeSite?.id !== inProgress.projectId ? ` · ${inProgress.projectName}` : ""}</p>
-          </div>
-        ) : null}
+        {inProgress && <CaptureInProgress draft={inProgress} />}
       </section>
 
       <FirstReportGuide hasActiveSite={Boolean(activeSite)} />
@@ -137,10 +134,10 @@ export default async function DashboardPage() {
         <section className="min-w-0">
           <SectionHeading href="/reports">Work in progress</SectionHeading>
           <div className="cockpit-list overflow-hidden rounded-2xl">
-            {drafts.length ? <ul className="divide-y divide-line/60">{drafts.map((draft) => {
+            {otherDrafts.length ? <ul className="divide-y divide-line/60">{otherDrafts.map((draft) => {
               const project = Array.isArray(draft.projects) ? draft.projects[0] : draft.projects;
               return <li key={draft.id}><WorkRow href={`/reports/${draft.id}`} icon={<FilePen aria-hidden />} title={`Report ${formatReportNumber(draft.report_number)}`} subtitle={`${project?.name ?? "Unknown project"} · ${formatDate(draft.report_date)}`} status={<Badge tone="warning">Draft</Badge>} /></li>;
-            })}</ul> : <p className="p-5 text-sm text-ink-muted">No drafts to finish. Start a capture when you’re ready.</p>}
+            })}</ul> : <p className="p-5 text-sm text-ink-muted">No other drafts to finish.</p>}
           </div>
         </section>
         <Suspense fallback={<p role="status">Loading outstanding issues…</p>}><DashboardIssues result={issues} /></Suspense>

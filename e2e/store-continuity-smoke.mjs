@@ -202,7 +202,7 @@ console.log("\n6. The dashboard says it too");
 check("the same card, so the answer looks the same", /<CaptureInProgress draft=\{inProgress\}/.test(dashboard));
 check(
   "above the quick actions rather than below them",
-  dashboard.indexOf("<CaptureInProgress") < dashboard.indexOf('label="Site Capture"'),
+  dashboard.indexOf("<CaptureInProgress") < dashboard.indexOf('<nav aria-label="Dashboard actions"'),
 );
 check("built from the same rule", /captureInProgress\(openDrafts, workingDay\(\)\)/.test(dashboard));
 check(
