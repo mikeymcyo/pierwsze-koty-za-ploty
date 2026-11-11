@@ -36,13 +36,14 @@ if (process.env.PLAYWRIGHT_CHROMIUM_PATH) {
 }
 
 const PNG_2X2 = Buffer.from(
-  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAFUlEQVR42mP8z8BQz0AEYBxVSF+FABJADveWkH6oAAAAAElFTkSuQmCC",
+  "iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAAE0lEQVR4nGP4z8DwHwwZGP6DAQBJyAn3FGMynQAAAABJRU5ErkJggg==",
   "base64",
 );
 
 const browser = await chromium.launch(launchOptions);
 const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
 const page = await context.newPage();
+page.setDefaultTimeout(20_000);
 page.on("console", (m) => m.type() === "error" && consoleErrors.push(m.text()));
 page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
 
@@ -63,15 +64,16 @@ try {
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
   const projectUrl = page.url();
 
-  await page.getByRole("button", { name: "New report" }).click();
+  await page.getByRole("button", { name: "Start Site Capture" }).click();
   await page.waitForURL(/\/reports\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
-  const reportUrl = page.url();
+  const reportUrl = page.url().replace(/\/capture$/, "");
+  await page.goto(reportUrl, { waitUntil: "networkidle" });
 
   await page.getByLabel("Work completed").fill(NOTES);
   await page.getByRole("button", { name: "Save draft" }).click();
   await page.getByText("Draft saved.").waitFor({ timeout: TIMEOUT });
 
-  await page.locator('input[data-photo-source="library"]').setInputFiles({
+  await page.locator('input[data-photo-source="simple"]').setInputFiles({
     name: "site.png",
     mimeType: "image/png",
     buffer: PNG_2X2,
@@ -87,7 +89,7 @@ try {
   await page.getByLabel("Responsible").fill("Groundworks Ltd");
   await page.getByRole("button", { name: "Raise issue" }).click();
   await page.getByText(/Issue raised/i).waitFor({ timeout: TIMEOUT });
-  check("raising an issue keeps the site manager on the report", page.url() === reportUrl);
+  check("raising an issue keeps the site manager on the report", new URL(page.url()).pathname === new URL(reportUrl).pathname);
 
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   check(
@@ -107,7 +109,9 @@ try {
   await page.getByText("In progress").first().waitFor({ timeout: TIMEOUT });
   check("an issue can be moved to in progress", true);
 
-  await page.getByRole("button", { name: "Close" }).first().click();
+  await page.getByRole("button", { name: "Mark resolved" }).first().click();
+  await page.getByLabel("What was done").fill("Materials cleared from the drainage run.");
+  await page.getByRole("button", { name: "Confirm resolved" }).click();
   await page.waitForTimeout(1500);
   await page.goto(`${projectUrl}?tab=issues`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   check(
@@ -153,8 +157,8 @@ try {
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   const afterFinal = await page.locator("main").innerText();
 
-  check("the report is marked final", afterFinal.includes("Final"));
-  check("the issued PDF is offered", await page.getByRole("link", { name: /Open the PDF/ }).isVisible());
+  check("the report is marked final", afterFinal.includes("Issued report"));
+  check("the issued PDF is offered", await page.getByRole("link", { name: /View report/ }).isVisible());
   check(
     "the capture form is gone",
     (await page.getByLabel("Work completed").count()) === 0,
@@ -162,15 +166,18 @@ try {
   );
   check(
     "so is the photo uploader",
-    (await page.locator('input[data-photo-source="library"]').count()) === 0,
+    (await page.locator('input[data-photo-source="simple"]').count()) === 0,
   );
   check(
     "and so is drafting",
     (await page.getByRole("button", { name: /Rewrite from my notes|Write my report/ }).count()) === 0,
   );
 
-  const pdfHref = await page.getByRole("link", { name: /Open the PDF/ }).getAttribute("href");
-  check("the PDF is served by a signed URL, not a public one", Boolean(pdfHref?.includes("token=")), String(pdfHref).slice(0, 90));
+  const pdfHref = reportUrl + "/file";
+  const anonymous = await browser.newContext();
+  const privateFile = await anonymous.request.get(pdfHref, { maxRedirects: 0 });
+  check("the issued PDF requires authentication", !privateFile.ok());
+  await anonymous.close();
 
   const stored = await page.request.get(pdfHref);
   const storedBody = await stored.body();
@@ -199,7 +206,8 @@ try {
     (await page.locator("main").innerText()).includes(title),
   );
 } catch (error) {
-  failures.push(`threw: ${error.message}`);
+  const alerts = await page.locator("main [role=alert]").allTextContents().catch(() => []);
+  failures.push(`threw at ${new URL(page.url()).pathname}: ${error.message}; alerts: ${alerts.join(" | ")}`);
   console.log(`\n  [FAIL] ${error.message}`);
 } finally {
   await browser.close();

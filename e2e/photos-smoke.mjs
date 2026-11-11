@@ -75,14 +75,17 @@ try {
   await page.getByRole("button", { name: "Start Site Capture" }).click();
   await page.waitForURL(/\/reports\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
   const reportUrl = page.url().replace(/\/capture$/, "");
-  await page.goto(reportUrl);
+  await page.goto(reportUrl, { waitUntil: "networkidle" });
   check("reached a draft report", true);
 
   console.log("\n2. The capture screen offers photo upload");
   const picker = page.locator('input[data-photo-source="simple"]');
-  check("the report offers the native multi-photo picker", await page.getByRole("button", { name: "Add photos" }).isVisible() && await picker.evaluate(el => el.multiple && !el.hasAttribute("capture")));
+  const addPhotos = page.getByRole("button", { name: "Add photos", exact: true });
+  await addPhotos.waitFor();
+  check("the report offers the native multi-photo picker", await picker.evaluate(el => el.multiple && !el.hasAttribute("capture")));
 
-  await page.locator('input[data-photo-source="simple"]').setInputFiles({
+  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), addPhotos.click()]);
+  await chooser.setFiles({
     name: "site.png",
     mimeType: "image/png",
     buffer: PNG_2X2,
@@ -216,7 +219,8 @@ try {
     `report shows ${backOnReport} photos, expected the 3 shot against it`,
   );
 } catch (error) {
-  failures.push(`threw: ${error.message}`);
+  const alerts = await page.locator("main [role=alert]").allTextContents().catch(() => []);
+  failures.push(`threw at ${new URL(page.url()).pathname}: ${error.message}; alerts: ${alerts.join(" | ")}`);
   console.log(`\n  [FAIL] ${error.message}`);
 } finally {
   await browser.close();
