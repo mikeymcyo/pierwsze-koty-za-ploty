@@ -90,7 +90,7 @@ export default async function SiteCapturePage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-3">
+      <header className="work-header flex flex-col gap-4 rounded-[24px] p-5">
         <BackLink href={projectHref}>{project?.name ?? "Back"}</BackLink>
         <div className="flex flex-wrap items-end justify-between gap-3">
           <h1 className="text-[28px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
@@ -104,11 +104,11 @@ export default async function SiteCapturePage({
       </header>
 
       {/* 1. Say what happened. The question is the heading of the screen. */}
-      <Card raised>
+      <Card raised className="border-t-2 border-info/50">
         <CardContent className="flex flex-col gap-4">
           {/* The field carries this as its accessible name; on screen it is
               the one question a tired operative has to read. */}
-          <h2 aria-hidden className="text-xl font-bold tracking-tight text-ink">
+          <h2 aria-hidden className="text-xl font-semibold tracking-tight text-ink">
             What happened on site?
           </h2>
           <SiteCaptureForm action={addCapture.bind(null, report.id)} reportId={report.id} />
@@ -168,7 +168,7 @@ export default async function SiteCapturePage({
           that what they said is what was kept. Still one tap to fold away. */}
       <details
         open={entries.length > 0}
-        className="group rounded-card bg-surface px-4 py-3 shadow-card ring-1 ring-line/70 ring-inset">
+        className="work-panel group rounded-card bg-surface p-5 shadow-card ring-1 ring-line/70 ring-inset">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 text-sm font-semibold text-ink [&::-webkit-details-marker]:hidden">
           <span className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span>Today so far: {plural(entries.length, "note")} · {plural(photos.length, "photo")} · {plural(documents, "document")}</span>
@@ -181,7 +181,7 @@ export default async function SiteCapturePage({
         {entries.length > 0 ? (
           <ul className="mt-3 flex flex-col gap-3 border-t border-line pt-3">
             {entries.map((entry, index) => (
-              <li key={index} className="flex gap-3 text-sm">
+              <li key={index} className="relative flex gap-3 border-l border-info/30 py-2 pl-4 text-sm">
                 <span className="w-12 shrink-0 font-mono text-xs text-ink-subtle">
                   {entry.at ?? "—"}
                 </span>
@@ -195,7 +195,7 @@ export default async function SiteCapturePage({
       </details>
 
       {/* 4. The one action that finishes the day. */}
-      <div className="flex flex-col gap-2">
+      <div className="work-panel flex flex-col gap-3 rounded-card p-5">
         <p className="flex items-center gap-2 px-1 text-sm text-ink-muted">
           <Sparkles aria-hidden className="size-4 text-brand" />
           Writes today&rsquo;s Daily from what you captured.

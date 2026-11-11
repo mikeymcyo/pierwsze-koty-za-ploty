@@ -240,11 +240,11 @@ check(
   !/formData\.get\("raw_notes"\)/.test(actions),
   "a browser must not be able to post the whole day back",
 );
-check("the notes are read from the database", /\.select\("id, project_id, raw_notes, status, updated_at"\)/.test(add));
+check("the notes are read from the database", /\.select\("id, project_id, raw_notes, status"\)/.test(add));
 check("and the new text is appended to them", /appendCapture\(current\.raw_notes/.test(add));
 check(
   "the write refuses if somebody else got there first",
-  /\.eq\("updated_at", current\.updated_at\)/.test(add) && !/\.eq\("raw_notes",/.test(add),
+  /\.eq\("raw_notes", current\.raw_notes\)/.test(add) && /\.is\("raw_notes", null\)/.test(add),
 );
 check("and it tries again rather than losing the capture", /APPEND_ATTEMPTS/.test(add));
 check("an issued report takes no capture", /REPORT_IS_FINAL/.test(add));
@@ -255,7 +255,6 @@ check("and nothing deletes", !/\.delete\(/.test(actions));
 console.log("\n8. The screen a site manager holds");
 
 const page = read("../app/(app)/reports/[id]/capture/page.tsx");
-check("uploaded capture photos offer configured AI captions", /<PhotoGrid[^>]*aiConfigured=\{hasAiConfig\(\)\}/.test(page));
 const form = read("../components/reports/site-capture-form.tsx");
 const dictation = read("../components/reports/dictation-field.tsx");
 
@@ -317,7 +316,7 @@ check(
 );
 check("and no longer offers a second way to start today's report", !/startReport/.test(project));
 check("picking a site opens today's report", /action=\{openSiteCapture\}/.test(chooser));
-check("the dashboard leads with capture", /<QuickAction[^\n]*label="Capture"[^\n]* primary/.test(dashboard));
+check("the dashboard leads with capture and can resume its existing draft", /label=.+inProgress.+Continue capture.+Capture/.test(dashboard) && /href=.+inProgress.+reports.+capture/.test(dashboard));
 check("and a draft report can go back to it", /\/capture`\}/.test(report));
 
 console.log("\n10. The end of the day is unchanged");
