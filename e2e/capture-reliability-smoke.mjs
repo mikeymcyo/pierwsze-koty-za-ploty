@@ -95,15 +95,12 @@ check(
 );
 check(
   "the box is only emptied when the server confirms",
-  /const landed = !state\.error && state\.savedAt !== undefined/.test(form) &&
-    /if \(landed\) clearCaptureDraft\(reportId\)/.test(form),
+  /if \(!result\.error && result\.savedAt !== undefined && typeof submittedText === "string"\)/.test(form) &&
+    /clearCaptureDraft\(reportId, submittedText\)/.test(form),
 );
 check(
   "never on a failure",
-  // The clear is guarded by `landed`, and `landed` is false whenever the
-  // action came back with an error - so a failed save cannot reach it.
-  /const landed = !state\.error &&/.test(form) &&
-    !/if \(!landed\)[\s\S]{0,60}clearCaptureDraft/.test(form),
+  /await action\(previous, formData\);\s*if \(!result.error && result.savedAt !== undefined/.test(form),
 );
 check(
   "and the write still refuses to overwrite somebody else's append",
@@ -145,6 +142,22 @@ clearCaptureDraft("r1");
 check("a landed capture empties it", readCaptureDraft("r1") === "");
 check("and says so, so the box comes back empty", notified === 1);
 stop();
+
+writeCaptureDraft("r1", "Delivery unloaded.");
+const sent = readCaptureDraft("r1");
+writeCaptureDraft("r1", "Generator tripped.");
+clearCaptureDraft("r1", sent);
+resetCaptureDraftSnapshots();
+check("a delayed acknowledgement leaves later typing intact on reopen", readCaptureDraft("r1") === "Generator tripped.");
+
+const sentFromThisTab = readCaptureDraft("r1");
+memory.set("siteboss:capture:r1", "Crane arrived."); // Before the other tab's storage event is delivered.
+clearCaptureDraft("r1", sentFromThisTab);
+check("the other tab's pending note stays in the box", readCaptureDraft("r1") === "Crane arrived.");
+resetCaptureDraftSnapshots();
+check("the other tab's words also survive a reload", readCaptureDraft("r1") === "Crane arrived.");
+clearCaptureDraft("r1", "Crane arrived.");
+check("the matching acknowledgement clears the draft", readCaptureDraft("r1") === "" && !memory.has("siteboss:capture:r1"));
 
 writeCaptureDraft("r1", "   ");
 check("the box shows the space that was typed", readCaptureDraft("r1") === "   ");

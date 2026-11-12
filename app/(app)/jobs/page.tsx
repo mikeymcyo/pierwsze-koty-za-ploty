@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
+import Form from "next/form";
 import Link from "next/link";
 import { ClipboardList } from "lucide-react";
 
 import { JobCard, type JobCardData } from "@/components/jobs/job-card";
 import { LoadError } from "@/components/ui/load-error";
 import { requireSessionContext } from "@/lib/auth/session";
-import { JOB_GROUP_LABELS, JOB_GROUP_ORDER, groupOf, sortJobs, type JobGroup } from "@/lib/jobs/jobs";
+import { JOB_GROUP_LABELS, JOB_GROUP_ORDER, filterJobs, groupOf, sortJobs, type JobGroup } from "@/lib/jobs/jobs";
 import { workingDay } from "@/lib/reports/working-day";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
@@ -26,10 +27,11 @@ export const metadata: Metadata = { title: "Open Jobs" };
 export default async function OpenJobsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ done?: string }>;
+  searchParams: Promise<{ done?: string | string[]; q?: string | string[] }>;
 }) {
-  const { done } = await searchParams;
-  const showDone = done === "1";
+  const { done, q } = await searchParams;
+  const showDone = (Array.isArray(done) ? done[0] : done) === "1";
+  const query = (Array.isArray(q) ? q[0] : q)?.trim() ?? "";
   const session = await requireSessionContext();
   const supabase = await createClient();
 
@@ -57,10 +59,11 @@ export default async function OpenJobsPage({
       .map(({ id, po_number, po_file_id, storage_path }) => ({ id, po_number, po_file_id, storage_path })),
   }));
   const ordered = sortJobs(jobs, today);
+  const matching = filterJobs(ordered, query);
 
   const grouped = JOB_GROUP_ORDER.map((group) => ({
     group,
-    jobs: ordered.filter((job) => groupOf(job, today) === group),
+    jobs: matching.filter((job) => groupOf(job, today) === group),
   })).filter((entry) => entry.jobs.length > 0);
 
   return (
@@ -78,21 +81,52 @@ export default async function OpenJobsPage({
           </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-          <span>
-            {ordered.length} {ordered.length === 1 ? "job" : "jobs"}
-            {showDone ? " done" : " open"}
-          </span>
-          <Link href={showDone ? "/jobs" : "/jobs?done=1"} className="font-semibold text-white underline underline-offset-4">
+          {!error && !poError && (
+            <span>
+              {query && `${matching.length} of `}{ordered.length} {ordered.length === 1 ? "job" : "jobs"}
+              {showDone ? " done" : " open"}
+            </span>
+          )}
+          <Link
+            href={{ pathname: "/jobs", query: { ...(!showDone && { done: "1" }), ...(query && { q: query }) } }}
+            className="font-semibold text-white underline underline-offset-4"
+          >
             {showDone ? "Show open jobs" : "Show done jobs"}
           </Link>
         </div>
       </header>
+
+      {!error && !poError && (ordered.length > 0 || query) && (
+        <Form key={query} action="/jobs" role="search" aria-label="Search jobs" className="flex flex-col gap-2">
+          {showDone && <input type="hidden" name="done" value="1" />}
+          <label htmlFor="job-search" className="text-sm font-semibold text-ink">
+            Search by store, store code or PO number
+          </label>
+          <div className="flex items-center gap-2">
+            <input id="job-search" name="q" type="search" defaultValue={query} enterKeyHint="search"
+              className="min-h-11 min-w-0 flex-1 rounded-lg border border-line bg-surface px-3 text-base text-ink" />
+            <button type="submit" className="min-h-11 rounded-lg bg-empire-forest px-4 text-sm font-semibold text-white">
+              Search
+            </button>
+            {query && (
+              <Link href={showDone ? "/jobs?done=1" : "/jobs"}
+                className="inline-flex min-h-11 items-center px-1 text-sm font-semibold text-ink underline underline-offset-4">
+                Clear
+              </Link>
+            )}
+          </div>
+        </Form>
+      )}
 
       {error || poError ? (
         <LoadError what="your jobs" code={(error ?? poError)!.code} />
       ) : ordered.length === 0 ? (
         <p className="rounded-card bg-surface p-5 text-sm text-ink-muted shadow-card ring-1 ring-line/70 ring-inset">
           {showDone ? "Nothing marked done yet." : "No open jobs."}
+        </p>
+      ) : matching.length === 0 ? (
+        <p className="rounded-card bg-surface p-5 text-sm text-ink-muted shadow-card ring-1 ring-line/70 ring-inset">
+          No {showDone ? "done" : "open"} jobs match your search.
         </p>
       ) : (
         grouped.map(({ group, jobs: list }) => (

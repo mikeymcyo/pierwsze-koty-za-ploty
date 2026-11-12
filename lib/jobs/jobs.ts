@@ -70,6 +70,21 @@ export function sortJobs<T extends JobLike>(jobs: readonly T[], today: string): 
   });
 }
 
+/** Keep the list order when narrowing by store name, store code or PO number. */
+export function filterJobs<T extends { store_name: string; store_code: string | null; pos: { po_number: string }[] }>(
+  jobs: T[],
+  query: string,
+): T[] {
+  const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return jobs;
+
+  return jobs.filter((job) => {
+    const fields = [job.store_name, job.store_code, ...job.pos.map((po) => `PO ${po.po_number}`)];
+    const text = fields.join(" ").toLowerCase();
+    return words.every((word) => text.includes(word));
+  });
+}
+
 /** Turn-by-turn in Waze. */
 export function wazeUrl(lat: number, lng: number): string {
   return `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;

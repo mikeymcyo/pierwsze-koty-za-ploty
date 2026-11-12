@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
-import { Camera, CalendarDays, FileText, Sparkles } from "lucide-react";
+import { Camera, CalendarDays, FileText } from "lucide-react";
 
 import { adoptJobDocument } from "@/app/(app)/projects/brief-actions";
 import { addCapture } from "@/app/(app)/reports/capture-actions";
@@ -196,11 +196,7 @@ export default async function SiteCapturePage({
 
       {/* 4. The one action that finishes the day. */}
       <div className="work-panel flex flex-col gap-3 rounded-card p-5">
-        <p className="flex items-center gap-2 px-1 text-sm text-ink-muted">
-          <Sparkles aria-hidden className="size-4 text-brand" />
-          Writes today&rsquo;s Daily from what you captured.
-        </p>
-        <PrepareDaily reportId={report.id} />
+        <PrepareDaily reportId={report.id} aiConfigured={hasAiConfig()} />
       </div>
     </div>
   );

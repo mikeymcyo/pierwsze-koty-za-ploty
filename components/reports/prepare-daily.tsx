@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useSyncExternalStore } from "react";
-import { Mic, Play } from "lucide-react";
+import { FileText, Mic, Play, Sparkles } from "lucide-react";
 
 import { addCapture } from "@/app/(app)/reports/capture-actions";
 import { prepareDaily, type PrepareState } from "@/app/(app)/reports/prepare-actions";
@@ -38,12 +38,14 @@ function PrepareButton({
   pending,
   disabled,
   saving,
+  pendingLabel = "Preparing today's Daily…",
 }: {
   label: string;
   force: boolean;
   pending: boolean;
   disabled: boolean;
   saving: boolean;
+  pendingLabel?: string;
 }) {
   return (
     <Button
@@ -55,12 +57,12 @@ function PrepareButton({
       disabled={pending || disabled}
     >
       {pending ? null : <Play aria-hidden />}
-      {pending ? (saving ? "Adding your note…" : "Preparing today's Daily…") : label}
+      {pending ? (saving ? "Adding your note…" : pendingLabel) : label}
     </Button>
   );
 }
 
-export function PrepareDaily({ reportId }: { reportId: string }) {
+export function PrepareDaily({ reportId, aiConfigured }: { reportId: string; aiConfigured: boolean }) {
   // The capture's own request is on its way: wait for it rather than append
   // alongside it. Our own in-flight state is `pending` below.
   const busy = useSyncExternalStore(
@@ -90,8 +92,9 @@ export function PrepareDaily({ reportId }: { reportId: string }) {
    */
   const guarded = useCallback(
     async (previous: PrepareState, formData: FormData): Promise<PrepareState> => {
+      const text = readCaptureDraft(reportId);
       const outcome = await saveUnsentThenPrepare<PrepareState>({
-        pending: { text: readCaptureDraft(reportId), at: clockNow() },
+        pending: { text, at: clockNow() },
         save: ({ text, at }) => {
           const capture = new FormData();
           capture.set("capture_text", text);
@@ -99,7 +102,7 @@ export function PrepareDaily({ reportId }: { reportId: string }) {
           return addCapture(reportId, {}, capture);
         },
         prepare: () => prepareDaily(reportId, previous, formData),
-        clearDraft: () => clearCaptureDraft(reportId),
+        clearDraft: () => clearCaptureDraft(reportId, text),
         setBusy: (value) => setCaptureBusy(reportId, value),
         describeFailure: describeActionFailure,
       });
@@ -116,6 +119,10 @@ export function PrepareDaily({ reportId }: { reportId: string }) {
 
   return (
     <div className="flex flex-col gap-3">
+      <p className="flex items-center gap-2 px-1 text-sm text-ink-muted">
+        {aiConfigured ? <Sparkles aria-hidden className="size-4 shrink-0 text-brand" /> : <FileText aria-hidden className="size-4 shrink-0 text-brand" />}
+        {aiConfigured ? "Writes today’s Daily from what you captured." : "AI drafting is off. Review your notes and write the Daily Summary yourself."}
+      </p>
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
       {state.unreadNote ? <Alert tone="info">{state.unreadNote}</Alert> : null}
 
@@ -142,7 +149,14 @@ export function PrepareDaily({ reportId }: { reportId: string }) {
       ) : null}
 
       <form action={action}>
-        <PrepareButton label="Prepare Daily" force={false} pending={pending} disabled={busy || dictating} saving={saving} />
+        <PrepareButton
+          label={aiConfigured ? "Prepare Daily" : "Review Daily report"}
+          force={false}
+          pending={pending}
+          disabled={busy || dictating}
+          saving={saving}
+          pendingLabel={aiConfigured ? undefined : "Opening report…"}
+        />
       </form>
       {dictating && !pending ? (
         <p className="px-1 text-xs text-ink-subtle">Stop the microphone first.</p>

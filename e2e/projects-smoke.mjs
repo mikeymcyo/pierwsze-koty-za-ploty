@@ -190,6 +190,28 @@ try {
   });
   await page.getByText("Page not found").waitFor({ timeout: TIMEOUT });
   check("unknown project id shows the not-found page", true);
+
+  console.log("\n11. Pick the right site when two jobs share a name");
+  await page.goto(`${BASE}/projects/new`);
+  await page.getByLabel("Project name").fill(PROJECT.name);
+  await page.getByLabel("Site address").fill("West entrance");
+  await page.getByLabel("Project reference").fill("1471");
+  await page.getByRole("button", { name: "Create project" }).tap();
+  await page.waitForURL(/\/projects\/[0-9a-f-]{36}$/, { timeout: TIMEOUT });
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(`${BASE}/reports/new`);
+  const candidates = page.locator("form").filter({ has: page.getByRole("heading", { name: PROJECT.name, exact: true }) });
+  await candidates.nth(1).waitFor();
+  check("both jobs are available under the same site name", (await candidates.count()) === 2);
+  const site = candidates.filter({ has: page.getByText(`Ref ${PROJECT.reference}`, { exact: true }) });
+  check("the original job shows its postcode", await site.getByText(PROJECT.postcode, { exact: false }).isVisible());
+  const fits = await site.getByRole("heading").evaluate(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight);
+  check("the full site name fits at a narrow phone width", fits);
+  await site.getByRole("button", { name: "Capture", exact: true }).tap();
+  await page.waitForURL(/\/reports\/[0-9a-f-]{36}\/capture$/, { timeout: TIMEOUT });
+  const projectLink = page.getByRole("link", { name: PROJECT.name, exact: true });
+  await projectLink.waitFor();
+  check("capture opens for the selected project reference", (await projectLink.getAttribute("href")) === new URL(projectUrl).pathname);
 } catch (error) {
   const detail = await page.locator("main").innerText().catch(() => "");
   const invalid = await page.locator("main input:invalid").evaluateAll(fields => fields.map(field => field.name + ": " + field.validationMessage));

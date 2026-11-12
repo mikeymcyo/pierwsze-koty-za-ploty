@@ -21,7 +21,7 @@ export default async function NewReportPage() {
   const { data, error } = await withClockSkewRetry(() =>
     supabase
       .from("projects")
-      .select("id, name, client, site_address, status")
+      .select("id, name, client, site_address, postcode, project_reference, status")
       .neq("status", "completed")
       // An enquiry is not a job yet, so there is nothing to write a day's
       // record against. Surveys are started from the store or the project.
@@ -62,20 +62,25 @@ export default async function NewReportPage() {
           {projects.map((project) => (
             <li key={project.id}>
               <Card>
-                <form action={openSiteCapture} className="flex items-center gap-4 p-5">
+                <form action={openSiteCapture} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center">
                   <input type="hidden" name="projectId" value={project.id} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-ink">{project.name}</p>
-                    <p className="truncate text-sm text-ink-muted">
-                      {[project.client, project.site_address].filter(Boolean).join(" · ") ||
+                  <div id={`site-${project.id}`} className="min-w-0 flex-1 space-y-1 wrap-anywhere">
+                    <h2 className="font-semibold text-ink">{project.name}</h2>
+                    {project.project_reference && (
+                      <p className="text-sm font-medium text-ink">Ref {project.project_reference}</p>
+                    )}
+                    <p className="text-sm text-ink-muted">
+                      {[project.client, project.site_address, project.postcode].filter(Boolean).join(" · ") ||
                         "No client or address recorded"}
                     </p>
                   </div>
-                  <ProjectStatusBadge status={project.status} />
-                  <Button type="submit" size="md" className="shrink-0">
-                    <Mic aria-hidden />
-                    Capture
-                  </Button>
+                  <div className="flex items-center justify-between gap-4">
+                    <ProjectStatusBadge status={project.status} />
+                    <Button type="submit" size="md" aria-describedby={`site-${project.id}`}>
+                      <Mic aria-hidden />
+                      Capture
+                    </Button>
+                  </div>
                 </form>
               </Card>
             </li>

@@ -34,7 +34,8 @@ jobs:
           test -n "$ANON_KEY"
           echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
           echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
-      - run: npm run build
+      - id: app_build
+        run: npm run build
         env:
           OPENAI_API_KEY: ''
       - name: Test the running application
@@ -60,3 +61,15 @@ jobs:
           printf '%s\n' e2e projects isolation reports photos composer-dictation presentation-browser pdf |
             xargs -P 3 -n 1 bash -c 'run_suite "$1"' _ || failed=1
           exit "$failed"
+      - name: Test manual Daily review without an AI provider
+        if: ${{ !cancelled() && steps.app_build.outcome == 'success' }}
+        env:
+          E2E_BASE_URL: http://127.0.0.1:3001
+          OPENAI_API_KEY: ''
+          ANTHROPIC_API_KEY: ''
+        run: |
+          node_modules/.bin/next start --hostname 127.0.0.1 --port 3001 > "$RUNNER_TEMP/manual-review.log" 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+          curl --retry 20 --retry-connrefused --retry-delay 1 -fsS "$E2E_BASE_URL/login" >/dev/null
+          timeout 4m npm run test:reports -- --manual-review

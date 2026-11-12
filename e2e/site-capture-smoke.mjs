@@ -273,8 +273,8 @@ check(
   "and is cleared only when a capture actually landed",
   // Controlled from the phone's copy, which is cleared only where the server
   // confirmed. See the reliability pass.
-  /const landed = !state\.error && state\.savedAt !== undefined/.test(form) &&
-    /if \(landed\) clearCaptureDraft\(reportId\)/.test(form),
+  /if \(!result\.error && result\.savedAt !== undefined && typeof submittedText === "string"\)/.test(form) &&
+    /clearCaptureDraft\(reportId, submittedText\)/.test(form),
   "a failed save must leave the words in the box",
 );
 check("photographs can be added here", /PhotoUpload/.test(page));

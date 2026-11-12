@@ -82,7 +82,54 @@ async function fillCapture({ weather, workforce, plant, notes }) {
   if (notes !== undefined) await page.getByLabel("Work completed").fill(notes);
 }
 
-try {
+async function testManualReview() {
+  const fieldNote = "The south entrance is open again after the paving repair.";
+  const manualSummary = "Paving repairs at the south entrance are complete. The entrance has reopened.";
+
+  await page.getByRole("button", { name: "Start Site Capture" }).click();
+  await page.waitForURL(/\/reports\/[0-9a-f-]{36}\/capture$/, { timeout: TIMEOUT });
+  const captureUrl = page.url();
+  const reportUrl = captureUrl.replace(/\/capture$/, "");
+  const box = page.getByRole("textbox", { name: "What happened on site?" });
+  const review = page.getByRole("button", { name: "Review Daily report", exact: true });
+  await box.fill(fieldNote);
+  await review.click();
+  await page.waitForURL(reportUrl, { timeout: TIMEOUT });
+  const notes = page.getByRole("textbox", { name: "Work completed", exact: true });
+  const rawNotes = await notes.inputValue();
+  check("review saved the unsent note exactly once", rawNotes.replace(/^\[\d{2}:\d{2}\] /, "") === fieldNote, rawNotes);
+
+  const summary = page.getByRole("textbox", { name: "Daily Summary", exact: true });
+  check("the manual summary starts empty", (await summary.inputValue()) === "");
+  check("manual review offers no AI writer", (await page.getByRole("button", { name: /Write my report|Rewrite from my notes/ }).count()) === 0);
+  await summary.fill(manualSummary);
+  await page.getByRole("button", { name: "Save this section", exact: true }).click();
+  await page.getByText("Edited by you", { exact: true }).waitFor({ timeout: TIMEOUT });
+  await page.reload();
+  check("the saved summary survives a reload", (await summary.inputValue()) === manualSummary);
+  check("the original field note survives editing the summary", (await notes.inputValue()) === rawNotes);
+  check("the summary is attributed to the editor", await page.getByText("Edited by you", { exact: true }).isVisible());
+
+  // Simulate a second device issuing this report while the capture is still open.
+  await page.getByRole("link", { name: "Site Capture", exact: true }).click();
+  await page.waitForURL(captureUrl);
+  check("the confirmed note has left the capture box", (await box.inputValue()) === "");
+  const lateNote = "The supervisor has just signed the handover sheet.";
+  await box.fill(lateNote);
+  const otherTab = await context.newPage();
+  try {
+    await otherTab.goto(reportUrl);
+    await otherTab.getByRole("button", { name: "Finalise report", exact: true }).click();
+    await otherTab.getByRole("heading", { name: "Issued report", exact: true }).waitFor({ timeout: TIMEOUT });
+    await review.click();
+    await page.getByRole("alert").filter({ hasText: "This report has been finalised" }).waitFor();
+    check("a refused save keeps the capture open with the unsent note", page.url() === captureUrl && (await box.inputValue()) === lateNote);
+  } finally {
+    await otherTab.close();
+  }
+}
+
+async function runReports() {
   console.log("\n1. Sign up and create a project");
   await page.goto(`${BASE}/signup`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByLabel("Your name").fill("Maciej Korzeniak");
@@ -99,6 +146,7 @@ try {
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
   const projectUrl = page.url();
   check("project created", true);
+  if (process.argv.includes("--manual-review")) return testManualReview();
 
   console.log("\n2. The project page offers a real New report action");
   const newReport = page.getByRole("button", { name: "Start Site Capture" });
@@ -224,6 +272,10 @@ try {
   });
   await page.getByText("Page not found").waitFor({ timeout: TIMEOUT });
   check("unknown report id shows the not-found page", true);
+}
+
+try {
+  await runReports();
 } catch (error) {
   failures.push(`threw: ${error.message}`);
   console.log(`\n  [FAIL] ${error.message}`);

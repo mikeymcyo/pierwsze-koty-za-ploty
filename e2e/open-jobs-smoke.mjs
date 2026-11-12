@@ -18,6 +18,7 @@ import {
   JOB_PO_BUCKET,
   addDays,
   dayLabel,
+  filterJobs,
   googleMapsUrl,
   groupOf,
   parseFixed,
@@ -49,6 +50,7 @@ const jobs = seed.map((row) => {
     fixed_note: fixed.note,
     target_date: row.target ?? null,
     po: row.po,
+    pos: row.po.map((po_number) => ({ po_number })),
   };
 });
 
@@ -130,6 +132,17 @@ console.log("\n6. Wired into the app, and the database shaped for the feed later
   check("the phone reaches it from the dashboard", /href="\/jobs"/.test(read("../app/(app)/dashboard/page.tsx")));
   check("the photo uploader is untouched", !/job/.test(read("../components/reports/photo-upload.tsx")));
 }
+
+console.log("\n7. Find a job from its store or any purchase order");
+const sorted = sortJobs(jobs, TODAY);
+check("blank search keeps the entire list in urgency order", filterJobs(sorted, "  ") === sorted);
+check("a case-insensitive store code returns both Dover jobs in urgency order",
+  filterJobs(sorted, "  gb1650 ").map((job) => job.po[0]).join(",") === "624757738,624757854");
+check("a store and part of its fifth PO select the correct Dover job",
+  filterJobs(sorted, "doVer   PO 57770").map((job) => job.po[0]).join(",") === "624757854");
+check("a store without any purchase orders can still be found", filterJobs(sorted, "whit")[0]?.store_name === "Whitton");
+check("a job without a store code is still searchable", filterJobs([{ store_name: "New site", store_code: null, pos: [] }], "new site").length === 1);
+check("unmatched terms return no results", filterJobs(sorted, "shoreham 57770").length === 0);
 
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL OPEN JOBS CHECKS PASSED");
