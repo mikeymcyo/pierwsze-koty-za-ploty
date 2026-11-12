@@ -13,6 +13,18 @@
  * screen. It is never a large field of colour behind content.
  */
 @theme {
+  /* Empire Interiors' house colours, used on the Open Jobs page only. Fixed in
+     both themes: the page reads as Empire's, not as SiteBoss. */
+  --color-empire-forest: #152218;
+  --color-empire-olive: #4e5c3b;
+  --color-empire-sage: #c3cbb6;
+  --color-empire-rose: #f0a3a3;
+  /* Open Jobs priority groups: a fixed attendance, late, this week, later. */
+  --color-job-fixed: #d64545;
+  --color-job-overdue: #e8821e;
+  --color-job-week: #b7d8dd;
+  --color-job-later: #8a8f98;
+
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-geist-mono), ui-monospace, monospace;
 
@@ -146,13 +158,13 @@
 
   --color-ink: #14171c;
   --color-ink-muted: #4d5560;
-  --color-ink-subtle: #7a828e;
+  --color-ink-subtle: #606875;
   /* Still what goes on top of gold, so it darkens rather than inverting. */
   --color-ink-inverse: #14171c;
 
   --color-brand-strong: #b45309;
   --color-brand-soft: #fff5d6;
-  --color-brand-ink: #9a6b00;
+  --color-brand-ink: #926500;
 
   /* Gold is the primary action in both themes - it is the brand's button. */
   --color-primary: #e3b34a;
@@ -160,7 +172,7 @@
 
   --color-success: #0f7a52;
   --color-success-soft: #e3f6ee;
-  --color-warning: #a2620b;
+  --color-warning: #995c09;
   --color-warning-soft: #fdf2dc;
   --color-danger: #c0392f;
   --color-danger-soft: #fdeceb;
@@ -317,4 +329,47 @@
 @utility midnight-action {
   background: linear-gradient(155deg, color-mix(in srgb, var(--color-primary) 13%, var(--color-surface)), var(--color-surface));
   border: 1px solid color-mix(in srgb, var(--color-primary) 48%, var(--color-line));
+}
+
+/* Dashboard composition: a single illuminated site surface, quiet ledger rows. */
+@utility cockpit-site {
+  background: radial-gradient(ellipse at 100% 0%, color-mix(in srgb, var(--color-info) 24%, transparent), transparent 72%), linear-gradient(135deg, var(--color-surface-muted), var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-info) 32%, var(--color-line));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-ink) 16%, transparent), 0 16px 32px -24px rgb(0 0 0 / 0.65);
+}
+@utility cockpit-site-mark {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--color-info) 14%, transparent), transparent);
+  border: 1px solid color-mix(in srgb, var(--color-info) 30%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-ink) 12%, transparent);
+}
+@utility cockpit-capture {
+  background: linear-gradient(145deg, var(--color-primary-hover), var(--color-primary));
+  border: 1px solid var(--color-primary-hover);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-ink) 35%, transparent), 0 8px 20px -14px var(--color-primary);
+}
+@utility cockpit-action {
+  background: linear-gradient(145deg, var(--color-surface-muted), var(--color-surface));
+  border: 1px solid var(--color-line-strong);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-ink) 9%, transparent);
+}
+@utility cockpit-list {
+  background: var(--color-surface);
+  border: 1px solid var(--color-line);
+}
+
+/* Shared work surfaces. No backdrop filters or added client-side effects. */
+@utility work-header {
+  background: linear-gradient(120deg, var(--color-surface-muted), var(--color-surface));
+  border: 1px solid var(--color-line);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-info) 22%, transparent);
+}
+@utility work-panel {
+  background-image: linear-gradient(145deg, color-mix(in srgb, var(--color-surface-muted) 45%, transparent), transparent 70%);
+  background-color: var(--color-surface);
+}
+@utility work-panel-raised {
+  background-image: linear-gradient(145deg, color-mix(in srgb, var(--color-info) 9%, transparent), transparent 75%);
+}
+@utility work-primary {
+  background-image: linear-gradient(145deg, color-mix(in srgb, var(--color-primary-hover) 80%, transparent), transparent);
 }

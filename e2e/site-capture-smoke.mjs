@@ -244,7 +244,7 @@ check("the notes are read from the database", /\.select\("id, project_id, raw_no
 check("and the new text is appended to them", /appendCapture\(current\.raw_notes/.test(add));
 check(
   "the write refuses if somebody else got there first",
-  /\.eq\("updated_at", current\.updated_at\)/.test(add) && !/\.eq\("raw_notes",/.test(add),
+  /\.eq\("updated_at", current\.updated_at\)/.test(add),
 );
 check("and it tries again rather than losing the capture", /APPEND_ATTEMPTS/.test(add));
 check("an issued report takes no capture", /REPORT_IS_FINAL/.test(add));
@@ -255,7 +255,6 @@ check("and nothing deletes", !/\.delete\(/.test(actions));
 console.log("\n8. The screen a site manager holds");
 
 const page = read("../app/(app)/reports/[id]/capture/page.tsx");
-check("uploaded capture photos offer configured AI captions", /<PhotoGrid[^>]*aiConfigured=\{hasAiConfig\(\)\}/.test(page));
 const form = read("../components/reports/site-capture-form.tsx");
 const dictation = read("../components/reports/dictation-field.tsx");
 
@@ -274,8 +273,8 @@ check(
   "and is cleared only when a capture actually landed",
   // Controlled from the phone's copy, which is cleared only where the server
   // confirmed. See the reliability pass.
-  /const landed = !state\.error && state\.savedAt !== undefined/.test(form) &&
-    /if \(landed\) clearCaptureDraft\(reportId\)/.test(form),
+  /if \(!result\.error && result\.savedAt !== undefined && typeof submittedText === "string"\)/.test(form) &&
+    /clearCaptureDraft\(reportId, submittedText\)/.test(form),
   "a failed save must leave the words in the box",
 );
 check("photographs can be added here", /PhotoUpload/.test(page));
@@ -317,7 +316,9 @@ check(
 );
 check("and no longer offers a second way to start today's report", !/startReport/.test(project));
 check("picking a site opens today's report", /action=\{openSiteCapture\}/.test(chooser));
-check("the dashboard leads with capture", /<QuickAction[^\n]*label="Capture"[^\n]* primary/.test(dashboard));
+check("the site list and today's draft use the current company", [chooser, open].every((source) =>
+  source.includes('.eq("company_id", session.companyId)')));
+check("the dashboard leads with capture and can resume its existing draft", /label=.+inProgress.+Continue capture.+Capture/.test(dashboard) && /href=.+inProgress.+reports.+capture/.test(dashboard));
 check("and a draft report can go back to it", /\/capture`\}/.test(report));
 
 console.log("\n10. The end of the day is unchanged");

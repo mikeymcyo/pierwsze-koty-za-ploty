@@ -18,8 +18,8 @@ import { useCallback, useEffect, useRef } from "react";
  */
 const MIN_ROWS = 3;
 const MAX_ROWS = 6;
-/** Matches the `text-sm` line box, near enough for a height cap. */
-const LINE_HEIGHT_PX = 20;
+/** Matches leading-6 below; keep the six-line cap aligned with the text. */
+const LINE_HEIGHT_PX = 24;
 const PADDING_PX = 16;
 
 export function PhotoDescriptionField({
@@ -52,7 +52,10 @@ export function PhotoDescriptionField({
     // Measured from the content, so a pasted paragraph opens at the right
     // height rather than at three lines with the rest hidden.
     element.style.height = "auto";
-    const max = MAX_ROWS * LINE_HEIGHT_PX + PADDING_PX;
+    const styles = window.getComputedStyle(element);
+    const lineHeight = parseFloat(styles.lineHeight) || LINE_HEIGHT_PX;
+    const padding = (parseFloat(styles.paddingTop) + parseFloat(styles.paddingBottom)) || PADDING_PX;
+    const max = MAX_ROWS * lineHeight + padding;
     element.style.height = `${Math.min(element.scrollHeight, max)}px`;
   }, []);
 
@@ -60,14 +63,15 @@ export function PhotoDescriptionField({
 
   return (
     <div className="flex flex-col gap-1">
-      <label htmlFor={id} className="flex items-baseline justify-between gap-2 px-1 text-xs font-semibold text-ink-muted">
-        <span>{label}</span>
-        <span className="font-normal text-ink-subtle">Short and factual</span>
-      </label>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-2 px-1 text-xs">
+        <label htmlFor={id} className="font-semibold text-ink-muted">{label}</label>
+        <span id={`${id}-hint`} className="text-ink-subtle">Short and factual</span>
+      </div>
       <textarea
         ref={ref}
         id={id}
         name={name}
+        aria-describedby={`${id}-hint`}
         value={value}
         defaultValue={defaultValue}
         onChange={(event) => {
@@ -82,7 +86,7 @@ export function PhotoDescriptionField({
         // Wrapping is the default, but it is the point of this box, so it is
         // written down rather than assumed.
         wrap="soft"
-        className="w-full resize-none rounded-control bg-surface-sunken/70 px-3 py-2 text-sm leading-5 break-words whitespace-pre-wrap text-ink ring-1 ring-line-strong/60 ring-inset transition-[box-shadow] duration-200 placeholder:text-ink-subtle focus:ring-2 focus:ring-brand/60 focus:outline-none"
+        className="w-full resize-none rounded-control bg-surface-sunken/70 px-3 py-2 text-[length:max(16px,1rem)] leading-6 break-words whitespace-pre-wrap text-ink ring-1 ring-line-strong/60 ring-inset transition-[box-shadow] duration-200 placeholder:text-ink-subtle focus:ring-2 focus:ring-brand/60 focus:outline-none"
       />
     </div>
   );

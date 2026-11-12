@@ -83,8 +83,11 @@ export default async function ProjectsPage() {
         />
       ) : (
         <>
-          <ul className="flex flex-col gap-3">
-            {projects.map((project) => {
+          {[...new Set(projects.map((project) => project.status))].map((status) => (
+          <section key={status} className="flex flex-col gap-3">
+            <h2 className="flex items-center gap-2 text-lg font-semibold capitalize">{status.replaceAll("_", " ")}<span className="rounded-full bg-surface-muted px-2 py-0.5 text-xs text-ink-muted">{projects.filter((project) => project.status === status).length}</span></h2>
+          <ul className="grid gap-3 lg:grid-cols-2">
+            {projects.filter((project) => project.status === status).map((project) => {
               const link = storeLinkOf(project);
               return (
                 <li key={project.id}>
@@ -97,6 +100,8 @@ export default async function ProjectsPage() {
               );
             })}
           </ul>
+          </section>
+          ))}
           <p className="text-center text-xs text-ink-subtle">
             Swipe a project left, or use its menu, for Edit and Delete.
           </p>

@@ -205,7 +205,7 @@ check(
   /\/surveys\/new\?directory=/.test(read("../app/(app)/stores/[code]/page.tsx")),
 );
 check("from a project", /\/surveys\/new\?project=/.test(projectPage));
-check("and from the reports list", /href="\/surveys\/new"/.test(read("../app/(app)/reports/page.tsx")));
+check("and from the reports list", /href: "\/surveys\/new"[\s\S]*?\.map\(\(item\)[\s\S]*?href=\{item\.href\}/.test(read("../app/(app)/reports/page.tsx")));
 check(
   "the consolidated flow refuses to start one by accident",
   /kind === "survey"[\s\S]{0,120}redirect\(/.test(read("../app/(app)/summary-reports/new/page.tsx")),

@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 
 import { generateReport } from "@/app/(app)/reports/ai-actions";
+import { hasAiConfig } from "@/lib/ai/report-generation";
 import { suggestResolvedIssues } from "@/lib/ai/issue-resolution";
 import { resolutionSuggestionsParam } from "@/lib/issues/metadata";
 import { requireSessionContext } from "@/lib/auth/session";
@@ -56,7 +57,8 @@ export async function prepareDaily(
     .eq("id", reportId)
     .maybeSingle();
   if (!report) return { error: "That report could not be found." };
-  if (report.status !== "draft") redirect(`/reports/${reportId}`);
+  // Manual review uses the existing report and its saved notes without creating a generated section.
+  if (report.status !== "draft" || !hasAiConfig()) redirect(`/reports/${reportId}`);
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
 

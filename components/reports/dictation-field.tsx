@@ -262,6 +262,8 @@ function Composer({
   };
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
+  const { pending } = useFormStatus();
+  const saving = pending || disabled;
 
   const grow = useCallback(() => {
     const element = ref.current;
@@ -298,9 +300,9 @@ function Composer({
           name={name}
           aria-label={label}
           value={shown}
-          readOnly={active}
+          readOnly={active || saving}
           onChange={(event) => {
-            if (!active) setText(event.target.value);
+            if (!active && !saving) setText(event.target.value);
           }}
           onInput={grow}
           rows={rows}
@@ -317,7 +319,7 @@ function Composer({
             <button
               type="button"
               onClick={listening ? stop : start}
-              disabled={settling}
+              disabled={settling || saving}
               aria-pressed={listening}
               aria-label={listening ? stopLabel : startLabel}
               className={cn(

@@ -1,0 +1,78 @@
+name: Integration browser checks
+on:
+  push:
+    branches: [integrate-redesign-android-fix]
+permissions:
+  contents: read
+concurrency:
+  group: integration-browser-checks
+  cancel-in-progress: true
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      E2E_BASE_URL: http://localhost:3000
+      OPENAI_BASE_URL: http://127.0.0.1:4010/v1
+      OPENAI_API_KEY: local-stub
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Start disposable database
+        run: |
+          supabase start -x studio,imgproxy,edge-runtime,logflare,vector,supavisor
+          eval "$(supabase status -o env | grep -E '^(API_URL|ANON_KEY)=')"
+          test "$API_URL" = http://127.0.0.1:54321
+          test -n "$ANON_KEY"
+          echo "NEXT_PUBLIC_SUPABASE_URL=$API_URL" >> "$GITHUB_ENV"
+          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=$ANON_KEY" >> "$GITHUB_ENV"
+      - id: app_build
+        run: npm run build
+        env:
+          OPENAI_API_KEY: ''
+      - name: Test the running application
+        env:
+          E2E_TEST_JOB_POS: '1'
+        run: |
+          npm start > "$RUNNER_TEMP/siteboss.log" 2>&1 &
+          curl --retry 20 --retry-connrefused --retry-delay 1 -fsS http://localhost:3000/login >/dev/null
+          failed=0
+          run_suite() {
+            local suite="$1" result=0
+            timeout 4m npm run "test:$suite" > "$RUNNER_TEMP/$suite.log" 2>&1 || result=$?
+            echo "::group::$suite"
+            cat "$RUNNER_TEMP/$suite.log"
+            echo "::endgroup::"
+            if (( result != 0 )); then
+              { grep -E 'FAILED:|\[FAIL\]|CRASH |waiting for (getBy|locator)|Error:' "$RUNNER_TEMP/$suite.log" | head -20 || true; } > "$RUNNER_TEMP/$suite.failure"
+              echo "::error title=$suite::$(tr '\n' ' ' < "$RUNNER_TEMP/$suite.failure" | cut -c1-2800) (exit $result)"
+            fi
+            return "$result"
+          }
+          run_suite ai || failed=1
+          node --import ./e2e/support/register-tsx.mjs e2e/stub-openai.mjs &
+          export -f run_suite
+          printf '%s\n' e2e projects isolation reports photos composer-dictation presentation-browser pdf |
+            xargs -P 3 -n 1 bash -c 'run_suite "$1"' _ || failed=1
+          exit "$failed"
+      - name: Test manual Daily review in iPhone WebKit without an AI provider
+        if: ${{ !cancelled() && steps.app_build.outcome == 'success' }}
+        env:
+          E2E_BASE_URL: http://127.0.0.1:3001
+          OPENAI_API_KEY: ''
+          ANTHROPIC_API_KEY: ''
+        run: |
+          npx playwright install --with-deps webkit
+          node_modules/.bin/next start --hostname 127.0.0.1 --port 3001 > "$RUNNER_TEMP/manual-review.log" 2>&1 &
+          app_pid=$!
+          trap 'kill "$app_pid" 2>/dev/null || true' EXIT
+          curl --retry 20 --retry-connrefused --retry-delay 1 -fsS "$E2E_BASE_URL/login" >/dev/null
+          timeout 4m npm run test:reports -- --manual-review --iphone-webkit

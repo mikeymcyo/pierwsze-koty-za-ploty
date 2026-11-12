@@ -130,7 +130,8 @@ export function PhotoDetails({
 
   return (
     <div className="flex flex-col gap-2">
-      <form ref={formRef} action={action} className="flex flex-col gap-2">
+      {/* React resets successful action forms. Keep these autosaved controls on the values just saved. */}
+      <form ref={formRef} action={action} onReset={(event) => event.preventDefault()} className="flex flex-col gap-2">
         {/* The same box as the one a consolidated report's caption is typed
             in - see components/reports/photo-description-field.tsx. Leaving it
             saves now, which covers the case the debounce was written for: a
@@ -155,7 +156,7 @@ export function PhotoDetails({
             // A status is a decision, not a draft: saved as soon as it changes.
             setFlush((count) => count + 1);
           }}
-          className="min-h-10 w-full rounded-full bg-surface-muted px-3 text-xs font-semibold text-ink-muted ring-1 ring-line/60 ring-inset transition-colors hover:text-ink focus:ring-2 focus:ring-brand/60 focus:outline-none"
+          className="min-h-(--ui-control-min) w-full rounded-full bg-surface-muted px-3 text-[length:max(16px,1rem)] font-semibold text-ink-muted ring-1 ring-line/60 ring-inset transition-colors hover:text-ink focus:ring-2 focus:ring-brand/60 focus:outline-none"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -164,7 +165,7 @@ export function PhotoDetails({
           ))}
         </select>
 
-        <div className="flex items-center gap-2">
+        <div role="status" aria-live="polite" aria-atomic="true" className="flex min-h-4 items-center gap-2">
           <SaveState saved={Boolean(state.saved)} error={state.error} />
         </div>
       </form>

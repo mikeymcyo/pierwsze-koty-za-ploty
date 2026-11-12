@@ -32,11 +32,37 @@ function isTypingTarget(element: Element | null): boolean {
 function useTyping(): boolean {
   const [typing, setTyping] = useState(false);
   useEffect(() => {
-    const update = () => setTyping(isTypingTarget(document.activeElement));
+    let heldPointer: number | null = null;
+    let releaseTimer: number | undefined;
+    const update = () => {
+      if (heldPointer === null) setTyping(isTypingTarget(document.activeElement));
+    };
+    // A form button near the bottom can lose its click if the dock reappears
+    // over it between pointerdown (which blurs the field) and pointerup.
+    const holdDock = (event: PointerEvent) => {
+      if (event.isPrimary && isTypingTarget(document.activeElement)) {
+        window.clearTimeout(releaseTimer);
+        heldPointer = event.pointerId;
+      }
+    };
+    const releaseDock = (event: PointerEvent) => {
+      if (event.pointerId !== heldPointer) return;
+      releaseTimer = window.setTimeout(() => {
+        heldPointer = null;
+        update();
+      }, 0);
+    };
+    document.addEventListener("pointerdown", holdDock, true);
+    document.addEventListener("pointerup", releaseDock, true);
+    document.addEventListener("pointercancel", releaseDock, true);
     document.addEventListener("focusin", update);
     document.addEventListener("focusout", update);
     update();
     return () => {
+      window.clearTimeout(releaseTimer);
+      document.removeEventListener("pointerdown", holdDock, true);
+      document.removeEventListener("pointerup", releaseDock, true);
+      document.removeEventListener("pointercancel", releaseDock, true);
       document.removeEventListener("focusin", update);
       document.removeEventListener("focusout", update);
     };
@@ -64,7 +90,7 @@ export function BottomNav() {
                 <Link
                   href={item.href}
                   aria-current={active ? "page" : undefined}
-                  className="flex min-h-14 flex-col items-center justify-center gap-1 px-2 py-2"
+                  className="flex min-h-16 flex-col items-center justify-center gap-1 px-2 py-2"
                 >
                   <span
                     className={cn(
@@ -85,7 +111,7 @@ export function BottomNav() {
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "group flex min-h-14 flex-col items-center justify-center gap-1 px-1 py-2 transition-colors duration-200",
+                  "group flex min-h-16 flex-col items-center justify-center gap-1 px-1 py-2 transition-colors duration-200",
                   active ? "text-brand-ink" : "text-ink-subtle hover:text-ink-muted",
                 )}
               >
@@ -97,7 +123,7 @@ export function BottomNav() {
                 >
                   <Icon className="size-[22px]" aria-hidden strokeWidth={active ? 2 : 1.75} />
                 </span>
-                <span className="text-xs font-semibold">{item.label}</span>
+                <span className="text-xs font-semibold">{item.href === "/dashboard" ? "Home" : item.label}</span>
               </Link>
             </li>
           );

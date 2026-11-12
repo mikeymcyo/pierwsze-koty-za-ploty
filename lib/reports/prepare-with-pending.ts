@@ -26,6 +26,8 @@ export type PendingCapture = {
   at: string;
 };
 
+export type PreparePhase = "idle" | "saving" | "preparing";
+
 export type PendingOutcome<S> =
   | { kind: "prepared"; state: S }
   | { kind: "not_saved"; error: string };
@@ -43,32 +45,33 @@ export async function saveUnsentThenPrepare<S>({
   save,
   prepare,
   clearDraft,
-  setBusy,
+  setPhase,
   describeFailure,
 }: {
   pending: PendingCapture;
   save: (pending: PendingCapture) => Promise<{ error?: string }>;
   prepare: () => Promise<S>;
   clearDraft: () => void;
-  setBusy: (value: boolean) => void;
+  setPhase: (phase: PreparePhase) => void;
   describeFailure: (cause: unknown) => string;
 }): Promise<PendingOutcome<S>> {
-  if (pending.text.trim()) {
-    setBusy(true);
-    try {
-      const result = await save(pending);
-      if (result.error) return { kind: "not_saved", error: `${UNSENT_NOT_SAVED} (${result.error})` };
-    } catch (cause) {
-      return { kind: "not_saved", error: `${UNSENT_NOT_SAVED} (${describeFailure(cause)})` };
-    } finally {
-      setBusy(false);
+  try {
+    if (pending.text.trim()) {
+      setPhase("saving");
+      try {
+        const result = await save(pending);
+        if (result.error) return { kind: "not_saved", error: `${UNSENT_NOT_SAVED} (${result.error})` };
+      } catch (cause) {
+        return { kind: "not_saved", error: `${UNSENT_NOT_SAVED} (${describeFailure(cause)})` };
+      }
+      clearDraft();
     }
-    // Confirmed by the server, so the phone's copy may go. Doing this before
-    // the prepare runs is what empties the box while the Daily is written,
-    // and what stops the same words coming back if the prepare asks a question.
-    clearDraft();
+    // Keep the composer locked while preparing, even if it started empty.
+    setPhase("preparing");
+    return { kind: "prepared", state: await prepare() };
+  } finally {
+    setPhase("idle");
   }
-  return { kind: "prepared", state: await prepare() };
 }
 
 /** The phone's clock as the capture log writes it: HH:MM. */

@@ -51,6 +51,7 @@ if (process.env.PLAYWRIGHT_CHROMIUM_PATH) {
 const browser = await chromium.launch(launchOptions);
 
 async function signUp(page, person) {
+  page.setDefaultTimeout(20_000);
   await page.goto(`${BASE}/signup`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByLabel("Your name").fill(person.name);
   await page.getByLabel("Company").fill(person.company);
@@ -58,7 +59,7 @@ async function signUp(page, person) {
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL("**/dashboard", { timeout: TIMEOUT });
-  await page.getByRole("heading", { name: /Hello,/ }).waitFor({ timeout: TIMEOUT });
+  await page.getByRole("heading", { name: person.name, exact: true }).waitFor({ timeout: TIMEOUT });
 }
 
 /** Creates a project through the UI and returns its id. */
@@ -76,9 +77,9 @@ async function startReport(page, projectId) {
     waitUntil: "domcontentloaded",
     timeout: TIMEOUT,
   });
-  await page.getByRole("button", { name: "New report" }).click();
+  await page.getByRole("button", { name: "Start Site Capture" }).click();
   await page.waitForURL(/\/reports\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
-  return page.url().split("/reports/")[1].split("?")[0];
+  return new URL(page.url()).pathname.split("/")[2];
 }
 
 /** Reads the Supabase access token out of the browser's session cookie. */

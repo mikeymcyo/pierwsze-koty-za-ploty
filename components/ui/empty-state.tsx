@@ -18,14 +18,14 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center gap-3 rounded-card bg-surface/70 px-6 py-12 text-center ring-1 ring-line/70 ring-inset",
+        "work-panel flex flex-col items-start gap-4 rounded-card px-6 py-8 text-left ring-1 ring-line/70 ring-inset",
         className,
       )}
     >
-      <span className="grid size-12 place-items-center rounded-2xl bg-brand-soft text-brand-ink ring-1 ring-brand/20">
+      <span className="grid size-14 place-items-center rounded-2xl bg-info-soft text-info ring-1 ring-info/25">
         <Icon className="size-6" aria-hidden />
       </span>
-      <h3 className="text-base font-semibold text-ink">{title}</h3>
+      <h3 className="text-xl font-semibold text-ink">{title}</h3>
       <p className="max-w-sm text-sm text-ink-muted">{description}</p>
       {action ? <div className="pt-2">{action}</div> : null}
     </div>

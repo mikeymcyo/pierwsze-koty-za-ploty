@@ -50,6 +50,7 @@ export async function openSiteCapture(formData: FormData) {
   const { data: existing, error: lookupError } = await supabase
     .from("reports")
     .select("id")
+    .eq("company_id", session.companyId)
     .eq("project_id", projectId)
     .eq("status", "draft")
     .eq("report_date", date)
@@ -74,6 +75,8 @@ export async function openSiteCapture(formData: FormData) {
     .select("id")
     .single();
 
+  // The selected project may have left this workspace while the chooser was open.
+  if (error?.code === "23503") redirect("/reports/new");
   if (error) throw new Error(`Could not open Site Capture: ${error.message}`);
 
   await copyPreviousEntries(supabase, projectId, report.id, session.companyId);

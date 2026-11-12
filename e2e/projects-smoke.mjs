@@ -7,8 +7,11 @@
  *
  * Then:
  *   npm run test:projects
+ *   E2E_TEST_JOB_POS=1 adds the linked-PO checks against a disposable local Supabase.
  */
 
+import { randomUUID } from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
 import { chromium } from "playwright";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
@@ -47,11 +50,62 @@ const context = await browser.newContext({
   hasTouch: true,
 });
 const page = await context.newPage();
+page.setDefaultTimeout(20_000);
 
+const formEvents = [];
+page.on("request", request => {
+  if (request.method() === "POST") formEvents.push("POST " + new URL(request.url()).pathname);
+});
+page.on("response", response => {
+  if (response.request().method() === "POST") formEvents.push("Response " + response.status() + " " + (response.headers()["x-action-redirect"] ?? ""));
+});
+
+const missingUrl = BASE + "/projects/00000000-0000-0000-0000-000000000000";
 page.on("console", (msg) => {
-  if (msg.type() === "error") consoleErrors.push(msg.text());
+  if (msg.type() !== "error") return;
+  if (msg.location().url === missingUrl && /Failed to load resource:.*404/.test(msg.text())) return;
+  consoleErrors.push(msg.text());
 });
 page.on("pageerror", (err) => consoleErrors.push(`pageerror: ${err.message}`));
+
+async function testJobsByPurchaseOrder(projectUrl) {
+  const dbUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, "");
+  if (!["http://127.0.0.1:54321", "http://localhost:54321"].includes(dbUrl) ||
+      !["localhost", "127.0.0.1"].includes(new URL(BASE).hostname)) {
+    throw new Error("The linked-PO check requires the local app and an explicitly configured disposable Supabase on port 54321.");
+  }
+  console.log("\n12. Open and done jobs can each be found by their linked purchase order");
+  const db = createClient(dbUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+  const { error: loginError } = await db.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
+  if (loginError) throw loginError;
+  const projectId = new URL(projectUrl).pathname.split("/").at(-1);
+  const { data: project } = await db.from("projects").select("company_id").eq("id", projectId).single().throwOnError();
+  const visits = [
+    { id: randomUUID(), status: "open", store: "East entrance", po: `EAST-${stamp}` },
+    { id: randomUUID(), status: "done", store: "West entrance", po: `WEST-${stamp}` },
+  ];
+  await db.from("jobs").insert(visits.map(visit => ({
+    id: visit.id, company_id: project.company_id, status: visit.status, store_name: visit.store,
+  }))).throwOnError();
+  await db.from("job_pos").insert(visits.map(visit => ({
+    job_id: visit.id, company_id: project.company_id, po_number: visit.po,
+  }))).throwOnError();
+
+  await page.goto(`${BASE}/jobs`);
+  const search = page.getByRole("search", { name: "Search jobs" });
+  for (const visit of visits) {
+    await search.getByRole("searchbox").fill(visit.po);
+    await search.getByRole("button", { name: "Search", exact: true }).click();
+    await page.waitForURL(url => url.searchParams.get("q") === visit.po);
+    const card = page.getByRole("article").filter({ has: page.getByRole("heading", { name: visit.store, exact: true }) });
+    await card.getByText(`PO ${visit.po}`, { exact: true }).waitFor();
+    check(`search finds only the ${visit.status} job for ${visit.po}`, (await page.getByRole("article").count()) === 1);
+    const opposite = visit.status === "open" ? "done" : "open";
+    await page.getByRole("link", { name: `Show ${opposite} jobs`, exact: true }).click();
+    await page.getByText(`No ${opposite} jobs match your search.`, { exact: true }).waitFor();
+    check(`the ${visit.status} PO is excluded from ${opposite} jobs`, (await search.getByRole("searchbox").inputValue()) === visit.po);
+  }
+}
 
 try {
   console.log("\n1. Sign up");
@@ -62,18 +116,20 @@ try {
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL("**/dashboard", { timeout: TIMEOUT });
-  await page.getByRole("heading", { name: /Hello,/ }).waitFor({ timeout: TIMEOUT });
+  await page.getByRole("heading", { name: "Maciej Korzeniak", exact: true }).waitFor({ timeout: TIMEOUT });
   check("reaches the dashboard", true);
 
   console.log("\n2. Empty state offers project creation");
-  const firstProjectCta = page.getByRole("link", { name: "Create your first project" });
+  const firstProjectCta = page.getByRole("link", { name: "Create project", exact: true });
   check("dashboard shows a real create action", await firstProjectCta.isVisible());
 
   console.log("\n3. Create a project");
   await firstProjectCta.click();
-  await page.waitForURL("**/projects/new", { timeout: TIMEOUT });
+  await page.waitForURL(url => url.pathname === "/projects/new", { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByRole("heading", { name: "New project" }).waitFor({ timeout: TIMEOUT });
 
+  await page.getByLabel("Project name").waitFor();
+  check("the dashboard opens the project form", new URL(page.url()).pathname === "/projects/new");
   await page.getByLabel("Project name").fill(PROJECT.name);
   await page.getByLabel("Client").fill(PROJECT.client);
   await page.getByLabel("Site address").fill(PROJECT.address);
@@ -82,9 +138,13 @@ try {
   await page.getByLabel("Site manager").fill(PROJECT.manager);
   await page.getByLabel("Start date").fill("2026-08-01");
   await page.getByLabel("Expected completion").fill("2026-12-18");
-  await page.getByRole("button", { name: "Create project" }).click();
+  await page.getByLabel("Expected completion").press("Tab");
+  check("the form retains the project name before submission", (await page.getByLabel("Project name").inputValue()) === PROJECT.name);
+  const create = page.getByRole("button", { name: "Create project" });
+  await create.evaluate(button => button.scrollIntoView({ block: "center" }));
+  await create.tap();
 
-  await page.waitForURL(/\/projects\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
+  await page.waitForURL(/\/projects\/[0-9a-f-]{36}/, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByRole("heading", { name: PROJECT.name }).waitFor({ timeout: TIMEOUT });
   const projectUrl = page.url();
   check("lands on the new project's page", /\/projects\/[0-9a-f-]{36}$/.test(projectUrl));
@@ -166,14 +226,40 @@ try {
   check("list item links to the detail page", true);
 
   console.log("\n10. A missing project 404s rather than erroring");
-  await page.goto(`${BASE}/projects/00000000-0000-0000-0000-000000000000`, {
+  await page.goto(missingUrl, {
     waitUntil: "domcontentloaded",
     timeout: TIMEOUT,
   });
   await page.getByText("Page not found").waitFor({ timeout: TIMEOUT });
   check("unknown project id shows the not-found page", true);
+
+  console.log("\n11. Pick the right site when two jobs share a name");
+  await page.goto(`${BASE}/projects/new`);
+  await page.getByLabel("Project name").fill(PROJECT.name);
+  await page.getByLabel("Site address").fill("West entrance");
+  await page.getByLabel("Project reference").fill("1471");
+  await page.getByRole("button", { name: "Create project" }).tap();
+  await page.waitForURL(/\/projects\/[0-9a-f-]{36}$/, { timeout: TIMEOUT });
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto(`${BASE}/reports/new`);
+  const candidates = page.locator("form").filter({ has: page.getByRole("heading", { name: PROJECT.name, exact: true }) });
+  await candidates.nth(1).waitFor();
+  check("both jobs are available under the same site name", (await candidates.count()) === 2);
+  const site = candidates.filter({ has: page.getByText(`Ref ${PROJECT.reference}`, { exact: true }) });
+  check("the original job shows its postcode", await site.getByText(PROJECT.postcode, { exact: false }).isVisible());
+  const fits = await site.getByRole("heading").evaluate(el => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight);
+  check("the full site name fits at a narrow phone width", fits);
+  await site.getByRole("button", { name: "Capture", exact: true }).tap();
+  await page.waitForURL(/\/reports\/[0-9a-f-]{36}\/capture$/, { timeout: TIMEOUT });
+  const projectLink = page.getByRole("link", { name: PROJECT.name, exact: true });
+  await projectLink.waitFor();
+  check("capture opens for the selected project reference", (await projectLink.getAttribute("href")) === new URL(projectUrl).pathname);
+
+  if (process.env.E2E_TEST_JOB_POS === "1") await testJobsByPurchaseOrder(projectUrl);
 } catch (error) {
-  failures.push(`threw: ${error.message}`);
+  const detail = await page.locator("main").innerText().catch(() => "");
+  const invalid = await page.locator("main input:invalid").evaluateAll(fields => fields.map(field => field.name + ": " + field.validationMessage));
+  failures.push(`at ${new URL(page.url()).pathname}: ${error.message} | ${formEvents.join(", ")} | ${invalid.join(", ")} | ${detail.replace(/\s+/g, " ").slice(0, 1500)}`);
   console.log(`\n  [FAIL] ${error.message}`);
 } finally {
   await browser.close();

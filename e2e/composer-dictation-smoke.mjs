@@ -143,7 +143,7 @@ try {
   const arrow = page.locator("[data-composer-send]");
   const mic = page.getByRole("button", { name: "Speak" });
   const stopButton = page.getByRole("button", { name: "Stop" });
-  const prepare = page.getByRole("button", { name: /^Prepare Daily$/ });
+  const prepare = page.getByRole("button", { name: /^(Prepare Daily|Review Daily report)$/ });
   const speech = (fn, arg) => page.evaluate(fn, arg);
 
   console.log("\n1. Speaking fills the box as it is heard");
@@ -153,7 +153,7 @@ try {
   check("interim words are visible while listening", /Stripped out the old checkout counters/.test(await box.inputValue()));
   check("the box is read-only while the microphone is on", (await box.getAttribute("readonly")) !== null);
   check("the arrow cannot send while listening", await arrow.isDisabled());
-  check("Prepare Daily waits while listening", await prepare.isDisabled());
+  check("report review waits while listening", await prepare.isDisabled());
   check("and says why", await page.getByText("Stop the microphone first.").isVisible());
 
   console.log("\n2. A pause ends the session; the next one carries on");
