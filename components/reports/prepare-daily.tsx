@@ -13,7 +13,8 @@ import {
   readCaptureBusy,
   readCaptureDictating,
   readCaptureDraft,
-  setCaptureBusy,
+  readPreparePhase,
+  setPreparePhase,
   subscribeToCaptureDraft,
 } from "@/lib/capture-draft";
 import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
@@ -63,11 +64,14 @@ function PrepareButton({
 }
 
 export function PrepareDaily({ reportId, aiConfigured }: { reportId: string; aiConfigured: boolean }) {
-  // The capture's own request is on its way: wait for it rather than append
-  // alongside it. Our own in-flight state is `pending` below.
   const busy = useSyncExternalStore(
     subscribeToCaptureDraft,
     () => readCaptureBusy(reportId),
+    () => false,
+  );
+  const saving = useSyncExternalStore(
+    subscribeToCaptureDraft,
+    () => readPreparePhase(reportId) === "saving",
     () => false,
   );
   // The microphone is on, or still handing over its last words: the box is
@@ -103,7 +107,7 @@ export function PrepareDaily({ reportId, aiConfigured }: { reportId: string; aiC
         },
         prepare: () => prepareDaily(reportId, previous, formData),
         clearDraft: () => clearCaptureDraft(reportId, text),
-        setBusy: (value) => setCaptureBusy(reportId, value),
+        setPhase: (phase) => setPreparePhase(reportId, phase),
         describeFailure: describeActionFailure,
       });
       return outcome.kind === "prepared" ? outcome.state : { error: outcome.error };
@@ -113,9 +117,6 @@ export function PrepareDaily({ reportId, aiConfigured }: { reportId: string; aiC
 
   const [state, action, pending] = useRecoverableActionState<PrepareState, FormData>(guarded, {});
   const asked = state.questions && state.questions.length > 0;
-  // While pending, the first thing happening is the note going in if there
-  // was one; the label says so, then switches once the box is empty.
-  const saving = pending && busy;
 
   return (
     <div className="flex flex-col gap-3">

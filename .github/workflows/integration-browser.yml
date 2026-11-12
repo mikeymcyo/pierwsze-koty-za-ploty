@@ -39,6 +39,8 @@ jobs:
         env:
           OPENAI_API_KEY: ''
       - name: Test the running application
+        env:
+          E2E_TEST_JOB_POS: '1'
         run: |
           npm start > "$RUNNER_TEMP/siteboss.log" 2>&1 &
           curl --retry 20 --retry-connrefused --retry-delay 1 -fsS http://localhost:3000/login >/dev/null
@@ -61,15 +63,16 @@ jobs:
           printf '%s\n' e2e projects isolation reports photos composer-dictation presentation-browser pdf |
             xargs -P 3 -n 1 bash -c 'run_suite "$1"' _ || failed=1
           exit "$failed"
-      - name: Test manual Daily review without an AI provider
+      - name: Test manual Daily review in iPhone WebKit without an AI provider
         if: ${{ !cancelled() && steps.app_build.outcome == 'success' }}
         env:
           E2E_BASE_URL: http://127.0.0.1:3001
           OPENAI_API_KEY: ''
           ANTHROPIC_API_KEY: ''
         run: |
+          npx playwright install --with-deps webkit
           node_modules/.bin/next start --hostname 127.0.0.1 --port 3001 > "$RUNNER_TEMP/manual-review.log" 2>&1 &
           app_pid=$!
           trap 'kill "$app_pid" 2>/dev/null || true' EXIT
           curl --retry 20 --retry-connrefused --retry-delay 1 -fsS "$E2E_BASE_URL/login" >/dev/null
-          timeout 4m npm run test:reports -- --manual-review
+          timeout 4m npm run test:reports -- --manual-review --iphone-webkit

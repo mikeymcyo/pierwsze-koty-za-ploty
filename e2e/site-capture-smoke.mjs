@@ -316,6 +316,8 @@ check(
 );
 check("and no longer offers a second way to start today's report", !/startReport/.test(project));
 check("picking a site opens today's report", /action=\{openSiteCapture\}/.test(chooser));
+check("the site list and today's draft use the current company", [chooser, open].every((source) =>
+  source.includes('.eq("company_id", session.companyId)')));
 check("the dashboard leads with capture and can resume its existing draft", /label=.+inProgress.+Continue capture.+Capture/.test(dashboard) && /href=.+inProgress.+reports.+capture/.test(dashboard));
 check("and a draft report can go back to it", /\/capture`\}/.test(report));
 

@@ -12,6 +12,8 @@
  */
 
 import { readFileSync } from "node:fs";
+import { createClient } from "@supabase/supabase-js";
+import { listJobs } from "../lib/jobs/list-jobs.ts";
 
 import {
   JOB_GROUP_ORDER,
@@ -121,8 +123,8 @@ console.log("\n6. Wired into the app, and the database shaped for the feed later
   check("the PDFs live in a private bucket of their own", new RegExp(`'${JOB_PO_BUCKET}',\\s*'${JOB_PO_BUCKET}',\\s*false`).test(migration));
   check("with no update policy, like report PDFs", /job-pos_select/.test(migration) && /job-pos_insert/.test(migration) && /job-pos_delete/.test(migration) && !/job-pos_update/.test(migration));
   check("the page groups from today's working day", /workingDay\(\)/.test(page) && /sortJobs\(jobs, today\)/.test(page) && /groupOf\(job, today\)/.test(page));
-  check("done jobs leave the main list", /\.eq\("status", showDone \? "done" : "open"\)/.test(page) && /Show done jobs/.test(page));
-  check("a failed PO read is shown as an error, never as missing POs", /error: poError/.test(page) && /error \|\| poError/.test(page));
+  check("the page passes the active company and status to the list", /listJobs\(supabase, session.companyId, showDone \? "done" : "open"\)/.test(page));
+  check("a failed list read is shown as an error", /<LoadError what="your jobs" code=\{error.code\}/.test(page));
   check("the card has Waze, Google Maps and the PO PDF", /wazeUrl\(/.test(card) && /googleMapsUrl\(/.test(card) && /\/jobs\/\$\{job\.id\}\/po\/\$\{po\.id\}\/file/.test(card));
   check("a PDF is attached from the phone into the company's own folder", /\$\{companyId\}\/\$\{jobId\}\//.test(card) && /accept="application\/pdf,\.pdf"/.test(card));
   check("and the server binds the upload to its company, job and PO", /\$\{companyId\}\/\$\{existing\.job_id\}/.test(attachment) && /\$\{folder\}\/\$\{poId\}-/.test(attachment));
@@ -143,6 +145,68 @@ check("a store and part of its fifth PO select the correct Dover job",
 check("a store without any purchase orders can still be found", filterJobs(sorted, "whit")[0]?.store_name === "Whitton");
 check("a job without a store code is still searchable", filterJobs([{ store_name: "New site", store_code: null, pos: [] }], "new site").length === 1);
 check("unmatched terms return no results", filterJobs(sorted, "shoreham 57770").length === 0);
+
+console.log("\n8. Read jobs and POs across the API row limit");
+{
+  const id = (n) => String(n).padStart(5, "0");
+  const open = Array.from({ length: 1001 }, (_, i) => ({
+    id: id(i + 2), status: "open", company_id: "empire", store_name: `Store ${i}`, store_code: null,
+  }));
+  const archive = { id: id(0), status: "done", company_id: "empire", store_name: "Archive", store_code: null };
+  const outsider = { id: id(1), status: "open", company_id: "other", store_name: "Other company", store_code: null };
+  const jobRows = [archive, outsider, ...open];
+  const makePo = (job, n) => ({
+    id: id(n), job_id: job.id, company_id: job.company_id, po_number: `PO-${id(n)}`,
+    po_file_id: n, storage_path: `${job.company_id}/${job.id}/${n}.pdf`,
+    created_at: new Date(n * 1000).toISOString(),
+  });
+  const last = open.at(-1);
+  const poRows = [
+    ...Array.from({ length: 1001 }, (_, i) => makePo(archive, i)),
+    makePo(outsider, 1001),
+    ...Array.from({ length: 1001 }, (_, i) => makePo(last, 1002 + i)),
+  ];
+  // This PO was issued first despite sorting last by ID.
+  const target = poRows.at(-1);
+  target.created_at = "1970-01-01T00:00:00.000Z";
+  const jobById = new Map(jobRows.map((job) => [job.id, job]));
+  let failLaterPoPage = false;
+  let readCount = 0;
+  const client = createClient("http://fixtures.invalid", "fixture", {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { fetch: async (input) => {
+      const { pathname, searchParams } = new URL(input);
+      const isPo = pathname.endsWith("/job_pos");
+      const rows = isPo ? poRows : jobRows;
+      const company = searchParams.get("company_id");
+      const status = searchParams.get(isPo ? "jobs.status" : "status");
+      const after = searchParams.get("id")?.slice(3);
+      if (++readCount > 30) throw new Error("Pagination repeated a page");
+      if (company !== "eq.empire" || !["eq.open", "eq.done"].includes(status)) throw new Error("Unscoped read");
+      if (isPo && !["po_number", "po_file_id", "storage_path"].every((field) => searchParams.get("select")?.split(",").includes(field))) throw new Error("Missing PO details");
+      if (isPo && !searchParams.get("select")?.includes("jobs!inner(")) throw new Error("Missing jobs inner join");
+      if (searchParams.get("order") !== "id.asc") throw new Error("Missing stable ID order");
+      if (isPo && after && failLaterPoPage) return Response.json({ code: "fixture_failure", message: "Second page failed" }, { status: 400 });
+      const matches = rows.filter((row) =>
+        company === `eq.${row.company_id}` &&
+        status === `eq.${isPo ? jobById.get(row.job_id).status : row.status}` &&
+        (!after || row.id > after));
+      return Response.json(matches.slice(0, Math.min(Number(searchParams.get("limit") ?? 1000), 1000)));
+    } },
+  });
+  const result = await listJobs(client, "empire", "open");
+  check("all 1,001 open jobs are read in the current company", !result.error && result.jobs.length === 1001 && !result.jobs.some((job) => job.id === outsider.id || job.id === archive.id));
+  const [found] = filterJobs(result.jobs, target.po_number);
+  check("an open PO beyond the first 1,000 is searchable after 1,001 archived POs", found?.id === last.id && found.pos.length === 1001);
+  check("the attachment keeps its ID and private path, and creation order survives pagination",
+    found?.pos[0]?.id === target.id && found.pos[0].storage_path === target.storage_path && found.pos[0].po_file_id === target.po_file_id);
+  check("an open job with no PO is retained", result.jobs.find((job) => job.id === open[0].id)?.pos.length === 0);
+  const done = await listJobs(client, "empire", "done");
+  check("done reads only archived jobs and all their purchase orders", !done.error && done.jobs.length === 1 && done.jobs[0].id === archive.id && done.jobs[0].pos.length === 1001);
+  failLaterPoPage = true;
+  const failed = await listJobs(client, "empire", "open");
+  check("a later PO page failure returns an error without partial cards", failed.error?.code === "fixture_failure" && !failed.jobs.length);
+}
 
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL OPEN JOBS CHECKS PASSED");

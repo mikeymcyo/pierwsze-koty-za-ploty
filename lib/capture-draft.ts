@@ -21,6 +21,8 @@
  * screen that will not open is worse than one that forgets.
  */
 
+import type { PreparePhase } from "./reports/prepare-with-pending";
+
 const KEY_PREFIX = "siteboss:capture:";
 
 const listeners = new Set<() => void>();
@@ -36,8 +38,9 @@ const listeners = new Set<() => void>();
  */
 const live = new Map<string, string>();
 
-/** Which reports have a capture or a Prepare Daily in flight right now. */
-const busy = new Map<string, boolean>();
+/** A form can complete or unmount independently of Prepare Daily on the same report. */
+const captureRequests = new Set<string>();
+const preparePhases = new Map<string, PreparePhase>();
 
 /** Which reports have the microphone on, or still handing over its last words. */
 const dictating = new Map<string, boolean>();
@@ -110,21 +113,25 @@ export function clearCaptureDraft(reportId: string, submittedText?: string): voi
 
 /** Whether a capture or a Prepare Daily for this report is mid-request. */
 export function readCaptureBusy(reportId: string): boolean {
-  return busy.get(reportId) === true;
+  return captureRequests.has(reportId) || readPreparePhase(reportId) !== "idle";
 }
 
-/**
- * Mark a request in flight, or over.
- *
- * The arrow goes dead while Prepare Daily is adding the unsent words, and
- * Prepare Daily goes dead while the arrow's capture is on its way: two
- * requests appending to the same day at once is what the server's retry is
- * for, and two from the same thumb is what this is for.
- */
+/** Mark the capture form's own request without changing Prepare Daily's lock. */
 export function setCaptureBusy(reportId: string, value: boolean): void {
-  if (readCaptureBusy(reportId) === value) return;
-  if (value) busy.set(reportId, true);
-  else busy.delete(reportId);
+  if (captureRequests.has(reportId) === value) return;
+  if (value) captureRequests.add(reportId);
+  else captureRequests.delete(reportId);
+  notify();
+}
+
+export function readPreparePhase(reportId: string): PreparePhase {
+  return preparePhases.get(reportId) ?? "idle";
+}
+
+export function setPreparePhase(reportId: string, phase: PreparePhase): void {
+  if (readPreparePhase(reportId) === phase) return;
+  if (phase === "idle") preparePhases.delete(reportId);
+  else preparePhases.set(reportId, phase);
   notify();
 }
 
@@ -176,6 +183,7 @@ export function subscribeToCaptureDraft(listener: () => void): () => void {
 /** Test seam: forget what every screen was handed, and every busy flag. */
 export function resetCaptureDraftSnapshots(): void {
   live.clear();
-  busy.clear();
+  captureRequests.clear();
+  preparePhases.clear();
   dictating.clear();
 }

@@ -22,8 +22,10 @@ import {
   clearCaptureDraft,
   readCaptureBusy,
   readCaptureDraft,
+  readPreparePhase,
   resetCaptureDraftSnapshots,
   setCaptureBusy,
+  setPreparePhase,
   subscribeToCaptureDraft,
   writeCaptureDraft,
 } from "../lib/capture-draft.ts";
@@ -38,7 +40,7 @@ function check(label, ok, detail = "") {
 }
 
 /** A run of saveUnsentThenPrepare with every piece recorded. */
-async function run({ text, saveResult, saveThrows, prepareThrows } = {}) {
+async function run({ text, saveResult, saveThrows, prepareThrows, prepareStarted, prepareWait } = {}) {
   const log = [];
   const busyWhileSaving = [];
   const outcome = await saveUnsentThenPrepare({
@@ -51,11 +53,13 @@ async function run({ text, saveResult, saveThrows, prepareThrows } = {}) {
     },
     prepare: async () => {
       log.push(["prepare"]);
+      prepareStarted?.();
+      if (prepareWait) await prepareWait;
       if (prepareThrows) throw prepareThrows;
       return { questions: [] };
     },
     clearDraft: () => log.push(["clear"]),
-    setBusy: (value) => setCaptureBusy("r1", value),
+    setPhase: (phase) => setPreparePhase("r1", phase),
     describeFailure: describeActionFailure,
   }).catch((cause) => ({ kind: "threw", cause }));
   return { outcome, log, busyWhileSaving };
@@ -81,8 +85,27 @@ console.log("\n2. Words still in the box: added first, confirmed, then prepared"
   );
   check("the words go in as written, stamped with the phone's clock", spoken.log[0][1] === "Skip swapped at eleven." && spoken.log[0][2] === "08:14");
   check("the report is marked busy while the save is on its way", spoken.busyWhileSaving[0] === true);
-  check("and not after", readCaptureBusy("r1") === false);
+  check("the composer unlocks after Prepare Daily finishes", readCaptureBusy("r1") === false);
   check("the outcome is the prepare's", spoken.outcome.kind === "prepared");
+}
+
+for (const text of ["", "Skip swapped at eleven."]) {
+  const label = text ? "after saving a note" : "with an empty composer";
+  const started = Promise.withResolvers();
+  const waiting = Promise.withResolvers();
+  const phases = [];
+  const stop = subscribeToCaptureDraft(() => phases.push(readPreparePhase("r1")));
+  const result = run({ text, prepareStarted: started.resolve, prepareWait: waiting.promise });
+  await started.promise;
+  check("composer stays locked during delayed prepare " + label, readCaptureBusy("r1") && readPreparePhase("r1") === "preparing");
+  setCaptureBusy("r1", false); // A capture form can remount while Prepare Daily is in flight.
+  check("the capture form cannot release the prepare lock " + label, readCaptureBusy("r1"));
+  waiting.resolve();
+  const finished = await result;
+  stop();
+  check("delayed prepare unlocks on success " + label, finished.outcome.kind === "prepared" && !readCaptureBusy("r1"));
+  const expected = text ? ["saving", "preparing", "idle"] : ["preparing", "idle"];
+  check("the progress label follows each phase without an unlocked gap " + label, JSON.stringify(phases) === JSON.stringify(expected));
 }
 
 console.log("\n3. The save fails: the words stay, nothing is prepared");
@@ -108,6 +131,9 @@ console.log("\n4. A redirect out of prepare passes through, after the clear");
   const redirect = Object.assign(new Error("NEXT_REDIRECT"), { digest: "NEXT_REDIRECT;push;/reports/r1;307;" });
   const opened = await run({ text: "Done for the day.", prepareThrows: redirect });
   check("the redirect is not swallowed", opened.outcome.kind === "threw" && opened.outcome.cause === redirect);
+  check("a redirect releases the prepare lock", !readCaptureBusy("r1"));
+  const failed = await run({ text: "", prepareThrows: new Error("Connection lost") });
+  check("a failed prepare unlocks an initially empty composer", failed.outcome.kind === "threw" && !readCaptureBusy("r1"));
   check("and the box was already emptied, so the words cannot come back", JSON.stringify(opened.log.map(([s]) => s)) === JSON.stringify(["save", "clear", "prepare"]));
 }
 
@@ -200,7 +226,7 @@ console.log("\n9. Site Capture wired as the one box");
   check("the box is controlled from the phone's copy", /value=\{text\}/.test(form) && /readCaptureDraft\(reportId\)/.test(form));
   check("every change, typed or spoken, is written to it", /onValueChange=\{\(value\) => writeCaptureDraft\(reportId, value\)\}/.test(form));
   check("it is emptied only when the server confirmed", /if \(!result\.error && result\.savedAt !== undefined && typeof submittedText === "string"\)/.test(form) && /clearCaptureDraft\(reportId, submittedText\)/.test(form));
-  check("the arrow is dead while Prepare Daily is adding the unsent words", /disabled=\{busy\}/.test(form));
+  check("the composer receives the busy lock through both saving and preparing", /disabled=\{busy\}/.test(form));
   check("and the form says when its own capture is on its way", /setCaptureBusy\(reportId, pending\)/.test(form));
   check("a saving state, small, and only while saving", /if \(pending\) return <span className="text-xs text-ink-subtle">Saving…<\/span>/.test(form));
   check("the failure keeps the words and says so", /Not saved - your words are safe here/.test(form) && /state\.error \? <Alert tone="danger">/.test(form));
@@ -246,6 +272,7 @@ console.log("\n10. What the box shows while the microphone is on (real iPhone, 8
   check("nothing heard across a whole press is reported", /heardSinceStartRef/.test(hook) && /current \?\? NOTHING_HEARD_MESSAGE/.test(hook));
   check("without hiding a permission error", (hook.match(/current \?\? NOTHING_HEARD_MESSAGE/g) ?? []).length === 2);
   check("the composer shows the live words and is read-only meanwhile", /value=\{shown\}/.test(dictation) && /readOnly=\{active \|\| saving\}/.test(dictation));
+  check("typing and starting dictation both wait through Prepare Daily", /const saving = pending \|\| disabled;/.test(dictation) && /readOnly=\{active \|\| saving\}/.test(dictation) && /disabled=\{settling \|\| saving\}/.test(dictation));
   check("the arrow asks canSendCapture", /disabled=\{!canSendCapture\(/.test(dictation));
   check("Prepare Daily waits while the microphone is on", (prepare.match(/disabled=\{busy \|\| dictating\}/g) ?? []).length === 2);
   check("Today so far opens once there is a note", /open=\{entries\.length > 0\}/.test(page));

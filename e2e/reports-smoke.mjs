@@ -17,7 +17,7 @@
  *   npm run test:reports
  */
 
-import { chromium } from "playwright";
+import { chromium, devices, webkit } from "playwright";
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const stamp = Date.now();
@@ -44,13 +44,14 @@ function check(label, ok, detail = "") {
 }
 
 const TIMEOUT = 60_000;
-const launchOptions = { args: ["--no-sandbox"] };
-if (process.env.PLAYWRIGHT_CHROMIUM_PATH) {
-  launchOptions.executablePath = process.env.PLAYWRIGHT_CHROMIUM_PATH;
-}
-
-const browser = await chromium.launch(launchOptions);
-const context = await browser.newContext({
+const iPhoneWebKit = process.argv.includes("--iphone-webkit");
+const browser = iPhoneWebKit
+  ? await webkit.launch()
+  : await chromium.launch({
+      args: ["--no-sandbox"],
+      executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
+    });
+const context = await browser.newContext(iPhoneWebKit ? devices["iPhone 15"] : {
   viewport: { width: 390, height: 844 },
   isMobile: true,
   hasTouch: true,
@@ -100,18 +101,20 @@ async function testManualReview() {
   check("review saved the unsent note exactly once", rawNotes.replace(/^\[\d{2}:\d{2}\] /, "") === fieldNote, rawNotes);
 
   const summary = page.getByRole("textbox", { name: "Daily Summary", exact: true });
+  const summaryForm = page.locator("form").filter({ has: summary });
+  const editorBadge = summaryForm.getByText("Edited by you", { exact: true });
   check("the manual summary starts empty", (await summary.inputValue()) === "");
   check("manual review offers no AI writer", (await page.getByRole("button", { name: /Write my report|Rewrite from my notes/ }).count()) === 0);
   await summary.fill(manualSummary);
-  await page.getByRole("button", { name: "Save this section", exact: true }).click();
-  await page.getByText("Edited by you", { exact: true }).waitFor({ timeout: TIMEOUT });
+  await summaryForm.getByRole("button", { name: "Save this section", exact: true }).click();
+  await editorBadge.waitFor({ timeout: TIMEOUT });
   await page.reload();
   check("the saved summary survives a reload", (await summary.inputValue()) === manualSummary);
   check("the original field note survives editing the summary", (await notes.inputValue()) === rawNotes);
-  check("the summary is attributed to the editor", await page.getByText("Edited by you", { exact: true }).isVisible());
+  check("the summary is attributed to the editor", await editorBadge.isVisible());
 
   // Simulate a second device issuing this report while the capture is still open.
-  await page.getByRole("link", { name: "Site Capture", exact: true }).click();
+  await page.getByRole("main").getByRole("link", { name: "Site Capture", exact: true }).click();
   await page.waitForURL(captureUrl);
   check("the confirmed note has left the capture box", (await box.inputValue()) === "");
   const lateNote = "The supervisor has just signed the handover sheet.";
