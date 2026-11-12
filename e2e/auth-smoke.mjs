@@ -91,7 +91,10 @@ try {
     .getByRole("heading", { name: NAME, exact: true })
     .waitFor({ timeout: COLD_COMPILE_TIMEOUT });
   check("lands on the dashboard", page.url().endsWith("/dashboard"));
-  check("signup trigger created the company", await page.getByText(COMPANY, { exact: true }).filter({ visible: true }).isVisible());
+  // The phone header streams its company separately from the dashboard greeting.
+  const signedInCompany = page.getByRole("banner").getByText(COMPANY, { exact: true });
+  await signedInCompany.waitFor({ state: "visible", timeout: COLD_COMPILE_TIMEOUT });
+  check("the phone header shows the company created at signup", true);
   check("shows the empty projects state", await page.getByText("No active sites yet").isVisible());
   await page.getByText("Your reports will appear here").waitFor();
   check("shows the empty reports state", await page.getByText("Your reports will appear here").isVisible());

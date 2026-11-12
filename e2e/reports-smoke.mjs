@@ -60,12 +60,36 @@ const page = await context.newPage();
 page.setDefaultTimeout(20_000);
 
 const missingUrl = BASE + "/reports/00000000-0000-0000-0000-000000000000";
-page.on("console", (msg) => {
-  if (msg.type() !== "error") return;
-  if (msg.location().url === missingUrl && /Failed to load resource:.*404/.test(msg.text())) return;
-  consoleErrors.push(msg.text());
-});
-page.on("pageerror", (err) => consoleErrors.push(`pageerror: ${err.message}`));
+let phase = "sign up";
+const failedRequests = [];
+function monitorTab(tab) {
+  const location = () => `[${phase} at ${new URL(tab.url()).pathname}]`;
+  tab.on("console", (msg) => {
+    if (msg.type() !== "error") return;
+    if (msg.location().url === missingUrl && /Failed to load resource:.*404/.test(msg.text())) return;
+    consoleErrors.push(`${location()} ${msg.text()}`);
+  });
+  tab.on("pageerror", (err) => consoleErrors.push(`${location()} pageerror: ${err.name}: ${err.message}`));
+  tab.on("requestfailed", (request) => {
+    const url = new URL(request.url());
+    if (url.origin !== new URL(BASE).origin) return;
+    const type = request.failure()?.errorText.match(/net::ERR_[A-Z_]+|NSURLErrorDomain|cancel(?:led|ed)|abort(?:ed)?|Load failed|\w*Error\b/i)?.[0] ?? "network failure";
+    failedRequests.push(`${location()} ${request.method()} ${url.pathname} (${request.resourceType()}, ${type})`);
+  });
+}
+monitorTab(page);
+
+// Next streams server action responses. The replacement editor or issued heading
+// can already be visible while the browser is still reading the response body.
+async function submitAndFinish(tab, actionUrl, button) {
+  await Promise.all([
+    tab.waitForEvent("requestfinished", {
+      predicate: (request) => request.method() === "POST" && request.url() === actionUrl,
+      timeout: TIMEOUT,
+    }),
+    button.click(),
+  ]);
+}
 
 const reportUrlPattern = /\/reports\/[0-9a-f-]{36}/;
 
@@ -87,12 +111,14 @@ async function testManualReview() {
   const fieldNote = "The south entrance is open again after the paving repair.";
   const manualSummary = "Paving repairs at the south entrance are complete. The entrance has reopened.";
 
+  phase = "start capture";
   await page.getByRole("button", { name: "Start Site Capture" }).click();
   await page.waitForURL(/\/reports\/[0-9a-f-]{36}\/capture$/, { timeout: TIMEOUT });
   const captureUrl = page.url();
   const reportUrl = captureUrl.replace(/\/capture$/, "");
   const box = page.getByRole("textbox", { name: "What happened on site?" });
   const review = page.getByRole("button", { name: "Review Daily report", exact: true });
+  phase = "review unsent note";
   await box.fill(fieldNote);
   await review.click();
   await page.waitForURL(reportUrl, { timeout: TIMEOUT });
@@ -105,26 +131,32 @@ async function testManualReview() {
   const editorBadge = summaryForm.getByText("Edited by you", { exact: true });
   check("the manual summary starts empty", (await summary.inputValue()) === "");
   check("manual review offers no AI writer", (await page.getByRole("button", { name: /Write my report|Rewrite from my notes/ }).count()) === 0);
+  phase = "save Daily Summary";
   await summary.fill(manualSummary);
-  await summaryForm.getByRole("button", { name: "Save this section", exact: true }).click();
+  await submitAndFinish(page, reportUrl, summaryForm.getByRole("button", { name: "Save this section", exact: true }));
   await editorBadge.waitFor({ timeout: TIMEOUT });
+  phase = "reload saved report";
   await page.reload();
   check("the saved summary survives a reload", (await summary.inputValue()) === manualSummary);
   check("the original field note survives editing the summary", (await notes.inputValue()) === rawNotes);
   check("the summary is attributed to the editor", await editorBadge.isVisible());
 
   // Simulate a second device issuing this report while the capture is still open.
+  phase = "return to capture";
   await page.getByRole("main").getByRole("link", { name: "Site Capture", exact: true }).click();
   await page.waitForURL(captureUrl);
   check("the confirmed note has left the capture box", (await box.inputValue()) === "");
   const lateNote = "The supervisor has just signed the handover sheet.";
   await box.fill(lateNote);
+  phase = "issue report on second tab";
   const otherTab = await context.newPage();
+  monitorTab(otherTab);
   try {
     await otherTab.goto(reportUrl);
-    await otherTab.getByRole("button", { name: "Finalise report", exact: true }).click();
+    await submitAndFinish(otherTab, reportUrl, otherTab.getByRole("button", { name: "Finalise report", exact: true }));
     await otherTab.getByRole("heading", { name: "Issued report", exact: true }).waitFor({ timeout: TIMEOUT });
-    await review.click();
+    phase = "save note on issued report";
+    await submitAndFinish(page, captureUrl, review);
     await page.getByRole("alert").filter({ hasText: "This report has been finalised" }).waitFor();
     check("a refused save keeps the capture open with the unsent note", page.url() === captureUrl && (await box.inputValue()) === lateNote);
   } finally {
@@ -142,7 +174,11 @@ async function runReports() {
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL("**/dashboard", { timeout: TIMEOUT });
 
-  await page.goto(`${BASE}/projects/new`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
+  // The URL can change before the dashboard's signed-in layout finishes streaming.
+  phase = "open project form from dashboard";
+  await page.getByRole("main").getByRole("link", { name: "Create project", exact: true }).click();
+  await page.waitForURL("**/projects/new", { timeout: TIMEOUT });
+  phase = "create project";
   await page.getByLabel("Project name").fill(PROJECT.name);
   await page.getByLabel("Client").fill(PROJECT.client);
   await page.getByRole("button", { name: "Create project" }).click();
@@ -295,6 +331,7 @@ console.log("\n=== Result ===");
 if (failures.length === 0 && realErrors.length === 0) {
   console.log("ALL REPORT CHECKS PASSED");
 } else {
+  for (const request of failedRequests) console.log(`FAILED REQUEST: ${request}`);
   for (const f of failures) console.log(`FAILED: ${f}`);
   for (const e of realErrors) console.log(`CONSOLE ERROR: ${e}`);
   process.exitCode = 1;
