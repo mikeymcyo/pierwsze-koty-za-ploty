@@ -171,7 +171,7 @@ check("it looks for an existing report first", /from\("reports"\)[\s\S]{0,200}\.
 check("only a draft", /\.eq\("status", "draft"\)/.test(open));
 check("only this project", /\.eq\("project_id", projectId\)/.test(open));
 check("only today", /\.eq\("report_date", date\)/.test(open));
-check("and opens it rather than making another", /if \(existing\) redirect\(`\/reports\/\$\{existing\.id\}\/capture`\)/.test(open));
+check("and opens it rather than making another", /if \(existing\) return existing\.id/.test(open) && /redirect\(`\/reports\/\$\{reportId\}\/capture`\)/.test(open));
 check("a new one is only inserted when there is none", open.indexOf(".insert(") > open.indexOf("if (existing)"));
 check("today is the British working day", /workingDay\(\)/.test(open));
 check(
@@ -274,8 +274,8 @@ check(
   "and is cleared only when a capture actually landed",
   // Controlled from the phone's copy, which is cleared only where the server
   // confirmed. See the reliability pass.
-  /const landed = !state\.error && state\.savedAt !== undefined/.test(form) &&
-    /if \(landed\) clearCaptureDraft\(reportId\)/.test(form),
+  /if \(!result\.error && result\.savedAt !== undefined && typeof submittedText === "string"\)/.test(form) &&
+    /clearCaptureDraft\(reportId, submittedText\)/.test(form),
   "a failed save must leave the words in the box",
 );
 check("photographs can be added here", /PhotoUpload/.test(page));
@@ -293,7 +293,7 @@ check(
   "there is no Add note button: the arrow in the box sends",
   !/Add note/.test(form) && /type="submit"/.test(dictation.slice(dictation.indexOf("function SendButton"))),
 );
-check("one Add photos button that leaves the choice to the phone", /simple/.test(page) && /data-photo-source-button="simple"/.test(read("../components/reports/photo-upload.tsx")));
+check("camera and library are both available on Site Capture", /<FieldCapture/.test(page) && /<PhotoUpload/.test(page) && read("../components/reports/photo-upload.tsx").includes('if (simple && source.id === "files") return null;'));
 check("one Add document button, marked optional", /label="Add document"/.test(page) && /Optional\. An order, drawing, survey or instruction/.test(read("../components/documents/document-upload.tsx")));
 check("adding a document makes it job context with no second question", /onAttached=\{adoptJobDocument\.bind/.test(page));
 check("Today so far counts notes, photos and documents", /Today so far: \{plural\(entries\.length, "note"\)\} · \{plural\(photos\.length, "photo"\)\}/.test(page) && /plural\(documents, "document"\)/.test(page));

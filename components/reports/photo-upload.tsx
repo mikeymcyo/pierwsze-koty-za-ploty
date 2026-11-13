@@ -4,24 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { Camera, FolderOpen, Images, Loader2, RotateCw } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
-import { attachPhoto } from "@/app/(app)/reports/photo-actions";
-import { attachSummaryPhoto } from "@/app/(app)/summary-reports/photo-actions";
+import { originalPhoto, uploadPendingPhoto } from "@/lib/field-photo";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
-import { createClient } from "@/lib/supabase/client";
 import { UNSET_PHOTO_STATUS } from "@/lib/photo-captions";
 import { keepPendingPhoto, pendingPhotos, removePendingPhoto, type PendingUpload } from "@/lib/pending-site-photos";
 import { remainingPhotoRetries } from "@/lib/photo-retries";
-import { PHOTO_BUCKET, PHOTO_CATEGORIES, photoPathPrefix, thumbnailPath } from "@/lib/photos";
-import {
-  JPEG_QUALITY,
-  THUMB_EDGE,
-  THUMB_QUALITY,
-  downscaleSteps,
-  targetSize,
-} from "@/lib/photo-quality";
+import { PHOTO_CATEGORIES } from "@/lib/photos";
 import {
   PHOTO_SOURCES,
   isSupportedImageFile,
@@ -36,92 +27,7 @@ const SOURCE_ICONS: Record<PhotoSourceId, LucideIcon> = {
   files: FolderOpen,
 };
 
-export type Compressed = { blob: Blob; width: number; height: number; thumb: Blob | null };
-
-/**
- * Re-encodes a photo to a sensible size before upload, and makes the small
- * copy the screens will use.
- *
- * The sizes and the quality are decided in lib/photo-quality.ts, which is
- * where the reasoning lives. This function is only the canvas work: step down
- * through the chain of sizes with the browser's best resampling, encode the
- * photograph, then carry on down the same chain to the thumbnail and encode
- * that. One decode, one chain, two files.
- *
- * The orientation is asked for explicitly. It is the default in every current
- * browser, but a photograph whose EXIF orientation is dropped comes out on its
- * side in the PDF, and that is not something to leave to a default.
- *
- * Falls back to the original file when anything about the canvas path fails -
- * a large upload is much better than a lost photo, and the bucket enforces its
- * own 15 MB ceiling anyway. A thumbnail is a convenience and never evidence,
- * so a missing one is null rather than a failure; the route that serves them
- * falls back to the photograph itself.
- */
-export async function compress(file: File): Promise<Compressed> {
-  const original: Compressed = { blob: file, width: 0, height: 0, thumb: null };
-
-  if (typeof createImageBitmap !== "function") return original;
-
-  try {
-    const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
-    const source = { width: bitmap.width, height: bitmap.height };
-    const target = targetSize(source);
-
-    let drawn: CanvasImageSource = bitmap;
-    let canvas: HTMLCanvasElement | null = null;
-
-    function stepDown(from: { width: number; height: number }, to: { width: number; height: number }) {
-      for (const step of downscaleSteps(from, to)) {
-        const next = document.createElement("canvas");
-        next.width = step.width;
-        next.height = step.height;
-
-        const context = next.getContext("2d");
-        if (!context) return false;
-
-        // Without this a 4032px photograph is point-sampled down to 1600 and
-        // every fine detail in it is thrown away before the encoder ever runs.
-        context.imageSmoothingEnabled = true;
-        context.imageSmoothingQuality = "high";
-        context.drawImage(drawn, 0, 0, step.width, step.height);
-
-        drawn = next;
-        canvas = next;
-      }
-      return true;
-    }
-
-    if (!stepDown(source, target)) {
-      bitmap.close();
-      return { ...original, width: source.width, height: source.height };
-    }
-
-    bitmap.close();
-    if (!canvas) return { ...original, ...target };
-
-    const encode = (from: HTMLCanvasElement, quality: number) =>
-      new Promise<Blob | null>((resolve) => from.toBlob(resolve, "image/jpeg", quality));
-
-    const blob = await encode(canvas, JPEG_QUALITY);
-
-    // The thumbnail continues down the same chain rather than starting again
-    // from the bitmap, so it is resampled just as gently and costs one more
-    // pair of draws rather than a second decode. A photograph already smaller
-    // than a tile gets none: it would be no smaller, and the route serves the
-    // photograph itself when there is nothing beside it.
-    const thumbTarget = targetSize(target, THUMB_EDGE);
-    const worthIt = thumbTarget.width < target.width || thumbTarget.height < target.height;
-    const thumb =
-      worthIt && stepDown(target, thumbTarget) && canvas
-        ? await encode(canvas, THUMB_QUALITY)
-        : null;
-
-    return blob ? { blob, ...target, thumb } : { ...original, ...target, thumb };
-  } catch {
-    return original;
-  }
-}
+export { compress } from "@/lib/field-photo";
 
 /**
  * Adds photos to a report, to a survey, or to the project itself.
@@ -149,15 +55,7 @@ export function PhotoUpload({
   projectId: string;
   reportId: string | null;
   summaryReportId?: string | null;
-  /**
-   * One button, "Add photos", and nothing else.
-   *
-   * For Site Capture, where a new operative has to know what to press with no
-   * explanation. The single input carries no `capture`, which is exactly what
-   * makes iOS show its own sheet - Take Photo, Photo Library, Choose File -
-   * so every source is still one tap away; the app just stops naming them.
-   * No status menu either: a status is chosen on the report, if at all.
-   */
+  /** Site Capture offers the camera and a multi-select library input without a status menu. */
   simple?: boolean;
   captureUserId?: string;
   /**
@@ -174,33 +72,26 @@ export function PhotoUpload({
   const [category, setCategory] = useState<PhotoCategory>(defaultCategory);
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
-  /**
-   * Photographs that did not make it.
-   *
-   * The compressed bytes are kept, and so is the storage path minted when the
-   * file was chosen - not a fresh one per attempt. That is what makes a retry
-   * safe: it writes the same object again rather than a second copy, and
-   * attachPhoto refuses to insert a second row for a path it already has. So
-   * pressing Retry twice on one bar of signal cannot leave two of the same
-   * photograph in the report.
-   */
   const [failed, setFailed] = useState<PendingUpload[]>([]);
   const scope = captureUserId && reportId ? [captureUserId, companyId, projectId, reportId].join(":") : null;
-  const [restoring, setRestoring] = useState(Boolean(scope));
   const [storageWarning, setStorageWarning] = useState(false);
+  const seen = useRef(new Set<string>());
+  const inFlight = useRef(new Set<string>());
+  const uploads = useRef<Promise<void>>(Promise.resolve());
   useEffect(() => {
     if (!scope) return;
     let active = true;
     pendingPhotos(scope)
-      .then(photos => { if (active) setFailed(photos); })
-      .catch(() => { if (active) setStorageWarning(true); })
-      .finally(() => { if (active) setRestoring(false); });
+      .then(photos => {
+        if (!active) return;
+        const restored = photos.filter(photo => !seen.current.has(photo.id));
+        setFailed(previous => remainingPhotoRetries(previous, restored, restored));
+      })
+      .catch(() => { if (active) setStorageWarning(true); });
     return () => { active = false; };
   }, [scope]);
 
-  // A photograph half-way to the bucket is work in progress. Leaving the page
-  // now loses it, so the browser asks first - the one thing that can be done
-  // about it without an offline queue.
+  // Warn while uploads or unsaved in-memory photos still need attention.
   useEffect(() => {
     if (!busy && !failed.length) return;
     const warn = (event: BeforeUnloadEvent) => event.preventDefault();
@@ -229,120 +120,55 @@ export function PhotoUpload({
       return;
     }
 
-    setError(null);
-    setBusy({ done: 0, total: list.length });
-
-    // Compressed and given its storage path here, once, before any attempt.
-    // Every retry of this photograph then writes the same object.
-    const pending: PendingUpload[] = [];
-    for (const file of list) {
-      const { blob, width, height, thumb } = await compress(file);
-      const item = {
-        category,
-        id: crypto.randomUUID(),
-        name: file.name,
-        blob,
-        width,
-        height,
-        thumb,
-        path: `${photoPathPrefix(companyId, projectId)}${crypto.randomUUID()}.jpg`,
-      };
-      if (scope) {
-        try {
-          await keepPendingPhoto(scope, item);
-        } catch {
-          setStorageWarning(true);
-        }
-      }
-      pending.push(item);
-    }
-
+    const pending = list.map(file => ({
+      ...originalPhoto(file, crypto.randomUUID(), companyId, projectId),
+      category,
+    }));
     resetInput(source);
+    setError(null);
+    for (const item of pending) seen.current.add(item.id);
+
+    // Start saving all originals immediately, including the rest of a library
+    // selection. Decoding or waiting on the network can outlive the page.
+    if (scope) {
+      await Promise.all(pending.map(item =>
+        keepPendingPhoto(scope, item).catch(() => setStorageWarning(true)),
+      ));
+    }
     await send(pending, skippedNote);
   }
 
-  /**
-   * Upload and attach, one at a time, keeping whatever failed.
-   *
-   * Nothing is reported as uploaded before the row exists: an object in the
-   * bucket with no row is not a photograph in the report, and saying it was
-   * would be the exact lie this pass exists to remove.
-   */
-  async function send(pending: PendingUpload[], skippedNote = "") {
-    setBusy({ done: 0, total: pending.length });
-    const stillFailing: PendingUpload[] = [];
-    let firstFailure: string | null = null;
+  async function send(selection: PendingUpload[], skippedNote = "") {
+    const pending = selection.filter(photo => !inFlight.current.has(photo.id));
+    if (!pending.length) return;
+    for (const item of pending) inFlight.current.add(item.id);
+    setBusy(previous => ({ done: previous?.done ?? 0, total: (previous?.total ?? 0) + pending.length }));
 
-    for (const [index, item] of pending.entries()) {
-      try {
-        const supabase = createClient();
-        const { error: uploadError } = await supabase.storage
-          .from(PHOTO_BUCKET)
-          .upload(item.path, item.blob, {
-            contentType: item.blob.type || "image/jpeg",
-            // The same path on a retry. Upsert so an object left behind by a
-            // half-finished first attempt is replaced rather than refused,
-            // which is what used to turn a retry into a second photograph.
-            upsert: true,
-          });
-
-        if (uploadError) throw new Error(uploadError.message);
-
-        // Beside the photograph, and never in front of it. A screen with no
-        // thumbnail falls back to the photograph itself and looks identical -
-        // it just costs more to fetch - so a thumbnail that will not upload is
-        // not a reason to tell somebody their site photo did not save.
-        if (item.thumb) {
-          await supabase.storage
-            .from(PHOTO_BUCKET)
-            .upload(thumbnailPath(item.path), item.thumb, {
-              contentType: "image/jpeg",
-              upsert: true,
-            })
-            .catch(() => undefined);
+    // Serialise decodes to keep iPhone memory bounded. The pickers remain
+    // available while earlier photos are queued, and new originals are saved immediately.
+    const run = async () => {
+      const stillFailing: PendingUpload[] = [];
+      let firstFailure: string | null = null;
+      for (const item of pending) {
+        try {
+          await uploadPendingPhoto(item, { companyId, projectId, reportId, summaryReportId });
+          if (scope) await removePendingPhoto(scope, item.id).catch(() => setStorageWarning(true));
+        } catch (cause) {
+          stillFailing.push(item);
+          firstFailure ??= cause instanceof Error ? cause.message : "Upload failed.";
+        } finally {
+          inFlight.current.delete(item.id);
+          setBusy(previous => previous && previous.done + 1 < previous.total
+            ? { ...previous, done: previous.done + 1 }
+            : null);
         }
-
-        const result = summaryReportId
-          ? await attachSummaryPhoto({
-              summaryReportId,
-              storagePath: item.path,
-              caption: null,
-              category: item.category,
-              width: item.width || null,
-              height: item.height || null,
-            })
-          : await attachPhoto({
-              projectId,
-              reportId,
-              storagePath: item.path,
-              caption: null,
-              category: item.category,
-              width: item.width || null,
-              height: item.height || null,
-            });
-        if (result?.error) throw new Error(result.error);
-        if (scope) await removePendingPhoto(scope, item.id).catch(() => setStorageWarning(true));
-      } catch (cause) {
-        stillFailing.push(item);
-        firstFailure ??= cause instanceof Error ? cause.message : "Upload failed";
       }
-
-      setBusy({ done: index + 1, total: pending.length });
-    }
-
-    setBusy(null);
-    setFailed((previous) => remainingPhotoRetries(previous, pending, stillFailing));
-
-    if (stillFailing.length) {
-      setError(
-        (stillFailing.length === pending.length
-          ? `Nothing uploaded. ${firstFailure}`
-          : `${pending.length - stillFailing.length} of ${pending.length} uploaded. ${firstFailure}`) +
-          skippedNote,
-      );
-    } else {
-      setError(skippedNote.trim() ? `Uploaded.${skippedNote}` : null);
-    }
+      setFailed(previous => remainingPhotoRetries(previous, pending, stillFailing));
+      if (firstFailure) setError(`Photo upload failed. ${firstFailure}${skippedNote}`);
+      else setError(skippedNote.trim() || null);
+    };
+    uploads.current = uploads.current.then(run, run);
+    await uploads.current;
   }
 
   // Clearing the value is what lets the same photo be chosen twice running -
@@ -352,44 +178,8 @@ export function PhotoUpload({
     if (input) input.value = "";
   }
 
-  const simpleSource = PHOTO_SOURCES.find((source) => source.id === "files")!;
-
   return (
     <div className="flex flex-col gap-3">
-      {simple ? (
-        <>
-          <Button
-            type="button"
-            size="lg"
-            variant="secondary"
-            className="w-full text-base"
-            onClick={() => inputRefs.current.get("files")?.click()}
-            disabled={busy !== null || restoring}
-            data-photo-source-button="simple"
-          >
-            <Camera aria-hidden />
-            Add photos
-          </Button>
-          <p className="text-xs text-ink-muted">
-            Weak signal? Take photos in Camera first, then choose Photo Library here so you keep the originals.
-          </p>
-          <input
-            ref={(node) => {
-              inputRefs.current.set("files", node);
-            }}
-            type="file"
-            accept={simpleSource.accept}
-            multiple={simpleSource.multiple}
-            data-photo-source="simple"
-            className="sr-only"
-            tabIndex={-1}
-            aria-hidden
-            onChange={(event) => {
-              if (event.target.files) void handleFiles("files", event.target.files);
-            }}
-          />
-        </>
-      ) : null}
       {simple ? null : (
       <div className="flex min-w-40 max-w-xs flex-col gap-2">
         <Label htmlFor="photo-category">Status (optional)</Label>
@@ -407,15 +197,9 @@ export function PhotoUpload({
       </div>
       )}
 
-      {/*
-        Three buttons rather than one: on a phone the choice between the camera
-        and the library is the whole interaction, and it is made before the
-        picker opens rather than inside someone else's sheet. (Site Capture is
-        the exception, above.)
-      */}
-      {simple ? null : (
-      <div className="grid gap-2 sm:grid-cols-3">
+      <div className={simple ? "grid grid-cols-2 gap-2" : "grid gap-2 sm:grid-cols-3"}>
         {PHOTO_SOURCES.map((source) => {
+          if (simple && source.id === "files") return null;
           const Icon = SOURCE_ICONS[source.id];
 
           return (
@@ -426,13 +210,12 @@ export function PhotoUpload({
                 variant={source.id === "camera" ? "primary" : "secondary"}
                 className="w-full justify-start text-left text-base sm:justify-center sm:text-center"
                 onClick={() => inputRefs.current.get(source.id)?.click()}
-                disabled={busy !== null}
                 data-photo-source-button={source.id}
               >
                 <Icon aria-hidden />
-                {source.label}
+                {simple && source.id === "library" ? "Photo library" : source.label}
               </Button>
-              <p className="text-xs text-ink-muted">{source.hint}</p>
+              {simple ? null : <p className="text-xs text-ink-muted">{source.hint}</p>}
 
               {/*
                 Fixed attributes, one input per source. Hidden from assistive
@@ -459,7 +242,6 @@ export function PhotoUpload({
           );
         })}
       </div>
-      )}
 
       {busy ? (
         <p role="status" className="flex items-center gap-2 text-sm font-semibold text-ink-muted">
@@ -483,11 +265,19 @@ export function PhotoUpload({
             {failed.map((item) => (
               <li key={item.id} className="truncate">
                 {item.name || "Site photograph"}
+                {storageWarning ? <button type="button" className="ml-2 underline" onClick={() => {
+                  const url = URL.createObjectURL(item.blob);
+                  const link = document.createElement("a");
+                  link.href = url;
+                  link.download = item.name || "site-photo";
+                  link.click();
+                  setTimeout(() => URL.revokeObjectURL(url), 60000);
+                }}>Save a copy</button> : null}
               </li>
             ))}
           </ul>
           <p className="text-sm text-ink-muted">
-            Keep this screen open and tap Try again when you have signal.
+            {scope && !storageWarning ? "Saved on this device. Reopen this report or retry when you have signal." : "Keep this screen open and retry when you have signal."}
           </p>
           <Button
             type="button"
@@ -496,7 +286,7 @@ export function PhotoUpload({
             onClick={() => void send(failed)}
           >
             <RotateCw aria-hidden />
-            Try again
+            Retry upload
           </Button>
         </div>
       ) : null}

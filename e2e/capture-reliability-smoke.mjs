@@ -41,6 +41,7 @@ const actions = read("../app/(app)/reports/capture-actions.ts");
 const form = read("../components/reports/site-capture-form.tsx");
 const dictation = read("../components/reports/dictation-field.tsx");
 const upload = read("../components/reports/photo-upload.tsx");
+const pipeline = read("../lib/field-photo.ts");
 const photoActions = read("../app/(app)/reports/photo-actions.ts");
 const summaryPhotoActions = read("../app/(app)/summary-reports/photo-actions.ts");
 
@@ -61,7 +62,7 @@ check(
 );
 check(
   "and the action answers 'saved' rather than writing it again",
-  /if \(alreadyEnded\(current\.raw_notes, parsed\.data\.text, parsed\.data\.at\)\) \{\s*\n\s*return \{ savedAt/.test(
+  /if \(retryEntry \|\| alreadyEnded\(current\.raw_notes, parsed\.data\.text, parsed\.data\.at\)\) \{\s*\n\s*return \{ savedAt/.test(
     actions,
   ),
 );
@@ -95,15 +96,12 @@ check(
 );
 check(
   "the box is only emptied when the server confirms",
-  /const landed = !state\.error && state\.savedAt !== undefined/.test(form) &&
-    /if \(landed\) clearCaptureDraft\(reportId\)/.test(form),
+  /if \(!result\.error && result\.savedAt !== undefined && typeof submittedText === "string"\)/.test(form) &&
+    /clearCaptureDraft\(reportId, submittedText\)/.test(form),
 );
 check(
   "never on a failure",
-  // The clear is guarded by `landed`, and `landed` is false whenever the
-  // action came back with an error - so a failed save cannot reach it.
-  /const landed = !state\.error &&/.test(form) &&
-    !/if \(!landed\)[\s\S]{0,60}clearCaptureDraft/.test(form),
+  /await action\(previous, formData\);\s*if \(!result.error && result.savedAt !== undefined/.test(form),
 );
 check(
   "and the write still refuses to overwrite somebody else's append",
@@ -146,6 +144,22 @@ check("a landed capture empties it", readCaptureDraft("r1") === "");
 check("and says so, so the box comes back empty", notified === 1);
 stop();
 
+writeCaptureDraft("r1", "Delivery unloaded.");
+const sent = readCaptureDraft("r1");
+writeCaptureDraft("r1", "Generator tripped.");
+clearCaptureDraft("r1", sent);
+resetCaptureDraftSnapshots();
+check("a delayed acknowledgement leaves later typing intact on reopen", readCaptureDraft("r1") === "Generator tripped.");
+
+const sentFromThisTab = readCaptureDraft("r1");
+memory.set("siteboss:capture:r1", "Crane arrived."); // Before the other tab's storage event is delivered.
+clearCaptureDraft("r1", sentFromThisTab);
+check("the other tab's pending note stays in the box", readCaptureDraft("r1") === "Crane arrived.");
+resetCaptureDraftSnapshots();
+check("the other tab's words also survive a reload", readCaptureDraft("r1") === "Crane arrived.");
+clearCaptureDraft("r1", "Crane arrived.");
+check("the matching acknowledgement clears the draft", readCaptureDraft("r1") === "" && !memory.has("siteboss:capture:r1"));
+
 writeCaptureDraft("r1", "   ");
 check("the box shows the space that was typed", readCaptureDraft("r1") === "   ");
 resetCaptureDraftSnapshots();
@@ -176,14 +190,14 @@ console.log("\n5. A photograph that failed is kept, and retried onto the same ob
 
 check(
   "the storage path is minted once, when the file is chosen",
-  /path: `\$\{photoPathPrefix\(companyId, projectId\)\}\$\{crypto\.randomUUID\(\)\}\.jpg`/.test(upload),
+  pipeline.includes('photoPathPrefix(companyId, projectId)') && pipeline.includes('${id}.jpg') && upload.includes('originalPhoto(file, crypto.randomUUID()'),
 );
 check(
   "and never again per attempt",
-  (upload.match(/crypto\.randomUUID\(\)/g) ?? []).length === 2,
-  "one for the item id, one for the path",
+  (upload.match(/crypto\.randomUUID\(\)/g) ?? []).length === 1 && !pipeline.includes("randomUUID"),
+  "one ID supplies the path for every attempt",
 );
-check("a retry writes the same object", /upsert: true/.test(upload));
+check("an already uploaded object is reused at its stable path", pipeline.includes("upsert: false") && pipeline.includes("ResourceAlreadyExists"));
 const firstPhoto = { id: "first", blob: new Blob(["first photo"]), category: "before" };
 const secondPhoto = { id: "second", blob: new Blob(["second photo"]), category: "after" };
 const bothFailed = remainingPhotoRetries([firstPhoto], [secondPhoto], [secondPhoto]);
@@ -195,7 +209,7 @@ check("a successful retry clears the remaining photograph", remainingPhotoRetrie
 check("and offered back with a Try again", /onClick=\{\(\) => void send\(failed\)\}/.test(upload));
 check(
   "nothing is called uploaded until the row exists",
-  /if \(result\?\.error\) throw new Error\(result\.error\)/.test(upload),
+  /if \(result\?\.error\) throw new Error\(result\.error\)/.test(pipeline) && pipeline.includes("if (!result.ok) throw"),
   "an object in the bucket with no row is not a photograph in the report",
 );
 check("uploading says so while it runs", /Uploading \{busy\.done\} of \{busy\.total\}/.test(upload));
@@ -209,13 +223,13 @@ console.log("\n6. A duplicate retry does not create a duplicate photograph");
 
 check(
   "a daily report refuses a second row for a path it already has",
-  /\.from\("photos"\)\s*\n\s*\.select\("id"\)\s*\n\s*\.eq\("storage_path", storagePath\)/.test(
+  /\.from\("photos"\)\s*\n\s*\.select\("id, project_id, report_id"\)\s*\n\s*\.eq\("storage_path", storagePath\)/.test(
     photoActions,
   ),
 );
 check(
   "and returns success rather than an error, because it really is attached",
-  /if \(existing\) \{[\s\S]{0,200}return \{\};/.test(photoActions),
+  /if \(existing\) \{[\s\S]{0,550}return \{\};/.test(photoActions),
 );
 check(
   "a consolidated report reuses the row it made last time",

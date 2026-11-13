@@ -119,7 +119,7 @@ check("and not so high that every fetch pays for it", JPEG_QUALITY <= 0.92, Stri
 
 console.log("\n5. The upload screen uses these rules rather than its own");
 
-const upload = codeOf(read("../components/reports/photo-upload.tsx"));
+const upload = codeOf(read("../lib/field-photo.ts"));
 check("the constants live in one place", /from "@\/lib\/photo-quality"/.test(upload));
 check("no second ceiling is hard-coded on the screen", !/=\s*1600\b/.test(upload), upload.match(/=\s*1600\b.*/)?.[0] ?? "");
 check("no second quality is hard-coded either", !/toBlob\([^)]*0\.\d+\s*\)/.test(upload));

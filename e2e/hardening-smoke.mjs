@@ -166,7 +166,11 @@ console.log("\n3. A photograph landing does not remount the dictation box");
   check("the box is controlled from that value rather than keyed on it, so nothing remounts under a dictation", /value=\{text\}/.test(form) && !/key=\{/.test(form));
   const uploader = read("../components/reports/photo-upload.tsx");
   check("the uploader never refreshes the router itself; the attach action's revalidation is what shows the photograph", !/router\.refresh|useRouter/.test(uploader));
-  check("and it uploads one selection straight through: compress, object, thumbnail, row", /await compress\(file\)/.test(uploader) && uploader.indexOf("upload(item.path") < uploader.indexOf("thumbnailPath(item.path") && uploader.indexOf("thumbnailPath(item.path") < uploader.indexOf("attachPhoto({"));
+  const upload = read("../lib/field-photo.ts");
+  check("the original is written before attachment and the thumbnail can complete independently",
+    upload.includes("await compress(photo.blob)") && upload.includes("await bucket.upload(item.path")
+      && upload.indexOf("await bucket.upload(item.path") < upload.indexOf('await commitFieldPart({ kind: "photo"')
+      && upload.includes("void bucket.upload(thumbnailPath(item.path)"));
 }
 
 console.log("\n4. Finalising refuses when a plate could not be read");

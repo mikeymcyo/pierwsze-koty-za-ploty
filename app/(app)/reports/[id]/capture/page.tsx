@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { Camera, CalendarDays, FileText, Sparkles } from "lucide-react";
@@ -5,6 +6,7 @@ import { Camera, CalendarDays, FileText, Sparkles } from "lucide-react";
 import { adoptJobDocument } from "@/app/(app)/projects/brief-actions";
 import { addCapture } from "@/app/(app)/reports/capture-actions";
 import { DocumentUpload } from "@/components/documents/document-upload";
+import { FieldCapture } from "@/components/reports/field-capture";
 import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
 import { PhotoUpload } from "@/components/reports/photo-upload";
 import { PrepareDaily } from "@/components/reports/prepare-daily";
@@ -12,7 +14,7 @@ import { SiteCaptureForm } from "@/components/reports/site-capture-form";
 import { BackLink } from "@/components/ui/back-link";
 import { Card, CardContent } from "@/components/ui/card";
 import { hasAiConfig } from "@/lib/ai/report-generation";
-import { requireSessionContext } from "@/lib/auth/session";
+import { requireSessionContext, type SessionContext } from "@/lib/auth/session";
 import { captureSpan, parseCaptureLog } from "@/lib/reports/capture-log";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
 import { createClient } from "@/lib/supabase/server";
@@ -58,6 +60,38 @@ export default async function SiteCapturePage({
 
   const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
 
+  const projectHref = `/projects/${report.project_id}`;
+  return (
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col gap-3">
+        <BackLink href={projectHref}>{project?.name ?? "Back"}</BackLink>
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <h1 className="text-[28px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
+            Site Capture
+          </h1>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-ink-muted">
+            <CalendarDays aria-hidden className="size-3.5" />
+            {formatDate(report.report_date)}
+          </span>
+        </div>
+      </header>
+
+      <FieldCapture key={session.userId + ":" + report.id} userId={session.userId} companyId={session.companyId}
+        projectId={report.project_id} projectName={project?.name ?? "Site"} reportId={report.id} />
+
+      <Suspense fallback={<p role="status" className="text-sm text-ink-muted">Loading report details…</p>}>
+        <CaptureDetails report={report} session={session} supabase={supabase} />
+      </Suspense>
+    </div>
+  );
+}
+
+async function CaptureDetails({ report, session, supabase }: {
+  report: { id: string; project_id: string; raw_notes: string | null };
+  session: SessionContext;
+  supabase: Awaited<ReturnType<typeof createClient>>;
+}) {
+  const id = report.id;
   const [{ data: photoRows }, { count: documentCount }] = await Promise.all([
     withClockSkewRetry(() =>
       supabase
@@ -83,26 +117,13 @@ export default async function SiteCapturePage({
   const entries = parseCaptureLog(report.raw_notes);
   const span = captureSpan(entries);
   const captureHref = `/reports/${report.id}/capture`;
-  const projectHref = `/projects/${report.project_id}`;
+
   const documents = documentCount ?? 0;
 
   const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-3">
-        <BackLink href={projectHref}>{project?.name ?? "Back"}</BackLink>
-        <div className="flex flex-wrap items-end justify-between gap-3">
-          <h1 className="text-[28px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
-            Site Capture
-          </h1>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-ink-muted">
-            <CalendarDays aria-hidden className="size-3.5" />
-            {formatDate(report.report_date)}
-          </span>
-        </div>
-      </header>
-
+    <>
       {/* 1. Say what happened. The question is the heading of the screen. */}
       <Card raised>
         <CardContent className="flex flex-col gap-4">
@@ -204,6 +225,6 @@ export default async function SiteCapturePage({
         </p>
         <PrepareDaily reportId={report.id} />
       </div>
-    </div>
+    </>
   );
 }

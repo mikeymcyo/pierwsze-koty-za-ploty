@@ -1,11 +1,12 @@
 "use server";
 
+import { createHash } from "node:crypto";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
 import { displayName, requireSessionContext } from "@/lib/auth/session";
-import { alreadyEnded, appendCapture, isCaptureTime } from "@/lib/reports/capture-log";
+import { alreadyEnded, appendCapture, isCaptureTime, parseCaptureLog } from "@/lib/reports/capture-log";
 import { copyPreviousEntries } from "@/lib/reports/carry-over";
 import { workingDay } from "@/lib/reports/working-day";
 import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
@@ -42,10 +43,17 @@ export async function openSiteCapture(formData: FormData) {
   const projectId = String(formData.get("projectId") ?? "").trim();
   if (!projectId) redirect("/reports/new");
 
+  const reportId = await resolveFieldReport(projectId, workingDay());
+  redirect(`/reports/${reportId}/capture`);
+}
+
+/** Resolve the day the evidence was collected, including uploads retried the next day. */
+export async function resolveFieldReport(projectId: string, date: string): Promise<string> {
+  if (!z.string().uuid().safeParse(projectId).success || !z.iso.date().safeParse(date).success) {
+    throw new Error("Choose a valid site and capture date.");
+  }
   const session = await requireSessionContext();
   const supabase = await createClient();
-
-  const date = workingDay();
 
   const { data: existing, error: lookupError } = await supabase
     .from("reports")
@@ -58,11 +66,21 @@ export async function openSiteCapture(formData: FormData) {
     .maybeSingle();
 
   if (lookupError) throw new Error("Could not check today's report. Please retry.");
-  if (existing) redirect(`/reports/${existing.id}/capture`);
+  if (existing) return existing.id;
+
+  // Concurrent offline retries for the first draft converge on the same primary key.
+  // An issued Daily may already exist for the date, so include its ID as the predecessor.
+  const { data: issued, error: issuedError } = await supabase.from("reports").select("id")
+    .eq("project_id", projectId).eq("report_date", date).eq("status", "final")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (issuedError) throw new Error("Could not check issued reports. Please retry.");
+  const digest = createHash("sha256").update([session.companyId, projectId, date, issued?.id ?? ""].join("/")).digest("hex");
+  const id = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-8${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
 
   const { data: report, error } = await supabase
     .from("reports")
     .insert({
+      id,
       company_id: session.companyId,
       project_id: projectId,
       author_id: session.userId,
@@ -74,14 +92,19 @@ export async function openSiteCapture(formData: FormData) {
     .select("id")
     .single();
 
-  if (error) throw new Error(`Could not open Site Capture: ${error.message}`);
+  if (error?.code === "23505") {
+    const { data: winner } = await supabase.from("reports").select("id").eq("id", id)
+      .eq("project_id", projectId).eq("status", "draft").maybeSingle();
+    if (winner) return winner.id;
+  }
+  if (error || !report) throw new Error("Could not open Site Capture. Please retry.");
 
   await copyPreviousEntries(supabase, projectId, report.id, session.companyId);
 
   revalidatePath("/reports");
   revalidatePath("/dashboard");
   revalidatePath(`/projects/${projectId}`);
-  redirect(`/reports/${report.id}/capture`);
+  return report.id;
 }
 
 const captureSchema = z.object({
@@ -144,7 +167,9 @@ export async function addCapture(
     // Already there. A tap on one bar of signal that looks like it did nothing
     // is tapped again, and the reply to the second tap is "yes, that is saved"
     // rather than the same sentence written into the day twice.
-    if (alreadyEnded(current.raw_notes, parsed.data.text, parsed.data.at)) {
+    const retryEntry = formData.get("field_retry") === "1" && parsed.data.at &&
+      parseCaptureLog(current.raw_notes).some(entry => entry.at === parsed.data.at && entry.text === parsed.data.text);
+    if (retryEntry || alreadyEnded(current.raw_notes, parsed.data.text, parsed.data.at)) {
       return { savedAt: parsed.data.at ?? "" };
     }
 

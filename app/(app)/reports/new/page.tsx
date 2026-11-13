@@ -3,6 +3,7 @@ import Link from "next/link";
 import { HardHat, Mic } from "lucide-react";
 
 import { openSiteCapture } from "@/app/(app)/reports/capture-actions";
+import { FieldCapture } from "@/components/reports/field-capture";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,7 +16,7 @@ import { createClient } from "@/lib/supabase/server";
 export const metadata: Metadata = { title: "Site Capture" };
 
 export default async function NewReportPage() {
-  await requireSessionContext();
+  const session = await requireSessionContext();
   const supabase = await createClient();
 
   const { data, error } = await withClockSkewRetry(() =>
@@ -60,10 +61,10 @@ export default async function NewReportPage() {
       ) : (
         <ul className="flex flex-col gap-3">
           {projects.map((project) => (
-            <li key={project.id}>
+            <li key={session.userId + ":" + session.companyId + ":" + project.id}>
               <Card>
-                <form action={openSiteCapture} className="flex items-center gap-4 p-5">
-                  <input type="hidden" name="projectId" value={project.id} />
+                <div className="flex flex-wrap items-center gap-3 p-5">
+
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold text-ink">{project.name}</p>
                     <p className="truncate text-sm text-ink-muted">
@@ -72,11 +73,15 @@ export default async function NewReportPage() {
                     </p>
                   </div>
                   <ProjectStatusBadge status={project.status} />
-                  <Button type="submit" size="md" className="shrink-0">
-                    <Mic aria-hidden />
-                    Capture
-                  </Button>
-                </form>
+                  <FieldCapture userId={session.userId} companyId={session.companyId} projectId={project.id} projectName={project.name} />
+                  <form action={openSiteCapture}>
+                    <input type="hidden" name="projectId" value={project.id} />
+                    <Button type="submit" variant="secondary" size="md" className="shrink-0">
+                      <Mic aria-hidden />
+                      Open daily report
+                    </Button>
+                  </form>
+                </div>
               </Card>
             </li>
           ))}

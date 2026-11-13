@@ -3,6 +3,8 @@ import type { PhotoCategory } from "@/types/database";
 export type PendingUpload = {
   category: PhotoCategory;
   id: string;
+  /** Missing on existing records whose bytes have already been compressed. */
+  original?: boolean;
   name: string;
   blob: Blob;
   width: number;

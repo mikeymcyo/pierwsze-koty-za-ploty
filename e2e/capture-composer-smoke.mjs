@@ -199,7 +199,7 @@ console.log("\n9. Site Capture wired as the one box");
   check("and has no Add note button of its own", !/Add note/.test(form) && !/SaveButton/.test(form));
   check("the box is controlled from the phone's copy", /value=\{text\}/.test(form) && /readCaptureDraft\(reportId\)/.test(form));
   check("every change, typed or spoken, is written to it", /onValueChange=\{\(value\) => writeCaptureDraft\(reportId, value\)\}/.test(form));
-  check("it is emptied only when the server confirmed", /const landed = !state\.error && state\.savedAt !== undefined/.test(form) && /if \(landed\) clearCaptureDraft\(reportId\)/.test(form));
+  check("it is emptied only when the server confirmed", /if \(!result\.error && result\.savedAt !== undefined && typeof submittedText === "string"\)/.test(form) && /clearCaptureDraft\(reportId, submittedText\)/.test(form));
   check("the arrow is dead while Prepare Daily is adding the unsent words", /disabled=\{busy\}/.test(form));
   check("and the form says when its own capture is on its way", /setCaptureBusy\(reportId, pending\)/.test(form));
   check("a saving state, small, and only while saving", /if \(pending\) return <span className="text-xs text-ink-subtle">Saving…<\/span>/.test(form));
@@ -207,7 +207,7 @@ console.log("\n9. Site Capture wired as the one box");
 
   check("Prepare Daily adds the unsent words through the same capture action", /import \{ addCapture \}/.test(prepare) && /saveUnsentThenPrepare/.test(prepare));
   check("as a capture_text with the phone's clock", /capture\.set\("capture_text", text\)/.test(prepare) && /capture\.set\("captured_at", at\)/.test(prepare));
-  check("clearing the phone's copy only through the tested order", /clearDraft: \(\) => clearCaptureDraft\(reportId\)/.test(prepare) && !/clearCaptureDraft\(reportId\)\s*;/.test(prepare.replace(/clearDraft: \(\) => clearCaptureDraft\(reportId\),/, "")));
+  check("clearing the phone's copy only through the tested order", /clearDraft: \(\) => clearCaptureDraft\(reportId, text\)/.test(prepare) && !/clearCaptureDraft\(reportId\)\s*;/.test(prepare.replace(/clearDraft: \(\) => clearCaptureDraft\(reportId, text\),/, "")));
   check("both buttons share one pending flag", /const \[state, action, pending\] = useRecoverableActionState/.test(prepare) && (prepare.match(/pending=\{pending\}/g) ?? []).length === 2);
   check("and both wait while the arrow's capture is on its way", (prepare.match(/disabled=\{busy \|\| dictating\}/g) ?? []).length === 2);
   check("the questions point at the box", /Answer in the box at the top/.test(prepare));

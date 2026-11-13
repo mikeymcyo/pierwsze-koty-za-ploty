@@ -130,7 +130,7 @@ check("and the PDF's own data layer knows nothing about thumbnails", !/thumb/i.t
 
 console.log("\n7. A thumbnail is a convenience, never a photograph lost");
 
-const upload = codeOf(read("../components/reports/photo-upload.tsx"));
+const upload = codeOf(read("../lib/field-photo.ts"));
 check("one is written beside the photograph", /upload\(thumbnailPath\(item\.path\)/.test(upload));
 check("after the photograph itself", upload.indexOf("upload(item.path") < upload.indexOf("thumbnailPath(item.path"));
 check("and a failure to write it is swallowed", /thumbnailPath\(item\.path\)[\s\S]{0,320}?\.catch\(/.test(upload));

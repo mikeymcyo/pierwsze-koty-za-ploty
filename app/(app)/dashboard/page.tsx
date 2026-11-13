@@ -15,6 +15,7 @@ import {
   Store,
 } from "lucide-react";
 
+import { FieldCapture } from "@/components/reports/field-capture";
 import { CaptureInProgress } from "@/components/reports/capture-in-progress";
 import { FirstReportGuide } from "@/components/reports/first-report-guide";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
@@ -140,7 +141,15 @@ export default async function DashboardPage() {
 
       {/* Keep all shortcuts on existing, working routes. */}
       <nav aria-label="Dashboard actions" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <QuickAction href={inProgress ? `/reports/${inProgress.id}/capture` : "/reports/new"} icon={<Mic aria-hidden />} label="Capture" detail={inProgress ? "Continue your daily" : "Photos & voice notes"} primary />
+        {inProgress || activeSite ? (
+          <FieldCapture key={session.userId + ":" + session.companyId}
+            userId={session.userId} companyId={session.companyId} dashboard
+            projectId={inProgress?.projectId ?? activeSite!.id}
+            projectName={inProgress?.projectName ?? activeSite!.name}
+            reportId={inProgress?.reportDate === workingDay() ? inProgress.id : undefined} />
+        ) : (
+          <QuickAction href="/reports/new" icon={<Mic aria-hidden />} label="Capture" detail="Choose a site" primary />
+        )}
         <QuickAction href="/reports" icon={<FileText aria-hidden />} label="Reports" detail="Drafts & issued reports" />
         <QuickAction href="/projects" icon={<FolderKanban aria-hidden />} label="Sites" detail="Your active projects" />
         <QuickAction href="#dashboard-issues" icon={<AlertTriangle aria-hidden />} label="Issues" detail="Needs attention" />
