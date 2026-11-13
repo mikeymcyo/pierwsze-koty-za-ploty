@@ -16,9 +16,9 @@ import { createClient } from "@/lib/supabase/server";
 export const metadata: Metadata = { title: "Reports" };
 
 export default async function ReportsPage() {
-  await requireSessionContext();
   const supabase = await createClient();
-  const [dailyResult, summaryResult] = await Promise.all([
+  const [, dailyResult, summaryResult] = await Promise.all([
+    requireSessionContext(),
     withClockSkewRetry(() =>
       supabase.from("reports").select("id, report_number, report_date, status, created_at, finalised_at, projects(name, site_address, postcode, location_directory, location_code)").order("report_date", { ascending: false }).order("report_number", { ascending: false }),
     ),

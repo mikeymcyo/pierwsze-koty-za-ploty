@@ -8,15 +8,13 @@ import {
   FilePen,
   FileText,
   FolderKanban,
-  HardHat,
   MapPin,
-  Mic,
+  Camera,
   Plus,
   Store,
 } from "lucide-react";
 
 import { FieldCapture } from "@/components/reports/field-capture";
-import { CaptureInProgress } from "@/components/reports/capture-in-progress";
 import { FirstReportGuide } from "@/components/reports/first-report-guide";
 import { ProjectStatusBadge } from "@/components/projects/status-badge";
 import { captureCount } from "@/lib/reports/capture-log";
@@ -27,7 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
-import { displayName, requireSessionContext } from "@/lib/auth/session";
+import { requireSessionContext } from "@/lib/auth/session";
 import { ISSUE_PRIORITY_LABELS, ISSUE_PRIORITY_TONES } from "@/lib/issues/metadata";
 import { placeOfProject } from "@/lib/projects/place";
 import { withClockSkewRetry } from "@/lib/supabase/retry";
@@ -88,19 +86,10 @@ export default async function DashboardPage() {
     month: "long",
   });
 
-  const greeting = (
-    <header className="flex flex-wrap items-end justify-between gap-3">
-      <div>
-        <p className="mb-1 text-sm text-ink-muted">Welcome back</p>
-        <h1 className="text-[30px] leading-tight font-semibold tracking-tight text-ink md:text-4xl">
-          {displayName(session)}
-        </h1>
-      </div>
-      <p className="pb-1 text-xs font-medium tabular-nums text-ink-muted">
-        {todayLabel}
-        {/* The mobile top bar already carries the company name. */}
-        <span className="hidden md:inline"> · {session.companyName}</span>
-      </p>
+  const heading = (
+    <header className="site-desk-heading">
+      <h1>Site desk</h1>
+      <p>{todayLabel}</p>
     </header>
   );
 
@@ -108,7 +97,7 @@ export default async function DashboardPage() {
   if (projectsResult.error) {
     return (
       <div className="flex flex-col gap-8">
-        {greeting}
+        {heading}
         <LoadError what="your dashboard" code={projectsResult.error.code} />
       </div>
     );
@@ -118,46 +107,38 @@ export default async function DashboardPage() {
   const activeSite = projects.find((project) => project.id === inProgress?.projectId) ?? projects[0];
 
   return (
-    <div className="flex flex-col gap-6">
-      {greeting}
+    <div className="site-desk flex flex-col gap-6">
+      {heading}
 
-      {!activeSite && <FirstReportGuide hasActiveSite={false} />}
+      {!inProgress && !activeSite && <FirstReportGuide hasActiveSite={false} />}
 
-      {activeSite ? (
-        <Link href={`/projects/${activeSite.id}`} className="midnight-site group relative flex min-h-36 items-center gap-4 overflow-hidden rounded-card p-5">
-          <div className="min-w-0 flex-1">
-            <p className="mb-2 text-xs font-semibold tracking-wide text-info">
-              {activeSite.id === inProgress?.projectId ? "Current capture site" : "Latest active site"}
-            </p>
-            <h2 className="text-xl leading-snug font-semibold tracking-tight text-ink">{activeSite.name}</h2>
-            {activeSite.site_address || activeSite.client ? (
-              <p className="mt-2 flex items-start gap-1.5 text-sm text-ink-muted"><MapPin className="mt-0.5 size-4 shrink-0" aria-hidden />{activeSite.site_address || activeSite.client}</p>
-            ) : null}
-            <span className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-brand-ink">Open site <ChevronRight className="size-4" aria-hidden /></span>
+      {inProgress || activeSite ? (
+        <section className="site-desk-current">
+          <div className="site-desk-id">
+            <p className="site-desk-kicker">{inProgress && inProgress.reportDate === workingDay() ? "Current site" : "Last active site"}</p>
+            <Link prefetch={false} href={`/projects/${inProgress?.projectId ?? activeSite!.id}`} className="site-desk-name">
+              <h2>{inProgress?.projectName ?? activeSite!.name}</h2><ChevronRight aria-hidden />
+            </Link>
+            {activeSite && (!inProgress || inProgress.projectId === activeSite.id) && (activeSite.site_address || activeSite.client) && (
+              <p className="site-desk-address"><MapPin aria-hidden />{activeSite.site_address || activeSite.client}</p>
+            )}
           </div>
-          <span className="grid size-14 shrink-0 place-items-center rounded-2xl border border-info/20 bg-info/10 text-info"><HardHat className="size-7" strokeWidth={1.5} aria-hidden /></span>
-        </Link>
-      ) : null}
-
-      {/* Keep all shortcuts on existing, working routes. */}
-      <nav aria-label="Dashboard actions" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {inProgress || activeSite ? (
           <FieldCapture key={session.userId + ":" + session.companyId}
             userId={session.userId} companyId={session.companyId} dashboard
-            projectId={inProgress?.projectId ?? activeSite!.id}
-            projectName={inProgress?.projectName ?? activeSite!.name}
+            projectId={inProgress?.projectId ?? activeSite!.id} projectName={inProgress?.projectName ?? activeSite!.name}
             reportId={inProgress?.reportDate === workingDay() ? inProgress.id : undefined} />
-        ) : (
-          <QuickAction href="/reports/new" icon={<Mic aria-hidden />} label="Capture" detail="Choose a site" primary />
-        )}
-        <QuickAction href="/reports" icon={<FileText aria-hidden />} label="Reports" detail="Drafts & issued reports" />
-        <QuickAction href="/projects" icon={<FolderKanban aria-hidden />} label="Sites" detail="Your active projects" />
-        <QuickAction href="#dashboard-issues" icon={<AlertTriangle aria-hidden />} label="Issues" detail="Needs attention" />
+          {inProgress && <Link prefetch={false} href={`/reports/${inProgress.id}/capture`} className="site-desk-daily">
+            <FilePen aria-hidden /><span>Daily {formatReportNumber(inProgress.reportNumber)}</span>
+            <span>{formatDate(inProgress.reportDate)}</span><ChevronRight aria-hidden />
+          </Link>}
+        </section>
+      ) : <QuickAction href="/reports/new" icon={<Camera aria-hidden />} label="Capture" detail="Choose a site" primary />}
+
+      <nav aria-label="Dashboard actions" className="site-desk-nav">
+        <QuickAction href="/reports" icon={<FileText aria-hidden />} label="Reports" />
+        <QuickAction href="/projects" icon={<FolderKanban aria-hidden />} label="Sites" />
+        <QuickAction href="#dashboard-issues" icon={<AlertTriangle aria-hidden />} label="Issues" />
       </nav>
-
-      {inProgress ? <CaptureInProgress draft={inProgress} /> : null}
-
-      {activeSite && <FirstReportGuide hasActiveSite />}
 
       {otherDrafts.length > 0 ? (
         <section className="flex flex-col gap-3">
@@ -168,7 +149,7 @@ export default async function DashboardPage() {
               return (
                 <li key={draft.id}>
                   <Card className="transition-colors duration-200 hover:bg-surface-raised">
-                    <Link href={`/reports/${draft.id}`} className="flex items-center gap-4 p-4">
+                    <Link prefetch={false} href={`/reports/${draft.id}`} className="flex items-center gap-4 p-4">
                       <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-brand-soft ring-1 ring-brand/25">
                         <FilePen className="size-5 text-warning" aria-hidden />
                       </span>
@@ -196,28 +177,26 @@ export default async function DashboardPage() {
         </Suspense>
       </section>
 
-      <div className="flex flex-wrap gap-2">
-
-        <Button asChild variant="ghost" size="sm"><Link href="/stores"><Store aria-hidden />Store locator</Link></Button>
-      </div>
-
       {projects.length > 0 && (
       <section className="flex flex-col gap-3">
-        <div className="flex items-center justify-between gap-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <SectionHeading count={projects.length}>Active projects</SectionHeading>
+          <div className="flex flex-wrap gap-1">
+            <Button asChild variant="ghost" size="sm"><Link prefetch={false} href="/stores"><Store aria-hidden />Store locator</Link></Button>
             <Button asChild variant="ghost" size="sm">
               <Link href="/projects/new">
                 <Plus aria-hidden />
                 New project
               </Link>
             </Button>
+          </div>
         </div>
 
           <ul className="flex flex-col gap-3">
             {projects.map((project) => (
               <li key={project.id}>
                 <Card className="transition-colors duration-200 hover:bg-surface-raised">
-                  <Link
+                  <Link prefetch={false}
                     href={`/projects/${project.id}`}
                     className="flex items-center gap-4 p-4"
                   >
@@ -387,7 +366,7 @@ async function RecentReports({ result }: { result: ReturnType<typeof loadRecentR
               <li key={report.id}>
                 <Card className="transition-colors duration-200 hover:bg-surface-raised">
                   <Link
-                    href={`/reports/${report.id}`}
+                    prefetch={false} href={`/reports/${report.id}`}
                     className="flex items-center gap-4 p-4"
                   >
                     <span className="grid size-11 shrink-0 place-items-center rounded-2xl bg-surface-muted">
@@ -444,20 +423,16 @@ function QuickAction({
   href: string;
   icon: React.ReactNode;
   label: string;
-  detail: string;
+  detail?: string;
   primary?: boolean;
 }) {
   return (
     <Link
       href={href}
-      className={
-        primary
-          ? "midnight-action flex min-h-32 flex-col items-start justify-center gap-3 rounded-card p-4 text-brand-ink transition-colors hover:bg-surface-raised [&_svg]:size-6"
-          : "midnight-panel flex min-h-32 flex-col items-start justify-center gap-3 rounded-card p-4 text-info transition-colors hover:bg-surface-raised [&_svg]:size-6"
-      }
+      prefetch={false}
+      className={primary ? "desk-capture" : "site-desk-nav-link"}
     >
-      {icon}
-      <span><span className="block text-base font-semibold text-ink">{label}</span><span className="mt-1 block text-xs leading-relaxed text-ink-muted">{detail}</span></span>
+      {icon}<span>{label}{detail && <small>{detail}</small>}</span>
     </Link>
   );
 }

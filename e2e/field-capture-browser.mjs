@@ -93,7 +93,7 @@ try {
     p.on("pageerror",e=>pages.push(e.message));
     await p.goto("https://field.invalid/");
     await p.evaluate(({modules,userId})=>{
-      const cache = {"lucide-react": {Camera:()=>null,Mic:()=>null},
+      const cache = {"lucide-react": {Camera:()=>null,Mic:()=>null,ArrowUpRight:()=>null,X:()=>null,Check:()=>null},
         "@/lib/supabase/client": {createClient:()=>({storage:{from:()=>({upload:(path,blob)=>window.writePhoto(path,blob.size)})}})},
         "@/app/(app)/reports/photo-actions":{}, "@/app/(app)/summary-reports/photo-actions":{}};
       function load(id) {

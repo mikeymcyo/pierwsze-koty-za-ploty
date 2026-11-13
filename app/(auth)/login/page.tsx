@@ -3,7 +3,6 @@ import Link from "next/link";
 
 import { LoginForm } from "@/components/auth/login-form";
 import { Alert } from "@/components/ui/alert";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -18,14 +17,8 @@ export default async function LoginPage({
     <div className="flex flex-col gap-6">
       {error ? <Alert tone="danger">{error}</Alert> : null}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl">Sign in</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <LoginForm next={next ?? "/dashboard"} />
-        </CardContent>
-      </Card>
+      <h1 className="text-[clamp(2.2rem,7vw,3.25rem)] leading-tight font-semibold tracking-[-0.055em]">Sign in</h1>
+      <LoginForm next={next ?? "/dashboard"} />
 
       <p className="text-center text-sm text-ink-muted">
         New to SiteBoss Pro?{" "}

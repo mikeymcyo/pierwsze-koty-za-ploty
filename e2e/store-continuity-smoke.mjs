@@ -121,7 +121,7 @@ check("Open project goes to the project", projectHref({ id: "po" }) === "/projec
 // And the action that can create still cannot make a second Daily for a day.
 check(
   "starting a capture still opens today's report if there is one",
-  /if \(existing\) redirect\(`\/reports\/\$\{existing\.id\}\/capture`\)/.test(captureActions),
+  /if \(existing\) return existing\.id/.test(captureActions),
 );
 check(
   "matched on this project, still a draft, dated today",
@@ -199,10 +199,10 @@ check("and files the rest below", split.historical.map((p) => p.id).join() === "
 
 console.log("\n6. The dashboard says it too");
 
-check("the same card, so the answer looks the same", /<CaptureInProgress draft=\{inProgress\}/.test(dashboard));
+check("the current site includes a direct link to its daily report", dashboard.includes('href={`/reports/${inProgress.id}/capture`}') && dashboard.includes('className="site-desk-daily"'));
 check(
   "above the quick actions rather than below them",
-  dashboard.indexOf("<CaptureInProgress") < dashboard.indexOf('label="Site Capture"'),
+  dashboard.indexOf('className="site-desk-current"') < dashboard.indexOf('aria-label="Dashboard actions"'),
 );
 check("built from the same rule", /captureInProgress\(openDrafts, workingDay\(\)\)/.test(dashboard));
 check(

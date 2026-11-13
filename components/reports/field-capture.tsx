@@ -1,10 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Camera, Mic } from "lucide-react";
+import { Camera, Mic, ArrowUpRight, X, Check } from "lucide-react";
 import { commitFieldPart } from "@/lib/field-commit";
 import { keepFieldDraft, listFieldDrafts, readFieldMedia, removeFieldDraft, type FieldDraft } from "@/lib/field-outbox";
-import { uploadFieldPhoto } from "@/lib/field-photo";
 import { startFieldVoice, transcribeFieldVoice, type FieldVoice } from "@/lib/field-voice";
 import { workingDay } from "@/lib/reports/working-day";
 import { clockNow } from "@/lib/reports/prepare-with-pending";
@@ -212,6 +211,7 @@ export function FieldCapture({ userId, companyId, projectId, projectName, report
       await persist(row).catch(() => {});
       for (const id of row.photos) {
         if (row.attached.includes(id)) continue;
+        const { uploadFieldPhoto } = await import("@/lib/field-photo");
         await uploadFieldPhoto({file: await blobFor(id), id, companyId, projectId: row.projectId, reportId: row.reportId});
         row.attached.push(id);
         await persist(row).catch(() => {});
@@ -272,21 +272,32 @@ export function FieldCapture({ userId, companyId, projectId, projectName, report
 
   const pending = records.filter(row => row.id !== activeId && (dashboard || row.projectId === projectId && (!reportId || !row.reportId || row.reportId === reportId)));
   return <>
-    <button type="button" onClick={openCamera} className={dashboard ? "midnight-action flex min-h-32 flex-col items-start justify-center gap-3 rounded-card p-4 text-left text-brand-ink" : button}>
-      <Camera aria-hidden className="inline size-5" /> <span className="font-semibold">Capture</span>
-      {dashboard && <span className="text-xs text-ink-muted">{projectName}</span>}
+    <button type="button" onClick={openCamera} className={dashboard ? "desk-capture" : button}>
+      <span className={dashboard ? "desk-capture-icon" : "inline-block align-middle"}><Camera aria-hidden className="size-5" /></span>
+      <span className="font-semibold">Capture{dashboard && <small>Photos and voice note</small>}</span>
+      {dashboard && <ArrowUpRight aria-hidden className="desk-capture-arrow" />}
     </button>
     <dialog ref={dialog} aria-label="Site camera" onCancel={event => { if (active.current) event.preventDefault(); else closeCamera(); }}
-      className="fixed inset-0 m-auto max-h-[95dvh] w-[95vw] max-w-lg overflow-y-auto rounded-card bg-surface p-4 text-ink backdrop:bg-black/80">
-      <p className="mb-2 font-semibold">{projectName}</p>
-      <video ref={video} autoPlay muted playsInline onPlaying={cameraReady} className="aspect-[4/3] w-full rounded-xl bg-black object-contain" />
-      <div className="mt-3 grid gap-2">
-        <button type="button" className={button} disabled={!frame || waiting || saving} onClick={() => void takePhotos()}>
-          {photos ? "Take another photo" : "Take photo and start voice note"}
+      className="field-camera">
+      <header className="field-camera-head">
+        <div><span className="site-desk-kicker">Site capture</span><p>{projectName}</p></div>
+        {!activeId && <button type="button" aria-label="Close camera" className="field-camera-close" onClick={closeCamera}><X aria-hidden /></button>}
+      </header>
+      <div className="field-viewfinder">
+        <video ref={video} autoPlay muted playsInline onPlaying={cameraReady} />
+        {!frame && !notice && <p role="status">Opening camera…</p>}
+      </div>
+      <div className="field-camera-controls">
+        <button type="button" className="field-shutter" disabled={!frame || waiting || saving} onClick={() => void takePhotos()}>
+          <span className="field-shutter-ring" aria-hidden /><span>{photos ? "Take another photo" : "Take photo and start voice note"}</span>
         </button>
-        {photos > 0 && <p role="status">{photos} {photos === 1 ? "photo" : "photos"} · {startingVoice ? "Opening microphone…" : recording ? "Recording voice note" : "Microphone off"}</p>}
+        {activeId && <button type="button" className="field-save" disabled={waiting || saving || startingVoice} onClick={() => void finish()}>
+          <Check aria-hidden />{saving ? "Saving…" : "Save capture"}</button>}
+      </div>
+      <div className="field-camera-tools">
+        {photos > 0 && <p role="status" className="field-camera-status">{photos} {photos === 1 ? "photo" : "photos"} · {startingVoice ? "Opening microphone…" : recording ? "Recording voice note" : "Microphone off"}</p>}
         {notice && <p role="alert">{notice}</p>}
-        {cameraMs !== null && <details><summary className="cursor-pointer text-sm">Camera timing</summary><p>Tap to first video frame: {(cameraMs / 1000).toFixed(2)} seconds · {("standalone" in navigator && navigator.standalone === true) || matchMedia("(display-mode: standalone)").matches ? "Home Screen" : "browser"}</p></details>}
+
         <details open={notice && !photos ? true : undefined}><summary className="cursor-pointer py-2 text-sm">Phone camera or photo library</summary>
           <label className="block py-2">Phone camera <input type="file" accept="image/*" capture="environment" disabled={waiting || saving} onChange={e => {const files = Array.from(e.target.files ?? []); e.target.value = ""; if (files.length) void takePhotos(files);}} /></label>
           <label className="block py-2">Photo library <input type="file" accept="image/*" multiple disabled={waiting || saving} onChange={e => {const files = Array.from(e.target.files ?? []); e.target.value = ""; if (files.length) void takePhotos(files);}} /></label>
@@ -295,8 +306,7 @@ export function FieldCapture({ userId, companyId, projectId, projectName, report
           const text = e.target.value; setNote(text);
           const row = active.current; if (row) {row.text = text; void persist(row).catch(() => {});}
         }} /></label>}
-        {activeId ? <button type="button" className={button} disabled={waiting || saving || startingVoice} onClick={() => void finish()}>{saving ? "Saving…" : "Save capture"}</button> :
-          <button type="button" className={secondary} onClick={closeCamera}>Close camera</button>}
+        {cameraMs !== null && <details><summary className="cursor-pointer text-sm">Camera timing</summary><p>Tap to first video frame: {(cameraMs / 1000).toFixed(2)} seconds · {("standalone" in navigator && navigator.standalone === true) || matchMedia("(display-mode: standalone)").matches ? "Home Screen" : "browser"}</p></details>}
         {storageWarning && <p role="alert">{storageWarning}</p>}
       </div>
     </dialog>

@@ -200,7 +200,7 @@ for (const [name, file, href] of [
 console.log("\n9. The dashboard leads with the work");
 const dashboard = read("../app/(app)/dashboard/page.tsx");
 for (const [what, pattern] of [
-  ["a daily report", /href=.+inProgress.+reports.+capture.+reports\/new/],
+  ["a daily report", /href=\{`\/reports\/\$\{inProgress\.id\}\/capture`\}/],
   ["a new project", /href="\/projects\/new"/],
   ["the store locator", /href="\/stores"/],
   ["drafts to finish", /status", "draft"/],
