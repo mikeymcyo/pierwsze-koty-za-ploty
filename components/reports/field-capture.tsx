@@ -41,6 +41,8 @@ export function FieldCapture({ userId, companyId, projectId, projectName, report
   const voice = useRef<Promise<FieldVoice | null> | null>(null);
   const active = useRef<FieldDraft | null>(null);
   const shuttering = useRef(false);
+  const holdTimer = useRef<number | undefined>(undefined);
+  const pointerShot = useRef(false);
   const finishing = useRef(false);
   const uploading = useRef(new Set<string>());
   const originals = useRef(new Map<string, Blob>());
@@ -66,6 +68,9 @@ export function FieldCapture({ userId, companyId, projectId, projectName, report
   useEffect(() => {
     let current = true;
     const initialRevision = revision.current;
+    function stopHold() { clearInterval(holdTimer.current); }
+    window.addEventListener("blur", stopHold);
+    document.addEventListener("visibilitychange", stopHold);
     listFieldDrafts(scope).then(saved => {
       if (!current) return;
       setRecords(previous => revision.current === initialRevision ? saved :
@@ -73,6 +78,9 @@ export function FieldCapture({ userId, companyId, projectId, projectName, report
     }).catch(() => { if (current) setStorageWarning("Phone storage is unavailable. Keep this screen open and keep a copy of your media."); });
     return () => {
       current = false;
+      stopHold();
+      window.removeEventListener("blur", stopHold);
+      document.removeEventListener("visibilitychange", stopHold);
       generation.current = -1;
       stopTracks(camera.current);
       void voice.current?.then(session => session?.finish()).catch(() => {});
@@ -182,7 +190,21 @@ export function FieldCapture({ userId, companyId, projectId, projectName, report
     finally { shuttering.current = false; setWaiting(false); }
   }
 
+  function pressShutter(event: React.PointerEvent<HTMLButtonElement>) {
+    if (!event.isPrimary || event.button !== 0 || !frame || saving) return;
+    clearInterval(holdTimer.current);
+    pointerShot.current = true;
+    event.currentTarget.setPointerCapture(event.pointerId);
+    void takePhotos();
+    holdTimer.current = window.setInterval(() => { void takePhotos(); }, 1100);
+  }
+
+  function releaseShutter() {
+    clearInterval(holdTimer.current);
+  }
+
   function closeCamera() {
+    releaseShutter();
     generation.current++;
     stopTracks(camera.current);
     camera.current = null;
@@ -288,8 +310,17 @@ export function FieldCapture({ userId, companyId, projectId, projectName, report
         {!frame && !notice && <p role="status">Opening camera…</p>}
       </div>
       <div className="field-camera-controls">
-        <button type="button" className="field-shutter" disabled={!frame || waiting || saving} onClick={() => void takePhotos()}>
+        <button type="button" className="field-shutter" disabled={!frame || saving} aria-busy={waiting}
+          aria-label={photos ? "Take another photo" : "Take photo and start voice note"}
+          aria-describedby="field-hold-help" onPointerDown={pressShutter} onPointerUp={releaseShutter}
+          onPointerCancel={() => { releaseShutter(); pointerShot.current = false; }} onLostPointerCapture={releaseShutter}
+          onContextMenu={event => event.preventDefault()} onKeyDown={() => { pointerShot.current = false; }}
+          onClick={() => {
+            if (!pointerShot.current) void takePhotos();
+            pointerShot.current = false;
+          }}>
           <span className="field-shutter-ring" aria-hidden /><span>{photos ? "Take another photo" : "Take photo and start voice note"}</span>
+          <small id="field-hold-help">Hold for multiple photos</small>
         </button>
         {activeId && <button type="button" className="field-save" disabled={waiting || saving || startingVoice} onClick={() => void finish()}>
           <Check aria-hidden />{saving ? "Saving…" : "Save capture"}</button>}

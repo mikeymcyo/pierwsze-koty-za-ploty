@@ -160,6 +160,40 @@ try {
   assert.deepEqual(commits.map(x=>x.kind),["report","photo","note","note"]);
   assert.equal(commits.at(-1).text,"Fixture voice note.");
   assert.equal(attempts.length,2); assert.equal(audioSizes.length,1); assert.deepEqual(pages,[]);
+  // One press and hold should collect two frames and begin a single voice note.
+  await p.close();
+  p = await open("hold-fixture");
+  await p.getByRole("button", {name: /^Capture/}).tap();
+  await p.waitForFunction(() => performance.getEntriesByName("siteboss:camera-open").length > 0);
+  const shutter = p.getByRole("button", {name: "Take photo and start voice note"});
+  await shutter.scrollIntoViewIfNeeded();
+  const bounds = await shutter.boundingBox();
+  assert.ok(bounds);
+  await p.mouse.move(bounds.x + bounds.width / 2, bounds.y + bounds.height / 2);
+  await p.mouse.down();
+  try {
+    await p.getByText(/^2 photos · Recording voice note$/).waitFor();
+  } finally {
+    await p.mouse.up();
+  }
+  // Allow another repeat interval to elapse after release. A stuck shutter or a
+  // click generated on pointerup must not add a third image.
+  await p.waitForTimeout(1500);
+  const [held] = await p.evaluate(() => window.drafts());
+  assert.equal(held.photos.length, 2);
+  assert.equal(new Set(held.photos).size, 2);
+  assert.deepEqual(await p.evaluate(ids => Promise.all(ids.map(async id => (await window.original(id)) > 0)), held.photos), [true, true]);
+  assert.equal(await p.evaluate(() => window.mediaRequests.filter(request => request.audio === true).length), 1);
+  const beforeHoldSave = commits.length;
+  await p.getByRole("button", {name: "Save capture"}).tap();
+  await p.getByText(/Capture saved to Fixture/).waitFor();
+  const heldCommits = commits.slice(beforeHoldSave);
+  assert.deepEqual(heldCommits.map(part => part.kind), ["report", "photo", "photo", "note"]);
+  assert.equal(new Set(heldCommits.filter(part => part.kind === "photo").map(part => part.photo.storagePath)).size, 2);
+  assert.equal(heldCommits.at(-1).text, "Fixture voice note.");
+  assert.ok(audioSizes.length === 2 && audioSizes.at(-1) > 0);
+  assert.deepEqual(await p.evaluate(() => window.drafts()), []);
+  assert.deepEqual(pages, []);
   console.log(JSON.stringify({engine,simulatedMedia:!chromiumRun,tapToFrameMs:times,photoBytes:saved.photo,audioBytes:saved.audio,
-    verified:"three taps; upload failure; preserved originals across two reopens; owner isolation; checkpointed retry without duplicate attachment"},null,2));
+    verified:"three taps; two photos and voice in three gestures; upload failure; preserved originals across two reopens; owner isolation; checkpointed retry without duplicate attachment"},null,2));
 } finally {await browser.close();}

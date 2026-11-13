@@ -355,6 +355,8 @@
 .field-viewfinder p { position:absolute; inset:45% 0 auto; text-align:center; color:#fff; font-size:.9rem; }
 .field-camera-controls { display:flex; align-items:center; justify-content:center; gap:1.7rem; padding:1.1rem 1rem .7rem; }
 .field-shutter { display:flex; flex-direction:column; align-items:center; gap:.45rem; font-size:.85rem; font-weight:600; }
+.field-shutter { touch-action:none; user-select:none; -webkit-touch-callout:none; }
+.field-shutter small { font-size:.75rem; font-weight:450; color:var(--color-ink-muted); }
 .field-shutter:disabled, .field-save:disabled { opacity:.55; }
 .field-shutter-ring { width:3.7rem; height:3.7rem; border:3px solid var(--color-brand-ink); padding:4px; border-radius:50%; background:var(--color-primary); background-clip:content-box; }
 .field-save { display:flex; align-items:center; gap:.45rem; border-radius:var(--radius-control); background:var(--color-primary); color:var(--color-ink-inverse); font-weight:650; min-height:var(--ui-control-min); padding:.65rem 1rem; }
