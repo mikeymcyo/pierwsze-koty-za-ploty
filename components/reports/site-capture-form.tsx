@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useRef, useSyncExternalStore } from "react";
 import { useFormStatus } from "react-dom";
 import { Check } from "lucide-react";
 
@@ -68,7 +68,15 @@ export function SiteCaptureForm({
   action: (state: CaptureState, formData: FormData) => Promise<CaptureState>;
   reportId: string;
 }) {
-  const [state, formAction] = useRecoverableActionState<CaptureState, FormData>(action, {});
+  const saveNote = useCallback(async (previous: CaptureState, formData: FormData) => {
+    const submittedText = formData.get("capture_text");
+    const result = await action(previous, formData);
+    if (!result.error && result.savedAt !== undefined && typeof submittedText === "string") {
+      clearCaptureDraft(reportId, submittedText);
+    }
+    return result;
+  }, [action, reportId]);
+  const [state, formAction] = useRecoverableActionState<CaptureState, FormData>(saveNote, {});
   const capturedAt = useRef<HTMLInputElement>(null);
 
   /**
@@ -89,16 +97,6 @@ export function SiteCaptureForm({
     () => readCaptureBusy(reportId),
     () => false,
   );
-
-  /**
-   * The server has it. Only now may the local copy go - and clearing it is
-   * what empties the box. Keyed on the result itself, so a second identical
-   * note (which the server answers "already saved") clears the box too.
-   */
-  const landed = !state.error && state.savedAt !== undefined;
-  useEffect(() => {
-    if (landed) clearCaptureDraft(reportId);
-  }, [state, landed, reportId]);
 
   return (
     <form
@@ -131,7 +129,7 @@ export function SiteCaptureForm({
       />
 
       <div className="min-h-4 px-1">
-        <SaveStatus savedAt={state.error ? undefined : state.savedAt} failed={Boolean(state.error)} />
+        <SaveStatus savedAt={state.error || text ? undefined : state.savedAt} failed={Boolean(state.error)} />
       </div>
     </form>
   );

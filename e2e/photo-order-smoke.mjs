@@ -26,7 +26,7 @@ function check(label, ok, detail = "") {
   if (!ok) failures.push(detail ? `${label} - ${detail}` : label);
   console.log(`  [${ok ? "PASS" : "FAIL"}] ${label}${!ok && detail ? ` - ${detail}` : ""}`);
 }
-const read = (file) => readFileSync(new URL(file, import.meta.url), "utf8");
+const read = (file) => readFileSync(new URL(file, import.meta.url), "utf8").replace(/\r\n/g, "\n");
 
 const IDS = ["a", "b", "c", "d"];
 

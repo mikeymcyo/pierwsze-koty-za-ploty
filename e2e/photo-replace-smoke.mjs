@@ -71,7 +71,7 @@ console.log("\n4. Nothing else moved");
 
 const uploader = read("../components/reports/photo-upload.tsx");
 check("the normal uploader still sends one selection straight through", /await send\(pending, skippedNote\)/.test(uploader) && /Uploading \{busy\.done\} of \{busy\.total\}/.test(uploader));
-check("its compression is only exported, not changed", /export async function compress\(file: File\): Promise<Compressed>/.test(uploader));
+check("replacement and capture use the same compressor", uploader.includes('export { compress } from "@/lib/field-photo"') && read("../lib/field-photo.ts").includes("export async function compress(file: Blob)"));
 check("no queue anywhere", !/indexedDB|photo-queue|securePhotos/i.test(uploader + screen));
 check("the approved phone layout is intact", /"grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2"/.test(grid));
 

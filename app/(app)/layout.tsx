@@ -50,7 +50,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               position: fixed, and a transformed ancestor becomes its
               containing block - on iOS Safari for good, which collapsed the
               viewer to a strip at the top of the screen. */}
-          <div className="mx-auto w-full max-w-3xl animate-fade">{children}</div>
+          <div className="mx-auto w-full max-w-3xl">{children}</div>
         </main>
       </div>
 

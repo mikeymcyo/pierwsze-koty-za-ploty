@@ -17,10 +17,10 @@ import { createClient } from "@/lib/supabase/server";
 export const metadata: Metadata = { title: "Projects" };
 
 export default async function ProjectsPage() {
-  await requireSessionContext();
   const supabase = await createClient();
 
-  const [projectsResult, issuesResult] = await Promise.all([
+  const [, projectsResult, issuesResult] = await Promise.all([
+    requireSessionContext(),
     withClockSkewRetry(() =>
       supabase
         .from("projects")

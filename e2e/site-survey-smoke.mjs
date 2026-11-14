@@ -273,7 +273,7 @@ check(
 );
 check(
   "one uploader, two destinations, one code path",
-  /summaryReportId\s*\?\s*await attachSummaryPhoto/.test(read("../components/reports/photo-upload.tsx").replace(/\n\s*/g, " ")),
+  /summaryReportId\s*\?\s*await attachSummaryPhoto/.test(read("../lib/field-photo.ts").replace(/\n\s*/g, " ")),
 );
 check(
   "captions and AI descriptions are the ones used everywhere else",

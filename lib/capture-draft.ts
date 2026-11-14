@@ -88,10 +88,19 @@ export function writeCaptureDraft(reportId: string, value: string): void {
  *
  * This is what empties the box for the next thing somebody wants to say.
  */
-export function clearCaptureDraft(reportId: string): void {
+export function clearCaptureDraft(reportId: string, submittedText?: string): void {
   if (typeof window === "undefined") return;
+  if (submittedText !== undefined && readCaptureDraft(reportId) !== submittedText) return;
   try {
-    window.localStorage.removeItem(`${KEY_PREFIX}${reportId}`);
+    const key = `${KEY_PREFIX}${reportId}`;
+    const stored = window.localStorage.getItem(key);
+    // A second tab can change the draft before its storage event reaches this tab.
+    if (submittedText !== undefined && stored !== null && stored !== submittedText) {
+      live.set(reportId, stored);
+      notify();
+      return;
+    }
+    window.localStorage.removeItem(key);
   } catch {
     // Nothing to clear.
   }

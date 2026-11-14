@@ -277,10 +277,11 @@ export function useSpeechInput({
     try {
       recognition.start();
     } catch {
-      // Thrown when a session is somehow still running, which is harmless -
-      // that session is still feeding onresult. Safari refusing outright
-      // surfaces as an immediate empty onend instead, and the empty-end
-      // counter is what turns a run of those into a visible message.
+      intentRef.current = false;
+      recognitionRef.current = null;
+      setListening(false);
+      finishSettling();
+      setError(SPEECH_SERVICE_REFUSED_MESSAGE);
     }
   }, [lang, finishSettling]);
 

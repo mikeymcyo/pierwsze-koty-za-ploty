@@ -103,14 +103,8 @@ check(
   "one file input, rendered once per source",
   (component.slice(component.indexOf("PHOTO_SOURCES.map(")).match(/type="file"/g) ?? []).length === 1,
 );
-// Site Capture's single "Add photos" button is the one exception: a second
-// input, outside the map, with no capture attribute at all - which is exactly
-// what makes iOS offer Take Photo, Photo Library and Choose File itself.
-const simpleInput = component.slice(component.indexOf('data-photo-source-button="simple"'), component.indexOf("PHOTO_SOURCES.map("));
-check("Site Capture's one Add photos button has its own input", (simpleInput.match(/type="file"/g) ?? []).length === 1);
-check("and that input does NOT force the camera", !/capture/.test(simpleInput.replace(/\/\*[\s\S]*?\*\//g, "")), "no capture attribute, so the phone shows its own sheet");
-check("and takes several photos at once", /multiple=\{simpleSource\.multiple\}/.test(simpleInput) && /id === "files"/.test(component));
-check("and there are exactly two inputs in the file", (component.match(/type="file"/g) ?? []).length === 2);
+check("Site Capture provides a separate camera and multi-select library", component.includes('if (simple && source.id === "files") return null;') && camera.capture === "environment" && library.multiple);
+check("both controls remain available during upload and recovery", !component.includes("disabled={busy !== null || restoring}") && !component.includes("disabled={busy !== null}"));
 
 console.log("\n5. A real browser parses those attributes the way we expect");
 const launchOptions = { args: ["--no-sandbox"] };

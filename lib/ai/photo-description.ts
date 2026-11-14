@@ -1,5 +1,7 @@
 import "server-only";
 
+import sharp from "sharp";
+
 import { aiClient, aiModel } from "@/lib/ai/provider";
 
 import {
@@ -37,10 +39,21 @@ export async function describePhotograph(
   const client = aiClient();
   if (!client) return { ok: false, error: "AI drafting is not configured on this deployment." };
 
-  // Sent inline rather than as a link. The bucket is private, so an external
-  // fetcher has nothing to fetch, and a signed URL that expired mid-request
-  // would fail in a way nobody could diagnose from the error.
-  const dataUrl = `data:${image.mimeType};base64,${image.data.toString("base64")}`;
+  // Only a requested description needs this small copy. Keep the original in storage.
+  let jpeg: Buffer;
+  try {
+    const source = sharp(image.data, { limitInputPixels: 90_000_000 });
+    const { format } = await source.metadata();
+    if (!format || !["jpeg", "png", "webp", "gif", "heif", "avif", "tiff"].includes(format)) {
+      throw new Error("Unsupported photograph format");
+    }
+    jpeg = await source.rotate()
+      .resize({ width: 1568, height: 1568, fit: "inside", withoutEnlargement: true })
+      .flatten({ background: "#fff" }).jpeg({ quality: 82 }).toBuffer();
+  } catch {
+    return { ok: false, error: "AI could not read this image. Add a JPEG or PNG copy to get a suggestion, or type a caption for the original." };
+  }
+  const dataUrl = `data:image/jpeg;base64,${jpeg.toString("base64")}`;
 
   try {
     const completion = await client.chat.completions.create({

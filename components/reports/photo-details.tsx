@@ -10,25 +10,17 @@ import {
   type PhotoDescriptionState,
   type PhotoDetailsState,
 } from "@/app/(app)/reports/photo-actions";
+import { describeActionFailure } from "@/lib/actions/recover";
 import { PhotoDescriptionField } from "@/components/reports/photo-description-field";
 import { Button } from "@/components/ui/button";
 import { PHOTO_STATUSES, RETIRED_PHOTO_STATUSES } from "@/lib/photo-captions";
 import type { PhotoCategory } from "@/types/database";
 import { useRecoverableActionState } from "@/lib/hooks/use-recoverable-action-state";
 
-/**
- * What the caption box is doing, in three words or fewer.
- *
- * There is no Save button any more, so this is the only thing telling somebody
- * their words are safe. It has to be quiet enough to ignore and present enough
- * to trust.
- */
-function SaveState({ saved, error }: { saved: boolean; error?: string }) {
-  const { pending } = useFormStatus();
-  if (error) return <span className="text-xs text-danger">{error}</span>;
-  if (pending) return <span className="text-xs text-ink-subtle">Saving…</span>;
-  if (saved) return <span className="text-xs text-ink-muted">Saved</span>;
-  return null;
+type Details = { text: string; status: string };
+
+function sameDetails(a: Details, b: Details | null) {
+  return a.text === b?.text && a.status === b.status;
 }
 
 function DescribeButton({ again }: { again: boolean }) {
@@ -75,54 +67,57 @@ export function PhotoDetails({
   category: PhotoCategory;
   aiConfigured?: boolean;
 }) {
-  const save = savePhotoDetails.bind(null, photoId);
   const describe = describePhotoAction.bind(null, photoId);
-  const [state, action] = useRecoverableActionState<PhotoDetailsState, FormData>(save, {});
   const [suggestion, describeAction] = useRecoverableActionState<PhotoDescriptionState, FormData>(describe, {});
-
-  // Controlled so a suggestion can be dropped in without a save, and so the
-  // user's own typing survives a regeneration.
-  const [text, setText] = useState(caption ?? "");
-  const [status, setStatus] = useState<string>(category);
+  const [draft, setDraft] = useState<Details>({ text: caption ?? "", status: String(category) });
+  const [state, setState] = useState<PhotoDetailsState>({});
+  const [saving, setSaving] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const current = useRef(draft);
+  const confirmed = useRef<Details | null>(draft);
+  const busy = useRef(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  const formRef = useRef<HTMLFormElement>(null);
-  // What is on the server, as far as this component knows. Submitting only
-  // when the value has actually moved away from it keeps a debounce, a blur
-  // and a status change from firing three writes for one edit.
-  const savedRef = useRef({ text: caption ?? "", status: String(category) });
+  useEffect(() => () => clearTimeout(timer.current), []);
 
-  // Bumped when something should be saved now rather than in a moment: a
-  // status chosen, a suggestion accepted. It is a counter rather than a
-  // boolean so two accepts in a row are two saves.
-  const [flush, setFlush] = useState(0);
+  async function submit() {
+    clearTimeout(timer.current);
+    if (busy.current || sameDetails(current.current, confirmed.current)) return;
+    busy.current = true;
+    setSaving(true);
+    try {
+      // Only one write at a time. A changed draft goes next, even if the previous reply was lost.
+      while (!sameDetails(current.current, confirmed.current)) {
+        const snapshot = current.current;
+        const data = new FormData();
+        data.set("caption", snapshot.text);
+        data.set("category", snapshot.status);
+        let result: PhotoDetailsState;
+        try {
+          result = await savePhotoDetails(photoId, {}, data);
+        } catch (error) {
+          result = { error: describeActionFailure(error) };
+        }
+        confirmed.current = result.saved && !result.error ? snapshot : null;
+        if (sameDetails(snapshot, current.current)) {
+          setState(confirmed.current ? { saved: true } : { error: result.error || "Caption could not be saved." });
+          break;
+        }
+      }
+    } finally {
+      busy.current = false;
+      setSaving(false);
+    }
+  }
 
-  const submit = () => {
-    if (text === savedRef.current.text && status === savedRef.current.status) return;
-    savedRef.current = { text, status };
-    formRef.current?.requestSubmit();
-  };
-
-  // Shortly after typing stops. Long enough not to write on every keystroke,
-  // short enough that a caption is safe before somebody's thumb reaches the
-  // next photograph.
-  useEffect(() => {
-    if (text === savedRef.current.text && status === savedRef.current.status) return;
-    const timer = setTimeout(submit, 900);
-    return () => clearTimeout(timer);
-    // `submit` is recreated each render and reads the current values, so the
-    // dependencies are the values themselves.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [text, status]);
-
-  // Runs after the commit that carries the new value, which is the point: a
-  // form submitted from inside the click handler would post the old caption,
-  // because the textarea is controlled and has not re-rendered yet.
-  useEffect(() => {
-    if (flush === 0) return;
-    submit();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flush]);
+  function edit(next: Details, immediate = false) {
+    current.current = next;
+    setDraft(next);
+    setState({});
+    clearTimeout(timer.current);
+    if (immediate) void submit();
+    else timer.current = setTimeout(submit, 900);
+  }
 
   const retired = RETIRED_PHOTO_STATUSES.filter((option) => option.value === category);
   const options = [...PHOTO_STATUSES, ...retired];
@@ -130,7 +125,7 @@ export function PhotoDetails({
 
   return (
     <div className="flex flex-col gap-2">
-      <form ref={formRef} action={action} className="flex flex-col gap-2">
+      <div className="flex flex-col gap-2">
         {/* The same box as the one a consolidated report's caption is typed
             in - see components/reports/photo-description-field.tsx. Leaving it
             saves now, which covers the case the debounce was written for: a
@@ -138,8 +133,8 @@ export function PhotoDetails({
         <PhotoDescriptionField
           id={`caption-${photoId}`}
           name="caption"
-          value={text}
-          onChange={setText}
+          value={draft.text}
+          onChange={(text) => edit({ ...current.current, text })}
           onBlur={submit}
         />
 
@@ -149,12 +144,8 @@ export function PhotoDetails({
         <select
           id={`status-${photoId}`}
           name="category"
-          value={status}
-          onChange={(event) => {
-            setStatus(event.target.value);
-            // A status is a decision, not a draft: saved as soon as it changes.
-            setFlush((count) => count + 1);
-          }}
+          value={draft.status}
+          onChange={(event) => edit({ ...current.current, status: event.target.value }, true)}
           className="min-h-10 w-full rounded-full bg-surface-muted px-3 text-xs font-semibold text-ink-muted ring-1 ring-line/60 ring-inset transition-colors hover:text-ink focus:ring-2 focus:ring-brand/60 focus:outline-none"
         >
           {options.map((option) => (
@@ -164,10 +155,15 @@ export function PhotoDetails({
           ))}
         </select>
 
-        <div className="flex items-center gap-2">
-          <SaveState saved={Boolean(state.saved)} error={state.error} />
+        <div aria-live="polite" className="flex items-center gap-2 text-xs text-ink-muted">
+          {saving ? "Saving…" : state.error ? (
+            <>
+              <span className="text-danger">{state.error}</span>
+              <Button type="button" size="sm" variant="ghost" onClick={() => void submit()}>Retry save</Button>
+            </>
+          ) : state.saved ? "Saved" : null}
         </div>
-      </form>
+      </div>
 
       {aiConfigured ? (
         <form action={describeAction} onSubmit={() => setDismissed(false)}>
@@ -188,9 +184,8 @@ export function PhotoDetails({
               onClick={() => {
                 // Accepted means kept. Waiting for a second press was the step
                 // that lost suggestions people had already agreed with.
-                setText(showing);
+                edit({ ...current.current, text: showing }, true);
                 setDismissed(true);
-                setFlush((count) => count + 1);
               }}
             >
               Use it

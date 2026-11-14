@@ -90,8 +90,9 @@ export function PrepareDaily({ reportId }: { reportId: string }) {
    */
   const guarded = useCallback(
     async (previous: PrepareState, formData: FormData): Promise<PrepareState> => {
+      const text = readCaptureDraft(reportId);
       const outcome = await saveUnsentThenPrepare<PrepareState>({
-        pending: { text: readCaptureDraft(reportId), at: clockNow() },
+        pending: { text, at: clockNow() },
         save: ({ text, at }) => {
           const capture = new FormData();
           capture.set("capture_text", text);
@@ -99,7 +100,7 @@ export function PrepareDaily({ reportId }: { reportId: string }) {
           return addCapture(reportId, {}, capture);
         },
         prepare: () => prepareDaily(reportId, previous, formData),
-        clearDraft: () => clearCaptureDraft(reportId),
+        clearDraft: () => clearCaptureDraft(reportId, text),
         setBusy: (value) => setCaptureBusy(reportId, value),
         describeFailure: describeActionFailure,
       });

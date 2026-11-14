@@ -95,10 +95,13 @@ export async function attachPhoto(input: AttachPhotoInput) {
   // that one attempt and nothing else.
   const { data: existing } = await supabase
     .from("photos")
-    .select("id")
+    .select("id, project_id, report_id")
     .eq("storage_path", storagePath)
     .maybeSingle();
   if (existing) {
+    if (existing.project_id !== projectId || existing.report_id !== reportId) {
+      return { error: "This photo is already attached to a different destination." };
+    }
     revalidatePath(`/projects/${projectId}`);
     if (reportId) {
       revalidatePath(`/reports/${reportId}`);
@@ -107,7 +110,12 @@ export async function attachPhoto(input: AttachPhotoInput) {
     return {};
   }
 
+  // New camera paths already contain a stable UUID. Reuse it as the row key,
+  // including when two devices retry after an attachment acknowledgement is lost.
+  const filename = storagePath.slice(photoPathPrefix(session.companyId, projectId).length);
+  const photoId = z.uuid().safeParse(filename.replace(/\.jpg$/i, ""));
   const { error } = await supabase.from("photos").insert({
+    ...(photoId.success && { id: photoId.data }),
     company_id: session.companyId,
     project_id: projectId,
     report_id: reportId,
@@ -122,6 +130,11 @@ export async function attachPhoto(input: AttachPhotoInput) {
     uploaded_by: session.userId,
   });
 
+  if (error?.code === "23505" && photoId.success) {
+    const { data: winner } = await supabase.from("photos").select("project_id, report_id, storage_path")
+      .eq("id", photoId.data).maybeSingle();
+    if (winner?.storage_path === storagePath && winner.project_id === projectId && winner.report_id === reportId) return {};
+  }
   if (error) return { error: `Could not attach the photo: ${error.message}` };
 
   revalidatePath(`/projects/${projectId}`);
