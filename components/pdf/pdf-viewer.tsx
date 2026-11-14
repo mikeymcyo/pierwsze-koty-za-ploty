@@ -109,7 +109,6 @@ type PdfPage = {
 type PdfDocument = {
   numPages: number;
   getPage: (number: number) => Promise<PdfPage>;
-  destroy: () => Promise<void>;
 };
 
 /** The CSS size of a page at a fit width and magnification. */
@@ -290,18 +289,18 @@ export function PdfViewer({
 
     let cancelled = false;
     let observer: IntersectionObserver | null = null;
+    let loadingTask: ReturnType<typeof import("pdfjs-dist/legacy/build/pdf.mjs").getDocument> | undefined;
 
     const open = async () => {
       setStatus("loading");
       try {
         const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+        if (cancelled) return;
         pdfjs.GlobalWorkerOptions.workerSrc = PDF_WORKER_SRC;
 
-        const doc = (await pdfjs.getDocument({ url: src, withCredentials: true }).promise) as unknown as PdfDocument;
-        if (cancelled) {
-          void doc.destroy();
-          return;
-        }
+        loadingTask = pdfjs.getDocument({ url: src, withCredentials: true });
+        const doc = (await loadingTask.promise) as unknown as PdfDocument;
+        if (cancelled) return;
         docRef.current = doc;
 
         const slots: PageSlot[] = [];
@@ -349,9 +348,8 @@ export function PdfViewer({
       if (timerRef.current !== null) window.clearTimeout(timerRef.current);
       for (const slot of slotsRef.current) release(slot);
       slotsRef.current = [];
-      const doc = docRef.current;
       docRef.current = null;
-      void doc?.destroy();
+      void loadingTask?.destroy().catch(() => {});
     };
   }, [src, mounted, settle, release]);
 

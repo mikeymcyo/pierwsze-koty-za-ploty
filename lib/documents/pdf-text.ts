@@ -144,15 +144,16 @@ export async function extractPdfText(data: Uint8Array): Promise<PdfTextResult> {
     return { ok: false, reason: "unreadable", error: "The PDF reader is not available on this deployment." };
   }
 
-  let document: Awaited<ReturnType<typeof pdfjs.getDocument>["promise"]> | null = null;
+  let loadingTask: ReturnType<typeof pdfjs.getDocument> | undefined;
   try {
-    document = await pdfjs.getDocument({
+    loadingTask = pdfjs.getDocument({
       data,
       // Fonts are irrelevant to a text layer and only cost time. Nothing here
       // renders: this reads the strings and throws the page away.
       useSystemFonts: false,
       disableFontFace: true,
-    }).promise;
+    });
+    const document = await loadingTask.promise;
 
     const pageCount = document.numPages;
     const pages: DocumentPage[] = [];
@@ -194,7 +195,7 @@ export async function extractPdfText(data: Uint8Array): Promise<PdfTextResult> {
       error: "This PDF could not be opened. It may be password protected or damaged.",
     };
   } finally {
-    await document?.destroy().catch(() => {});
+    await loadingTask?.destroy().catch(() => {});
   }
 }
 

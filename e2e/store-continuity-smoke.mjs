@@ -202,7 +202,8 @@ console.log("\n6. The dashboard says it too");
 check("the current site includes a direct link to its daily report", dashboard.includes('href={`/reports/${inProgress.id}/capture`}') && dashboard.includes('className="site-desk-daily"'));
 check(
   "above the quick actions rather than below them",
-  dashboard.indexOf('className="site-desk-current"') < dashboard.indexOf('aria-label="Dashboard actions"'),
+  dashboard.includes('aria-label="Current work"') && dashboard.includes('aria-label="Dashboard actions"') &&
+    dashboard.indexOf('aria-label="Current work"') < dashboard.indexOf('aria-label="Dashboard actions"'),
 );
 check("built from the same rule", /captureInProgress\(openDrafts, workingDay\(\)\)/.test(dashboard));
 check(
