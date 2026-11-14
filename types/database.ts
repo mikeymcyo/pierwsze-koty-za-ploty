@@ -41,6 +41,8 @@ export type PhotoCategory =
   | "progress"
   | "delivery"
   | "general";
+export type JobStatus = "open" | "done";
+
 export type DocumentType =
   | "drawing"
   | "specification"
@@ -393,6 +395,114 @@ export type Database = {
           via_summary_report_id?: string | null;
           sort_order?: number;
           created_at?: string;
+        };
+        Relationships: [];
+      };
+      jobs: {
+        Row: {
+          id: string;
+          company_id: string;
+          store_name: string;
+          store_code: string | null;
+          fixed_date: string | null;
+          fixed_time: string | null;
+          fixed_note: string | null;
+          target_date: string | null;
+          work: string;
+          crew: string | null;
+          address: string | null;
+          lat: number | null;
+          lng: number | null;
+          notes: string | null;
+          status: JobStatus;
+          done_at: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          store_name: string;
+          store_code?: string | null;
+          fixed_date?: string | null;
+          fixed_time?: string | null;
+          fixed_note?: string | null;
+          target_date?: string | null;
+          work?: string;
+          crew?: string | null;
+          address?: string | null;
+          lat?: number | null;
+          lng?: number | null;
+          notes?: string | null;
+          status?: JobStatus;
+          done_at?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          store_name?: string;
+          store_code?: string | null;
+          fixed_date?: string | null;
+          fixed_time?: string | null;
+          fixed_note?: string | null;
+          target_date?: string | null;
+          work?: string;
+          crew?: string | null;
+          address?: string | null;
+          lat?: number | null;
+          lng?: number | null;
+          notes?: string | null;
+          status?: JobStatus;
+          done_at?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
+      job_pos: {
+        Row: {
+          id: string;
+          company_id: string;
+          job_id: string;
+          po_number: string;
+          po_file_id: number | null;
+          storage_path: string | null;
+          original_filename: string | null;
+          file_size: number | null;
+          attached_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          company_id: string;
+          job_id: string;
+          po_number: string;
+          po_file_id?: number | null;
+          storage_path?: string | null;
+          original_filename?: string | null;
+          file_size?: number | null;
+          attached_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          company_id?: string;
+          job_id?: string;
+          po_number?: string;
+          po_file_id?: number | null;
+          storage_path?: string | null;
+          original_filename?: string | null;
+          file_size?: number | null;
+          attached_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
         };
         Relationships: [];
       };
@@ -1040,6 +1150,7 @@ export type Database = {
       document_type: DocumentType;
       extraction_status: ExtractionStatus;
       issue_priority: IssuePriority;
+      job_status: JobStatus;
       issue_status: IssueStatus;
       photo_category: PhotoCategory;
       photo_pair_role: PhotoPairRole;

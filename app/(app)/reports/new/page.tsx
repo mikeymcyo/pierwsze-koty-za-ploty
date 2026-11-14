@@ -22,7 +22,8 @@ export default async function NewReportPage() {
   const { data, error } = await withClockSkewRetry(() =>
     supabase
       .from("projects")
-      .select("id, name, client, site_address, status")
+      .select("id, name, client, site_address, postcode, project_reference, status")
+      .eq("company_id", session.companyId)
       .neq("status", "completed")
       // An enquiry is not a job yet, so there is nothing to write a day's
       // record against. Surveys are started from the store or the project.
@@ -40,8 +41,7 @@ export default async function NewReportPage() {
           Site Capture
         </h1>
         <p className="text-sm text-ink-muted">
-          Pick the site you are on. If today&apos;s report is already going, this
-          opens it where you left off - it never starts a second one.
+          Choose your site to start today&apos;s report or continue its draft.
         </p>
       </header>
 
@@ -63,24 +63,30 @@ export default async function NewReportPage() {
           {projects.map((project) => (
             <li key={session.userId + ":" + session.companyId + ":" + project.id}>
               <Card>
-                <div className="flex flex-wrap items-center gap-3 p-5">
-
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-ink">{project.name}</p>
-                    <p className="truncate text-sm text-ink-muted">
-                      {[project.client, project.site_address].filter(Boolean).join(" · ") ||
+                <div className="flex flex-col gap-4 p-5">
+                  <div id={`site-${project.id}`} className="min-w-0 flex-1 space-y-1 wrap-anywhere">
+                    <h2 className="font-semibold text-ink">{project.name}</h2>
+                    {project.project_reference && (
+                      <p className="text-sm font-medium text-ink">Ref {project.project_reference}</p>
+                    )}
+                    <p className="text-sm text-ink-muted">
+                      {[project.client, project.site_address, project.postcode].filter(Boolean).join(" · ") ||
                         "No client or address recorded"}
                     </p>
                   </div>
-                  <ProjectStatusBadge status={project.status} />
-                  <FieldCapture userId={session.userId} companyId={session.companyId} projectId={project.id} projectName={project.name} />
-                  <form action={openSiteCapture}>
-                    <input type="hidden" name="projectId" value={project.id} />
-                    <Button type="submit" variant="secondary" size="md" className="shrink-0">
-                      <Mic aria-hidden />
-                      Open daily report
-                    </Button>
-                  </form>
+                  <div className="flex flex-wrap items-center gap-3">
+                    <ProjectStatusBadge status={project.status} />
+                    <FieldCapture
+                      userId={session.userId} companyId={session.companyId}
+                      projectId={project.id} projectName={project.name}
+                    />
+                    <form action={openSiteCapture}>
+                      <input type="hidden" name="projectId" value={project.id} />
+                      <Button type="submit" variant="secondary" size="md" aria-describedby={`site-${project.id}`}>
+                        <Mic aria-hidden />Open daily report
+                      </Button>
+                    </form>
+                  </div>
                 </div>
               </Card>
             </li>

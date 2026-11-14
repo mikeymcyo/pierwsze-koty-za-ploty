@@ -82,6 +82,9 @@ check("unread job documents are read first, best effort", action.indexOf("runExt
 check("only documents added as job context are read - never the whole Documents tab", /from\("job_context_documents"\)/.test(action) && !/from\("documents"\)\s*\.select/.test(action));
 check("Prepare Daily anyway is always offered", /Prepare Daily anyway/.test(button) && /name="force" value="1"/.test(button));
 check("the questions point at the box on the same screen, and say the unsent words go in first", /Answer in the box at the top/.test(button) && /Anything still in the\s+box is added first/.test(button));
+check("the capture action offers manual review when AI is off", /aiConfigured=\{hasAiConfig\(\)\}/.test(page) && /aiConfigured \? "Prepare Daily" : "Review Daily report"/.test(button));
+const manualExit = action.indexOf('if (report.status !== "draft" || !hasAiConfig()) redirect(');
+check("manual review opens an accessible report before extracting documents, asking questions or drafting", manualExit > action.indexOf("if (!report)") && manualExit < action.indexOf("runExtraction(") && manualExit < action.indexOf("prepareQuestions(") && manualExit < action.indexOf("generateReport(reportId"));
 check("Site Capture ends with it", page.lastIndexOf("<PrepareDaily") > page.lastIndexOf("<DocumentUpload"));
 
 console.log("\n=== Result ===");

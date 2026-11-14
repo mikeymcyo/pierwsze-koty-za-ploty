@@ -44,11 +44,12 @@ export async function openSiteCapture(formData: FormData) {
   if (!projectId) redirect("/reports/new");
 
   const reportId = await resolveFieldReport(projectId, workingDay());
+  if (!reportId) redirect("/reports/new");
   redirect(`/reports/${reportId}/capture`);
 }
 
 /** Resolve the day the evidence was collected, including uploads retried the next day. */
-export async function resolveFieldReport(projectId: string, date: string): Promise<string> {
+export async function resolveFieldReport(projectId: string, date: string): Promise<string | null> {
   if (!z.string().uuid().safeParse(projectId).success || !z.iso.date().safeParse(date).success) {
     throw new Error("Choose a valid site and capture date.");
   }
@@ -58,6 +59,7 @@ export async function resolveFieldReport(projectId: string, date: string): Promi
   const { data: existing, error: lookupError } = await supabase
     .from("reports")
     .select("id")
+    .eq("company_id", session.companyId)
     .eq("project_id", projectId)
     .eq("status", "draft")
     .eq("report_date", date)
@@ -97,6 +99,8 @@ export async function resolveFieldReport(projectId: string, date: string): Promi
       .eq("project_id", projectId).eq("status", "draft").maybeSingle();
     if (winner) return winner.id;
   }
+  // A project can be removed while the chooser is open.
+  if (error?.code === "23503") return null;
   if (error || !report) throw new Error("Could not open Site Capture. Please retry.");
 
   await copyPreviousEntries(supabase, projectId, report.id, session.companyId);

@@ -201,7 +201,7 @@ export function GroupEditor({
           placeholder={
             rest.length > 0
               ? undefined
-              : `Write or dictate ${groupLabel.toLowerCase()}. The AI can draft this for you from what you record.`
+              : `Write or dictate ${groupLabel.toLowerCase()}.`
           }
           onChange={(next) => setValues((current) => ({ ...current, [primary.type]: next }))}
           onFocus={() => setTarget(primary.type)}

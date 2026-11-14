@@ -17,10 +17,10 @@ import { Button } from "@/components/ui/button";
  */
 export default function AppErrorBoundary({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
     console.error("SiteBoss Pro page error:", error);
@@ -33,7 +33,7 @@ export default function AppErrorBoundary({
       {error.digest ? (
         <p className="font-mono text-xs text-ink-subtle">Reference: {error.digest}</p>
       ) : null}
-      <Button onClick={reset} className="self-start">
+      <Button onClick={retry} className="self-start">
         <RotateCcw aria-hidden />
         Try again
       </Button>

@@ -146,7 +146,7 @@ export function PhotoDetails({
           name="category"
           value={draft.status}
           onChange={(event) => edit({ ...current.current, status: event.target.value }, true)}
-          className="min-h-10 w-full rounded-full bg-surface-muted px-3 text-xs font-semibold text-ink-muted ring-1 ring-line/60 ring-inset transition-colors hover:text-ink focus:ring-2 focus:ring-brand/60 focus:outline-none"
+          className="min-h-(--ui-control-min) w-full rounded-full bg-surface-muted px-3 text-[length:max(16px,1rem)] font-semibold text-ink-muted ring-1 ring-line/60 ring-inset transition-colors hover:text-ink focus:ring-2 focus:ring-brand/60 focus:outline-none"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -155,7 +155,7 @@ export function PhotoDetails({
           ))}
         </select>
 
-        <div aria-live="polite" className="flex items-center gap-2 text-xs text-ink-muted">
+        <div role="status" aria-live="polite" aria-atomic="true" className="flex min-h-4 items-center gap-2 text-xs text-ink-muted">
           {saving ? "Saving…" : state.error ? (
             <>
               <span className="text-danger">{state.error}</span>

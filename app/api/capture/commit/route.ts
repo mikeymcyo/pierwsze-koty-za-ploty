@@ -16,7 +16,9 @@ export async function POST(request: Request) {
   if (!await getSessionContext()) return Response.json({ error: "Sign in again to upload this capture." }, { status: 401 });
   try {
     if (body.kind === "report") {
-      return Response.json({ reportId: await resolveFieldReport(body.projectId, body.day) });
+      const reportId = await resolveFieldReport(body.projectId, body.day);
+      if (!reportId) return Response.json({ error: "This site is no longer available. Your capture is still on this device." }, { status: 409 });
+      return Response.json({ reportId });
     }
     if (body.kind === "photo") {
       const result = await attachPhoto(body.photo);

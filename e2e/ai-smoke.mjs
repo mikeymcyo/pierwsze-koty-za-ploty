@@ -14,10 +14,10 @@
  *   npm run test:ai
  */
 
+import { createClient } from "@supabase/supabase-js";
 import { chromium } from "playwright";
 import {
   CLEANUP_MARKER,
-  NARROW_MARKER,
   requestedCleanupKind,
   startStub,
   STUB_MARKER,
@@ -26,6 +26,7 @@ import {
 
 const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
 const stamp = Date.now();
+const EMAIL = `ai+${stamp}@example.com`;
 const PASSWORD = "SiteBoss!2026";
 const NOTES =
   "Continued the drainage run along the eastern boundary. Six groundworkers on site all day. Concrete delivery arrived at half ten, two hours late.";
@@ -47,6 +48,7 @@ const stub = await startStub({ port: STUB_PORT });
 const browser = await chromium.launch(launchOptions);
 const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
 const page = await context.newPage();
+page.setDefaultTimeout(20_000);
 page.on("console", (m) => m.type() === "error" && consoleErrors.push(m.text()));
 page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
 
@@ -55,7 +57,7 @@ try {
   await page.goto(`${BASE}/signup`, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
   await page.getByLabel("Your name").fill("Maciej Korzeniak");
   await page.getByLabel("Company").fill(`Empire Interiors ${stamp}`);
-  await page.getByLabel("Email").fill(`ai+${stamp}@example.com`);
+  await page.getByLabel("Email").fill(EMAIL);
   await page.getByLabel("Password").fill(PASSWORD);
   await page.getByRole("button", { name: "Create account" }).click();
   await page.waitForURL("**/dashboard", { timeout: TIMEOUT });
@@ -66,9 +68,10 @@ try {
   await page.getByRole("button", { name: "Create project" }).click();
   await page.waitForURL(/\/projects\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
 
-  await page.getByRole("button", { name: "New report" }).click();
+  await page.getByRole("button", { name: "Start Site Capture" }).click();
   await page.waitForURL(/\/reports\/[0-9a-f-]{36}/, { timeout: TIMEOUT });
-  const reportUrl = page.url();
+  const reportUrl = page.url().replace(/\/capture$/, "");
+  await page.goto(reportUrl, { waitUntil: "networkidle" });
 
   console.log("\n2. Writing is offered with the notes, and only once there are some");
   const writeButton = page.getByRole("button", { name: "Write my report" });
@@ -79,6 +82,7 @@ try {
     await page.getByText(/say or type what happened first/i).isVisible(),
   );
 
+  await page.getByText("Date, weather, workforce and plant", { exact: true }).click();
   await page.getByLabel("Company").first().fill("Groundworks Ltd");
   await page.getByLabel("No.").first().fill("6");
   await page.getByLabel("Work completed").fill(NOTES);
@@ -86,7 +90,9 @@ try {
 
   console.log("\n3. Generate");
   await writeButton.click();
-  await page.getByText(`${STUB_MARKER} summary`).waitFor({ timeout: TIMEOUT });
+  const summary = page.getByLabel("Daily Summary", { exact: true });
+  await summary.waitFor({ timeout: TIMEOUT });
+  check("the summary came from the drafting pass", (await summary.inputValue()) === STUB_MARKER + " summary");
   check("sections are generated and rendered", true);
 
   const request = stub.received.at(-1);
@@ -127,128 +133,48 @@ try {
     (stub.received[0]?.messages ?? []).map((m) => m.content).join("\n").includes(NOTES),
   );
 
-  console.log("\n4. Empty sections are dropped, not padded");
-  // The headings are CSS-uppercased, and innerText reports the transformed
-  // text - so compare case-insensitively or both checks pass for the wrong
-  // reason.
-  const bodyText = (await page.locator("main").innerText()).toLowerCase();
-  check("a supported section is present", bodyText.includes("works completed"));
-  check(
-    "an unsupported section is omitted",
-    !bodyText.includes("works in progress"),
-    "the stub returned '' for it, so it must not be rendered",
-  );
+  console.log("\n4. The Daily drafts one summary and preserves its source");
+  check("only the summary was requested", request.response_format.json_schema.schema.required.join() === "executive_summary");
+  check("notes survive drafting", (await page.getByLabel("Work completed").inputValue()) === NOTES);
+  await page.goto(reportUrl);
+  check("notes survive reloading", (await page.getByLabel("Work completed").inputValue()) === NOTES);
+  check("the workforce entered with the notes was saved", (await page.getByLabel("Company").first().inputValue()) === "Groundworks Ltd");
 
-  console.log("\n5. The raw notes survive generation, verbatim");
-  check(
-    "raw notes are still on the screen next to the draft",
-    (await page.getByLabel("Work completed").inputValue()) === NOTES,
-  );
-  check(
-    "and the workforce typed with them was saved by the same press",
-    (await page.getByLabel("Company").first().inputValue()) === "Groundworks Ltd",
-  );
-  await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
-  check(
-    "and are still in the notes field, unchanged",
-    (await page.getByLabel("Work completed").inputValue()) === NOTES,
-  );
-
-  console.log("\n6. A section can be edited, and stops claiming to be AI-written");
+  console.log("\n5. Regeneration preserves manual edits and clears obsolete AI content");
   const edited = "Rewritten by the site manager.";
-  // Wait for hydration before typing: a real user reads before editing, and
-  // typing into a not-yet-interactive page is not what this check is about.
-  await page.getByRole("button", { name: "Rewrite from my notes" }).waitFor({ timeout: TIMEOUT });
-  const summaryBox = page.getByLabel("Summary");
-  await summaryBox.fill(edited);
-  await page
-    .locator("form")
-    .filter({ has: page.getByLabel("Summary") })
-    .getByRole("button", { name: "Save" })
-    .click();
-  await page.getByText("Edited by you").first().waitFor({ timeout: TIMEOUT });
-  check("the edit is marked as the user's own", true);
+  await summary.fill(edited);
+  await page.locator("form").filter({ has: summary }).getByRole("button", { name: "Save this section" }).click();
+  await page.getByText("Edited by you", { exact: true }).waitFor();
 
-  await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
-  check("the edit persisted", (await page.getByLabel("Summary").inputValue()) === edited);
+  // Model an older report with extra sections, using the test user's own permissions.
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  if (!url || !["127.0.0.1", "localhost"].includes(new URL(url).hostname)) {
+    throw new Error("Historical fixtures require a disposable local Supabase instance.");
+  }
+  const db = createClient(url, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
+  const login = await db.auth.signInWithPassword({ email: EMAIL, password: PASSWORD });
+  if (login.error) throw login.error;
+  const reportId = new URL(reportUrl).pathname.split("/")[2];
+  const { data: draft } = await db.from("reports").select("company_id").eq("id", reportId).single().throwOnError();
+  const legacy = { report_id: reportId, company_id: draft.company_id };
+  const delivery = "Two loads of plasterboard booked in by the site manager.";
+  await db.from("report_sections").insert([
+    { ...legacy, section_type: "deliveries_plant", content: delivery, ai_generated: false, sort_order: 3 },
+    { ...legacy, section_type: "planned_works", content: "Superseded AI paragraph.", ai_generated: true, sort_order: 7 },
+  ]).throwOnError();
 
-  console.log("\n7. Regenerating does not overwrite what the user wrote");
-  await page.getByRole("button", { name: "Rewrite from my notes" }).click();
-  // The outcome alert is what settles the action - the summary deliberately
-  // does not change, so waiting on its text would wait for something that must
-  // never arrive.
-  await page.getByText(/you had edited/i).waitFor({ timeout: TIMEOUT });
-  check("the screen says a section was kept", true);
-
-  await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
-  check(
-    "the edited summary is untouched",
-    (await page.getByLabel("Summary").inputValue()) === edited,
-    await page.getByLabel("Summary").inputValue(),
-  );
-  check("and is still marked as the user's", (await page.getByText("Edited by you").count()) === 1);
-  check(
-    "the sections the AI owns were rewritten",
-    (await page.locator("main").innerText()).includes(`${STUB_MARKER} works completed`),
-  );
-  const summaryCount = await page.getByLabel("Summary").count();
-  check("still exactly one summary section", summaryCount === 1, `saw ${summaryCount}`);
-
-  console.log("\n8. A narrower draft clears what it no longer supports");
-
-  // A second edited section, this time one the narrower draft will leave
-  // empty - so it is exposed to the clear-out as well as to the overwrite.
-  const keptByHand = "Two loads of plasterboard, booked in by me.";
-  await page.getByLabel("Deliveries and plant").fill(keptByHand);
-  await page
-    .locator("form")
-    .filter({ has: page.getByLabel("Deliveries and plant") })
-    .getByRole("button", { name: "Save" })
-    .click();
-  await page.getByText("Edited by you").nth(1).waitFor({ timeout: TIMEOUT });
-
-  // Now regenerate against notes the stub answers with a narrower draft:
-  // deliveries and planned works both come back empty.
-  await page.getByLabel("Work completed").fill(`${NOTES} ${NARROW_MARKER}`);
-  await page.getByRole("button", { name: "Save draft" }).click();
-  await page.getByText("Draft saved.").waitFor({ timeout: TIMEOUT });
   await page.getByRole("button", { name: "Rewrite from my notes" }).click();
   await page.getByText(/you had edited/i).waitFor({ timeout: TIMEOUT });
-
-  await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
-  const afterNarrow = await page.locator("main").innerText();
-
-  // The paragraph the new draft no longer supports must go. Leaving it would
-  // put the previous draft's claim under a heading today's notes do not carry.
-  check(
-    "a stale AI section is cleared",
-    !afterNarrow.includes(`${STUB_MARKER} planned works`),
-    "the previous draft's planned works survived a narrower regeneration",
-  );
-  check(
-    "the section the new draft did support was rewritten",
-    afterNarrow.includes(`${STUB_MARKER} works completed`),
-  );
-
-  // Both sections a person wrote must survive: one the draft covered and would
-  // have overwritten, one it left empty and would have deleted.
-  check(
-    "the edited section the draft covered is not overwritten",
-    afterNarrow.includes(edited),
-    "the user's summary was replaced by a regeneration",
-  );
-  check(
-    "the edited section the draft dropped is not cleared",
-    afterNarrow.includes(keptByHand),
-    "the user's own deliveries text was deleted by the clear-out",
-  );
-  check(
-    "both are still marked as theirs",
-    (await page.getByText("Edited by you").count()) === 2,
-    `saw ${await page.getByText("Edited by you").count()}`,
-  );
+  const { data: stored } = await db.from("report_sections").select("section_type,content,ai_generated").eq("report_id", reportId).throwOnError();
+  check("the historical manual edit is retained", stored.some(row => row.section_type === "deliveries_plant" && row.content === delivery && !row.ai_generated));
+  check("the obsolete AI section is cleared", !stored.some(row => row.section_type === "planned_works"));
+  check("only the current summary and historical edit remain", stored.length === 2);
+  await page.goto(reportUrl);
+  check("the edited summary survives regeneration", (await summary.inputValue()) === edited);
+  check("the original notes are still intact", (await page.getByLabel("Work completed").inputValue()) === NOTES);
 } catch (error) {
-  failures.push(`threw: ${error.message}`);
+  const alerts = await page.locator("main [role=alert]").allTextContents().catch(() => []);
+  failures.push(`threw at ${new URL(page.url()).pathname}: ${error.message}; alerts: ${alerts.join(" | ")}`);
   console.log(`\n  [FAIL] ${error.message}`);
 } finally {
   await browser.close();

@@ -4,7 +4,6 @@ import { FileText, Plus } from "lucide-react";
 
 import { ReportRow } from "@/components/reports/report-row";
 import { SummaryRow } from "@/components/summary-reports/summary-row";
-import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
@@ -36,15 +35,24 @@ export default async function ReportsPage() {
         title="Reports"
         description="Daily records, client updates, completion documents and site surveys. Swipe a report left, or use its menu, for its actions."
         icon={FileText}
-        actions={
-          <>
-          <Button asChild variant="secondary" size="sm"><Link href="/reports/new"><Plus aria-hidden />Daily</Link></Button>
-          <Button asChild variant="secondary" size="sm"><Link href="/summary-reports/new?kind=progress"><Plus aria-hidden />Progress</Link></Button>
-          <Button asChild variant="secondary" size="sm"><Link href="/summary-reports/new?kind=completion"><Plus aria-hidden />Completion</Link></Button>
-          <Button asChild variant="secondary" size="sm"><Link href="/surveys/new"><Plus aria-hidden />Survey</Link></Button>
-          </>
-        }
+
       />
+
+
+
+      <nav aria-label="Create a report" className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { href: "/reports/new", title: "Daily", description: "Capture today’s work", primary: true },
+          { href: "/summary-reports/new?kind=progress", title: "Progress", description: "Update your client" },
+          { href: "/summary-reports/new?kind=completion", title: "Completion", description: "Close out the job" },
+          { href: "/surveys/new", title: "Survey", description: "Record a site visit" },
+        ].map((item) => (
+          <Link key={item.href} href={item.href} className={item.primary ? "cockpit-capture flex min-h-28 flex-col justify-between rounded-2xl p-4 text-ink-inverse" : "cockpit-action flex min-h-28 flex-col justify-between rounded-2xl p-4 text-ink"}>
+            <Plus className="size-5" aria-hidden />
+            <span><span className="block font-semibold">{item.title}</span><span className="mt-1 block text-xs opacity-80">{item.description}</span></span>
+          </Link>
+        ))}
+      </nav>
 
       {error ? (
         <LoadError what="your reports" code={error.code} />
@@ -53,7 +61,7 @@ export default async function ReportsPage() {
       ) : (
         <>
           <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-bold tracking-tight text-ink">Progress and completion</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-ink">Progress and completion</h2>
             {summaries.length === 0 ? (
               <p className="text-sm text-ink-muted">No consolidated reports yet.</p>
             ) : (
@@ -71,7 +79,7 @@ export default async function ReportsPage() {
           </section>
 
           <section className="flex flex-col gap-3">
-            <h2 className="text-sm font-bold tracking-tight text-ink">Daily Reports</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-ink">Daily Reports</h2>
             {daily.length === 0 ? (
               <p className="text-sm text-ink-muted">No Daily Reports yet.</p>
             ) : (

@@ -9,10 +9,10 @@ import { Button } from "@/components/ui/button";
 
 export default function ErrorBoundary({
   error,
-  reset,
+  retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  retry: () => void;
 }) {
   useEffect(() => {
     // Surfaced rather than swallowed, so failures are visible in the console too.
@@ -34,7 +34,7 @@ export default function ErrorBoundary({
           <p className="font-mono text-xs text-ink-subtle">Reference: {error.digest}</p>
         ) : null}
 
-        <Button onClick={reset} className="self-center">
+        <Button onClick={retry} className="self-center">
           <RotateCcw aria-hidden />
           Try again
         </Button>

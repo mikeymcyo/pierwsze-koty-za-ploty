@@ -17,6 +17,7 @@
  */
 
 import { readFileSync } from "node:fs";
+import { createClient } from "@supabase/supabase-js";
 
 import { withClockSkewRetry } from "../lib/supabase/retry.ts";
 
@@ -82,6 +83,46 @@ check("a default budget is declared", Number.isFinite(budget), String(budget));
 check("it is longer than the six seconds that was not enough", budget > 6_000, String(budget));
 check("and not so long it outlives a serverless function", budget <= 25_000, String(budget));
 check("the first screen after sign-in still uses it", /withClockSkewRetry\(/.test(read("../lib/auth/session.ts")));
+
+console.log("\n5. Real Supabase builders send fresh signals through to fetch");
+{
+  let networkCalls = 0;
+  const signals = [];
+  const response = (body, status) => new Response(JSON.stringify(body), {
+    status, headers: { "Content-Type": "application/json" },
+  });
+  let memoized;
+  const supabase = createClient("https://example.supabase.co", "test-key", {
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+    global: { fetch: async (_url, options) => {
+      // Model Next's documented per-render GET memoization. Repeating the
+      // builder alone cannot recover; a signal must reach the fetch adapter.
+      if (!options.signal && memoized) return memoized.clone();
+      networkCalls++;
+      signals.push(options.signal);
+      const result = networkCalls < 3
+        ? response({ ...skew, code: "PGRST303" }, 401)
+        : response([{ id: "recovered" }], 200);
+      if (!options.signal) memoized = result.clone();
+      return result;
+    } },
+  });
+  const started = Date.now();
+  const result = await withClockSkewRetry(
+    () => supabase.from("projects").select("id"), { budgetMs: 2_000 },
+  );
+  check("fresh retries reach the network and recover", networkCalls === 3 && result.data?.[0]?.id === "recovered");
+  check("the first successful read can still be deduplicated", signals[0] === undefined);
+  check("each retry has its own live signal", signals[1] instanceof AbortSignal && signals[2] instanceof AbortSignal && signals[1] !== signals[2] && !signals[1].aborted && !signals[2].aborted);
+  check("recovery stops before spending the whole retry budget", Date.now() - started < 1_500);
+}
+{
+  let calls = 0;
+  await withClockSkewRetry(async () => (++calls, {
+    data: null, error: { ...skew, code: "PGRST303", message: "JWT expired" },
+  }), { budgetMs: 2_000 });
+  check("other PGRST303 failures are not mistaken for clock skew", calls === 1);
+}
 
 console.log("\n=== Result ===");
 if (failures.length === 0) console.log("ALL CLOCK SKEW CHECKS PASSED");

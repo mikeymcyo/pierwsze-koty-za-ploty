@@ -15,8 +15,8 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-card ring-1 ring-line/70 ring-inset",
-        raised ? "bg-surface-raised shadow-raised" : "bg-surface shadow-card",
+        "work-panel rounded-card ring-1 ring-line/70 ring-inset",
+        raised ? "work-panel-raised bg-surface-raised shadow-raised" : "bg-surface shadow-card",
         className,
       )}
       {...props}
@@ -31,7 +31,7 @@ export function CardHeader({ className, ...props }: React.ComponentProps<"div">)
 export function CardTitle({ className, ...props }: React.ComponentProps<"h3">) {
   return (
     <h3
-      className={cn("text-lg font-bold tracking-tight text-ink", className)}
+      className={cn("text-lg font-semibold tracking-tight text-ink", className)}
       {...props}
     />
   );
