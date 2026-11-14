@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import sharp from "sharp";
 import { aiClient, aiModel, hasAiCredentials } from "../lib/ai/provider.ts";
 
 // All requests stay inside this process, even if a developer has real keys set.
@@ -35,7 +36,11 @@ const report = await generateSections({
 }, { baseURL: "https://stub.invalid/override" });
 assert.ok(report.ok, report.error);
 const { describePhotograph } = await import("../lib/ai/photo-description.ts");
-const photo = await describePhotograph({ data: Buffer.from([1]), mimeType: "image/jpeg" }, { projectName: "Test site" });
+const image = await sharp({ create: { width: 64, height: 48, channels: 3, background: "#408063" } }).png().toBuffer();
+const invalid = await describePhotograph({ data: Buffer.from([1]), mimeType: "image/jpeg" }, { projectName: "Test site" });
+assert.equal(invalid.ok, false);
+assert.match(invalid.error, /JPEG or PNG/);
+const photo = await describePhotograph({ data: image, mimeType: "application/octet-stream" }, { projectName: "Test site" });
 assert.ok(photo.ok, photo.error);
 assert.equal(calls, 2);
 process.env.ANTHROPIC_MODEL = "custom-claude";

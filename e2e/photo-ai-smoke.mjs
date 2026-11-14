@@ -144,13 +144,13 @@ const ui = readFileSync(new URL("../components/reports/photo-details.tsx", impor
 // photograph any more: a caption typed and scrolled past was a caption lost.
 check(
   "the suggestion reaches the caption box only when the user presses Use it",
-  /setText\(showing\);\s*\n\s*setDismissed\(true\);/.test(ui) &&
+  ui.includes("edit({ ...current.current, text: showing }, true)") && /setDismissed\(true\);/.test(ui) &&
     // Nothing else writes it. The suggestion is never applied on arrival.
     !/useEffect\([^)]*setText\(suggestion/.test(ui),
 );
 check(
   "accepting a suggestion saves it, without a second press",
-  /setFlush\(\(count\) => count \+ 1\);/.test(ui) && !/Save<\/Button>/.test(ui),
+  ui.includes("if (immediate) void submit();") && !/Save<\/Button>/.test(ui),
 );
 check(
   "the panel says so rather than promising a Save button that no longer exists",
@@ -162,7 +162,7 @@ check(
 );
 check(
   "and a save that would change nothing is not sent",
-  /if \(text === savedRef\.current\.text && status === savedRef\.current\.status\) return;/.test(ui),
+  ui.includes("sameDetails(current.current, confirmed.current)") && ui.includes("result.saved && !result.error ? snapshot : null"),
 );
 
 console.log("\n6. A consolidated report can describe its plates too");
