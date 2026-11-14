@@ -1,0 +1,37 @@
+-- The instructed works table: one more written section a Completion Report
+-- can hold.
+--
+-- One enum value. No table, no column, no constraint, no policy, no index, no
+-- trigger, no backfill, and no existing row changes. Every report already
+-- issued prints exactly as it printed before this ran.
+--
+-- ---------------------------------------------------------------------------
+-- Why a section rather than a table of its own
+-- ---------------------------------------------------------------------------
+--
+-- Because it is part of one report's written record and nothing else. It is
+-- drafted with that report's other sections, frozen with them when the report
+-- is issued, protected from redrafting by the same ai_generated flag, and
+-- meaningless apart from the document it belongs to. summary_report_sections
+-- already does all of that, including the unique (summary_report_id,
+-- section_type) that stops a second copy existing.
+--
+-- Its content is JSON in the existing text column rather than prose, which the
+-- reader of that column has to know. lib/summary-reports/instructed-works.ts
+-- is that knowledge in one place: parseInstructedWorks returns null for
+-- anything that is not the table, so a section written before this existed, or
+-- edited by hand into a paragraph, prints nothing rather than throwing.
+--
+-- ---------------------------------------------------------------------------
+-- Rollback
+-- ---------------------------------------------------------------------------
+--
+-- PostgreSQL cannot remove a value from an enum, so this is not revertible by
+-- a drop. Rolling back means leaving the value in place and unused, which
+-- costs nothing - an enum value no row references is inert. That is why it is
+-- worth reading before it is applied rather than after.
+--
+-- ALTER TYPE ... ADD VALUE is transactional on PostgreSQL 12 and later as long
+-- as the new value is not used in the same transaction. Nothing here uses one.
+
+alter type public.summary_section_type add value if not exists 'instructed_works';

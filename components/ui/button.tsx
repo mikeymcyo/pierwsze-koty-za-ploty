@@ -1,0 +1,76 @@
+import * as React from "react";
+import { Slot } from "@radix-ui/react-slot";
+import { cva, type VariantProps } from "class-variance-authority";
+import { Loader2 } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 rounded-control font-semibold tracking-[-0.01em] transition-[color,background-color,border-color,box-shadow,filter,transform] duration-200 ease-out active:scale-[0.98] active:brightness-95 disabled:pointer-events-none disabled:opacity-45 disabled:shadow-none [&_svg]:shrink-0",
+  {
+    variants: {
+      variant: {
+        primary: "bg-primary text-ink-inverse shadow-glow hover:bg-primary-hover hover:shadow-glow",
+        secondary: "bg-surface-raised text-ink shadow-card ring-1 ring-line-strong/80 ring-inset hover:bg-surface-muted hover:ring-line-strong",
+        ghost: "text-ink-muted hover:bg-surface-muted/70 hover:text-ink",
+        danger: "bg-danger-strong text-white shadow-card hover:brightness-110",
+        brand: "bg-brand text-ink-inverse shadow-glow hover:bg-primary-hover",
+      },
+      size: {
+        // Sizes are generous by default and grow again on Large touch: the
+        // minimum comes from --ui-control-min, set once in globals.css, so a
+        // setting reaches every button without a page knowing about it.
+        sm: "min-h-9 px-3 text-sm [&_svg]:size-4",
+        md: "min-h-(--ui-control-min) px-5 text-base [&_svg]:size-5",
+        lg: "min-h-[calc(var(--ui-control-min)+0.5rem)] px-6 text-lg [&_svg]:size-5",
+        icon: "size-(--ui-control-min) [&_svg]:size-5",
+      },
+    },
+    defaultVariants: { variant: "primary", size: "md" },
+  },
+);
+
+type ButtonProps = React.ComponentProps<"button"> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean;
+    loading?: boolean;
+  };
+
+export function Button({
+  className,
+  variant,
+  size,
+  asChild = false,
+  loading = false,
+  disabled,
+  children,
+  ...props
+}: ButtonProps) {
+  if (asChild) {
+    return (
+      <Slot className={cn(buttonVariants({ variant, size }), className)} {...props}>
+        {children}
+      </Slot>
+    );
+  }
+
+  return (
+    <button
+      // A button that is working is still the button it was. Only a genuinely
+      // unavailable one dims - a save that turned muddy brown mid-tap reads as
+      // a failure rather than as progress.
+      className={cn(
+        buttonVariants({ variant, size }),
+        loading && !disabled && "disabled:opacity-100",
+        className,
+      )}
+      disabled={disabled || loading}
+      {...props}
+    >
+      {loading ? <Loader2 className="animate-spin" aria-hidden /> : null}
+      {children}
+    </button>
+  );
+}
+
+export { buttonVariants };

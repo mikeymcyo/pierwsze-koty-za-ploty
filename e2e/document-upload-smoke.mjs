@@ -1,0 +1,250 @@
+/**
+ * Which files the document uploader accepts.
+ *
+ * The uploader has no `accept` attribute - see lib/documents/file-validation.ts
+ * for why, and note that the iOS picker problem it was once blamed on turned
+ * out not to exist. What matters, and what this guards, is that everything
+ * deciding what a file is happens after the tap: extension, size, and the
+ * format's own signature. PDF, JPEG and PNG are the three kinds; a photo of a
+ * delivery note is a supporting document too. Needs neither Supabase nor a
+ * browser.
+ */
+import { readFileSync } from "node:fs";
+
+import {
+  DOCUMENT_MAX_BYTES,
+  DOCUMENT_SIGNATURE_BYTES,
+  PDF_CONTENT_TYPE,
+  PDF_SIGNATURE_BYTES,
+  checkDocumentFile,
+  describeUploadOutcome,
+  documentKindFromBytes,
+  documentKindFromFilename,
+  hasPdfExtension,
+  hasPdfSignature,
+  isPdfContentType,
+} from "../lib/documents/file-validation.ts";
+
+const failures = [];
+function check(label, ok, detail = "") {
+  if (!ok) failures.push(detail ? `${label} - ${detail}` : label);
+  console.log(`  [${ok ? "PASS" : "FAIL"}] ${label}${!ok && detail ? ` - ${detail}` : ""}`);
+}
+
+/** "%PDF-" - the first five bytes of every PDF. */
+const PDF_HEAD = [0x25, 0x50, 0x44, 0x46, 0x2d];
+/** A PNG's eight-byte signature. */
+const PNG_HEAD = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+/** A JPEG's start-of-image marker, then the usual APP0 bytes. */
+const JPEG_HEAD = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46];
+const ONE_MB = 1024 * 1024;
+
+const uploaderSource = readFileSync(
+  new URL("../components/documents/document-upload.tsx", import.meta.url),
+  "utf8",
+);
+/** Just the <input type="file"> element, so a word in a comment cannot pass. */
+const fileInput = uploaderSource.slice(
+  uploaderSource.indexOf("<input"),
+  uploaderSource.indexOf("/>", uploaderSource.indexOf("<input")),
+);
+
+console.log("\n1. The file input filters nothing - the validation below does it all");
+check(
+  "the input carries no accept attribute",
+  !/\baccept\s*=/.test(fileInput),
+  fileInput.replace(/\s+/g, " ").slice(0, 160),
+);
+check(
+  "and none is smuggled in anywhere else in the uploader",
+  !/\baccept\s*=\s*[{"']/.test(uploaderSource),
+);
+check(
+  "no accept value is exported for one to be wired back up from",
+  !/DOCUMENT_ACCEPT/.test(
+    readFileSync(new URL("../lib/documents/file-validation.ts", import.meta.url), "utf8"),
+  ),
+);
+check("it is still the multiple-file input it was", /\bmultiple\b/.test(fileInput));
+
+console.log("\n2. A genuine PDF is accepted however the device describes it");
+for (const [what, type] of [
+  ["application/pdf", "application/pdf"],
+  ["a blank MIME type, as iCloud Drive often gives", ""],
+  ["application/octet-stream", "application/octet-stream"],
+  ["binary/octet-stream", "binary/octet-stream"],
+  ["application/x-pdf", "application/x-pdf"],
+]) {
+  check(
+    `accepted with ${what}`,
+    checkDocumentFile({ name: "GA-Plan-Rev-C.pdf", size: 2 * ONE_MB, type }, PDF_HEAD).ok,
+  );
+}
+check(
+  "an uppercase extension is still a PDF",
+  checkDocumentFile({ name: "RAMS.PDF", size: ONE_MB, type: "" }, PDF_HEAD).ok,
+);
+check(
+  "and so is one whose name has spaces and dots",
+  checkDocumentFile({ name: "Method Statement v2.1.pdf", size: ONE_MB, type: "" }, PDF_HEAD).ok,
+);
+
+console.log("\n3. Signature validation catches a file wearing the wrong name");
+const renamed = checkDocumentFile(
+  { name: "totally-a-drawing.pdf", size: ONE_MB, type: "application/pdf" },
+  PNG_HEAD,
+);
+check("a PNG renamed .pdf is refused", !renamed.ok);
+check(
+  "and is told what is actually wrong",
+  !renamed.ok && /named like a PDF but it is actually a PNG/i.test(renamed.reason),
+  renamed.ok ? "" : renamed.reason,
+);
+check(
+  "even when the device confidently claims application/pdf",
+  !checkDocumentFile({ name: "x.pdf", size: ONE_MB, type: "application/pdf" }, PNG_HEAD).ok,
+);
+const unknown = checkDocumentFile({ name: "x.pdf", size: ONE_MB, type: "" }, [0x50, 0x4b, 0x03, 0x04]);
+check("a zip renamed .pdf is refused too", !unknown.ok && /contents are not a PDF/i.test(unknown.reason));
+check(
+  "a PDF renamed .jpg is refused rather than stored as a photo",
+  !checkDocumentFile({ name: "note.jpg", size: ONE_MB, type: "image/jpeg" }, PDF_HEAD).ok,
+);
+check("the signature helper reads %PDF-", hasPdfSignature(PDF_HEAD) && !hasPdfSignature(PNG_HEAD));
+check("and refuses a truncated read rather than guessing", !hasPdfSignature([0x25, 0x50]));
+check("five bytes is what a PDF signature needs", PDF_SIGNATURE_BYTES === 5);
+check("eight bytes is what the uploader must read", DOCUMENT_SIGNATURE_BYTES === 8);
+check(
+  "the kind is read from the bytes alone",
+  documentKindFromBytes(PDF_HEAD) === "pdf" &&
+    documentKindFromBytes(JPEG_HEAD) === "jpeg" &&
+    documentKindFromBytes(PNG_HEAD) === "png" &&
+    documentKindFromBytes([0x00, 0x01]) === null,
+);
+check("a truncated PNG head is not called a PNG", documentKindFromBytes(PNG_HEAD.slice(0, 5)) === null);
+
+console.log("\n3b. A photograph of a document is a document");
+const jpeg = checkDocumentFile({ name: "Delivery note 12 Sep.jpg", size: 3 * ONE_MB, type: "image/jpeg" }, JPEG_HEAD);
+check("a JPEG is accepted", jpeg.ok, jpeg.ok ? "" : jpeg.reason);
+check("stored as image/jpeg with a .jpg name", jpeg.ok && jpeg.contentType === "image/jpeg" && jpeg.extension === "jpg");
+const jpegExt = checkDocumentFile({ name: "IMG_0412.JPEG", size: ONE_MB, type: "" }, JPEG_HEAD);
+check("so is .jpeg, uppercase, with a blank type", jpegExt.ok && jpegExt.kind === "jpeg" && jpegExt.extension === "jpg");
+const png = checkDocumentFile({ name: "permit.png", size: ONE_MB, type: "image/png" }, PNG_HEAD);
+check("a PNG is accepted", png.ok && png.contentType === "image/png" && png.extension === "png");
+check(
+  "a JPEG the device calls octet-stream is accepted on its bytes",
+  checkDocumentFile({ name: "note.jpg", size: ONE_MB, type: "application/octet-stream" }, JPEG_HEAD).ok,
+);
+check(
+  "a PNG renamed .jpg is refused and told so",
+  /actually a PNG/.test(checkDocumentFile({ name: "note.jpg", size: ONE_MB, type: "" }, PNG_HEAD).reason ?? ""),
+);
+const heic = checkDocumentFile({ name: "IMG_0413.HEIC", size: ONE_MB, type: "image/heic" }, [0x00, 0x00, 0x00, 0x18]);
+check("a HEIC is refused", !heic.ok);
+check("and told to send a JPEG instead", !heic.ok && /HEIC/.test(heic.reason) && /JPEG/.test(heic.reason), heic.ok ? "" : heic.reason);
+const other = checkDocumentFile({ name: "notes.docx", size: ONE_MB, type: "" }, [0x50, 0x4b]);
+check("anything else is refused by name", !other.ok && /PDF, JPEG or PNG/.test(other.reason));
+check(
+  "the kind from a name",
+  documentKindFromFilename("a.PDF") === "pdf" &&
+    documentKindFromFilename("a.jpg") === "jpeg" &&
+    documentKindFromFilename("a.jpeg") === "jpeg" &&
+    documentKindFromFilename("a.png") === "png" &&
+    documentKindFromFilename("a.heic") === null &&
+    documentKindFromFilename("a.pdf.exe") === null,
+);
+check(
+  "only application/pdf is read for text",
+  isPdfContentType("application/pdf") && isPdfContentType(" Application/PDF ") && !isPdfContentType("image/jpeg") && !isPdfContentType(null),
+);
+
+console.log("\n4. Where the bytes cannot be read, the name and type decide");
+check(
+  "a PDF with an unreadable head is still accepted",
+  checkDocumentFile({ name: "drawing.pdf", size: ONE_MB, type: "" }, null).ok,
+);
+check(
+  "but a device naming another format is believed",
+  !checkDocumentFile({ name: "drawing.pdf", size: ONE_MB, type: "image/png" }, null).ok,
+);
+check(
+  "a JPEG with an unreadable head is accepted on its name and type",
+  checkDocumentFile({ name: "note.jpg", size: ONE_MB, type: "image/jpeg" }, null).ok,
+);
+check(
+  "unless the device says it is something else",
+  !checkDocumentFile({ name: "note.jpg", size: ONE_MB, type: "application/pdf" }, null).ok,
+);
+check(
+  "an unknown name is refused before anything else is considered",
+  !checkDocumentFile({ name: "photo.gif", size: ONE_MB, type: "application/pdf" }, PDF_HEAD).ok,
+);
+check("hasPdfExtension is case-insensitive", hasPdfExtension("a.PdF") && !hasPdfExtension("a.pdf.exe"));
+
+console.log("\n5. The 25 MB limit is preserved");
+check("the limit matches the bucket", DOCUMENT_MAX_BYTES === 25 * 1024 * 1024);
+check(
+  "a file over it is refused",
+  !checkDocumentFile(
+    { name: "big.pdf", size: DOCUMENT_MAX_BYTES + 1, type: "application/pdf" },
+    PDF_HEAD,
+  ).ok,
+);
+check(
+  "and the message says what to do about it",
+  /larger than 25 MB/i.test(
+    checkDocumentFile(
+      { name: "big.pdf", size: DOCUMENT_MAX_BYTES + 1, type: "application/pdf" },
+      PDF_HEAD,
+    ).reason,
+  ),
+);
+check(
+  "a file exactly on the limit is allowed",
+  checkDocumentFile({ name: "ok.pdf", size: DOCUMENT_MAX_BYTES, type: "" }, PDF_HEAD).ok,
+);
+check(
+  "an empty file is refused",
+  !checkDocumentFile({ name: "empty.pdf", size: 0, type: "application/pdf" }, PDF_HEAD).ok,
+);
+
+console.log("\n6. The stored object's type comes from the check, never from the device");
+check("a PDF is normalised to application/pdf", PDF_CONTENT_TYPE === "application/pdf");
+const uploader = uploaderSource;
+check(
+  "the upload asserts the decided type rather than passing the device's guess through",
+  /contentType: check\.contentType/.test(uploader) && !/contentType: file\.type/.test(uploader),
+);
+check("and the recorded row says the same", /mimeType: check\.contentType/.test(uploader));
+check("the stored name carries the decided extension", /\$\{check\.extension\}`/.test(uploader));
+check("nothing is hard-coded to .pdf any more", !/\.pdf`/.test(uploader));
+check(
+  "every file is checked before it is uploaded",
+  /checkDocumentFile\(file, await readSignature\(file\)\)/.test(uploader),
+);
+check("the uploader reads enough bytes for every signature", /DOCUMENT_SIGNATURE_BYTES/.test(uploader));
+
+console.log("\n7. The person holding the iPad is told what happened");
+check("nothing to say when everything worked", describeUploadOutcome({ uploaded: 2, failures: [] }) === null);
+check(
+  "a total failure quotes the reason, not a count",
+  describeUploadOutcome({ uploaded: 0, failures: ["big.pdf is larger than 25 MB."] }) ===
+    "Nothing uploaded. big.pdf is larger than 25 MB.",
+);
+check(
+  "a partial failure says how many got through",
+  /^1 uploaded\. /.test(describeUploadOutcome({ uploaded: 1, failures: ["x.pdf is empty."] })),
+);
+check(
+  "and mentions that there were others",
+  /2 more had problems/.test(
+    describeUploadOutcome({ uploaded: 1, failures: ["a", "b", "c"] }),
+  ),
+);
+
+console.log("\n=== Result ===");
+if (failures.length === 0) console.log("ALL DOCUMENT UPLOAD CHECKS PASSED");
+else {
+  for (const failure of failures) console.log(`FAILED: ${failure}`);
+  process.exitCode = 1;
+}

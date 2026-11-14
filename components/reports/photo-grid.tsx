@@ -1,0 +1,239 @@
+"use client";
+
+import { useState } from "react";
+import { ImageOff, RefreshCw, Trash2 } from "lucide-react";
+
+import { deletePhoto, reorderReportPhotos } from "@/app/(app)/reports/photo-actions";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ConfirmAction } from "@/components/ui/confirm-action";
+import { PhotoDetails } from "@/components/reports/photo-details";
+import { PhotoReplace } from "@/components/reports/photo-replace";
+import { PhotoOrderBar, usePhotoOrder } from "@/components/reports/photo-reorder";
+import { PhotoArrangeView } from "@/components/reports/photo-arrange";
+import { photoPrintLabel, photoPrintLabelText } from "@/lib/photo-captions";
+import { photoReference } from "@/lib/pdf/photo-evidence";
+import { cssRotation } from "@/lib/photos-rotation";
+import type { Photo } from "@/types/database";
+
+export type PhotoWithUrl = Pick<
+  Photo,
+  "id" | "caption" | "category" | "storage_path" | "width" | "height"
+> & { url: string | null; rotation?: number | null };
+
+/**
+ * Photos as a thumbnail grid.
+ *
+ * Two columns on a phone when the photographs are only being looked at: big
+ * enough to tell one pour of concrete from another with the screen at arm's
+ * length in daylight, which one column of full-width images would scroll
+ * forever and three would make too small.
+ *
+ * One column on a phone when they are being edited. A caption box, a status
+ * menu and an AI suggestion do not fit in half of a 390px screen: the label
+ * wrapped onto three lines, the box was a strip, and the suggestion's buttons
+ * stacked. The editable cards go two abreast only where each still has a
+ * sensible width to type into: a phone on its side, and a desktop from 1024px.
+ * Between the two the side navigation takes a third of the screen, and two
+ * cards in what is left were 202px each, so that range is one column too.
+ *
+ * ## Putting them in order
+ *
+ * The order is part of what the report says. Plates are numbered from their
+ * position - P01, P02, P03 - and the PDF prints two to a row, so a before and
+ * an after that sit next to each other here read as a pair in the document and
+ * the same two photographs three plates apart read as two unrelated pictures.
+ * Until now that order was whatever the upload queue happened to produce.
+ *
+ * Reordering is a mode rather than something always underfoot: a grid whose
+ * tiles carry arrows all the time is a grid you nudge by accident while
+ * scrolling one-handed. Inside the mode each tile shows the plate number it
+ * will print as, so the screen and the document cannot disagree. The control
+ * itself is components/reports/photo-reorder.tsx - the same one a Progress,
+ * Completion or Survey report uses.
+ */
+export function PhotoGrid({
+  photos,
+  deletable = true,
+  editable = deletable,
+  aiConfigured = false,
+  reportId = null,
+}: {
+  photos: PhotoWithUrl[];
+  deletable?: boolean;
+  /** Whether the AI description button is offered - hidden with no key configured. */
+  aiConfigured?: boolean;
+  /**
+   * Captions and statuses are editable wherever photographs can be deleted -
+   * that is, anywhere the owning report is still a draft. An issued report's
+   * captions are frozen along with its PDF.
+   */
+  editable?: boolean;
+  /**
+   * The report these photographs are printed in, where there is one. A
+   * project's own photographs are not in a document, so there is no order to
+   * choose for them.
+   */
+  reportId?: string | null;
+}) {
+  const [reordering, setReordering] = useState(false);
+  // The photograph whose delete is being asked about, if any.
+  const [confirming, setConfirming] = useState<string | null>(null);
+  // The photograph whose image is being replaced, if any.
+  const [replacing, setReplacing] = useState<string | null>(null);
+  const order = usePhotoOrder(
+    photos.map((photo) => photo.id),
+    (ids) => reorderReportPhotos(reportId!, ids),
+  );
+
+  const byId = new Map(photos.map((photo) => [photo.id, photo]));
+  const ordered = order.ids.flatMap((id) => {
+    const photo = byId.get(id);
+    return photo ? [photo] : [];
+  });
+
+  const canReorder = Boolean(reportId) && deletable && photos.length > 1;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {canReorder ? (
+        <PhotoOrderBar
+          reordering={reordering}
+          onToggle={() => setReordering((open) => !open)}
+          order={order}
+        />
+      ) : null}
+
+      {reordering && canReorder ? (
+        <PhotoArrangeView
+          photos={ordered}
+          order={order}
+          onDone={() => setReordering(false)}
+        />
+      ) : null}
+
+      <ul
+        className={
+          editable
+            ? "grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2"
+            : "grid grid-cols-2 gap-3 sm:grid-cols-3"
+        }
+      >
+        {ordered.map((photo, index) => {
+          const label = photoPrintLabel(photo);
+          const alt = photoPrintLabelText(photo);
+
+          return (
+            <li
+              key={photo.id}
+              className="flex min-w-0 flex-col gap-2.5 overflow-hidden rounded-card bg-surface p-2 shadow-card ring-1 ring-line/70 ring-inset"
+            >
+              <div className="relative aspect-square overflow-hidden rounded-[14px] bg-surface-muted">
+                {/* The plate number this will print as, in this order. */}
+                {reportId ? (
+                  <span className="absolute top-1.5 left-1.5 z-10 rounded-full bg-surface-sunken/80 px-2 py-0.5 text-[11px] font-bold tracking-wide text-ink backdrop-blur">
+                    {photoReference(index)}
+                  </span>
+                ) : null}
+                {photo.url ? (
+                  // Signed Supabase URLs expire, so next/image's optimiser would
+                  // cache a URL that outlives it and then serve broken images.
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={photo.url}
+                    alt={alt ?? "Site photo"}
+                    className="size-full object-cover"
+                    loading="lazy"
+                    // Presentation only: the stored file is never altered.
+                    style={
+                      cssRotation(photo.rotation)
+                        ? { transform: cssRotation(photo.rotation) }
+                        : undefined
+                    }
+                  />
+                ) : (
+                  <div className="grid size-full place-items-center text-ink-subtle">
+                    <ImageOff className="size-6" aria-hidden />
+                  </div>
+                )}
+
+                {deletable && confirming !== photo.id ? (
+                  // The icon only opens the question. A photograph is evidence
+                  // and a two-column grid held one-handed is a thumb-slip
+                  // away from the corner of a tile, so the delete itself is
+                  // the second tap, in the same inline confirmation every
+                  // other destructive action uses.
+                  <Button
+                    type="button"
+                    variant="danger"
+                    size="icon"
+                    aria-label={`Delete photo${alt ? `: ${alt}` : ""}`}
+                    className="absolute top-1.5 right-1.5 size-9 rounded-xl shadow-card opacity-90 transition-opacity hover:opacity-100"
+                    onClick={() => setConfirming(photo.id)}
+                  >
+                    <Trash2 aria-hidden />
+                  </Button>
+                ) : null}
+
+                {editable && replacing !== photo.id ? (
+                  // For a photograph edited afterwards in the phone's Photos
+                  // app: the picture changes, the photograph stays.
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="icon"
+                    aria-label={`Replace photo${alt ? `: ${alt}` : ""}`}
+                    className="absolute right-1.5 bottom-1.5 size-9 rounded-xl shadow-card opacity-90 transition-opacity hover:opacity-100"
+                    onClick={() => setReplacing(photo.id)}
+                  >
+                    <RefreshCw aria-hidden />
+                  </Button>
+                ) : null}
+              </div>
+
+              {editable && replacing === photo.id ? (
+                <PhotoReplace
+                  photoId={photo.id}
+                  storagePath={photo.storage_path}
+                  onClose={() => setReplacing(null)}
+                />
+              ) : null}
+
+              {deletable && confirming === photo.id ? (
+                <ConfirmAction
+                  action={deletePhoto}
+                  hiddenFields={{ photoId: photo.id }}
+                  trigger="Delete photo"
+                  title="Delete this photograph?"
+                  description="It is removed from the report and from storage, and cannot be got back."
+                  confirmLabel="Delete photo"
+                  pendingLabel="Deleting…"
+                  defaultOpen
+                  onCancel={() => setConfirming(null)}
+                />
+              ) : null}
+
+              {editable ? (
+                <PhotoDetails
+                  // A new image drops any AI suggestion made from the old one.
+                  key={photo.storage_path}
+                  photoId={photo.id}
+                  caption={photo.caption}
+                  category={photo.category}
+                  aiConfigured={aiConfigured}
+                />
+              ) : (
+                <div className="flex flex-col gap-1 px-1 pb-1">
+                  {label.status ? <Badge tone="neutral">{label.status}</Badge> : null}
+                  {label.caption ? (
+                    <p className="text-xs leading-relaxed text-ink-muted">{label.caption}</p>
+                  ) : null}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}

@@ -1,0 +1,373 @@
+@import "tailwindcss";
+
+/*
+ * SiteBoss Pro design tokens.
+ *
+ * Dark by design. The brand is charcoal and white with a restrained gold, and
+ * on a phone held at arm's length under a site hi-vis the dark ground is what
+ * makes the gold and the white type carry. Everything in the application draws
+ * from these tokens - no screen picks its own colours - so the identity is
+ * changed here and nowhere else.
+ *
+ * Gold is an accent: an active state, a mark, a single primary action per
+ * screen. It is never a large field of colour behind content.
+ */
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Surfaces. Sunken is the page, surface is a card, raised is a card on a
+     card or anything that has to come forward. Muted is a fill inside a card:
+     a chip, a hover, a quiet panel. */
+  --color-surface: #141b24;
+  --color-surface-sunken: #070b10;
+  --color-surface-muted: #172330;
+  --color-surface-raised: #0d1520;
+
+  /* Lines. A hairline by default, and mostly replaced by layering and space;
+     strong is for a control that has to read as one. */
+  --color-line: #293746;
+  --color-line-strong: #465465;
+
+  /* Text */
+  --color-ink: #f4f7fb;
+  --color-ink-muted: #a9b4c2;
+  --color-ink-subtle: #91a0b2;
+  /* What goes on top of gold or white - never white on gold. */
+  --color-ink-inverse: #070b10;
+
+  /* Brand */
+  --color-brand: #e3b34a;
+  --color-brand-strong: #efc76c;
+  --color-brand-soft: #302818;
+  /* Gold as words rather than as a fill. On charcoal that is the gold itself;
+     on white it has to darken or it cannot be read. */
+  --color-brand-ink: #e3b34a;
+
+  /* The single primary action on a screen. */
+  --color-primary: #e3b34a;
+  --color-primary-hover: #efc76c;
+
+  /*
+   * Status. Each is a light tint that reads as text on charcoal, with a dark
+   * companion for the chip behind it. Danger has a filled variant as well,
+   * because a destructive button has to look like one.
+   */
+  --color-success: #52c694;
+  --color-success-soft: #10271b;
+  --color-warning: #e7b04a;
+  --color-warning-soft: #2c1c12;
+  --color-danger: #e06262;
+  --color-danger-soft: #2e161b;
+  --color-danger-strong: #d8404f;
+  --color-info: #72b5ef;
+  --color-info-soft: #122239;
+
+  /* Corners. Cards are generous; controls a step tighter so they nest. */
+  --radius-card: 18px;
+  --radius-control: 12px;
+
+  /* Depth. Soft and low, never a hard drop: the cards are lit, not stacked. */
+  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 10px 30px -18px rgb(0 0 0 / 0.7);
+  --shadow-raised: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 18px 40px -20px rgb(0 0 0 / 0.75);
+  --shadow-glow: 0 4px 16px -8px rgb(227 179 74 / 0.25);
+  --shadow-nav: 0 -1px 0 0 rgb(255 255 255 / 0.03) inset, 0 16px 40px -12px rgb(0 0 0 / 0.8);
+
+  /* Motion. One curve, two speeds. */
+  --ease-out-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --animate-rise: rise 420ms var(--ease-out-soft) both;
+  --animate-fade: fade 240ms ease-out both;
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+  @keyframes fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+}
+
+/*
+ * How this device shows the application - see lib/preferences.ts. The
+ * attributes are stamped on <html> before first paint, so nothing flashes.
+ *
+ * Defaults are the application exactly as it was: dark, normal type, normal
+ * targets. Absent attributes fall through to these.
+ */
+:root {
+  /* Type. Applied to the root font size, so every rem in the design system
+     follows - there is no page that opts out. */
+  --ui-text-scale: 1;
+  /* The smallest a control may be. Every button, field and row draws from it. */
+  --ui-control-min: 3rem;
+  --ui-control-pad: 1.25rem;
+}
+
+:root[data-text="small"] {
+  --ui-text-scale: 0.9375;
+}
+
+:root[data-text="large"] {
+  --ui-text-scale: 1.125;
+}
+
+/* Gloves, or big hands, or a phone held one-handed up a ladder. */
+:root[data-touch="large"] {
+  --ui-control-min: 3.75rem;
+  --ui-control-pad: 1.5rem;
+}
+
+/*
+ * Light.
+ *
+ * The same brand, not a different one: charcoal type on white, the same gold,
+ * and the mark unchanged. Gold darkens where it has to carry as text.
+ */
+:root[data-theme="light"],
+:root[data-theme="system"] {
+  --color-surface: #ffffff;
+  --color-surface-sunken: #f2f4f7;
+  --color-surface-muted: #e9ecf1;
+  --color-surface-raised: #fafbfc;
+
+  --color-line: #e3e7ed;
+  --color-line-strong: #cbd2dc;
+
+  --color-ink: #14171c;
+  --color-ink-muted: #4d5560;
+  --color-ink-subtle: #7a828e;
+  /* Still what goes on top of gold, so it darkens rather than inverting. */
+  --color-ink-inverse: #14171c;
+
+  --color-brand-strong: #b45309;
+  --color-brand-soft: #fff5d6;
+  --color-brand-ink: #9a6b00;
+
+  /* Gold is the primary action in both themes - it is the brand's button. */
+  --color-primary: #e3b34a;
+  --color-primary-hover: #e9ae00;
+
+  --color-success: #0f7a52;
+  --color-success-soft: #e3f6ee;
+  --color-warning: #a2620b;
+  --color-warning-soft: #fdf2dc;
+  --color-danger: #c0392f;
+  --color-danger-soft: #fdeceb;
+  --color-danger-strong: #c0392f;
+  --color-info: #1d4ed8;
+  --color-info-soft: #e6edfd;
+
+  --shadow-card: 0 1px 2px rgb(20 23 28 / 0.04), 0 10px 30px -18px rgb(20 23 28 / 0.25);
+  --shadow-raised: 0 1px 2px rgb(20 23 28 / 0.05), 0 18px 40px -20px rgb(20 23 28 / 0.3);
+  --shadow-nav: 0 16px 40px -12px rgb(20 23 28 / 0.35);
+}
+
+/* "System" is light only where the device actually asks for light. */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="system"] {
+    --color-surface: #141b24;
+    --color-surface-sunken: #070b10;
+    --color-surface-muted: #172330;
+    --color-surface-raised: #0d1520;
+
+    --color-line: #293746;
+    --color-line-strong: #465465;
+
+    --color-ink: #f4f7fb;
+    --color-ink-muted: #a9b4c2;
+    --color-ink-subtle: #91a0b2;
+    --color-ink-inverse: #070b10;
+
+    --color-brand-strong: #efc76c;
+    --color-brand-soft: #302818;
+    --color-brand-ink: #e3b34a;
+
+    --color-primary: #e3b34a;
+    --color-primary-hover: #efc76c;
+
+    --color-success: #52c694;
+    --color-success-soft: #10271b;
+    --color-warning: #e7b04a;
+    --color-warning-soft: #2c1c12;
+    --color-danger: #e06262;
+    --color-danger-soft: #2e161b;
+    --color-danger-strong: #d8404f;
+    --color-info: #72b5ef;
+    --color-info-soft: #122239;
+
+    --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 10px 30px -18px rgb(0 0 0 / 0.7);
+    --shadow-raised: 0 1px 0 0 rgb(255 255 255 / 0.04) inset, 0 18px 40px -20px rgb(0 0 0 / 0.75);
+    --shadow-nav: 0 -1px 0 0 rgb(255 255 255 / 0.03) inset, 0 16px 40px -12px rgb(0 0 0 / 0.8);
+  }
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    /* Tells the browser to draw its own furniture - scrollbars, form
+       controls, the pull-to-refresh overscroll - to match. */
+    color-scheme: dark;
+    /* Text size, applied once at the root so every rem in the system follows.
+       A page cannot opt out, and nothing needs a second set of classes. */
+    font-size: calc(16px * var(--ui-text-scale));
+  }
+
+  html[data-theme="light"] {
+    color-scheme: light;
+  }
+
+  html[data-theme="system"] {
+    color-scheme: light dark;
+  }
+
+  body {
+    background-color: var(--color-surface-sunken);
+    color: var(--color-ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01", "tnum";
+    line-height: 1.5;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  h1,
+  h2,
+  h3 {
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  /* No motion where the device asks for none. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* iOS Safari zooms the viewport when focusing an input under 16px, so this
+     is a floor rather than a size - Small still gets 16px in a field. */
+  input,
+  textarea,
+  select {
+    font-size: max(16px, 1rem);
+  }
+
+  /* Gold, because on charcoal a white ring is hard to separate from the text
+     it surrounds and this has to be obvious with gloves on. */
+  :focus-visible {
+    outline: 2px solid var(--color-brand);
+    outline-offset: 2px;
+  }
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+/* Glass: an elevated dark surface with a light blur, for the bars only. */
+@utility glass {
+  background-color: color-mix(in srgb, var(--color-surface) 94%, transparent);
+  -webkit-backdrop-filter: saturate(115%) blur(12px);
+  backdrop-filter: saturate(115%) blur(12px);
+}
+
+@utility mb-safe {
+  margin-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* The gold hairline under the brand bar, and the top edge of a header. */
+@utility brand-rule {
+  background-image: linear-gradient(
+    to right,
+    var(--color-brand) 0,
+    var(--color-brand) 44px,
+    var(--color-line) 44px,
+    var(--color-line) 100%
+  );
+}
+
+/* Phase A: smoked surfaces are painted, not blurred. Only the dock uses glass. */
+@utility midnight-panel {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--color-surface-raised) 94%, var(--color-ink) 6%), var(--color-surface));
+  border: 1px solid var(--color-line);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-ink) 7%, transparent), 0 8px 22px -18px rgb(0 0 0 / 0.55);
+}
+@utility midnight-site {
+  background: radial-gradient(ellipse at top right, color-mix(in srgb, var(--color-info) 13%, transparent), transparent 65%), var(--color-surface);
+  border: 1px solid color-mix(in srgb, var(--color-info) 24%, var(--color-line));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--color-ink) 10%, transparent);
+}
+@utility midnight-action {
+  background: linear-gradient(155deg, color-mix(in srgb, var(--color-primary) 13%, var(--color-surface)), var(--color-surface));
+  border: 1px solid color-mix(in srgb, var(--color-primary) 48%, var(--color-line));
+}
+
+/* Site desk and camera use the existing site palette and locally served type. */
+.site-desk-heading { display:flex; align-items:baseline; justify-content:space-between; gap:.75rem; }
+.site-desk-heading h1 { font-size:clamp(1.95rem,5vw,2.65rem); font-weight:680; letter-spacing:-.055em; line-height:1.1; }
+.site-desk-heading p, .site-desk-kicker { font-family:var(--font-mono); font-size:.71rem; color:var(--color-ink-muted); }
+.site-desk-heading p { text-align:right; }
+.site-desk-kicker { display:block; text-transform:uppercase; letter-spacing:.11em; font-weight:600; }
+.site-desk-current { border:1px solid var(--color-line); background:var(--color-surface); border-radius:var(--radius-card); overflow:hidden; }
+.site-desk-id { padding:1.3rem 1.3rem 1rem; }
+.site-desk-name { display:flex; width:fit-content; max-width:100%; align-items:center; gap:.75rem; margin:.45rem 0; }
+.site-desk-name h2 { font-size:clamp(1.7rem,4.7vw,2.55rem); line-height:1.12; letter-spacing:-.045em; font-weight:660; overflow-wrap:anywhere; }
+.site-desk-name svg { width:1.1rem; flex:none; color:var(--color-ink-subtle); }
+.site-desk-address { display:flex; align-items:center; gap:.35rem; color:var(--color-ink-muted); font-size:.875rem; }
+.site-desk-address svg, .site-desk-daily svg { width:1rem; flex:none; }
+.desk-capture { display:flex; align-items:center; gap:.85rem; width:100%; min-height:4.5rem; padding:.65rem 1.3rem; text-align:left; font-size:1.15rem; line-height:1.2; background:var(--color-brand-soft); color:var(--color-ink); border-block:1px solid color-mix(in srgb,var(--color-brand) 30%,var(--color-line)); }
+.desk-capture small { display:block; margin-top:.2rem; color:var(--color-ink-muted); font-size:.78rem; font-weight:450; }
+.desk-capture-icon { display:grid; place-items:center; width:2.8rem; height:2.8rem; background:var(--color-primary); color:var(--color-ink-inverse); border-radius:50%; }
+.desk-capture-arrow { margin-left:auto; width:1.2rem; color:var(--color-brand-ink); }
+.desk-capture:active, .field-shutter:active .field-shutter-ring { opacity:.82; }
+.site-desk-daily { min-height:3rem; display:flex; gap:.5rem; padding:.65rem 1.3rem; align-items:center; font-size:.84rem; }
+.site-desk-daily span:nth-of-type(2) { margin-left:auto; font-family:var(--font-mono); font-size:.71rem; color:var(--color-ink-muted); }
+.site-desk-current > .col-span-full { padding:1rem; }
+.site-desk-nav { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); border-block:1px solid var(--color-line); }
+.site-desk-nav-link { display:flex; align-items:center; justify-content:center; gap:.5rem; padding:.7rem .15rem; min-height:var(--ui-control-min); font-weight:550; font-size:.9rem; }
+.site-desk-nav-link svg { width:1rem; height:1rem; color:var(--color-ink-muted); }
+.site-desk-nav-link + .site-desk-nav-link { border-left:1px solid var(--color-line); }
+.field-camera { position:fixed; inset:0; margin:auto; width:min(100%,33rem); max-height:100dvh; overflow-y:auto; overscroll-behavior:contain; border:1px solid var(--color-line); border-radius:1.2rem; background:var(--color-surface); color:var(--color-ink); }
+.field-camera::backdrop { background:rgb(4 8 13 / .88); }
+.field-camera-head { display:flex; justify-content:space-between; align-items:center; gap:.75rem; padding:.9rem 1.15rem; }
+.field-camera-head p { font-weight:600; font-size:1.13rem; line-height:1.25; }
+.field-camera-close { display:grid; place-items:center; width:2.75rem; height:2.75rem; border-radius:50%; background:var(--color-surface-muted); }
+.field-camera-close svg { width:1.15rem; }
+.field-viewfinder { position:relative; background:#070b10; }
+.field-viewfinder video { display:block; width:100%; height:min(47dvh,28rem); object-fit:contain; }
+.field-viewfinder p { position:absolute; inset:45% 0 auto; text-align:center; color:#fff; font-size:.9rem; }
+.field-camera-controls { display:flex; align-items:center; justify-content:center; gap:1.7rem; padding:1.1rem 1rem .7rem; }
+.field-shutter { display:flex; flex-direction:column; align-items:center; gap:.45rem; font-size:.85rem; font-weight:600; }
+.field-shutter { touch-action:none; user-select:none; -webkit-touch-callout:none; }
+.field-shutter small { font-size:.75rem; font-weight:450; color:var(--color-ink-muted); }
+.field-shutter:disabled, .field-save:disabled { opacity:.55; }
+.field-shutter-ring { width:3.7rem; height:3.7rem; border:3px solid var(--color-brand-ink); padding:4px; border-radius:50%; background:var(--color-primary); background-clip:content-box; }
+.field-save { display:flex; align-items:center; gap:.45rem; border-radius:var(--radius-control); background:var(--color-primary); color:var(--color-ink-inverse); font-weight:650; min-height:var(--ui-control-min); padding:.65rem 1rem; }
+.field-save svg { width:1rem; }
+.field-camera-tools { display:grid; gap:.35rem; padding:.25rem 1.1rem 1rem; }
+.field-camera-tools summary { min-height:2.75rem; align-content:center; color:var(--color-ink-muted); }
+.field-camera-status { color:var(--color-brand-ink); font-size:.86rem; font-weight:600; text-align:center; }
+@media(max-width:35rem) {
+  .field-camera { width:100%; max-width:100%; min-height:100dvh; margin:0; border:0; border-radius:0; padding-top:env(safe-area-inset-top); padding-bottom:env(safe-area-inset-bottom); }
+}
+
+.auth-entry { display:grid; grid-template-rows:auto 1fr; align-content:start; gap:clamp(2.5rem,9dvh,5rem); width:min(100% - 2.5rem,26rem); min-height:100dvh; margin:auto; padding-block:clamp(1.75rem,7dvh,5rem) 2rem; }
+.auth-entry > header { display:flex; flex-direction:column; gap:1rem; padding-bottom:1.15rem; border-bottom:1px solid var(--color-line); }
+.auth-entry > header p { font-family:var(--font-mono); color:var(--color-ink-subtle); font-size:.67rem; letter-spacing:.065em; }

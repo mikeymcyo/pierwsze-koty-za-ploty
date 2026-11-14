@@ -1,0 +1,30 @@
+import * as React from "react";
+import { ChevronDown } from "lucide-react";
+
+import { cn } from "@/lib/utils";
+
+/**
+ * A native <select>. On phones this opens the OS picker wheel, which is both
+ * faster and more reliable with gloves than a custom dropdown.
+ */
+export function Select({ className, children, ...props }: React.ComponentProps<"select">) {
+  return (
+    <div className="relative">
+      <select
+        className={cn(
+          "min-h-(--ui-control-min) w-full appearance-none rounded-control border border-line-strong/70 bg-surface-sunken/70 px-4 pr-11 text-ink",
+          "transition-colors focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/25",
+          "disabled:cursor-not-allowed disabled:bg-surface-muted disabled:opacity-70",
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </select>
+      <ChevronDown
+        className="pointer-events-none absolute top-1/2 right-4 size-5 -translate-y-1/2 text-ink-subtle"
+        aria-hidden
+      />
+    </div>
+  );
+}

@@ -1,0 +1,394 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { z } from "zod";
+
+import { requireSessionContext } from "@/lib/auth/session";
+import {
+  RESOLVED_DURING_REVIEW,
+  closedAtFor,
+  closedAtOn,
+  hasRequiredResolution,
+  isResolvedStatus,
+} from "@/lib/issues/metadata";
+import { RESOLUTION_REQUIRED, fieldErrorsFrom } from "@/lib/issues/validation";
+import { safeReturnPath } from "@/lib/navigation";
+import { REPORT_IS_FINAL } from "@/lib/reports/immutability";
+import { createClient } from "@/lib/supabase/server";
+
+/**
+ * Issues: raised on site, tracked against the project.
+ *
+ * `report_id` is nullable by design and its foreign key is
+ * `on delete set null (report_id)` - an issue outlives the report it was first
+ * noticed in, because the defect is still there after the day's paperwork is
+ * filed. So the same actions serve both places it can be raised from: the
+ * report being written, which is the site workflow, and the project's own
+ * Open Issues tab.
+ *
+ * `photo_id` likewise already exists, with a composite foreign key against
+ * (photos.id, company_id) - a photo can only be attached to an issue in the
+ * same company even if RLS were bypassed. No migration was needed for any of
+ * this.
+ */
+
+export type IssueFormState = {
+  error?: string;
+  fieldErrors?: Record<string, string>;
+  created?: boolean;
+  saved?: boolean;
+};
+
+/**
+ * Never the validator's own words. See lib/issues/validation.ts - a missing
+ * form field once printed "expected string, received undefined" under the
+ * Resolution box, and nobody could close an issue.
+ */
+function fieldErrorsOf(error: z.ZodError): Record<string, string> {
+  return fieldErrorsFrom(error.issues);
+}
+
+/**
+ * An optional free-text field.
+ *
+ * Tolerates the key being missing as well as empty. A browser omits an
+ * unchecked control entirely, and an action that forgets to read one should
+ * produce a saved record rather than a validator message about `undefined`.
+ */
+const optionalText = z
+  .union([z.string(), z.undefined(), z.null()])
+  .transform((value) => {
+    const trimmed = (value ?? "").trim();
+    return trimmed.length > 0 ? trimmed : null;
+  });
+
+const optionalUuid = z
+  .union([z.string(), z.undefined(), z.null()])
+  .transform((value) => {
+    const trimmed = (value ?? "").trim();
+    return trimmed.length > 0 ? trimmed : null;
+  })
+  .refine((value) => value === null || z.uuid().safeParse(value).success, "Pick a valid photo");
+
+const PRIORITIES = ["low", "medium", "high", "critical"] as const;
+const STATUSES = ["open", "in_progress", "closed"] as const;
+
+const createSchema = z.object({
+  projectId: z.uuid(),
+  reportId: optionalUuid,
+  title: z.string().trim().min(3, "Say what the issue is"),
+  description: optionalText,
+  responsible: optionalText,
+  photoId: optionalUuid,
+  priority: z.enum(PRIORITIES, { message: "Choose a priority" }),
+});
+
+const updateSchema = z.object({
+  title: z.string().trim().min(3, "Say what the issue is"),
+  description: optionalText,
+  resolution: optionalText,
+  responsible: optionalText,
+  photoId: optionalUuid,
+  priority: z.enum(PRIORITIES, { message: "Choose a priority" }),
+  status: z.enum(STATUSES, { message: "Choose a status" }),
+}).superRefine((value, context) => {
+  if (!hasRequiredResolution(value.status, value.resolution)) {
+    context.addIssue({
+      code: "custom",
+      path: ["resolution"],
+      message: RESOLUTION_REQUIRED,
+    });
+  }
+});
+
+function read(formData: FormData, key: string): string {
+  return String(formData.get(key) ?? "");
+}
+
+/**
+ * Raises an issue, from a report or from the project.
+ *
+ * Returns rather than redirects: raised from the capture screen, the site
+ * manager is mid-report and being thrown somewhere else would lose his place.
+ */
+export async function createIssue(
+  _prev: IssueFormState,
+  formData: FormData,
+): Promise<IssueFormState> {
+  const parsed = createSchema.safeParse({
+    projectId: read(formData, "projectId"),
+    reportId: read(formData, "reportId"),
+    title: read(formData, "title"),
+    description: read(formData, "description"),
+    responsible: read(formData, "responsible"),
+    photoId: read(formData, "photoId"),
+    priority: read(formData, "priority"),
+  });
+
+  if (!parsed.success) return { fieldErrors: fieldErrorsOf(parsed.error) };
+
+  const session = await requireSessionContext();
+  const supabase = await createClient();
+  const input = parsed.data;
+
+  // An issue raised against a Daily is printed in that Daily. Once the Daily
+  // is issued, its PDF is the record and a new row would make the screen say
+  // more than the file the client holds.
+  if (input.reportId) {
+    const { data: report } = await supabase
+      .from("reports")
+      .select("status")
+      .eq("id", input.reportId)
+      .maybeSingle();
+    if (!report) return { error: "That report could not be found." };
+    if (report.status === "final") return { error: REPORT_IS_FINAL };
+  }
+
+  const { error } = await supabase.from("issues").insert({
+    company_id: session.companyId,
+    project_id: input.projectId,
+    report_id: input.reportId,
+    title: input.title,
+    description: input.description,
+    responsible: input.responsible,
+    photo_id: input.photoId,
+    priority: input.priority,
+    status: "open",
+    created_by: session.userId,
+  });
+
+  if (error) return { error: `Could not raise the issue: ${error.message}` };
+
+  // Both places it can appear from, so it shows up under Open Issues straight
+  // away rather than after a hard refresh.
+  revalidatePath(`/projects/${input.projectId}`);
+  if (input.reportId) revalidatePath(`/reports/${input.reportId}`);
+  return { created: true };
+}
+
+export async function updateIssue(
+  issueId: string,
+  _prev: IssueFormState,
+  formData: FormData,
+): Promise<IssueFormState> {
+  const parsed = updateSchema.safeParse({
+    title: read(formData, "title"),
+    description: read(formData, "description"),
+    // Read, at last. Omitting this is what produced "expected string, received
+    // undefined" under the Resolution box and made closing an issue impossible.
+    resolution: read(formData, "resolution"),
+    responsible: read(formData, "responsible"),
+    photoId: read(formData, "photoId"),
+    priority: read(formData, "priority"),
+    status: read(formData, "status"),
+  });
+
+  if (!parsed.success) return { fieldErrors: fieldErrorsOf(parsed.error) };
+
+  await requireSessionContext();
+  const supabase = await createClient();
+
+  // Read first for closed_at and for the paths to revalidate. RLS keeps this to
+  // the caller's own company, so a missing row means "not yours" as much as
+  // "not there" - and both answer the same way.
+  const { data: existing } = await supabase
+    .from("issues")
+    .select("project_id, report_id, closed_at")
+    .eq("id", issueId)
+    .maybeSingle();
+
+  if (!existing) return { error: "That issue could not be found." };
+
+  const input = parsed.data;
+  const { error } = await supabase
+    .from("issues")
+    .update({
+      title: input.title,
+      description: input.description,
+      // Stored as typed, whatever the status. Someone who writes how a thing
+      // was put right while it is still in progress should not lose those words
+      // on save; hasRequiredResolution is what gates closing.
+      resolution: input.resolution,
+      responsible: input.responsible,
+      photo_id: input.photoId,
+      priority: input.priority,
+      status: input.status,
+      closed_at: closedAtFor(input.status, existing.closed_at),
+    })
+    .eq("id", issueId);
+
+  if (error) return { error: `Could not save the issue: ${error.message}` };
+
+  revalidatePath(`/projects/${existing.project_id}`);
+  if (existing.report_id) revalidatePath(`/reports/${existing.report_id}`);
+  return { saved: true };
+}
+
+/**
+ * Moves an issue between open, in progress and closed.
+ *
+ * Separate from updateIssue so the list can carry a one-tap control: changing
+ * where something stands is the common action on site, and making it a trip to
+ * an edit form would mean it does not get done.
+ */
+export async function setIssueStatus(formData: FormData) {
+  const parsed = z
+    .object({ issueId: z.uuid(), status: z.enum(STATUSES) })
+    .safeParse({
+      issueId: read(formData, "issueId"),
+      status: read(formData, "status"),
+    });
+
+  if (!parsed.success) return;
+
+  // Closing needs a recorded resolution, so it goes through the edit screen.
+  if (parsed.data.status === "closed") return;
+
+  const moved = await moveIssue(parsed.data.issueId, parsed.data.status, read(formData, "returnPath"));
+  // A bare form action has nowhere to put an error, and throwing one hands
+  // the whole page to the error boundary. The screens use
+  // setIssueStatusFromReview, which returns it; this stays for any form
+  // that still posts here and simply leaves the issue where it was.
+  if (moved.error) console.error("[siteboss] issue status not changed:", moved.error);
+}
+
+export type IssueMoveState = { error?: string; status?: "open" | "in_progress" };
+
+/**
+ * The same move, from a finding on the whole-report review.
+ *
+ * Returns its outcome rather than throwing, because the review panel keeps
+ * the finding on the screen until the issue has actually moved and needs to
+ * know when it has. Closing is not offered here either: that is resolveIssue,
+ * with its note.
+ */
+export async function setIssueStatusFromReview(
+  _previous: IssueMoveState,
+  formData: FormData,
+): Promise<IssueMoveState> {
+  const parsed = z
+    .object({ issueId: z.uuid(), status: z.enum(["open", "in_progress"]) })
+    .safeParse({
+      issueId: read(formData, "issueId"),
+      status: read(formData, "status"),
+    });
+  if (!parsed.success) return { error: "That issue could not be moved." };
+
+  const moved = await moveIssue(parsed.data.issueId, parsed.data.status, read(formData, "returnPath"));
+  return moved.error ? { error: moved.error } : { status: parsed.data.status };
+}
+
+/**
+ * One place that moves an issue between open and in progress.
+ *
+ * The status trigger on the table (`issues_record_event`) writes the
+ * issue_events row, so history is kept however the move was asked for.
+ */
+async function moveIssue(
+  issueId: string,
+  status: "open" | "in_progress",
+  returnPath: string,
+): Promise<{ error?: string }> {
+  await requireSessionContext();
+  const supabase = await createClient();
+
+  const { data: existing } = await supabase
+    .from("issues")
+    .select("project_id, report_id, closed_at")
+    .eq("id", issueId)
+    .maybeSingle();
+
+  if (!existing) return { error: "That issue could not be found." };
+
+  const { error } = await supabase
+    .from("issues")
+    .update({
+      status,
+      closed_at: closedAtFor(status, existing.closed_at),
+    })
+    .eq("id", issueId);
+
+  if (error) return { error: `Could not update the issue: ${error.message}` };
+
+  revalidatePath(`/projects/${existing.project_id}`);
+  if (existing.report_id) revalidatePath(`/reports/${existing.report_id}`);
+  // The screen it was pressed on - a Progress Report, say - which the issue
+  // itself knows nothing about. Only a path on this application is accepted.
+  const returnTo = safeReturnPath(returnPath);
+  if (returnTo) revalidatePath(returnTo);
+  return {};
+}
+
+export type ResolveIssueState = { error?: string; resolved?: boolean };
+
+const resolveSchema = z.object({
+  issueId: z.uuid(),
+  note: z
+    .string()
+    .trim()
+    .max(500, "Keep the resolution to a sentence or two"),
+  /** YYYY-MM-DD, today by default, never in the future. */
+  resolvedOn: z
+    .union([z.string(), z.undefined(), z.null()])
+    .transform((value) => (value ?? "").trim())
+    .refine((value) => value === "" || /^\d{4}-\d{2}-\d{2}$/.test(value), "Pick a valid date")
+    .refine(
+      (value) => value === "" || value <= new Date().toISOString().slice(0, 10),
+      "The resolved date cannot be in the future",
+    ),
+});
+
+/**
+ * Marks an issue resolved, from the list it sits in, with the words that say
+ * how.
+ *
+ * The one-tap route the Southampton site needed: the inserts arrived, the
+ * section was finished, and the Saturday issue should say so without a trip
+ * to an edit form. It goes through the same rule as the form - a resolved
+ * issue carries a resolution - and stamps `closed_at` the same way. A person
+ * presses this; nothing calls it on their behalf. An AI suggestion only
+ * pre-fills the note.
+ */
+export async function resolveIssue(
+  _previous: ResolveIssueState,
+  formData: FormData,
+): Promise<ResolveIssueState> {
+  const parsed = resolveSchema.safeParse({
+    issueId: read(formData, "issueId"),
+    note: read(formData, "note") ?? "",
+    resolvedOn: read(formData, "resolvedOn"),
+  });
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message ?? "Say what was done" };
+  }
+
+  await requireSessionContext();
+  const supabase = await createClient();
+
+  const { data: existing } = await supabase
+    .from("issues")
+    .select("project_id, report_id, status, closed_at")
+    .eq("id", parsed.data.issueId)
+    .maybeSingle();
+  if (!existing) return { error: "That issue could not be found." };
+  if (isResolvedStatus(existing.status)) return { resolved: true };
+
+  const { error } = await supabase
+    .from("issues")
+    .update({
+      status: "closed",
+      resolution: parsed.data.note || RESOLVED_DURING_REVIEW,
+      // A date chosen on the form wins; otherwise the existing stamp, or now.
+      closed_at: parsed.data.resolvedOn
+        ? closedAtOn(parsed.data.resolvedOn, existing.closed_at)
+        : closedAtFor("closed", existing.closed_at),
+    })
+    .eq("id", parsed.data.issueId);
+  if (error) return { error: `Could not resolve the issue: ${error.message}` };
+
+  revalidatePath(`/projects/${existing.project_id}`);
+  if (existing.report_id) revalidatePath(`/reports/${existing.report_id}`);
+  const returnTo = safeReturnPath(read(formData, "returnPath"));
+  if (returnTo) revalidatePath(returnTo);
+  return { resolved: true };
+}

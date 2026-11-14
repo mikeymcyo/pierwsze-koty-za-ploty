@@ -1,0 +1,585 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { ArrowLeft, ExternalLink, Mic } from "lucide-react";
+
+import { saveReportDocuments } from "@/app/(app)/documents/actions";
+import { applyDailyReview, reviewDailyReport } from "@/app/(app)/reports/review-actions";
+import { updateSectionGroup, writeReportFromNotes, type WriteState } from "@/app/(app)/reports/ai-actions";
+import { saveReport, type ReportFormState } from "@/app/(app)/reports/actions";
+import { IssueList } from "@/components/issues/issue-list";
+import { isResolvedStatus, parseResolutionSuggestions } from "@/lib/issues/metadata";
+import { RaiseIssue, type PhotoChoice } from "@/components/issues/raise-issue";
+import { DocumentPicker, type PickableDocument } from "@/components/documents/document-picker";
+import { DocumentUpload } from "@/components/documents/document-upload";
+import { FinaliseReport } from "@/components/reports/finalise-report";
+import { MasterReviewPanel } from "@/components/reports/master-review";
+import { DeleteReport } from "@/components/reports/report-lifecycle";
+import { PhotoGrid, type PhotoWithUrl } from "@/components/reports/photo-grid";
+import { PhotoUpload } from "@/components/reports/photo-upload";
+import { ReportCaptureForm } from "@/components/reports/report-capture-form";
+import {
+  ReadOnlySection,
+  ReportSectionCard,
+} from "@/components/reports/report-section-card";
+import { GroupEditor } from "@/components/reports/group-editor";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { LoadError } from "@/components/ui/load-error";
+import { hasAiConfig } from "@/lib/ai/report-generation";
+import { requireSessionContext } from "@/lib/auth/session";
+import { documentTypeLabel } from "@/lib/documents/metadata";
+import { signDocumentUrls } from "@/lib/documents/signing";
+import { isReopened } from "@/lib/reports/lifecycle";
+import { issuedPdfFileName } from "@/lib/pdf/presentation";
+import { presentationFromSearch } from "@/lib/pdf/presentation-query";
+import { photoPrintLabelText } from "@/lib/photo-captions";
+import { photoPickerLabel } from "@/lib/photo-captions";
+import { withClockSkewRetry } from "@/lib/supabase/retry";
+import { createClient } from "@/lib/supabase/server";
+import { REPORT_SECTION_LABELS } from "@/lib/report-sections";
+import { groupSections, reportStructure, runInLabel, type ReportGroup } from "@/lib/report-structure";
+import { formatDate, formatReportNumber } from "@/lib/utils";
+import { photoThumbUrl } from "@/lib/photos";
+import type { ReportSectionType } from "@/types/database";
+
+/**
+ * A group's written sections on an issued report.
+ *
+ * An issued daily report used to show no prose at all on screen - only the PDF
+ * carried it - so somebody checking what went out had to open the document.
+ * Now the screen shows the same three sections the PDF prints, with the same
+ * run-in labels. See lib/report-structure.ts.
+ */
+function SectionProse({
+  entry,
+}: {
+  entry:
+    | { group: ReportGroup; entries: { id: string; section_type: string; content: string | null }[] }
+    | undefined;
+}) {
+  const written = (entry?.entries ?? []).filter((section) => section.content?.trim());
+  if (!entry || written.length === 0) return null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      {written.map((section) => (
+        <ReadOnlySection
+          key={section.id}
+          label={runInLabel(
+            entry.group,
+            REPORT_SECTION_LABELS[section.section_type as ReportSectionType],
+            written.length,
+          )}
+          content={(section.content ?? "").trim()}
+        />
+      ))}
+    </div>
+  );
+}
+
+export const metadata: Metadata = { title: "Report" };
+
+export default async function ReportCapturePage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{
+    saved?: string;
+    resolve?: string;
+    style?: string;
+    layout?: string;
+    cover?: string;
+    documents?: string;
+  }>;
+}) {
+  const [{ id }, search] = await Promise.all([params, searchParams]);
+  const { saved, resolve } = search;
+  // The presentation choices this page was opened with - carried back from
+  // Preview by the viewer's Close, or by the browser's Back onto the address
+  // the card kept current. See lib/pdf/presentation-query.ts.
+  const presentation = presentationFromSearch(search);
+
+  const session = await requireSessionContext();
+  const supabase = await createClient();
+
+  // RLS scopes this to the caller's company, so an id from another company is
+  // indistinguishable from one that does not exist - which is what we want.
+  const { data: report, error } = await withClockSkewRetry(() =>
+    supabase
+      .from("reports")
+      .select("*, projects(id, name)")
+      .eq("id", id)
+      .maybeSingle(),
+  );
+
+  if (error) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Button asChild variant="ghost" size="sm" className="-ml-3">
+          <Link href="/reports">
+            <ArrowLeft aria-hidden />
+            All reports
+          </Link>
+        </Button>
+        <LoadError what="this report" code={error.code} />
+      </div>
+    );
+  }
+
+  if (!report) notFound();
+
+  const [workforceResult, plantResult, photosResult, sectionsResult, issuesResult] =
+    await Promise.all([
+    withClockSkewRetry(() =>
+      supabase
+        .from("workforce_entries")
+        .select("*")
+        .eq("report_id", id)
+        .order("sort_order", { ascending: true }),
+    ),
+    withClockSkewRetry(() =>
+      supabase
+        .from("plant_entries")
+        .select("*")
+        .eq("report_id", id)
+        .order("sort_order", { ascending: true }),
+    ),
+    withClockSkewRetry(() =>
+      supabase
+        .from("photos")
+        .select("id, caption, category, storage_path, width, height, rotation")
+        .eq("report_id", id)
+        .order("sort_order", { ascending: true })
+        .order("created_at", { ascending: true }),
+    ),
+    withClockSkewRetry(() =>
+      supabase
+        .from("report_sections")
+        .select("id, section_type, content, ai_generated")
+        .eq("report_id", id)
+        .order("sort_order", { ascending: true }),
+    ),
+    withClockSkewRetry(() =>
+      supabase
+        .from("issues")
+        .select("id, title, description, resolution, responsible, priority, status, created_at")
+        .eq("report_id", id)
+        .order("created_at", { ascending: false }),
+    ),
+  ]);
+
+  // Only a draft takes a suggestion, and only for an open issue on this
+  // project. The URL says which; the database says whether.
+  const suggestions = report.status === "final" ? [] : parseResolutionSuggestions(resolve);
+  const { data: suggestedRows } = suggestions.length
+    ? await supabase
+        .from("issues")
+        .select("id, title, description, resolution, responsible, priority, status, created_at")
+        .in(
+          "id",
+          suggestions.map((item) => item.issueId),
+        )
+        .eq("project_id", report.project_id)
+        .neq("status", "closed")
+    : { data: [] };
+  const ownIssueIds = new Set((issuesResult.data ?? []).map((issue) => issue.id));
+  const suggestedIssues = (suggestedRows ?? []).filter(
+    (issue) => !ownIssueIds.has(issue.id) && !isResolvedStatus(issue.status),
+  );
+
+  const photoRows = photosResult.data ?? [];
+  const photos: PhotoWithUrl[] = photoRows.map((photo) => ({
+    ...photo,
+    url: photoThumbUrl(photo.id, photo.storage_path),
+  }));
+
+  // The report itself loaded, so the screen is still usable. Rather than blank
+  // it, the capture form is withheld - editing rows we failed to read would
+  // silently wipe them on save - and the panel explains why.
+  const loadError =
+    workforceResult.error ??
+    plantResult.error ??
+    photosResult.error ??
+    sectionsResult.error ??
+    issuesResult.error;
+
+  const isFinal = report.status === "final";
+  const reopened = isReopened({ status: report.status, pdfPath: report.pdf_path });
+
+  // Kept out of loadError: with the documents migration not yet applied this
+  // section is simply absent, rather than an error card over a working report.
+  const [{ data: projectDocuments }, { data: documentLinks }] = await Promise.all([
+    supabase
+      .from("documents")
+      .select("id, title, doc_type, reference, revision, storage_path")
+      .eq("project_id", report.project_id)
+      .order("created_at", { ascending: false }),
+    supabase.from("report_documents").select("document_id").eq("report_id", report.id),
+  ]);
+  const linkedIds = new Set((documentLinks ?? []).map((row) => row.document_id));
+  const documentUrls = await signDocumentUrls(
+    (projectDocuments ?? []).map((row) => row.storage_path),
+  );
+  const pickableDocuments: PickableDocument[] = (projectDocuments ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    docType: row.doc_type,
+    reference: row.reference,
+    revision: row.revision,
+    url: documentUrls.get(row.storage_path) ?? null,
+    selected: linkedIds.has(row.id),
+  }));
+  const referencedDocuments = pickableDocuments.filter((row) => row.selected);
+
+  const photoChoices: PhotoChoice[] = photoRows.map((photo) => ({
+    id: photo.id,
+    label: photoPickerLabel(photo, "Photograph"),
+  }));
+
+  const project = Array.isArray(report.projects) ? report.projects[0] : report.projects;
+  const projectHref = project ? `/projects/${project.id}` : "/reports";
+
+  // The three sections this report shows, on screen and in the PDF alike. The
+  // eight stored sections are unchanged underneath - see lib/report-structure.ts.
+  const [summaryGroup, evidenceGroup, outstandingGroup] = reportStructure("daily");
+  const grouped = groupSections(
+    "daily",
+    (sectionsResult.data ?? []).map((section) => ({ ...section, type: section.section_type })),
+  );
+  const groupFor = (key: string) => grouped.find((entry) => entry.group.key === key);
+  const hasWritten = (key: string) => (groupFor(key)?.entries.length ?? 0) > 0;
+  const hasProse = (key: string) =>
+    (groupFor(key)?.entries ?? []).some((section) => section.content?.trim());
+  /**
+   * Whether an issued report shows this heading at all.
+   *
+   * The PDF has always dropped a group with nothing under it - a heading with
+   * no content reads as an omission rather than as an honest silence - and the
+   * screen now agrees with it. A quiet day genuinely has no Issues / Next
+   * Steps, and printing the heading anyway invites somebody to fill it.
+   *
+   * Only on an issued report. A draft keeps all three: their headings carry
+   * the controls that raise an issue, add a photograph and edit the words, and
+   * a section cannot be written if there is nowhere to write it.
+   */
+  const showsWhenIssued = (key: string) =>
+    hasProse(key) ||
+    (key === "evidence" && (photos.length > 0 || referencedDocuments.length > 0)) ||
+    (key === "outstanding" && (issuesResult.data?.length ?? 0) > 0);
+  // A Daily Report is dictated and drafted: the sections are output to read,
+  // not a form to fill in, so the editor waits behind a disclosure. It is
+  // offered once there is something to correct - or, where AI drafting is not
+  // configured at all, straight away, because then it is the only way to write
+  // the report. See authoringMode in lib/report-structure.ts.
+  const offerEditor = (key: string) => hasWritten(key) || !hasAiConfig();
+  /** Every stored section of a group, written or not, for its one writing box. */
+  const editorSections = (key: string) => {
+    const entry = groupFor(key);
+    if (!entry) return [];
+    const byType = new Map(entry.entries.map((section) => [section.section_type, section]));
+    return entry.group.sections.map((type) => {
+      const row = byType.get(type as ReportSectionType);
+      return {
+        type,
+        label: REPORT_SECTION_LABELS[type as ReportSectionType] ?? type,
+        content: row?.content ?? null,
+        aiGenerated: row?.ai_generated ?? true,
+      };
+    });
+  };
+
+  const save = saveReport.bind(null, id) as (
+    state: ReportFormState,
+    formData: FormData,
+  ) => Promise<ReportFormState>;
+  const write = writeReportFromNotes.bind(null, id) as (
+    state: WriteState,
+    formData: FormData,
+  ) => Promise<WriteState>;
+
+  const finaliseCard = (
+    <FinaliseReport
+      reportId={report.id}
+      initial={presentation}
+      status={report.status}
+      hasPdf={Boolean(report.pdf_path)}
+      documentCount={referencedDocuments.length}
+      finalisedAt={report.finalised_at ? formatDate(report.finalised_at) : null}
+      // The report's own photographs, any of which can be its cover. They
+      // are already signed for the gallery above, so the picker costs
+      // nothing extra.
+      photos={photos.map((photo) => ({
+        id: photo.id,
+        url: photo.url,
+        label: photoPrintLabelText(photo),
+      }))}
+      shareName={issuedPdfFileName(
+        "Daily Report",
+        formatReportNumber(report.report_number),
+        report.report_date,
+      )}
+    />
+  );
+
+  return (
+    <div className="flex flex-col gap-6">
+      <div>
+        <Button asChild variant="ghost" size="sm" className="-ml-3">
+          <Link href={projectHref}>
+            <ArrowLeft aria-hidden />
+            {project?.name ?? "Back"}
+          </Link>
+        </Button>
+      </div>
+
+      <header className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <p className="text-xs font-semibold tracking-wide text-ink-subtle">Daily Report</p>
+            <h1 className="text-[28px] leading-tight font-bold tracking-tight text-ink md:text-3xl">
+              Report {formatReportNumber(report.report_number)}
+            </h1>
+          </div>
+          <Badge tone={report.status === "final" ? "success" : reopened ? "warning" : "neutral"} dot>
+            {report.status === "final" ? "Final" : reopened ? "Reopened" : "Draft"}
+          </Badge>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {[project?.name, formatDate(report.report_date), report.author_name]
+            .filter(Boolean)
+            .map((item) => (
+              <span
+                key={String(item)}
+                className="rounded-full bg-surface-muted px-3 py-1 text-xs font-semibold text-ink-muted"
+              >
+                {item}
+              </span>
+            ))}
+        </div>
+      </header>
+
+      {/* Back to the microphone. The report screen is where a day is finished -
+          drafted, reviewed, issued - but a draft is often still being collected
+          into, and making somebody navigate to the project to speak again would
+          be the long way round. */}
+      {isFinal ? null : (
+        <div>
+          <Button asChild variant="secondary" size="sm">
+            <Link href={`/reports/${report.id}/capture`}>
+              <Mic aria-hidden />
+              Site Capture
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {/* An issued report opens on the two things somebody comes back for:
+          View report and Share PDF. Above the record, not beneath it. */}
+      {isFinal && !loadError ? finaliseCard : null}
+
+      {loadError ? (
+        <LoadError what="this report's workforce and plant" code={loadError.code} />
+      ) : null}
+
+      {/* One. What the day amounted to: the notes, the button that writes it
+          up, and the sections that come back. The date, weather, workforce and
+          plant sit inline below them - a record that carries over from
+          yesterday rather than what somebody came here to do, but printed in
+          the issued PDF and so shown on the screen that issues it. */}
+      {loadError || (isFinal && !showsWhenIssued("summary")) ? null : (
+        <ReportSectionCard group={summaryGroup} quiet>
+          {isFinal ? (
+            <SectionProse entry={groupFor("summary")} />
+          ) : (
+            // The notes, the button that writes the report from them, and the
+            // written report directly under it - then the day's details. The
+            // form owns the order; see components/reports/report-capture-form.tsx.
+            <ReportCaptureForm
+              action={save}
+              writeAction={hasAiConfig() ? write : undefined}
+              hasDraft={(sectionsResult.data ?? []).length > 0}
+              written={
+                offerEditor("summary") ? (
+                  // Not behind a disclosure. What is written here is what the
+                  // client receives, so it is on the screen the person signs off.
+                  <GroupEditor
+                    key={JSON.stringify(editorSections("summary").map((section) => section.content))}
+                    groupKey="summary"
+                    groupLabel={summaryGroup.label}
+                    sections={editorSections("summary")}
+                    action={updateSectionGroup.bind(null, report.id)}
+                  />
+                ) : null
+              }
+              report={report}
+              workforce={workforceResult.data ?? []}
+              plant={plantResult.data ?? []}
+              saved={saved === "1"}
+            />
+          )}
+        </ReportSectionCard>
+      )}
+
+      {/* Two. What it looked like, and what it is read alongside. The document
+          register is real work but it is weekly work, so it waits behind the
+          disclosure while the camera does not. */}
+      {loadError || (isFinal && !showsWhenIssued("evidence")) ? null : (
+        <ReportSectionCard
+          group={evidenceGroup}
+          quiet
+          // Folded while nothing is linked: an empty register is a control
+          // for adding a document, not content. Once one is linked it prints,
+          // so it stays in the open.
+          recordsFolded={!isFinal && referencedDocuments.length === 0}
+          recordsLabel="Supporting documents"
+          recordsHint={
+            isFinal
+              ? "The drawings, RAMS and other documents this report was issued against."
+              : "Drawings, RAMS, permits and anything else this report should be read alongside. They are listed in the PDF."
+          }
+          records={
+            // Nothing at all where an issued report referenced no documents:
+            // a heading over "No documents were referenced" is a sentence
+            // nobody needs on a phone.
+            isFinal && referencedDocuments.length === 0 ? undefined : isFinal ? (
+                <ul className="flex flex-col gap-2">
+                  {referencedDocuments.map((document) => (
+                    <li
+                      key={document.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line p-3"
+                    >
+                      <span className="min-w-0">
+                        <span className="font-medium text-ink">{document.title}</span>
+                        <span className="mt-1 block text-xs text-ink-muted">
+                          {[
+                            documentTypeLabel(document.docType),
+                            document.reference ? `Ref ${document.reference}` : null,
+                            document.revision ? `Rev ${document.revision}` : null,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </span>
+                      </span>
+                      {document.url ? (
+                        <Button asChild variant="secondary">
+                          <a href={document.url} target="_blank" rel="noopener noreferrer">
+                            <ExternalLink aria-hidden />
+                            Open document
+                          </a>
+                        </Button>
+                      ) : (
+                        <span className="text-xs text-ink-subtle">
+                          No longer stored on the project.
+                        </span>
+                      )}
+                    </li>
+                  ))}
+            </ul>
+            ) : (
+              <>
+                <DocumentUpload
+                  companyId={session.companyId}
+                  projectId={report.project_id}
+                  reportId={report.id}
+                  label="Upload and attach a document"
+                />
+                <DocumentPicker
+                  action={saveReportDocuments.bind(null, report.id)}
+                  documents={pickableDocuments}
+                />
+              </>
+            )
+          }
+        >
+          {isFinal ? null : (
+            // One button; the phone offers camera, library and files itself.
+            // A status is set on the photograph, if at all.
+            <PhotoUpload
+              companyId={session.companyId}
+              projectId={project?.id ?? report.project_id}
+              reportId={report.id}
+              simple
+            />
+          )}
+
+          {photos.length > 0 ? (
+            <PhotoGrid
+              photos={photos}
+              deletable={!isFinal}
+              aiConfigured={hasAiConfig()}
+              reportId={report.id}
+            />
+          ) : null}
+        </ReportSectionCard>
+      )}
+
+      {/* Three. What is wrong and what happens next. Issues outlive the report
+          they were raised in, so a finalised report still lists them - but it
+          takes no new ones. */}
+      {loadError || (isFinal && !showsWhenIssued("outstanding")) ? null : (
+        <ReportSectionCard group={outstandingGroup} quiet>
+          <SectionProse entry={groupFor("outstanding")} />
+
+          {isFinal || !offerEditor("outstanding") || editorSections("outstanding").length === 0 ? null : (
+            <GroupEditor
+              key={JSON.stringify(editorSections("outstanding").map((section) => section.content))}
+              groupKey="outstanding"
+              groupLabel={outstandingGroup.label}
+              sections={editorSections("outstanding")}
+              action={updateSectionGroup.bind(null, report.id)}
+            />
+          )}
+
+          {isFinal ? null : (
+            <RaiseIssue
+              projectId={project?.id ?? report.project_id}
+              reportId={report.id}
+              photos={photoChoices}
+            />
+          )}
+
+          {/* What Prepare Daily read in today's notes: an issue raised on an
+              earlier day of this project that today's work appears to have put
+              right. It is listed here, on the report the person is looking at,
+              with "Resolve this issue?" - because the issue itself lives on
+              the Daily that raised it, which is usually issued by now. Nothing
+              is resolved until Confirm is pressed. */}
+          {suggestedIssues.length > 0 ? (
+            <div className="flex flex-col gap-3">
+              <h3 className="text-xs font-bold tracking-wide text-ink-muted">
+                Raised earlier on this project
+              </h3>
+              <IssueList issues={suggestedIssues} suggestions={suggestions} />
+            </div>
+          ) : null}
+
+          {issuesResult.data && issuesResult.data.length > 0 ? (
+            <IssueList
+              issues={issuesResult.data}
+              suggestions={suggestions}
+            />
+          ) : null}
+        </ReportSectionCard>
+      )}
+
+      {/* Four. The whole-report review, in the open, before Finalise. */}
+      {loadError || isFinal ? null : (
+        <div className="rounded-card bg-surface p-5 shadow-card ring-1 ring-line/70 ring-inset md:p-6">
+          <MasterReviewPanel
+            reviewAction={reviewDailyReport.bind(null, report.id)}
+            applyAction={applyDailyReview.bind(null, report.id)}
+            configured={hasAiConfig()}
+          />
+        </div>
+      )}
+
+      {isFinal || loadError ? null : finaliseCard}
+
+      <div className="border-t border-line/70 pt-6">
+        <DeleteReport reportId={report.id} status={report.status} />
+      </div>
+    </div>
+  );
+}

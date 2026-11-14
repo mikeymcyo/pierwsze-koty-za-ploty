@@ -1,0 +1,9 @@
+**/build/
+**/.gradle/
+**/local.properties
+ios/*.xcodeproj/
+ios/*.zip
+*.keystore
+*.jks
+*.p12
+*.mobileprovision

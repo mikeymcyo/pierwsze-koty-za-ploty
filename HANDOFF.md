@@ -1,0 +1,5211 @@
+# SiteBoss Pro - Handoff
+
+For a Claude Code session with no prior context. Every claim here was checked
+against the repository or by running something. Where something is unverified,
+it says so explicitly - treat that distinction as load-bearing.
+
+**Written:** 2026-08-26 · **Last updated:** 2026-11-09
+
+**Current field-test branch:** `feature/claude-api`
+**Historical September baseline:** `87733dd`
+**Recovery head:** `fe6bf7f` - AI photo descriptions and supporting documents
+
+## SITEBOSS V1 — HURRICANE FINISH MODE
+
+### 10 November field test
+
+Open the existing SiteBoss iPhone Home Screen icon while connected. Check the
+build under Settings/Profile, then open Site Capture on a test job. Take a
+photo in Camera and add it from Photo Library. Add a note, wait for the
+upload and save, close the app and reopen the same report. Check the caption
+against the photo before accepting it. Open the PDF and check both appear.
+Use one device for this first trial. The app needs signal and holds failed
+uploads in memory until retry. Keep the original photo on the phone.
+
+Claude independently reviewed source for this pilot. Its long-note finding
+led to using the report update timestamp for concurrency checks. Storage
+policies in source check company membership. Cross-company denial on the
+hosted database and a physical iPhone close/reopen still need field verification.
+
+**Release direction, 9 November 2026.** Hurricane covers a finished SiteBoss Pro
+for the Apple App Store and Google Play. The Southampton shopfitting project
+remains the field acceptance test. Track field readiness and store readiness
+together. Prioritise work that closes a field or release criterion.
+
+### V1 pass criteria
+
+1. Site Capture works quickly on iPhone.
+2. Daily = one concise editable summary + evidence.
+3. Progress correctly consolidates selected Dailies, remains editable and
+   produces a clean PDF.
+4. Completion correctly consolidates the job without duplication or invented
+   claims.
+5. Photos/documents remain usable and professional.
+6. Preview/PDF/share workflow works reliably on iPhone/iPad.
+7. No data loss, tenant/security issue or destructive behaviour.
+
+### Store release criteria
+
+The mobile field-test clients live in `mobile/android` and `mobile/ios`.
+The native launch screen opens Site Capture, Dashboard or Reports on the
+stable preview using Android Custom Tabs or the iOS Safari view controller.
+Sign-in, camera, report generation and PDF sharing run through the existing
+web app. These builds require a connection. Both use the test identifier
+`uk.co.sitebosspro.fieldtest`. Publisher identifiers and signing access
+still need confirmation for store distribution.
+
+The SiteBoss field test builds workflow produces an Android debug APK, an
+unsigned Android release bundle, an iOS simulator app and an unsigned iOS
+device archive. Download the APK for direct Android testing. The runner's
+debug certificate may change between builds. For Play internal testing,
+use the publisher's registered package and upload signing key.
+
+On a Mac, unzip the simulator app and install it with
+`xcrun simctl install booted SiteBossTest.app`. For a connected iPhone,
+generate the Xcode project with `xcodegen generate` in `mobile/ios`, open
+it, select the Apple development team and the connected device, then Run.
+For TestFlight, archive with the publisher's team and distribute through
+App Store Connect. Keep credentials in the signing environment.
+
+1. **First installable builds.** Select a packaging approach against the existing
+   server-rendered app and authenticated routes. Produce a signed TestFlight
+   build and a Google Play internal-test build. Verify login, password reset
+   and return to the intended report on a physical iPhone and Android phone.
+2. **Field workflow on both platforms.** Take a site photo, interrupt and retry
+   the upload, accept or edit its caption, save a Daily, close the app, reopen
+   the report and share its PDF. Check camera denial and weak connectivity.
+   Record device, build and outcome for each platform.
+3. **Privacy and accounts.** Inventory actual data flows for account details,
+   notes, photos and AI processing. Verify disclosure and permission before
+   sending personal data to third-party AI. Publish a privacy policy and support
+   contact. Provide account deletion in the app and a public deletion request
+   route for Google Play. Define treatment of shared company records first.
+4. **Submission package.** Confirm publisher ownership, app identifiers and
+   signing access. Prepare store descriptions, device screenshots, privacy
+   declarations and reviewer access using sample site data. Check current
+   SDK and any account-specific testing requirements in each store console.
+
+Record internal builds, submission and store approval as separate milestones.
+The release target is ready to submit on both stores. Public release timing
+remains a publisher decision.
+
+Review references: [Apple App Review Guidelines](https://developer.apple.com/app-store/review/guidelines/),
+[Google Play account deletion](https://support.google.com/googleplay/android-developer/answer/13327111)
+and [Google Play testing requirements for new personal accounts](https://support.google.com/googleplay/android-developer/answer/14151465).
+
+### What was finished and proved on the real build before stopping
+
+Head `87733dd`, Preview `dpl_BTwnmUFsn8HQmitJxvmHR1vNsX14` READY, aliased to
+`app.sitebosspro.co.uk`. All 49 offline suites, export parity, lint
+(`--max-warnings 0`), typecheck and the production build pass on it.
+
+- **Progress wording is directly editable (criterion 3).** One editable
+  Progress Overview box; the AI writes into it; the person corrects a word
+  and presses Save. Proved on the Preview at iPhone size: the exact edited
+  text came back after a full reload, the badge read "Edited by you", and the
+  preview PDF printed every sentence of the box verbatim. No UX change was
+  needed. The "Review & polish" Current/Suggested panel is optional and does
+  not block this; it stays. (A probe waiting for the "Saved" label times out
+  because the editor remounts after the page revalidates - the save has
+  already happened. Wait for the value, not the label.)
+- **Supporting documents accept JPEG and PNG (criterion 5).** The kind is
+  decided from the file's own signature, never from its name or the device's
+  MIME guess; HEIC is refused with a message to send a JPEG. In the issued or
+  previewed PDF a photo document becomes one A4 appendix page, landscape for a
+  landscape photo, scaled to fit, titled. Proved on the Preview: a JPEG
+  delivery note uploaded to the real bucket, listed under Documents, attached
+  to a draft Daily, and the preview grew from 1 page to 2 with an 842x595
+  page carrying the title, the JPEG embedded as a JPEG. Photo documents are
+  not read for job context (no text layer, no OCR); Prepare Daily skips them
+  silently.
+- **Storage change, approved and applied:** the `project-documents` bucket
+  allow-list is now `application/pdf, image/jpeg, image/png`. One row, one
+  column in `storage.buckets`; migration `20260906000012_document_images.sql`;
+  applied to the hosted project by explicit execution (recorded as
+  `document_images`), never `db push`. No table, column, policy or existing
+  object changed. `supabase/apply-all-migrations.sql` does not yet carry this
+  statement.
+- **Progress date audit (Southampton):** Progress 001 exported 5 Sep to 5 Sep
+  because both source Dailies carry `report_date` 5 Sep; both were started
+  on 5 Sep (Daily 002 at 18:25 BST, finalised the next morning). That is the
+  DB default working day at creation, editable in Report details. Not an app
+  bug; no data altered.
+- **Throwaway tenants:** the two "Validation Co" tenants created for these
+  proofs were deleted in full (storage objects as the tenant's own user, then
+  rows by SQL scoped by id and name) and verified gone. Empire Interiors Ltd
+  and every live tenant untouched.
+
+### Visual redesign, 2026-09-06 - `61cb8a9` and `53fcaa6`
+
+Asked for after finish mode was declared, as a visual pass only. Nothing
+about the workflow, the logic or the information architecture moved: no
+screen gained or lost a step, a field, a query or a rule, and every offline
+suite, export parity, lint, typecheck and the production build pass.
+
+**Tokens (`app/globals.css`):** page `#0E1116`, card `#151A22`, raised
+`#1B212C`, chip fill `#1F2733`, hairline `#232B38` / strong `#2A3342`, ink
+`#F3F5F7` / muted `#A7B0BD`, brand `#F6B800` (hover `#FFC928`), info
+`#4DA3FF`, success `#23C16B`, warning `#FF8A3D`, danger `#F45B69`. Radii
+`rounded-card` 20px and `rounded-control` 16px; shadows `shadow-card`,
+`shadow-raised`, `shadow-glow` (gold), `shadow-nav`; `animate-rise` on page
+content and `animate-fade` on alerts, both off under reduced motion. Type is
+Inter (`--font-inter`) with Geist Mono kept for capture times. The light
+theme carries the same roles. The mark, icons, manifest and status bar use
+the same gold and ground.
+
+**Shell:** slim glass top bar (`pt-safe` clears the iPhone status bar) with
+the wordmark, the company as a chip and the gear; a floating glass bottom
+bar with the Create action raised in gold at the centre; the desktop sidebar
+matched. Cards are lit surfaces - a soft shadow and a hairline inset - not
+drawn boxes; `Card` has a `raised` prop for the one thing on a screen that
+comes forward.
+
+**Screens:** dashboard as a control centre (the day, the capture in progress
+as the hero, three quick actions, then projects and reports as cards with
+status chips); project page opening with a hub card carrying the primary
+action over a segmented tab row; Site Capture with the question as the
+heading of a raised card, a strong gold Speak, a secondary Add note, photos
+and documents as action blocks, a compact Today so far, and Prepare Daily as
+the closing hero; report screens with an editorial header and metadata
+chips, section cards, a calmer writing surface and a raised Finalise card;
+photo cards image-first with the plate number they will print as and a
+"Caption (optional)" box that asks for short, factual words. All-caps
+section labels became bold sentence case across seventeen files.
+
+**PDF:** colour, rule weight and radius only - softer greys, the brand gold
+as the mark, a hairline under section headings, a rounded control panel.
+Every spacing value the page budget is tuned to is unchanged; the template
+suite proves the page counts.
+
+**Tests that encode the palette were updated to it:** `brand-smoke`,
+`settings-smoke`, `pdf-export-smoke`, and the caption label in
+`summary-photos-smoke`. The gold-fill limit (eight files) still holds.
+
+**Proved on the Preview at iPhone size** with the validation harness: sign
+up, project, Site Capture with notes, three photos and a document, Prepare
+Daily, Daily issued, Progress consolidated and issued - every check passing
+on the redesigned screens, with no horizontal overflow on any of them.
+
+### Issue lifecycle, 2026-09-08 - `df2d594`, `df9b33c`
+
+The Southampton case: Saturday's Daily recorded the H&B section held up by
+missing upright inserts; Monday's notes said they arrived and the section
+was finished; nothing offered to resolve the Saturday issue, so Progress
+still called it outstanding. On the existing issue model, no schema change,
+no new screen:
+
+- A closed issue is labelled **Resolved** (stored value still `closed`).
+- **Mark resolved** sits in the issue list: one line on what was done, then
+  Confirm - `resolveIssue` in `app/(app)/issues/actions.ts` records the note
+  as `resolution` and stamps `closed_at`. The edit form still works as before.
+- **Prepare Daily** reads the day's notes against the project's open issues
+  (`lib/ai/issue-resolution.ts`, conservative: waiting is not resolution,
+  doubt returns nothing) and carries any match to the report screen in the
+  URL (`?resolve=`), where it is listed under "Raised earlier on this
+  project" as "Resolve this issue?" with the note pre-filled. Nothing resolves
+  an issue but the person pressing Confirm; the suggestion is shown once and
+  stored nowhere.
+- A **draft** Progress or Completion reads each issue as it stands today
+  (`lib/summary-reports/pdf-data.ts`, `lib/reports/review-context.ts`); an
+  issued document keeps its snapshot. The consolidator is told a resolved
+  issue is never outstanding.
+
+Proved on the Preview with the exact sequence: the suggestion arrived with a
+note in the site manager's words, the issue stayed Open until Confirm, the
+row then read Resolved with the note and date, the Progress consolidation
+put only the till point under outstanding, and the Progress PDF printed the
+issue RESOLVED with its resolution.
+
+### Completion is one press, 2026-09-11 - `2df8ecb`
+
+The rule was already the server's (`startSummaryReport` and
+`completionSourcePlan`): every issued Progress Report, plus any issued Daily
+no Progress Report carries; every issued Daily where there is no Progress
+Report; a day inside a Progress Report kept as provenance and never read
+twice. The screen made the person choose anyway. Now `/summary-reports/new?
+kind=completion&project=…` opens on a card - "Project history found · 1
+Progress Report · 4 Daily Reports · All project activity will be included",
+with one sentence for this project (`describeProjectHistory` in
+`lib/summary-reports/source-summary.ts`) - and one button, **Create
+Completion**. "Change sources" reveals the unchanged pickers, period and
+source-mode choice. The Progress flow is untouched. A project with nothing
+issued still gets the "Write it directly" route.
+
+### Issues actionable from a Progress Report, 2026-09-11
+
+Each issue row on a draft Progress or Completion Report carries the same
+controls as the Daily list - Mark in progress / Mark open / Mark resolved
+with a note and a date, and Reopen on a resolved one - through the same
+`setIssueStatus` and `resolveIssue` actions (`IssueStatusActions` in
+`components/issues/issue-list.tsx`, used by the curation picker). The rows
+sit outside the curation form; their checkboxes point at it with
+`form={id}`. The actions take a `returnPath` (checked by `safeReturnPath`)
+so the Progress screen refreshes. Unresolved issues already carry into a new
+Progress Report; a resolved one stays in history and prints RESOLVED with its
+resolution; an issued document keeps the status it was issued with. No
+migration.
+
+### Daily authoring: the write-up appears where the notes are, 2026-09-12 - `9265b40`
+
+A tester dictated the day, pressed the AI button, and found the result
+three cards up past the photographs: "Write my report" lived at the bottom
+under More tools and the sections it wrote appeared at the top. Now the
+button is a second submit on the notes form (`formAction` on
+`components/reports/report-capture-form.tsx`), directly under the notes;
+it posts the whole form, which `writeReportFromNotes` in
+`app/(app)/reports/ai-actions.ts` saves through the new
+`lib/reports/save-capture.ts` (shared with Save draft) before calling the
+unchanged `generateReport`, so the model still reads only saved notes and
+nobody saves first. The written report (the `GroupEditor`, "Written by
+AI") is passed to the form as `written` and slotted in at `order-3`
+between the button and the day's details; the form is `display: contents`
+like the Progress curation form. The button is disabled with "Say or type
+what happened first" until the notes box has text; a form with no notes is
+saved and declined; a bad date is a field error and nothing is drafted.
+A draft no longer shows the sections twice (prose + box); an issued
+report keeps the prose. `ReportWriter` and its "What you actually said"
+panel are deleted. Master Review stays under More tools before Finalise.
+Proved on the deployment of `9265b40` at 393px: notes, button, written
+report 194px below it, details, photos; the same press saved the
+workforce row; edit in place, Save draft and Master Review all still work.
+No migration.
+
+### PDF photo quality and the Share button, 2026-09-12 - `aa37b74`
+
+Live iPhone testing: a Daily with ~35 photographs looked soft, and the
+reader had no visible Share button. Inspected end to end before changing
+anything. Upload (`lib/photo-quality.ts`, `components/reports/photo-upload.tsx`):
+stepped canvas downscale to 1600px long edge, JPEG 0.88, plus a 640px 0.72
+thumbnail beside it; the bucket holds a median 496 kB per photograph
+(185 objects, 68-868 kB). Thumbnails are screens only (`/photos/[id]/thumb`);
+the PDF downloads the original object and react-pdf embeds the JPEG bytes
+unchanged (DCTDecode, no re-encode) at a 238pt-wide plate - about 480 DPI.
+The loss was the in-app reader (`components/pdf/pdf-viewer.tsx`): every
+page drawn once at a density capped at 2x, then magnified with CSS, so on
+a 3x iPhone a plate reached the eye through a canvas 1.5x too small at 1x
+and 4.5x too small at 3x. Fix: pages are laid out at their size and only
+the ones near the viewport are drawn (IntersectionObserver, released as
+they leave), at the screen's density (up to 3x) and the chosen zoom, with
+a 12-million-pixel cap per canvas. Zoom steps unchanged. No change to
+upload, storage, thumbnails or the PDF; no migration.
+
+The Share button existed but was covered: the page wrapper's fade
+animation is a stacking context, so the fixed reader was layered as its
+wrapper, beneath the glass top bar (over Close and Share) and the bottom
+nav (over the zoom buttons). The reader now renders through a portal from
+`document.body`, and Share is a filled secondary button beside the title.
+Drafts still offer no Share (the issued file is the only thing shared).
+Proved on the deployment of `aa37b74` at 393px/3x with a nine-photograph
+Daily: reader is a child of the body and fills the viewport; Share PDF and
+Close sit at the top with nothing over them (`elementFromPoint`); page one
+drawn at 1107px for a 369px slot (3x); at 3x zoom redrawn at 2912x4119
+(under the 12M cap) with only the page in view held; scrolling draws the
+pages arrived at and releases page one; the shared file is the stored PDF
+(3.1 MB for nine photographs).
+
+### Startup performance, 2026-09-12 - `bfea2bf`
+
+Profiled before changing anything (iPhone viewport through the harness
+proxy, plus curl direct). Before: sign-in screen TTFB 0.34s warm, 0.80s
+cold-ish, 2.3s on the first request after a deploy (Vercel cold start);
+signed-in dashboard launch TTFB 1.57s cold / 1.14s warm, first paint
+1.77s / 1.19s, nothing on screen until then. Client JS is not the cost:
+28 kB gz of route JS on the dashboard (~120 kB gz framework), no PDF code
+on startup routes (pdf.js is a lazy chunk only the reader loads), no
+service worker, two self-hosted fonts, SVG icons. Root cause: the session
+was resolved three times per signed-in screen (proxy.ts, app layout, page),
+each a round trip to the auth server plus two queries, from the function
+in iad1 to Supabase in eu-central-1 (~90 ms a round trip, six sequential
+groups), and `app/(app)/layout.tsx` awaited all of it before streaming a
+byte of the shell.
+
+Changes: `getSessionContext` wrapped in React `cache()` (one resolution
+per request); the app layout awaits nothing - the company chip is an async
+`CompanyChip` behind Suspense and the page streams behind
+`app/(app)/loading.tsx`; the dashboard runs its five reads alongside the
+session in one `Promise.all`; `vercel.json` sets `regions: ["fra1"]` so
+the function runs beside the database. Access unchanged: proxy.ts still
+redirects a request with no user, every page still calls
+`requireSessionContext`. Pinned in `e2e/navigation-smoke.mjs` section 7.
+No migration.
+
+After, measured the same way against the old deployment still live at its
+own URL (same signed-in cookie, curl direct, from a US sandbox that now
+pays the transatlantic hop to fra1 that a UK phone does not): dashboard
+first byte 0.58-1.05s before vs 0.45-0.69s after, full HTML 0.76-1.64s
+before vs 0.55-0.79s after; the first cold request 1.69s/2.06s before vs
+0.69s/0.79s after; /reports 0.62-0.89s before vs 0.48-0.63s after. The
+first flush now carries the shell and the skeleton, the content follows
+60-100 ms later. The harness proxy buffers responses, so the Playwright
+numbers in scratchpad `startup-probe.mjs` measure full-HTML time, not
+first byte - use curl for first byte.
+
+Not app code, worth knowing: app.sitebosspro.co.uk is aliased to a Preview
+deployment, so every page also loads the Vercel toolbar script from
+vercel.live. Disable "Vercel Toolbar" for the project, or point the domain
+at a Production deployment, and that goes away.
+
+### Daily screen polish, 2026-09-12 - `894020e`
+
+Hurricane pass on the draft Daily, inspected full-length on a phone first.
+Cut: the gold Site Capture button above the notes (now a small secondary
+link), the sentence under every section heading (`quiet` on
+`ReportSectionCard`) and under the notes label, the write-button hint
+once there are notes, the three photo buttons with hints and the status
+menu (`PhotoUpload simple` - one Add photos button, status set on the
+photograph), the open empty document register (`recordsFolded` while no
+document is linked; once one is linked it prints, so it stays open), the
+"More tools" fold (Review & polish is now in the open before Finalise),
+the long Finalise paragraph, the presentation chooser open on every draft
+(folded behind a `describePresentation` summary line), the "preview is a
+draft" footnote, Cancel on the notes form, and the issued-report alert.
+The date, weather, workforce and plant now fold behind one line that
+carries every value that will print (`lib/reports/details-summary.ts`),
+which is what keeps "nothing exports unseen" true while the screen stays
+one for speaking into. Draft offers Preview then Finalise. An issued
+report opens on View report and Share PDF, above its sections. PDF,
+sections, AI safeguards and immutability untouched. Pins updated in
+`e2e/what-you-see-smoke.mjs` (2b), `job-brief-smoke.mjs`,
+`report-structure-smoke.mjs`. No migration. Proved on the deployment of
+`894020e` at 393px: 32 checks - the one-press write still lands the
+written report 146px under the button and saves the workforce row; the
+fold line carries the date and "Groundworks Ltd ×4" with the inputs
+hidden until opened; one Add photos button; documents folded while none
+are linked; Preview above Finalise; presentation folded with "SiteBoss
+style" on the fold; Review & polish in the open; after Finalise the
+issued card with View report and Share PDF sits above Daily Summary,
+both within the first screen.
+
+### Photo reordering by a grip, 2026-09-12 - `20bda8b`
+
+Reproduced from the code: `components/reports/photo-arrange.tsx` made
+the whole tile the drag source (dnd-kit `useDraggable` on the `<li>`)
+behind a `TouchSensor` with a 200 ms hold and 8 px tolerance, with
+`touch-action: manipulation` leaving the browser free to pan. On iOS that
+is the fight the tester felt: a finger drifting more than 8 px during the
+hold cancels the lift (a dead tap), and a still finger that then moves has
+Safari panning the page under the drag (stutter, wrong drop). The swap
+model showed no drop position either. Fix: the tile is not draggable; a
+44 px grip (`setActivatorNodeRef`, `touch-action: none` on the grip only)
+starts a `PointerSensor` drag after 4 px, no hold; `@dnd-kit/sortable`
+(added, with `@dnd-kit/utilities`) draws a dashed placeholder that moves
+through the grid as neighbours shift, `DragOverlay` follows the finger,
+`autoScroll` on the view's own scroll container; a drop is an insertion
+(`order.place` → `movePhoto`), arrows under each tile move one place
+(fallback). `usePhotoOrder` in `photo-reorder.tsx` now writes on the drop
+with no debounce and coalesces moves made while a save is in flight (the
+latest order is sent once after). Re-seeding is still only on a change of
+the photo set, so nothing snaps back. Save action, PDF ordering
+(`sort_order`), captions/statuses on the row and the issued-report refusal
+are unchanged. Pins rewritten in `e2e/photo-order-smoke.mjs` (7c2 and the
+gesture block), `summary-photos-smoke.mjs`, `photo-rotation-smoke.mjs`.
+No migration.
+
+Proved on the real build (deployment of `20bda8b`, Chromium driving
+CDP touch events through the local proxy, iPhone 393 px and iPad 820 px):
+the grip is the only drag source and the only element with
+`touch-action: none`; mid-drag a dashed placeholder and an overlay are
+present; a drop is an insertion and reads "Order saved" with no error; the
+report grid shows the same order after a reload; six quick drags in a row
+end saved with the last order persisted; with 26 photographs a drag held
+at the top edge auto-scrolls the view to the top and the last photograph
+lands first; the iPad drag inserts and persists. After each run the
+`photos.sort_order` sequence in the database matched the screen order
+id-for-id. The two throwaway `Validation Co` tenants those runs created
+were deleted (storage as each tenant's own user, then rows by a guarded
+statement scoped to id and name); nothing named Validation remains, and
+Empire Interiors' companies, projects and photographs are untouched.
+
+### Report cards say where they are, 2026-09-13
+
+A report card in a list now carries one light line straight under its
+title: the store the client quotes when the project is linked to one
+(`Tilbury · Store 2158`, resolved from the shipped directory by
+`storeFor`, the same way the project page names it), otherwise the
+project's site address with its postcode, otherwise nothing at all - no
+empty line. `lib/reports/report-place.ts` (pure) decides the line,
+`lib/projects/place.ts` resolves the store server-side, and the two rows
+(`components/reports/report-row.tsx`, `components/summary-reports/summary-row.tsx`)
+take `place: string | null`. Applied to the Reports list (Daily, Progress,
+Completion and Site Survey rows) and the dashboard's Recent reports cards.
+A project's own page passes `place: null`, the same rule as the project
+name there: every row would say the same thing, and the header already
+says it. The lists read `site_address, postcode, location_directory,
+location_code` alongside the project name; no new column, no migration.
+Pinned in `e2e/navigation-smoke.mjs` section 8.
+
+### Tester-feedback regression sweep, 2026-09-13
+
+Twelve tester requirements checked against the branch. Eleven passed as
+they stood: one dictation area on a Daily with the AI result directly
+beneath its button; Progress and Survey have exactly two writing areas
+and Completion three, each with Dictate (`GroupEditor` returns null for
+the empty evidence group on Progress and Survey); captions and statuses
+autosave with no Save button; the photo prompt names the work, element,
+defect or document rather than narrating the frame; photographs start
+unmarked except on a survey (Before); the reporting period is optional on
+creation; the Daily opens on View report and Share PDF when issued; Share
+sits in the viewer header; grip reordering is proved; report cards carry
+their place. The one fix: an issued Progress, Completion or Survey kept
+its View report / Share PDF card at the foot of the page under three
+prose sections, with an "issued and no longer editable" banner at the top
+saying nothing actionable. The card is now the first thing on an issued
+consolidated report, exactly as on the Daily, and the banner is gone; a
+draft keeps it at the end. Pinned in `e2e/what-you-see-smoke.mjs` next
+to the Daily's pin. No migration.
+
+### The dashboard on a real iPhone: the token is verified locally, 2026-09-13 - `1a5d8d1`
+
+The owner reported the shell arriving quickly and the dashboard sitting
+on its skeleton on a physical iPhone. Diagnosed from the Supabase request
+logs for the owner's own three loads that morning (06:57, 09:16 and 09:34
+UTC), not from emulation. All three were "open after an hour away", so
+the middleware refreshed the expired token; all three hit a cold Vercel
+function, because nobody uses the deployment between the owner's visits.
+The 09:16 load, the worst, spent on the server before any phone network
+time: token refresh 1.06 s, middleware `getUser` 0.36 s, a 0.9 s gap
+before the page function sent its first query (cold start), the page's
+own `getUser` 0.06 s, then the session and dashboard queries at 0.45-0.55
+s each against a cold free-tier database - about 2.9 s. The 09:34 load
+also took a PostgREST 401 (`PGRST303`, "JWT not yet valid") on a token
+minted 1.2 s earlier, which the clock-skew retry cleared 0.8 s later;
+06:57 had the same on the reports query. Every screen also fires fifteen
+link prefetches (two waves, two navs) through the middleware, each a
+`getUser` round trip; during the 09:34 burst the auth server slowed to
+300-750 ms per call and the page's own `getUser` queued 299 ms behind
+them. Warm, twenty seconds later, every query was 19-32 ms and content
+was ready in about 0.2 s: nothing here is a slow query, it is sequential
+network hops at their worst on a cold open.
+
+Fix: `lib/supabase/proxy.ts` and `lib/auth/session.ts` verify the JWT
+locally with `getClaims()` - an ES256 signature check with WebCrypto
+against the project's signing key, fetched from
+`/auth/v1/.well-known/jwks.json` once and cached per instance for ten
+minutes - instead of `getUser()`'s round trip on every request. An
+expired token is still refreshed at the auth server, exactly as before.
+That removes one sequential hop from the middleware and one from the
+page on every load, and takes the prefetch storm off the auth server
+entirely. If local verification is unavailable the middleware asks the
+auth server as it used to, so an outage cannot sign anybody out. The
+`SessionContext.user` object (unused) is gone; `userId` and `email` come
+from the claims. Pinned in `e2e/navigation-smoke.mjs` section 7. No
+schema change, no change to the skeleton or to what any screen shows.
+
+Not changed, and still on the path of a cold morning open: the auth
+server's own refresh time (0.5-1.1 s), the Vercel function cold start
+(0.6-0.9 s, every visit hours apart on a deployment nobody else uses),
+and the free-tier database's first queries after idle (0.35-0.55 s).
+The Vercel toolbar's preflight OPTIONS requests and the OPTIONS on the
+custom domain are Preview-only overhead that goes away on a Production
+target. Fifteen prefetches per screen are Next.js behaviour with a
+loading boundary and two navs; they are now cheap server-side.
+
+Retested on the deployment of `1a5d8d1` from an iPhone viewport through
+the local streaming proxy (which adds about 0.4 s to every figure) with a
+throwaway tenant, the auth cookie rewritten to an expired token for the
+"morning open" cases: expired token, warm cache 1.19 s -> 0.89 s to
+content; valid token, warm 0.98-1.31 s -> 0.75-0.81 s, and on the last
+load the content arrived with the shell and no skeleton was ever shown;
+expired token, cold cache 1.24 s -> 1.26 s (the browser cache, not the
+server, sets that one). Across five dashboard loads and seventy-five
+prefetches the Supabase logs show zero calls to `/auth/v1/user`, three
+fetches of the key set at up to 18 ms (one per fresh instance), no 401s.
+The probe is `dash-probe.mjs` in the session scratchpad; its throwaway
+tenant was deleted afterwards and verified gone.
+
+### An out-of-credit AI account says so, 2026-09-13
+
+At 13:00 UTC on the phone, Generate on a Completion draft (Progress 001,
+Dailies 003 and 004, two more Dailies as provenance) came back with "The
+AI service could not be reached". The Vercel runtime log for the server
+action `POST /summary-reports/27b36978-...` shows what actually happened:
+OpenAI answered both calls - the cleanup pass at 13:00:18 and the summary
+generation at 13:00:20 - within two seconds with HTTP 429,
+`type: insufficient_quota`, `code: credit_balance_exhausted`, "You have
+no credits remaining". The key was present and accepted (a missing key is
+refused before any call; a bad one is a 401). Payload size played no
+part: the five sources total about 7,800 characters, roughly 2,000
+tokens plus the fixed prompt. The draft stayed a draft with nine empty
+section rows, five source links, 125 photo links and one issue link; the
+source reports are untouched. Every model-backed feature shares that key
+and organisation, so all of them fail the same way until credit is added
+on the OpenAI billing page.
+
+The app's part: every AI entry point mapped anything other than a
+rejected key to "could not be reached". `lib/ai/failure.ts` (pure) now
+decides the message - out of credit (429 with OpenAI's quota type or
+code, or its words), then a rejected key, then the caller's own line
+naming what is safe - and the six handlers (`report-generation`,
+`summary-generation`, `master-review`, `photo-description`,
+`document-extraction`, `cleanup`) all go through it. A 429 rate limit is
+deliberately not read as a billing problem. Pinned in
+`e2e/master-review-smoke.mjs` section 18 with the error exactly as the
+SDK threw it. No prompt, model, workflow or database change.
+
+Seen in the same query and not acted on: Daily 004 is issued with its
+notes and no written sections.
+
+### Master AI Review: a finding about an issue is acted on where it is found, 2026-09-13
+
+On the phone the review found the contradictions - an issue open in the
+tracker and resolved in the prose, a Completion claiming completion over
+an open issue, a photograph that looked like a live snag - and then left
+the person to go and find the issue somewhere else. Now the finding
+carries the issue's own controls.
+
+How the model names an issue: each recorded issue in the evidence is
+shown with a handle, `[I1]`, `[I2]`, and the reply schema requires
+`relatedIssue` (the handle or empty) and `suggestedIssue` (a title of at
+most eight words for a live snag no recorded issue carries, or empty).
+The model never sees an id; `linkWarningsToIssues` in
+`lib/reports/master-review.ts` turns a handle back into an id and drops
+one it was never given. The prompt says one finding per recorded issue,
+and `collapseIssueWarnings` enforces it: per issue the most severe
+non-gap finding (a contradiction beats wording at equal severity) plus at
+most one separate missing-information finding. Findings about no issue
+are untouched.
+
+On the screen (`components/reports/review-findings.tsx`): a finding about
+a recorded issue shows the issue's title and status with Keep open (or
+Keep in progress / Keep resolved), In progress, and Resolve; a resolved
+one offers Reopen. Resolve opens an optional note and a resolved-on date
+defaulting to today, never in the future, and goes through `resolveIssue`
+- the same action as the issue list - so the row, `closed_at` and the
+`issue_events` history (the table's own trigger) are the same whichever
+screen pressed it. A blank note records "Marked resolved during the
+report review." rather than a claim about the work. In progress goes
+through `setIssueStatusFromReview`, the issue list's move with a returned
+outcome, and can never close. A finding that reads as a new issue offers
+Create issue - `createIssue`, against this project and, on a Daily, this
+report, title on offer, priority to pick - or Not a live issue. Every
+outcome is a person's tap; the reviewer decides nothing, and the
+`ai_generated` and section rules are untouched.
+
+After an action the finding clears and one line sums up what was done
+("1 issue resolved, 1 finding left as it was. Review again to confirm
+the report now reads clean."). The review is not re-run automatically:
+that is another model call and another charge, and the report's own
+issue list has already refreshed under it. Review again re-reads the
+document against the issues as they now stand. Issued reports still
+refuse a review, so a snapshot cannot move. No migration: no new table,
+column or policy.
+
+Pinned in `e2e/master-review-smoke.mjs` section 19: handle linking and
+the unknown-handle case, collapsing, the prompt and schema, the controls
+and which actions they use, optional note and today's date, the
+resolved-on instant, no close from the move, no auto-resolve, no second
+history system, and the issued-report refusal. Not driven on a phone in
+this session; the field test is the check.
+
+## Production cut-over: the runbook, and why it has not been done
+
+**Status on 2026-09-14: NOT CUT OVER. Blocked on two things this session
+cannot reach and one the owner must buy.** Everything below was verified,
+not assumed.
+
+### What is true right now
+
+- There is **no Production deployment at all**. The project reports
+  `live: false`, and both production URLs 404:
+  `pierwsze-koty-za-ploty-mikeymcyo.vercel.app` and
+  `pierwsze-koty-za-ploty-git-main-mikeymcyo.vercel.app`.
+- `app.sitebosspro.co.uk` serves the **branch Preview**, healthy, HTTP 200
+  out of `fra1`. It appears in each new preview's alias list, so the domain
+  is assigned to the git branch and follows its latest deployment.
+- **`main` is an empty tree.** `git ls-tree -r origin/main` returns zero
+  files; its five commits deleted an unrelated static site (`index.html`,
+  `gorilla.webp`). It shares no history with this branch - `main` is not an
+  ancestor of the head. So "deploy main to production" would today ship
+  nothing.
+- Deployment protection is **off** for every environment, so a Production
+  deployment would be publicly reachable with no extra step.
+- The **Vercel Preview toolbar is already absent**: the served HTML carries
+  no `vercel.live` script on `/login` or `/`. An earlier handoff note
+  claiming it loads on every page was wrong. Nothing to remove at cut-over.
+
+### Why this session could not perform the cut-over
+
+The Vercel MCP surface available here exposes projects, deployments, logs,
+analytics and protection - and **no tool for environment variables, domains
+or aliases, the production-branch setting, or promoting a deployment**.
+There is no Vercel CLI and no `VERCEL_TOKEN` in the container. The only
+production-capable tool is `deploy_to_vercel`, which uploads an inline file
+tree unlinked from git and addresses the project by name; using it would
+produce a Production deployment with no commit behind it, which is the
+opposite of a traceable cut-over.
+
+So step 3 of the owner's own plan - *confirm the three variables exist for
+Production* - cannot be satisfied from here, and a cut-over performed
+without satisfying it would be a guess. The owner asked to stop in exactly
+that case.
+
+### The runbook (Vercel dashboard, in this order)
+
+**0. Add OpenAI credit first.** Until then every model-backed feature fails
+on Production exactly as it does now, and "verify the OpenAI call works"
+cannot pass. See the out-of-credit section above.
+
+**1. Environment variables** - Settings, Environment Variables, scope
+**Production**. The names the code actually reads (`lib/env.ts`, and
+`.env.example` is the canonical list):
+
+| Variable | Value |
+| --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://anwzyzfgfcuxrrpuaxwk.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `sb_publishable_CjOoOrKbbqTy14oM2MoJIQ_OrVw5B2e` |
+| `OPENAI_API_KEY` | the existing key - copy it within the Vercel dashboard, never through a chat |
+
+**The publishable key's name is `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, not
+`NEXT_PUBLIC_SUPA_PUBLISHABLE_KEY`.** A truncated name is not read, and the
+app then treats Supabase as unconfigured: `proxy.ts` redirects every route
+to the landing page and the site looks broken while every variable appears
+present. `NEXT_PUBLIC_SUPABASE_ANON_KEY` is accepted as an alternative.
+
+Also copy any of `OPENAI_MODEL`, `OPENAI_CLEANUP_MODEL`,
+`OPENAI_VISION_MODEL`, `OPENAI_BASE_URL` that are set on Preview. They are
+optional, but if Preview pins a model and Production does not, Production
+silently drafts on the built-in default instead.
+
+**2. Email callback links.** On Production `env.siteUrl` builds confirmation
+and password-reset links from `VERCEL_PROJECT_PRODUCTION_URL`, which is the
+`.vercel.app` production host, not the custom domain. If
+`app.sitebosspro.co.uk` is to be the canonical address, set
+`NEXT_PUBLIC_SITE_URL=https://app.sitebosspro.co.uk` for Production **and**
+add it under Supabase, Authentication, URL Configuration, Redirect URLs.
+Miss this and sign-up confirmation and password reset mail points at the
+wrong host.
+
+**3. Production branch.** Two ways, and the first is the smaller:
+
+- *(a) Recommended.* Settings, Git, Production Branch: set it to
+  `claude/siteboss-pro-react-441-diagnosis-bhvwk8`. One setting, no git
+  history touched, reversible by setting it back.
+- *(b)* Make `main` carry the code -
+  `git push origin HEAD:main --force` - and leave `main` as the production
+  branch. This rewrites the default branch of a public repository. Rollback
+  is `git push origin 6e5221c:main --force`.
+
+**4. Deploy.** Deployments, find the deployment for the head being shipped,
+Promote to Production. Or push one commit to whichever branch step 3 made
+the production branch.
+
+**5. Domain.** Settings, Domains, `app.sitebosspro.co.uk`: it is assigned to
+the git branch today. Reassign it to Production. Do this **last**, once the
+Production deployment is verified on its `.vercel.app` URL - that way the
+domain never points at an unverified build.
+
+**6. Verify on Production** before telling anybody: sign in; dashboard
+greeting and Site Capture button; start a capture and upload a photograph;
+Daily AI write-up; the Reports list; open an issued PDF and Share it; and
+one model call of any kind. Then cold and warm timings from a phone.
+
+### Rollback
+
+Each step undoes independently, and **nothing here touches the database**,
+so there is nothing to roll back there.
+
+- **Domain**: reassign `app.sitebosspro.co.uk` back to the git branch.
+  Traffic returns to the Preview in seconds. Preview deployments are
+  retained, so the current one stays the reference build.
+- **Deployment**: Deployments, Instant Rollback to the previous Production
+  deployment.
+- **Production branch**: set the setting back to `main`.
+- **Git**, only if route (b) was taken: `git push origin 6e5221c:main --force`.
+- **Environment variables**: deleting a Production variable cannot break
+  Preview; the scopes are separate.
+
+### What is still blocking a green Production
+
+1. No OpenAI credit, so no model-backed feature can be verified.
+2. No environment-variable, domain or promotion tooling in this session -
+   steps 1, 3, 4 and 5 are dashboard actions for the owner.
+3. Production has never been built once, so its first build is also its
+   first proof that the Production variable set is complete.
+
+### Re-checked 2026-09-16 after the iPhone field test: still NOT CUT OVER
+
+Asked again to cut over now that the Standard PDF layout (97e67c5) has been
+field-tested on a physical iPhone. Re-inspected before touching anything,
+and nothing that blocked the 14 September attempt has moved:
+
+- Head `97e67c5` is the branch tip locally and on origin, tree clean.
+  Latest Vercel deployment `dpl_7hSSC6jUesf53aocLohpivE4fzZP` builds that
+  commit, READY, `target: null` - a Preview. Project still `live: false`.
+- `app.sitebosspro.co.uk` answers 200 out of `fra1` from that Preview.
+  Both `.vercel.app` production hosts still 404. No `vercel.live` script in
+  the served HTML, so there is no Preview toolbar to remove.
+- `origin/main` is still `6e5221c` with zero files. Deploying it would ship
+  nothing; merging it into this branch would be merging an unrelated,
+  empty history for no gain. Not done.
+- The tool surface is unchanged: no environment-variable read, no domain or
+  alias assignment, no production-branch setting, no promote. The
+  Production variable set therefore cannot be verified from here, and the
+  owner's plan names the publishable key as `NEXT_PUBLIC_SUPA_PUBLISHABLE_KEY`,
+  which the code does not read - it must be
+  `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (see step 1 above).
+- OpenAI credit: unconfirmed. Runtime-log retention on this plan no longer
+  covers the 13 September failures, and no model call has been observed
+  since, so "AI call works on Production" still cannot be promised.
+
+The owner's instruction was to stop rather than improvise when the safe
+path is not available, and it is not. The runbook and rollback above stand
+as written. Nothing was changed on Vercel, Supabase or git for this check.
+
+### Recent locations, 2026-09-17
+
+**The field need.** Addresses and store numbers arrive for possible Lidl
+jobs; the store is looked up in SiteBoss, opened, and Waze or Google Maps
+is used from it. SiteBoss then forgot it, and the next time the same store
+had to be typed in from scratch.
+
+**What was built.** On the Store locator, while the search box is empty, a
+**Recent locations** section sits under the search and above the full list:
+the stores this person opened or asked the way to, newest first, at most
+twenty. Each row is the store's own identity - `Croydon · Store 1470` (the
+same shape `reportPlace` prints on a report card) with the address under it
+- and opens the store; Directions and Waze sit beside it, and a small cross
+takes the row off. History, not a CRM: no notes, no statuses, no leads.
+
+**Migration `20260917000013_recent_locations.sql` - APPLIED** through the
+controlled `apply_migration` path (database version `20260917163521`). One
+new table, `public.recent_locations (user_id, directory, code, visited_at)`,
+primary key `(user_id, directory, code)`, index on `(user_id, visited_at
+desc)`, `user_id` cascading from `auth.users`. RLS on, with four policies
+that all say only `user_id = auth.uid()`; `authenticated` granted
+select/insert/update/delete, `anon` revoked. Verified after apply by reading
+`information_schema.columns`, `pg_policies`, `role_table_grants` and
+`pg_constraint`. Not company data: the row holds two keys of shipped
+reference data and a time. No other table changed. Rollback:
+`drop table public.recent_locations;`. (Supabase's default privileges also
+grant `authenticated` REFERENCES/TRIGGER/TRUNCATE, exactly as on every other
+table in this project; pre-existing and project-wide, noted, not changed.)
+
+**How it records.** `lib/stores/recent-server.ts` `recordRecentLocation`
+takes a directory id and a store code and nothing else: the key is checked
+for shape (`parseRecentKey`), then against the shipped directory
+(`knownStore` with the catalogue), and only then upserted with the
+**session's** user id - never the client's - on the primary key, which is
+what moves a revisit to the top without a second row; anything past twenty
+is trimmed on the same write. Opening a store records it (`RecentRecorder`,
+on mount). Tapping Directions or Waze records it too, and because the very
+next thing that happens is Maps or Waze taking the screen, the record is a
+`navigator.sendBeacon` (with `fetch keepalive` behind it) to
+`POST /stores/recent` - the browser's promise to deliver a small request
+through a page hide, which a server action cannot be sent as. The route
+refuses a foreign `Origin`, and the body is validated the same way. Removal
+is a server action deleting the user's own row by the same two keys.
+
+**Where the links live.** `components/stores/directions-links.tsx` is the
+one Directions/Waze pair, used by the store page, the project's linked
+store card and each recent row; the hrefs are the unchanged plain Google
+Maps and Waze links, computed on the server as before.
+
+**Proved on the real build** (Preview `dpl_CNga154TBPYWPpY4sEALW8t3McMq`
+of `1617a15`, Chromium as an iPhone, two throwaway accounts, deleted
+afterwards): opening Store 0521 put "Croydon · Store 0521" under Recent
+locations; tapping Waze on Store 2158 - a tap that opens another app - put
+"Tilbury · Store 2158" first; reopening 0521 moved it back to the top with
+still two rows; each row carried Directions and Waze; searching hid the
+section; the cross removed a row and left the other. The second account's
+locator showed no section; its REST read of the table returned no rows;
+its insert carrying the first account's `user_id` was refused 403 ("new
+row violates row-level security policy"); an unauthenticated read got 401.
+
+**Tests.** `npm run test:recent-locations` (`e2e/recent-locations-smoke.mjs`):
+key validation, the twenty limit and order, the migration's self-only
+policies, session-derived `user_id`, the beacon path, and the locator
+placement. Every other suite, parity, lint, typecheck and build pass.
+
+### Reliability and integrity hardening after the independent audit, 2026-09-17
+
+An independent read of the whole codebase found ten proven ways to lose
+typed words or let an issued record drift. All ten are closed on head
+`7ab6ad1` with the smallest change each, and **no migration**. The suite is
+`npm run test:hardening` (`e2e/hardening-smoke.mjs`); the one storage-policy
+finding that needs a migration is written up below and deliberately not
+applied.
+
+1. **A failed request keeps the form and its text.** A rejected server
+   action used to throw into the root error boundary and replace the page,
+   typed text and all. Every form on a report screen now uses
+   `useRecoverableActionState` (`lib/hooks/use-recoverable-action-state.ts`
+   over `lib/actions/recover.ts`): a failure to reach or run the action
+   resolves to the form's own `error` line, the previous state is kept, and
+   the form stays mounted. Redirects still pass through. The one-tap issue
+   status move is `components/issues/move-issue-button.tsx`, which returns
+   its error; `setIssueStatus` no longer throws. `app/(app)/error.tsx` keeps
+   the shell if a page itself fails, as a backstop only.
+2. **A stale report screen cannot erase captures added elsewhere.** The
+   report page posts `raw_notes_base`, what it loaded; `lib/reports/notes-cas.ts`
+   decides the write: untouched notes are left out of the update entirely
+   (the date, weather, workforce and plant still save), a changed box is
+   written under a compare-and-set on the database's current value, and a
+   box changed on both sides is refused with `NOTES_CHANGED_ELSEWHERE`.
+   Write my report reads whatever the database holds after the save.
+3. **A photograph landing does not remount the dictation box.**
+   `lib/capture-draft.ts` now hands each screen a snapshot that changes only
+   when the draft is cleared or another tab writes it, so re-renders from
+   the photo queue or a document adoption no longer change the box's key.
+   The queue runner refreshes the page once per drain, not per photograph.
+4. **Finalising refuses when a plate could not be read.**
+   `lib/pdf/missing-photos.ts` names the count and the plates; both the
+   Daily and the summary finalise stop before rendering. `loadSummaryPdfData`
+   returns `missingPhotos` (a preview still prints around them).
+5. **Deleting a photograph is asked twice**, through `ConfirmAction` in
+   `components/reports/photo-grid.tsx`; the tile's icon only opens the question.
+6. **Issued and dependent evidence refuses to move.** `dependentsOfPhoto`
+   (`lib/reports/dependents.ts`) looks a photograph up by its own id, so a
+   project photograph or one added straight to a survey is found;
+   `deletePhoto` refuses on any summary that prints it, `savePhotoDetails`
+   and `rotatePhoto` on an issued one. `reopenReport` refuses when an
+   issued Progress or Completion cites the Daily (`reopenBlockedBy`).
+7. **A summary whose photo or issue links failed to save is deleted** and
+   the error returned, as the sources insert already did.
+8. **An issued Daily takes no new issue and no new document link**
+   (`createIssue`, `attachDocument`; the document itself is still saved to
+   the project).
+9. **Master Review's Apply writes only over the text the reviewer read.**
+   The payload carries `originalText`; `withoutStaleWrites` keeps a section
+   edited since and `describeConflicts` names it.
+10. **The login and email-link redirects use `safeReturnPath`**, which
+    rejects `//host`, any backslash and any scheme; `/\evil.com` used to
+    resolve to `https://evil.com/`.
+
+**Proved on the real build** (Preview `dpl_HTomgKm7nPpvfiQfVibuq8F2YifJ`,
+Chromium as an iPhone through the failing bridge, throwaway tenants deleted):
+typed notes survive a failed Save and save on the next tap; a stale report
+tab's Save is refused while a Site Capture added from another tab stays in
+the database; ten queued photographs land without the capture box being
+remounted or losing its text; the photo delete asks first and Cancel keeps
+it; `next=/\evil.com`, `//evil.com`, `/\evil.com/login` and `/%5Cevil.com`
+all land on this site after sign-in. Refused finalise, dependent-photo
+refusals, summary link failure, issued-Daily refusals and the review
+conflict are proved in the offline suite against the code paths.
+
+**Still needing a physical iPhone:** real dictation through the keyboard
+microphone while ten photographs upload (the emulator proves the box is
+not remounted; it cannot speak), and the lock/unlock resume of the queue.
+
+**Re-verified 2026-09-18 on head d14882b** (after the recent-locations
+work landed on top of the hardening commit 7ab6ad1): `test:hardening` all
+ten sections pass, every offline suite passes, export parity, `eslint
+--max-warnings 0`, `tsc --noEmit` and `next build` are clean, and the head
+is deployed READY as Preview `dpl_D1W71835Q1YJdBTF9AoLtTMvdEqo` on the
+branch alias that `app.sitebosspro.co.uk` follows. No code changed in this
+pass. The live `report-pdfs_update` policy is still present (re-read from
+`pg_policies`); the migration below remains proposed, not applied.
+
+### The report-pdfs UPDATE policy - APPLIED 2026-09-18 (approved)
+
+`supabase/migrations/20260918000001_report_pdfs_no_update.sql`, applied
+through the controlled `apply_migration` path after approval; the ledger
+lists it as `20260918165600 20260918000001_report_pdfs_no_update`. One
+statement: `drop policy if exists "report-pdfs_update" on storage.objects;`.
+Nothing else was changed.
+
+**Verified after applying.**
+- `pg_policies` on `storage.objects`: `report-pdfs_select`, `_insert` and
+  `_delete` remain with their original expressions; `report-pdfs_update` is
+  gone; the `site-photos` and `project-documents` policies (all four each)
+  are untouched.
+- On the real build (branch Preview, throwaway tenant, emulated iPhone,
+  scratchpad `pdf-policy-probe.mjs`): a new Daily finalised and stored its
+  PDF under the company folder; `/reports/{id}/file` served it as
+  `application/pdf` and View report opened; with the tenant's own token a
+  storage `PUT` on the object and a `POST` with `x-upsert` both came back
+  `403 new row violates row-level security policy`, a `move` came back
+  `404`, and the served bytes hashed the same afterwards; a fresh object
+  could still be written and removed (insert and delete untouched);
+  reopen left the issued file and its `pdf_path` in place; finalising
+  again wrote a second object under a new timestamped name and pointed the
+  row at it while the first object stayed; deleting the report removed the
+  row and the row's current PDF object (the database-backed list confirmed
+  it; a plain object `GET` still returned a CDN `HIT` for a few seconds
+  afterwards, which is the edge cache, not the bucket).
+- Live tenant Empire Interiors Ltd: 186 photographs, 6 issued reports with
+  a `pdf_path`, 22 objects in `report-pdfs`, the same before and after;
+  nothing of theirs was opened or touched. Existing issued PDFs are read
+  through `download`, which is the unchanged select policy.
+- `test:hardening` section 11 pins the migration to that one statement and
+  pins both finalise actions to `upsert: false` with no update, move or
+  copy of a PDF object anywhere in the app.
+- Throwaway tenant `Validation Co 1789750740457` removed: storage as its own
+  user, then the company and `auth.users` rows by id and exact name; zero
+  left.
+
+**Follow-up security items, not done now.**
+- `report-pdfs` DELETE stays intentionally available: the report, summary
+  and project delete actions run through the authenticated user's storage
+  client and need it. Later, review whether direct storage deletion should
+  be removed and deletion mediated through a guarded server-side path.
+- Review the unnecessary `authenticated` TRUNCATE / REFERENCES / TRIGGER
+  grants project-wide (Supabase default privileges on every public table).
+
+The original inspection, kept for the record:
+
+#### The report-pdfs UPDATE policy - as inspected before it was applied
+
+`supabase/migrations/20260826000003_storage.sql` creates, for both buckets
+in one loop, `report-pdfs_select`, `_insert`, `_update` and `_delete` on
+`storage.objects`, each `to authenticated` and each gated only by
+`is_company_member(storage_company_id(name))`. The update policy is:
+
+```sql
+create policy "report-pdfs_update" on storage.objects
+  for update to authenticated
+  using (bucket_id = 'report-pdfs' and public.is_company_member(public.storage_company_id(name)))
+  with check (bucket_id = 'report-pdfs' and public.is_company_member(public.storage_company_id(name)));
+```
+
+Nothing in the application updates a PDF object. Both finalise actions
+upload with `upsert: false` under a timestamped name; re-issuing writes a
+new object; the only other operations are `download`, `createSignedUrl`
+and `remove` (delete on report, summary or project deletion, and the
+orphan cleanup on a finalise race). So the update grant exists only because
+the loop that made the photo policies made these too, and with it any
+company member can replace the bytes behind an issued report's `pdf_path`
+from the browser with the publishable key while the row stays `final`.
+
+Smallest migration, when approved (one statement, reversible by re-running
+the create from the original migration):
+
+```sql
+-- Issued PDFs are written once. Nothing updates them; nothing may.
+drop policy if exists "report-pdfs_update" on storage.objects;
+```
+
+Delete is left in place because the delete actions run through the user's
+client and need it; taking it away too would mean a service-role path for
+those three actions, which is a larger change than the finding warrants.
+
+### Photo upload: the simple uploader is back, 2026-09-22
+
+**Decision, from the field.** The physical iPhone test on 63d1ade: seven
+chosen, one uploaded, six Failed with "This photo is no longer on the
+phone" while the screen still said "7 photos secured · uploading…". The
+owner's decision was to stop working on the queue and take it out of the
+normal path. Offline and poor-signal persistence is BACKLOG, to be designed
+later outside the normal upload path.
+
+**What was restored (87a3505).** `components/reports/photo-upload.tsx` and
+`app/(app)/layout.tsx` exactly as they were at ab01244, the last commit
+before the queue - the only commits that had touched either file since
+were the three queue commits, so nothing unrelated was lost. The flow is:
+choose, compress and downscale on the phone, upload the object, upload the
+thumbnail, attach the row, see the photograph; "Uploading 3 of 7…" while it
+runs; failures kept in memory with their bytes and offered back as Try
+again on the same storage path; the browser's own leave-page prompt while
+an upload is in flight. Site Capture's single "Add photos" button, captions,
+statuses, ordering, report and survey linking, thumbnails, compression
+rules and every later piece of hardening are untouched.
+
+**What was removed from the tree:** `lib/photo-queue.ts`,
+`lib/photo-queue-runner.ts`, `lib/photo-queue-store.ts`,
+`lib/photo-compress.ts` (the compression is inline in the uploader again,
+same rules from `lib/photo-quality.ts`), `components/photos/photo-queue-runner.tsx`,
+`e2e/photo-queue-smoke.mjs` and its `test:photo-queue` script. Out of the
+active path with them: IndexedDB, securing and "secured", the shell runner,
+recovery state, queue retry and failure UI, the Web Lock, the retry clock
+and backoff, and any requirement for a photograph to enter IndexedDB before
+upload. The five suites that had pinned the queue (capture-reliability,
+photo-egress, photo-quality, site-survey, hardening) pin the restored
+uploader again. A phone still holding records in the old
+`siteboss-photo-queue` database is never read; nothing opens it.
+
+**Measured on the real build** (branch Preview, emulated iPhone viewport,
+4.33 MB JPEGs, one report, scratchpad `plain-probe.mjs`), ALL PASS:
+
+| batch | first tile | all on screen | rows | uploads |
+|---|---|---|---|---|
+| 1 | 1.9 s | 1.9 s | 1 | 1 |
+| 7 | 3.7 s | 14.5 s | 7 | 7 |
+| 16 | 6.2 s | 32.7 s | 16 | 16 |
+
+24 rows in the order chosen, no duplicates, statuses as chosen, the report
+page showing all 24, and no `siteboss-photo-queue` database created. No
+"secured", "Securing", "no longer on the phone" or "to go" anywhere on the
+capture screen. Throwaway tenant removed, zero left.
+
+**Sections below this one about the queue are history**, kept for the
+record of what was tried and why it did not survive contact with WebKit.
+
+### Photo upload: from memory the moment it is chosen, 2026-09-21
+
+**The field report.** "Photos STILL do not upload" on the physical iPhone
+after d39cb74. The logs say what the phone did: it loaded the newest build
+at 02:17 UTC on 21 September, opened both capture screens, and sent no
+upload request of any kind to Supabase - not a preflight. On that build the
+nine records from 17 and 19 September fail locally before any network
+call, because their bytes never existed on the phone (the reference bug
+above); the screen shows them as Failed with "choose it again". Whether a
+fresh selection was also tried cannot be told from the server; no request
+for one arrived. The phone has not yet uploaded a photograph on any build
+since 17 September.
+
+**What changed (63d1ade).** The normal upload no longer touches the phone's
+database at all, which removes the one WebKit behaviour the emulator
+cannot reproduce from the path that matters. The screen copies the bytes,
+writes the copy to IndexedDB as the safety net, and then uploads the very
+records it has in hand - `uploadNow(records)` - two at a time, under the
+same Web Lock the shell's runner takes. Every status change and every
+removal is mirrored to the database copy as it happens, so a page that
+dies mid-way leaves exactly what is left for the runner to finish from the
+copy next time SiteBoss is open. The runner is unchanged in what it does;
+it is no longer on the normal path. `markDraining(true)` is set before the
+copy is written so the runner does not take the same photographs first.
+This is the pre-queue shape - compress and send from memory at selection -
+with the local copy kept only as protection.
+
+**Measured on the real build** (branch Preview, emulated iPhone viewport,
+seven 4.33 MB JPEGs, `speed-probe.mjs`; the emulator's compression is
+faster than the phone's, and it never had the WebKit reference bug):
+
+| | secured | first row | all seven |
+|---|---|---|---|
+| 9429a9c (queue, one at a time) | 42 ms | 2.9 s | 16.6 s |
+| d39cb74 (queue, two at a time) | 151 ms | 2.6 s | 8.8 s |
+| 63d1ade (from memory, two at a time) | 112 ms | 2.0 s | 7.2 s |
+
+Seven uploads, seven rows, no duplicates each time; the count fell
+7 → 6 → … → 0 in step with the phone.
+
+**Recovery re-proved on 63d1ade**, `queue-probe.mjs` ALL PASS: 25 secured
+in 64 ms; signal cut after six (20 Waiting, none failed, none lost);
+leaving the screen; reload; page killed and reopened (queue rebuilt from
+the phone's copy); offline; signal back (20 resumed on their own in 32 s,
+nobody pressing anything); no duplicates (25 tiles, the six from before the
+cut not re-uploaded); a stalled upload turning Waiting at the 60 s deadline
+and retrying on the same path; a phone with no IndexedDB still uploading
+while the screen stays open. 27 on the report, the phone holding none.
+
+**The nine dead records on the phone** cannot be recovered: they are
+references to picker files iOS removed on 17 and 19 September, not bytes.
+Remove (asked twice) clears them; the photographs must be chosen again.
+
+**Still needing the physical iPhone.** Choose seven photographs and watch
+the count fall. That is the only proof for WebKit.
+
+### Photo upload on the iPhone: the stall, and two at once, 2026-09-19
+
+**The field bug.** Seven photographs chosen on a real iPhone (iOS 18.7) sat
+at "7 photos secured · uploading…" / "Uploading · 7 to go" on good signal,
+with nothing arriving. Read from the Supabase edge logs for that phone
+rather than guessed: on 17 September the first photograph of a batch went
+up in two seconds (preflight, 737,764-byte POST, 91,273-byte thumbnail,
+row); every photograph after it sent only its CORS preflight, never the
+body, was silently retried eight minutes later, and again two days later
+with the same two photo ids still at the head of the phone's queue. Today's
+seven showed the same signature. A 3.8 MB project document from the same
+phone in the same minute uploaded in under a second. Zero site-photos
+objects and zero rows in the whole window.
+
+**The cause.** The queue stored `file.slice(0, file.size, file.type)` of
+the picker's File. On WebKit that is a reference to a temporary file, and
+IndexedDB kept the reference, not the bytes. The upload form resets the
+input straight after "secured", iOS clears the picker's copy, and from then
+on every read of the "secured" photograph failed: createImageBitmap
+rejected and fell back to the original, fetch sent the preflight and could
+not read the body, Safari said "Load failed", classifyFailure read that as
+the network's fault, and the record went to Waiting with no message,
+forever. The first photograph of a batch usually got through because it
+was read before the reset. Nothing in the pipeline was slow; it was stuck.
+
+**What changed (d39cb74).**
+- `queueRecords` reads each picked file with `arrayBuffer()` and stores a
+  Blob made from those bytes. An in-memory Blob is serialised by value, so
+  "secured" now means the bytes are on the phone. Seven 4.3 MB photographs
+  cost about 110 ms more before "secured".
+- Every attempt begins by reading one byte of its record. A record that
+  cannot be read throws `UnreadablePhoto`, classified as a rejection: it is
+  Failed with "This photo is no longer on the phone. Please choose it
+  again", never Waiting, never retried on its own. Remove clears it.
+- `drainQueue` takes `concurrency` (the shell passes `UPLOAD_CONCURRENCY`
+  = 2). Each worker takes the oldest due record nobody else holds; the pick
+  and the claim are one synchronous step, so no record is taken twice and
+  oldest still goes first. One photograph's bytes are on the wire while the
+  next is being compressed. The Web Lock still serialises drains across
+  tabs; reconcile-after-restart, the per-step order, the 60 s deadline,
+  the same-path upsert and the server's one-row-per-path rule are
+  unchanged. Two was measured, not guessed: compression is main-thread
+  work, so a third worker only queues requests behind each other.
+
+**Measured on the real build** (branch Preview, emulated iPhone viewport in
+Chromium, seven 4032×3024 JPEGs of 4.33 MB each, scratchpad
+`speed-probe.mjs`). These numbers measure the pipeline; the phone's
+compression is slower than the emulator's, and the iPhone "before" was
+effectively never.
+
+| | secured | first row | all seven | uploads |
+|---|---|---|---|---|
+| before (9429a9c) | 42 ms | 2.9 s | 16.6 s | 7 |
+| after (d39cb74) | 151 ms | 2.6 s | 8.8 s | 7 |
+
+The count on the screen fell 7 → 6 → … → 0 in step with the phone in both
+runs; no duplicates (seven uploads, seven rows, seven distinct tiles).
+
+**Recovery re-proved on the new build** with the existing queue probe:
+25 photographs with the signal cut after six (the rest Waiting, none
+failed, none lost), leaving the screen (the chip says so), a reload, the
+page killed and SiteBoss opened again (the same count still on the phone),
+offline (Waiting for signal, nothing lost), signal back (the rest resumed
+on their own, 30 s for 20 photographs, nobody pressing anything), no
+duplicates (25 tiles, the six from before the cut not uploaded again), a
+stalled upload (Uploading, then Waiting at the 60 s deadline rather than
+hanging, released retry landing on the same path), and a phone with no
+IndexedDB (told in capitals, still uploaded while the screen stayed open).
+27 photographs on the report, the phone holding none. ALL PASS. All three
+throwaway tenants removed afterwards, zero left.
+
+**Still needing the physical iPhone.** Choose seven photographs on the
+phone itself and watch the count fall; the two dead records from 17
+September still in that phone's queue will now read Failed with "choose it
+again" and can be removed. That is the only proof the WebKit reference
+behaviour is gone, because the emulator never had it.
+
+### Photo upload resilience: secured on the phone first, 2026-09-16
+
+**The field issue.** On a real iPhone with poor reception, somebody chose
+twenty-five site photographs and could not tell whether locking the phone
+would lose them. Read from the code, it would have. The selection, the
+compressed bytes and the storage paths all lived in React state until each
+photograph had a row. iOS freezes a locked or backgrounded page within
+seconds and discards it under memory pressure; the page came back empty and
+nothing said the photographs had ever been chosen. The one guard, a
+`beforeunload` prompt, is not fired by iOS Safari at all, and was not even
+armed during the compression phase - which for twenty-five photographs was
+ten to twenty seconds of silence with no indicator, exactly when a phone
+gets locked.
+
+**What a web app on an iPhone can honestly promise.** Not background
+uploading: iOS gives a page no Background Sync and no Background Fetch, and
+`fetch keepalive` is capped at 64 KB. What it can promise is that nothing
+chosen is lost, uploads pause rather than fail, and they resume the next
+time SiteBoss is open. That is what was built.
+
+**How it works now.**
+
+- **Secure first.** The moment the picker returns, every chosen file is
+  written to IndexedDB (`siteboss-photo-queue`, store `photos`) in one
+  transaction, with the storage path minted for it - before compression,
+  before a byte goes over the air. The screen shows "Securing 25 photos…"
+  while the write runs and "25 photos secured · uploading…" only once the
+  transaction's `oncomplete` has fired, which is the commit. A phone that
+  refuses (no IndexedDB, a full one) is told "N photos could NOT be secured
+  on this phone (reason)"; those photographs are kept in memory and still
+  uploaded while the screen is open. `lib/photo-queue-store.ts`.
+- **One runner in the app shell.** `components/photos/photo-queue-runner.tsx`
+  is mounted in `app/(app)/layout.tsx` and drains the queue on mount, on the
+  `online` event, on `visibilitychange` to visible, on `focus` and `pageshow`,
+  when a photograph is secured, on the retry clock, and every 30 s as a
+  safety net. It takes a Web Lock (`siteboss-photo-queue`, `ifAvailable`) so
+  two tabs never work one photograph; without the API it falls back to a
+  per-tab flag. It asks `navigator.storage.persist()` once, feature-detected,
+  and records the answer without relying on it. The loop itself is
+  `lib/photo-queue-runner.ts`, pure, with every browser dependency injected.
+- **The order of the steps is the safety contract.** Mark `uploading`;
+  compress from the stored original (`lib/photo-compress.ts`, the same canvas
+  code and the same `lib/photo-quality.ts` rules as before); write the
+  photograph then its thumbnail to the bucket at the record's own path with
+  `upsert: true`; attach the row; and only when the attach reply confirms the
+  row is the record removed from the phone. Nothing is removed on the way in.
+- **Deadline.** Each network step runs under a 60 s `withTimeout` whose
+  AbortSignal is carried into the Supabase client's fetch, so a stalled
+  upload actually closes its socket rather than holding the phone's one good
+  connection. A stall is Waiting for signal, not a hang.
+- **Four states, and the classification.** Uploading, Waiting for signal,
+  Uploaded, Failed - `UPLOAD_STATE_LABELS` in `lib/photo-queue.ts`. A
+  network fault (offline, a stall, a 5xx, "Load failed", "Failed to fetch",
+  an abort) is Waiting for signal with 2 s, 4 s, 8 s … 60 s backoff and
+  retries itself. A rejection (an issued report, a refused path, a 4xx from
+  the bucket) is Failed with its reason and offers Retry and Remove; Remove
+  goes through the same inline `ConfirmAction` as every other destructive
+  action, because it discards secured evidence. Uploaded is said only after
+  the server confirmed the row. A freshly secured photograph on an online
+  phone reads as Uploading, because it is about to be.
+- **The honest notice**, shown whenever anything is pending on the screen:
+  "Keep SiteBoss open to finish uploading. If you leave or lock your phone,
+  your secured photos will continue next time you open SiteBoss."
+- **Never invisible.** On every signed-in screen the runner shows "N photos
+  waiting to upload" (a link to the screen they belong to) for photographs
+  whose own upload control is not on show; a screen with its own list
+  registers its target so the chip does not double-count.
+- **Duplicates.** The path is minted once and persisted with the bytes, the
+  bucket write is an upsert, and `attachPhoto` / `attachSummaryPhoto` still
+  refuse a second row for a path they already have. A retry after a lost
+  reply finds its row and the record leaves the phone.
+
+**Unchanged.** Compression and quality, the bucket layout and policies, the
+photos rows, the attach actions, reports and surveys, the PDF pipeline.
+Document upload is not part of this pass. **No migration.**
+
+**Proved offline** by `npm run test:photo-queue` (`e2e/photo-queue-smoke.mjs`):
+the runner is driven against a memory store and a scripted network through
+the ten scenarios asked for - the cut after ten of twenty-five, a page dead
+mid-upload reconstructed from the store, offline then online then resume, a
+lost attach reply retried onto the same path with one row, a stalled request
+aborted at the deadline, a store that refuses, a rejection that stays Failed.
+Every other suite, export parity, lint, typecheck and the build pass.
+
+**Proved on the real build** (Preview of the head, `93f9ade`,
+`dpl_8mvdWK2QAsq2Hoq3euGyrUn7F3jb`; Chromium as an iPhone, every request
+through a bridge that can be made to fail, hold or go offline; the same run
+passed on `08d3efd` first; tenants `Validation Co 17895…`, deleted
+afterwards):
+
+| Step | Result |
+| --- | --- |
+| 25 chosen | "Securing 25 photos…" then "25 photos secured · uploading…"; 25 records on the phone with original bytes and 25 distinct paths; secured in 48 ms |
+| Signal cut after the 6th object upload | 20 left on the phone, all Waiting for signal, none failed (the 6th object landed, its row did not - retried later onto the same path) |
+| Leave to the dashboard | "20 photos waiting to upload" |
+| Reload | same 20 |
+| Page closed, new page opened | queue reconstructed from the phone, same 20 |
+| Offline | chip says Waiting for signal; nothing lost or failed |
+| Signal back | remaining 20 uploaded on their own in 35.7 s; chip clears |
+| No duplicates | capture screen counts 25; database: 27 rows, 27 distinct paths at the end of the run |
+| Stalled upload held open | Uploading, then Waiting for signal at 60.09 s; released, the retry landed on the same path (26) |
+| IndexedDB removed before the page ran | "1 photo could NOT be secured on this phone (This browser has no local database)…"; still uploaded (27) |
+
+**What is still true and worth knowing.**
+
+- Nothing continues while the phone is locked. The notice says so.
+- Safari purges script-writable storage for a site not opened for seven
+  days; home-screen apps are exempt. The dashboard chip is what stops a
+  queue being forgotten in the meantime.
+- Records carry the company they were chosen under; a queue left by one
+  account and drained by another is refused by the attach action's path
+  check and shows as Failed with Remove. Not observed, noted for completeness.
+- The queue runs from the original bytes, so twenty-five 4 MB originals are
+  100 MB on the phone until uploaded. Safari allows far more than that per
+  origin; it is mentioned because it is the trade for "secured before
+  compression".
+
+### Two photo layouts, and the page actually filled, 2026-09-16
+
+The PDF was clean and the photographs were small. Measured rather than
+eyeballed: the grid was two fixed columns with every plate capped at
+190pt tall, so a 2:3 phone portrait in a 238pt column - most of what a
+site Daily carries - was cut from the 357pt it wanted to 190 and printed
+**127pt wide**, leaving nearly half its column white on both sides. Four
+of those to a page covered about **a quarter** of the paper.
+
+**Standard**, the default, keeps the two-column grid and raises the cap to
+300. The same portrait now prints **200x300** - two and a half times the
+picture - still four to a page, and page coverage roughly doubles to about
+a half. Landscapes barely move (238x159 to 240x160): they already filled
+their column, and all the waste was in portraits. A photograph with a row
+to itself is **centred** at the same size rather than stranded against the
+left margin with a hole beside it, so one, two, three and four
+photographs all come out looking deliberate.
+
+**Standard never widens a plate to the full page, and that is the
+interesting decision.** A full-width plate is a wide plate and therefore a
+tall one, and these documents are text with photographs rather than photo
+albums. Rendered against the real fixtures, a single full-width plate
+pushed a one-photograph Daily onto a second page at every height above
+240, and a one-plate Progress Report at every height above 160 - below the
+size the plate already had. "One photograph does not cost a second page"
+and "a progress report with one plate is one page" are invariants that
+predate this change and are worth more than the extra centimetre. So the
+full page is what **Photo focus** is for, and choosing it is how somebody
+asks for it.
+
+**Photo focus** gives every photograph the full width and lets its shape
+choose the height: a portrait takes the page at **373x560**, a landscape
+prints **450x300** and shares the page with one other. One or two large
+plates a page, never three, and nothing to set.
+
+`lib/pdf/photo-layout.ts` (pure, no runtime imports) decides all of it and
+returns rows of indices; `PhotoGrid` lays out the plan and `plateReserve`
+measures the same plan, so the heading above the plates reserves what the
+first plate will actually need. Order is never touched - the plan returns
+the indices as given, so P01 is still the first photograph. Nothing is
+cropped or re-encoded: the layout chooses a column width and a height
+bound, and `photoBoxSize` fits the picture at its own ratio. The style's
+`min` is passed through untouched, so raising the cap cannot stretch a
+panorama further than it already was.
+
+**Every constant is measured against the renderer, not derived.** A4 less
+the page padding is 764pt, but the fixed header and footer take some of
+it: full-width plates sized from the arithmetic figure came out one to a
+page, each wasting half a sheet. Rendering eight plates at descending
+heights put the boundary between a 368pt row (two to a page) and a 373pt
+row (one), so `USABLE_PAGE_HEIGHT` is 736, the conservative end, and the
+caps derive from it. `e2e/pdf-export-smoke.mjs` section 10b re-measures
+that against the real renderer, so a change to the plate chrome cannot
+silently return the document to one plate a page.
+
+**Two page budgets in `e2e/pdf-template-smoke.mjs` moved by one page
+each, deliberately**: a mixed Daily from 2 to 3, and a twelve-photograph
+Daily from 3 to 4. That is the cost of the bigger plates and the trade
+the owner asked for - a 25-photo Daily is 8 pages rather than 7 - and the
+comment beside them says so. What the budgets still forbid is a report
+silently doubling. The reports where a photograph is incidental did not
+move: one photograph, and one plate on a Progress Report, are each still
+a single page.
+
+No migration, and none could be needed: the layout travels exactly as the
+style and the cover already do - a `layout` query parameter on the
+preview and a `photoLayout` field on the finalise form - and is baked into
+the PDF at the moment it is issued. **Issued PDFs are stored files and are
+never re-rendered, so every document already sent to a client is
+untouched.** Reopening and re-issuing is where a different choice takes
+effect, the same rule the style has always had.
+
+The picker is two buttons in the existing folded Presentation panel,
+beside the style, shown only where there are photographs to arrange. No
+page designer, no per-plate controls, nothing stored. Daily, Progress,
+Completion and Survey all use the one system. Pinned in
+`e2e/pdf-export-smoke.mjs` section 10, including the before-and-after
+plate sizes, the order, the aspect ratios, the small-set arrangements and
+real renders of a 25-photo Daily in both.
+
+Not seen on a phone this session: the renders were measured offline
+against the real renderer, and the field test is still the check.
+
+### Where to start when the field-test result arrives
+
+Read the failure as reported, reproduce it on the Preview, fix that one
+proven issue only, run the checks, push, confirm the Preview READY. Do not
+touch anything the result did not name.
+
+## Stopping point, 2026-09-03
+
+Working tree clean, local and `origin` both on `acf1427`. Twenty-one commits
+since the 2026-08-31 handoff (`85b7286`). Start a new machine the same way:
+
+    git fetch origin claude/siteboss-pro-react-441-diagnosis-bhvwk8
+    git checkout claude/siteboss-pro-react-441-diagnosis-bhvwk8
+    npm ci
+
+### Commits since the last handoff, newest first
+
+| Commit | What it was |
+| --- | --- |
+| `acf1427` | Describe with AI, back on a consolidated report's plates |
+| `dea66a8` | Screens fetch a thumbnail, the PDF fetches the photograph |
+| `6c3c060` | Sharp evidence photographs |
+| `2873710` | A completion report for a job that earned one |
+| `7a94da9` | Nothing folds if it exports |
+| `71c7697` | What you see is what exports |
+| `d097cd0` | What was asked for, what was done, and how to check it |
+| `2ead24b` | Ten seconds, no training |
+| `f030d2b` | One working screen |
+| `8d6e892` | A text reader should not need a canvas |
+| `2bfee1c` | Run the live check where the key already is |
+| `0b6c777` | A harness for the one question offline testing cannot answer |
+| `44a227b` | Read the paperwork, and keep it honest |
+| `78f0818` | An extracted item is a citation, not a claim |
+| `1ba4a00` | The card said "upload below" and there was nothing below it |
+| `4dfc977` | A document that stopped being context stopped being it on a day |
+| `afe3c8c` | Propose the Document Intelligence schema, unapplied |
+| `6a44713` | A brief already recorded is a brief |
+| `9a31c13` | The job brief: what the work was sent out to do |
+| `585ae28` | Store 1848: the work already here comes first |
+| `85b7286` | End-of-day handoff, 2026-08-31 |
+
+### Migrations on the hosted project - verified 2026-09-03 via the API
+
+    20260829133924  documents
+    20260829171913  project_locations
+    20260829182817  site_surveys
+    20260831170716  photo_rotation
+    20260901165706  document_intelligence
+    20260902211657  instructed_works
+
+Both Document Intelligence migrations are applied. `db push` is still
+dangerous - see the migration ledger section far below.
+
+### Verification state, 2026-09-03
+
+- `npx tsc --noEmit`, `npx eslint .` and `npm run build`: **all pass.** The
+  build prints one pre-existing warning, `Package pdfjs-dist can't be
+  external`, which is unrelated to any recent change.
+- **All 48 dependency-free suites pass**, plus `npm run
+  check:export-parity`.
+- **Eight Playwright suites still need a dev server and a live Supabase** and
+  have never been run: `auth`, `projects`, `isolation`, `reports`, `photos`,
+  `photo-sources`, `ai`, `pdf`. (The 2026-08-31 handoff said six; there are
+  eight.) This container has **no Supabase credentials** - only `.env.example`
+  exists - and **no Docker daemon**, so they cannot be run here at all.
+
+### The completion cleanup divergence - settled 2026-09-03
+
+`CLEANUP_SECTIONS.completion` asked the model for a `completed_works`
+paragraph that `COMPLETION_DRAFTED_TYPES` had stopped drafting in `71c7697`.
+It was never stored - `summaryDraftedSectionsFor` decides that - but it was
+fed back to the drafting model as context, which is duplicate-narrative
+pressure and a wasted schema field.
+
+The owner chose to remove it. Completion now cleans the same two sections it
+drafts, `project_overview` and `sign_off`, and the instructed works table is
+the only place that says what was asked for and what was done. **Progress is
+untouched** - it still cleans all seven stored sections.
+
+`completed_works` remains a stored, editable, printed section, and keeps its
+brief in `COMPLETION_SECTIONS`; that brief is simply dormant, and
+`test:completion-content` still asserts its rules so they hold if it is ever
+returned to the drafted set.
+
+The suite that would have caught the divergence had been crashing rather than
+failing since `d097cd0` added `lib/ai/tone.ts`: `test:ai-prompt`,
+`test:cleanup` and `test:section-roles` ran without the tsx loader, and that
+file's extensionless `./tone` import is unresolvable in bare Node. Fixed in
+package.json.
+
+### Real-device validation, 5 September 2026 - one proven failure, fixed
+
+The deployed Preview of `6ba9919` (also aliased to app.sitebosspro.co.uk)
+was driven at iPhone 15 size against the real Supabase and the real model,
+from a fresh throwaway tenant, through Site Capture, Prepare Daily, the
+Daily, its PDF and finalising. Passed on the real build: one Add photos
+button and no workforce prompt; three fresh uploads stored at 1600px
+(342-361 kB) with 28-32 kB thumbnails beside them, served from
+`/photos/[id]/thumb` as `private, immutable`; Prepare Daily with no
+questions; one five-sentence Daily Summary carrying the pour and the sealant
+wait, no repeated narrative, no legalese; the PDF embedding the 1600px
+originals; and - for the first time with the real model - document
+extraction: the sample purchase order read as two pages by gpt-5.5, with a
+summary that quotes its "QUOTATION ONLY - NOT INSTRUCTED" section.
+
+The one proven app failure is `Could not load your company: JWT issued at
+future` - the React #441 this branch was opened for. Vercel's error log
+shows nineteen hits across seven users in a week, all on the first screen
+after signing in, the last of them during this run at 19:03:10 with the
+six-second retry budget in force. `lib/supabase/retry.ts` already retried
+exactly this error; its budget was simply shorter than the skew. Raised to
+20 s - it costs nothing when the clocks agree - and `test:clock-skew` pins
+the retry's behaviour and the budget's floor.
+
+Also passed on the real build, later the same evening: sign-in from `/login`
+to the dashboard in 1.6 s; the Progress Report drafted by the real model from
+the issued Daily - a five-sentence overview and one genuine outstanding item,
+the sealant after Thursday's delivery, nothing invented; and the Progress and
+Completion forms reached from the project page's own Reports tab, which is
+the path that carries the project.
+
+One reachable defect, observed and not fixed (one fix per batch): the Reports
+page's own Progress / Completion buttons open `/summary-reports/new` with no
+project, and choosing one from that page's dropdown does nothing - no
+navigation request leaves the browser, the URL does not change, and neither
+the source list nor the "no issued Daily Reports yet" notice appears, so the
+form dead-ends on "Choose at least one Daily Report". The dropdown's handler
+calls `router.replace` with the right URL; why that is inert is not yet
+understood. Starting from the project page avoids it entirely.
+
+Not app failures, and not changed: the one PDF sentence never shown on
+screen is the fixed signature-block line in `lib/pdf/components.tsx`
+("Not an approval, an acceptance of the works, or a certificate of
+completion") - owner's call whether template text is covered by the
+what-you-see rule. `document_extractions.source_bytes` recorded 0 for a
+2,332-byte object that was read fine (two pages) - a bookkeeping oddity,
+not a read failure. Six throwaway companies named `Validation Co <stamp>`
+were created in the hosted project by these runs; nothing of Store 1848 was
+touched. They are for the owner to delete.
+
+### Real-build validation on the deployed Preview, 5 September 2026 - final
+
+Driven end to end at iPhone size (393x852, 3x, iOS Safari UA) against the
+deployment of `6ba9919` - real Supabase, real OpenAI, real PDFs. Eight
+throwaway tenants named `Validation Co <stamp>` were created to do it, and
+have since been deleted; see the note below. What passed and what did not:
+
+**Passed on the real build.** Sign-up and sign-in; Start Site Capture lands
+on the capture screen; one Add photos button, no source trio, no status
+menu, no workforce prompt, no overflow. Three fresh photographs uploaded:
+345/361/342 kB originals at 1600 px with 28/32/28 kB thumbnails beside them,
+served from `/photos/<id>/thumb` as `private, max-age=31536000, immutable`.
+A document added from Site Capture and read by the real model: two pages,
+gpt-5.5, a summary that correctly quotes the order and its "QUOTATION ONLY -
+NOT INSTRUCTED" section. Prepare Daily asked no questions. Daily Summary:
+one summary, five sentences, the pour and the sealant wait, no claim about
+the doors, no legalese, nothing repeated. Daily finalised; the PDF embeds the
+1600 px originals, never the thumbnails. Progress from the project page:
+five-sentence overview, one genuine outstanding item, finalised. Completion
+from the project page: summary honest about order versus record, no
+Completed works paragraph, follow-on is the sealant, Describe with AI lands
+in the box in 4 s and is concise with no forbidden claim, the edited
+description saves and prints, the PDF embeds the originals.
+
+**Failed, observed, not fixed (one fix per batch, spent below).**
+
+1. *Draft Completion shows the instructed-works JSON and never the table.*
+   `app/(app)/summary-reports/[id]/page.tsx` renders `SectionProse` plus
+   `InstructedWorksPanel` only when `isFinal`; a draft gets `GroupEditor`
+   over `editorSections("summary")`, which lists every stored type of the
+   group - so `instructed_works` appears as an editable textarea of raw
+   JSON labelled "Instructed works and status", and the table is absent even
+   after a reload. The preview PDF prints the table. That is export content
+   not visible before export, on the screen the person signs off from.
+   Screenshots `07-completion.png` and `07b-completion-after-reload.png`.
+2. *Completion page scrolls sideways at iPhone width.* The Photographic
+   evidence plate list (`components/summary-reports/report-photos.tsx`,
+   the ordering list a consolidating report shows) renders each item 589 px
+   wide in a 393 px viewport; measured, `overflow-probe.png`.
+3. *One sentence repeated.* "The warehouse doors were not worked on in the
+   recorded period." appeared in both the Completion summary and Outstanding
+   / Follow-on. Model output; the prompts' no-repetition rule did not hold
+   on this run.
+4. *Cold create page dead-ends* - as recorded above.
+
+**Fixed this batch:** `845614d` - the clock-skew retry budget, 6 s to 20 s,
+with `npm run test:clock-skew`. Nineteen crashed first-screens across seven
+users in a week; none in the three hours since.
+
+**Not app failures.** The one PDF sentence never on screen is the fixed
+signature-block text. A zero-byte purchase order in one run (Vercel error
+20:40) was this harness, which could not forward a disk-backed file's body;
+with an in-memory file the object landed at 2332 bytes and was read
+correctly.
+
+**Cleaned up, on the owner's approval.** Eight companies named `Validation Co
+<stamp>` (not ten - the earlier count was wrong; the resumed runs reused one
+tenant), their eight users, seven projects and exactly 41 storage objects.
+The objects were removed through the storage API as each tenant's own user,
+so row-level security scoped every delete to that company's folder; the
+rows went by one guarded SQL statement that refused unless all eight ids
+were `Validation Co` companies. Verified afterwards: nothing left under
+those prefixes, Store 1848 untouched.
+
+**Both failures fixed, `dd9add2`, and verified on its deployment.** A
+draft Completion now draws the instructed works table from the same
+`parseInstructedWorks` the PDF uses, after the prose or its editor in
+every state; the editor never lists the payload, and the save leaves it
+out of its comparison so it cannot be blanked. The plate list is one
+column on a phone with captions that wrap. On the real build at 375, 393
+and 430: table on screen straight after Generate, no JSON textarea, no
+sideways scroll; AI caption saved and printed; PDF embeds the 1600 px
+originals. Still seen, not fixed: one sentence repeated between the
+Completion summary and Outstanding / Follow-on (model output), and the
+cold create-page dropdown.
+
+### The last two v1 workflow fixes, 6 September 2026 - verified on the real build
+
+`49853d9` and `57a0ed7`. The Completion follow-on no longer repeats the
+summary: both briefs say the follow-on is only what is still to be done, and
+`lib/summary-reports/dedupe.ts` makes it the rule - any sentence the summary
+already carries is dropped from the follow-on where the text is decided,
+compared with case, spacing, the full stop and a bullet marker set aside.
+And the create page's project dropdown is a full navigation carrying the kind
+and the project, because `router.replace` to the same page with new search
+params was inert on the deployed build.
+
+Driven end to end on the deployment of `57a0ed7` at iPhone size: 62 checks,
+none failing - Site Capture, Daily, Progress, Completion with the table on
+screen straight after Generate, the AI caption saved and printed, export
+parity, the 1600 px originals in the PDF, and a follow-on that reads "Joint
+sealant to Bay 39 remains to be completed, pending the Sika delivery now due
+Thursday" while the summary keeps the doors sentence. Then the cold path:
+the Reports tab's Progress button, no project in the address, a project
+chosen from the dropdown - the page navigated to that project's flow and
+offered its issued Daily. The one tenant made for this was deleted
+afterwards, storage first as its own user, then the rows.
+
+Nothing is known to be blocking v1. Still open, not blocking: `source_bytes`
+on a document extraction records 0 (a bookkeeping field; the read itself
+works), and the fixed signature-block sentence is the only PDF text never
+shown on a screen.
+
+### What changed since the last handoff
+
+- **Document Intelligence.** PDF text extraction (pdfjs, Node runtime, proven
+  on Vercel Preview), quote-anchored OpenAI extraction, lifecycle persistence,
+  and the extracted scope feeding every AI layer. One job document per upload
+  through Site Capture, never the whole project's paperwork.
+- **Site Capture simplified.** One working screen, one "Add photos" button, no
+  status menu, at most one or two questions when preparing a Daily.
+- **Completion Reports, Phase 1 and 2.** Plate numbering P01..Pnn, a numbered
+  manifest, plate citations that must be real, the instructed-works status
+  table, the Instruction field, out-of-scope defect handling, the client
+  acknowledgement block, and materials and technical workstreams only where the
+  evidence supports them. Everything gated: a patch repair must not read like a
+  manual.
+- **No hidden narrative.** Anything that can export is visible on screen before
+  export, guarded by `test:what-you-see` and `check:export-parity`.
+- **Photo quality.** The upload-side resample was the reason plates looked soft,
+  not resolution: `lib/photo-quality.ts` now steps down by halves at high
+  smoothing quality, worth about 11 dB against an ideal downscale, and quality
+  moved 0.82 to 0.88. Rendered PDF grew about 14%.
+- **Egress.** Screens fetch a 640px, ~28 kB thumbnail written beside the
+  original at upload, from `/photos/[id]/thumb` - our own origin, stable, and
+  `private, max-age=1y, immutable`. Previously every render minted a fresh
+  signed URL, so the cache missed every time and a 20-photo report page cost
+  ~8.5 MB on **every** view. **The PDF still reads the original object**, and
+  `test:photo-egress` holds that line.
+- **Describe with AI restored** on a consolidated report's plates, in the
+  curation form, where `caption_override` is written.
+
+### Known risks and backlog, roughly in priority order
+
+1. **Nothing has been driven in a real browser or on a phone.** Every UI change
+   since 2026-08-31 is proved by construction and source assertions, plus - for
+   the two most recent - real geometry measured in headless Chromium against
+   Tailwind-compiled CSS. That is not a device.
+2. **No real model call has ever been made against the document-extraction or
+   instructed-works prompts.** `/dev/extraction-check` on Vercel Preview exists
+   for exactly this and has not been run.
+3. **The 29 photographs already in the bucket have no thumbnail.** The route
+   falls back to the original, so they display and still gain the caching win,
+   but not the 93% size cut. A backfill needs a server-side resize.
+4. **Supabase image transformations are not available** - the org is on the
+   free plan. That is why thumbnails are made in the browser. Do not reach for
+   `transform:` on a signed URL; and `createSignedUrls` (plural) does not
+   accept it at all.
+5. **77 MB of the 117 MB in `report-pdfs` is orphaned** - superseded revisions
+   with no row pointing at them. Nothing has been deleted. A safe sequence was
+   proposed (verify against both tables, age-gate, download, quarantine under a
+   prefix, then delete) and the cause - re-finalising never removes the object
+   the row used to point at - is unfixed.
+6. **`lib/photos-signing.ts` is now unused.** Kept deliberately, with a comment
+   saying why nothing showing photographs should go back to it.
+7. **`beforeunload` is advisory on iOS Safari** and is often ignored on tab
+   switch or backgrounding. An upload interrupted that way is still lost.
+8. **A hard refresh loses typed photo descriptions** in the curation form.
+9. **A partial reorder is still possible** if some rows fail. Reported, heals on
+   retry; a transactional fix would need a migration.
+10. **No offline queue.** By design - not started.
+
+### Next recommended task
+
+**A real iPhone field test of the whole chain**, then fix only what it finds.
+
+Site Capture → issue the Daily → Progress from two Dailies → Completion from
+that Progress → preview, finalise, share. Then the eight Playwright suites on a
+machine with a dev server and Supabase env. The newest code most in need of a
+device: the thumbnail encode in the capture path (it fails soft - a thumbnail
+that will not upload never fails the photograph) and the Describe with AI button
+on a Completion Report's plates.
+
+Do not start an offline queue, a second mapping system, or more report sections
+until the chain has been seen working on a phone.
+
+## Stopping point, 2026-08-31 - superseded, kept for history
+
+Working tree clean, local and `origin` both on `85b7286`. **Tomorrow's session
+may be on a different machine**, so start by cloning or pulling this branch -
+everything below is in the repository and nothing of value is only in a
+container:
+
+    git fetch origin claude/siteboss-pro-react-441-diagnosis-bhvwk8
+    git checkout claude/siteboss-pro-react-441-diagnosis-bhvwk8
+    npm ci
+
+### Today's commits, newest first
+
+| Commit | What it was |
+| --- | --- |
+| `3452443` | Waze, beside Google Maps |
+| `8f40c54` | The same reliability pass, for photographs on a Progress or Completion Report |
+| `6179bd1` | Site Capture on one bar of signal |
+| `a1a95c4` | A source-based Progress Report does not open as a blank page |
+| `5283b43` | Completion, final client polish |
+| `47a5313` | The Completion Report a client reads: three written sections |
+| `9393ca5` | A Completion Report that does not contradict itself |
+| `41e66fd` | One photograph set on a consolidated report |
+| `ec98de2` | Prove the source reports' words reach the writer |
+| `b984d88` | The Completion Report, the document a client keeps |
+| `3a07f97` | A Progress Report is built from the Dailies somebody chose |
+| `2afbef3` | A photograph needs no caption |
+| `e73cbea` | The Daily says one thing once, and calls itself a Daily |
+| `507cdd8` | Site Capture resolves the working day in Europe/London |
+| `e1a313f` | Site Capture: one Daily Report, collected into all day |
+| `1002c02` | Turn a photograph without touching the file |
+
+### What is finished and owner-testable
+
+- **Site Capture.** One Daily Report per project per British working day,
+  appended to all day, never overwritten. Idempotent against a double tap;
+  unsent words kept on the phone through a failed request; Saving… / Saved /
+  Try again.
+- **Daily → Progress.** Pick the Daily Reports by hand, see them named on the
+  document, generate with no typing. Source text provably reaches the model.
+- **Progress → Completion.** Pick the Progress Reports; days they cover stay as
+  provenance and are never read twice; uncovered days fill the gaps.
+- **Completion output.** Three written sections, a derived status line, no
+  blanket completion claim while anything is outstanding, no sentence printed
+  twice.
+- **Photographs.** One set per report, selected, ordered and captioned in one
+  place; rotation; failed uploads kept and retried onto the same object with no
+  duplicate rows.
+- **Store Locator.** Google Maps and Waze, coordinates preferred where a
+  directory has them.
+
+### Verification state
+
+`npm run lint`, `npx tsc --noEmit`, `npm run build` and **41 dependency-free
+suites** all pass. The six Playwright suites (`projects`, `isolation`,
+`reports`, `photos`, `ai`, `pdf`) need a running dev server and a live Supabase
+and were **never run today** - they are the first thing to run on a machine that
+has both.
+
+### Known risks and backlog, roughly in priority order
+
+1. **Nothing has been driven in a real browser today.** Every UI change above
+   is proved by construction and by source assertions. The reliability work in
+   particular - Airplane Mode, retry, `beforeunload` - has never met a real
+   failed request.
+2. **The AI output is unverified against a live key.** Every prompt rule is
+   asserted present; whether a Completion Report actually reads well for Lidl
+   needs a generate on real data.
+3. **`beforeunload` is advisory on iOS Safari** and is often ignored on tab
+   switch or backgrounding. An upload interrupted that way is still lost.
+4. **A hard refresh loses typed photo descriptions** in the curation form.
+   Ticks and text survive a failed save and a navigation warning, but there is
+   no local draft store for them as there is for capture notes.
+5. **A partial reorder is still possible** if some rows fail. It is reported and
+   heals on retry, but a transactional fix would need a migration.
+6. **Regenerating an existing Completion draft clears AI-written Scope, Stages,
+   Key technical activities and Photographic record.** Deliberate; hand-written
+   text is safe.
+7. **No coordinates exist in the Lidl directory**, so Waze and Maps both use the
+   address today. The point path is unit-tested only.
+8. **No offline queue.** By design - not started.
+
+### Next recommended task
+
+**Run the six browser suites and walk the whole chain on a real iPhone.**
+
+Everything shipped today is behavioural, and the container this was built in has
+neither a browser nor a live Supabase. On a machine that has both:
+
+1. `npm run test:projects test:isolation test:reports test:photos test:ai test:pdf`
+   (each needs `npm run dev` and the Supabase env), then fix whatever they catch.
+2. Walk it end to end on a phone: Site Capture twice in a day → issue the Daily →
+   Progress from two Dailies → Completion from that Progress → preview, finalise,
+   share.
+3. Repeat steps 4-8 of the Site Capture reliability tests in Airplane Mode - the
+   retry paths are the least proven code in the repository.
+
+Only after that is worth starting new feature work. **Do not begin an offline
+queue, a second mapping system, or more report sections until the chain has been
+seen working on a device.**
+
+## Current state - read this before the historical sections below
+
+## Completion Reports, Phase 2
+
+Everything here is gated. A simple job gets a Completion Summary, the
+instructed works table and its evidence, and none of the rest - the whole
+point of Phase 2 is that a patch repair must not read like a manual.
+
+**A Phase 1 defect fixed first.** The instructed works table is stored as JSON
+in its own section, and the report screen had been rendering that JSON as a
+paragraph while the PDF drew a table. `components/summary-reports/
+instructed-works-panel.tsx` now shows the rows, the workstreams and the
+materials on screen as cards, and `SectionProse` skips the section so no braces
+reach a person. Everything the PDF prints from that payload is on the screen.
+
+**No migration.** Materials and workstreams are extra keys on the existing
+`instructed_works` payload, not new section types. `parseInstructedWorks`
+returns `{ rows, materials, workstreams }` and a payload written before they
+existed still reads.
+
+1. **INSTRUCTION on the cover** - built in `pdf-data.ts` from the documents
+   somebody marked as job context, with the date the document carries:
+   "Lidl External Walk, 21 July 2026". Completion only, and absent where the
+   job has no paperwork - a brief spoken in a van instructs works perfectly
+   well.
+2. **Defects outside the instruction** - `withinInstructedScope` splits the
+   issue list into "Arising from the instructed works" and "Identified during
+   the works - outside the instructed scope", and the document (never the
+   model) writes the commercial position: not covered, not repaired under it,
+   a proposal will follow. The split appears only when something really is
+   outside; with nothing instructed, nothing can be.
+3. **Client acknowledgement** - a second signature block, Completion only,
+   worded so acknowledgement is receipt and nothing else.
+4. **Materials table** - two or more distinct named materials, or nothing.
+5. **Workstreams** - two or more, and three or more instructed items, or
+   nothing. They say HOW work was done; the prompt forbids restating the table.
+
+The gates live in `serialiseInstructedWorks` and again in
+`parseInstructedWorks`, so a payload edited by hand cannot print what the rules
+would not have stored. The prompt (now `instructed-works-v2`) tells the model an
+empty list is the correct answer on a simple job.
+
+**A bug the first rendered PDF caught.** "Bay 39 chamber surround still
+settling" was filed as newly found, because "bay" is too short and "39" too
+numeric to survive word matching. Site defects are identified by where they
+are, so `withinInstructedScope` now matches the location as a phrase first.
+Filing an in-scope defect as newly discovered is the worse error: it tells a
+client work was found when it was always instructed.
+
+`npm run check:export-parity` now renders four documents - Daily, Progress,
+Completion, and a deliberately simple Completion - and asserts the simple one
+gets no materials table, no workstreams, no Instruction field and no
+out-of-scope heading.
+
+## No hidden narrative: what you see is what exports
+
+**The rule, across Daily, Progress and Completion: if text can reach the
+exported PDF, it is plainly visible on the screen the person signs off.**
+
+The fault it removes: a Daily Report drafted four written sections, showed one
+and folded three behind "Also in this section", and exported all four. Somebody
+signed off a client document they had read a quarter of.
+
+Two causes, both fixed rather than papered over.
+
+**1. Duplicate narrative was being generated.** A field that must be filled
+will be filled, so four sections about one day became one story told four
+times. Each report now drafts one prose section:
+
+| | drafted prose | plus |
+|---|---|---|
+| Daily | `executive_summary` | photos, issues raised |
+| Progress | `period_summary`, `next_period` | photos, issues |
+| Completion | `project_overview`, `sign_off` | instructed works table (own pass), photos, issues |
+
+`DAILY_DRAFTED_TYPES`, `PROGRESS_DRAFTED_TYPES` and `COMPLETION_DRAFTED_TYPES`
+are the single source; the drafting calls ask for exactly those and no more.
+`completed_works` left the Completion draft entirely - the instructed works
+table is what was asked for and what was done, item by item, and a paragraph
+saying it again was the same story twice.
+
+**2. The folds are gone.** `EditDisclosure` is deleted, not just unused, so it
+cannot come back. `GroupEditor` renders every part inline - no `<details>`, no
+"Also in this section". The Progress screen's "add your own notes" box is now
+introduced by a hint rather than folded away, because anything typed into it is
+exported.
+
+**The one disclosure left on a report screen is `advanced`** on
+`ReportSectionCard`: workforce rows, plant, the document register, the source
+record. That is recorded data a person typed themselves, not narrative, and the
+test pins it to that.
+
+### The behaviour change to be clear-eyed about
+
+`groupSections` used to append any section outside the structure to the last
+group, so a paragraph could never be lost. That is why a Daily Report's PDF
+carried a "Works completed" paragraph under "Issues / Next Steps" that nobody
+had seen. **Unmapped sections are now dropped from the document** - not shown,
+not printed, both sides agreeing.
+
+**No row is deleted.** A report drafted before the structures shrank keeps its
+text in `report_sections` / `summary_report_sections`; it is simply no longer
+part of the document. Nothing in this batch runs a `delete`. If those
+paragraphs are ever wanted back, the data is there and the fix is a structure
+change, not a recovery.
+
+Going forward nobody can write into a retained type: the editor only offers
+sections the group declares.
+
+**No schema change.** `Issues / Next Steps` became `Issues raised` and carries
+no prose - issues are records with their own status, priority and owner,
+printed from the issue table.
+
+`npm run test:what-you-see` is the guard: for every kind, the sections the
+document prints are exactly the sections the structure declares, in order;
+nothing outside it is carried through; no disclosure exists near anything that
+exports; and the drafted set contains none of the duplicated types. Eight
+existing suites that pinned the old shape were updated to the new one, each
+saying why rather than being loosened.
+
+### The last disclosure, and the export-parity check
+
+`ReportSectionCard`'s "Advanced details" fold held the workforce and plant
+rows, the document register and the source record - all of which print in the
+issued PDF's appendix. A report could export a workforce nobody had opened the
+panel to look at, so it is gone: the prop is `records`, it renders inline under
+a quiet heading, and `ADVANCED_DETAILS_LABEL` is deleted. The date, weather,
+workforce and plant on the capture form are inline for the same reason.
+
+Empty means absent. An issued report that referenced no documents shows
+nothing at all rather than a heading over "No documents were referenced".
+
+**What may still fold, and why:** the raw notes on the daily screen ("What you
+actually said") are the source the report was written from and are printed
+nowhere - `test:what-you-see` asserts the daily PDF contains no `rawNotes`. The
+"More tools" panel on the report holds Write with AI and Master Review, which
+are tools rather than content.
+
+`npm run check:export-parity` renders one Daily, one Progress and one
+Completion through the shipping layouts, pulls the text back out of the real
+PDF bytes with pdfjs, prints it beside the sections the screen declares, and
+asserts a retained legacy section appears in none of the three. Run it to see
+the three documents rather than infer them from a regex.
+
+## Completion Reports, Phase 1: plates and the instructed works table
+
+Measured against a real Fable-polished completion report for Lidl GB RDC
+Northfleet (eight instructed items, 21 plates, works/status against each).
+What made that document good was structure and citation discipline, not
+eloquence - so Phase 1 buys exactly those two things.
+
+**Applied to the hosted database.** Migration
+`20260901000011_instructed_works.sql`, recorded remotely as
+`instructed_works`: one enum value, `summary_section_type` now 22. Nothing
+else. `db push` is still never used - see the Document Intelligence section.
+
+**Plate numbers already printed** (`photoReference`, `P01…Pnn`), but the AI was
+given `[category] caption` with no numbers, so it could not cite anything.
+`photoManifest()` in `lib/pdf/photo-evidence.ts` now builds the model's list
+with the same function, from the same array, in the same order the PDF prints -
+two numbering schemes would be worse than none.
+
+**Citations are checked, not trusted.** `stripUnknownPlates()` removes any
+reference that points at no photograph, keeping the surrounding sentence: the
+citation was wrong, but the fact may still be sound. Applied to every drafted
+prose section and to every row of the table.
+
+**The instructed works table** is a new section, `instructed_works`, stored as
+JSON in the existing text column and rendered by `InstructedWorksTable` through
+the existing `DataTable`. Columns: instruction, location, works carried out,
+photo, status. It has **its own model call** (`lib/ai/instructed-works.ts`) -
+one response that must be both a careful table and four paragraphs of prose
+degrades both. It runs only for Completion Reports, and only where the job's
+documents actually instruct something.
+
+**The status vocabulary is the point.** Complete · Partially complete · Not
+confirmed · Not carried out. `Not confirmed` is the default whenever the record
+is silent, and `supportedStatus()` enforces it in code: a Complete or Partially
+complete with an empty works column falls back. **Missing evidence is never
+"Not carried out"** - that word is reserved for a record that explicitly says
+the work was not done, and it survives an empty works column because "we did
+not do this" is itself the answer. The PDF prints a note under the table saying
+Not confirmed is not a statement that the work was not carried out.
+
+**Stage is never invented.** The manifest prints a chosen status or an em dash;
+there is no derived BEFORE/DURING/AFTER anywhere.
+
+**Tone.** `lib/ai/tone.ts` holds `SITE_MANAGER_TONE` - plain British
+construction English, short sentences, no legalese or corporate filler, with
+"plain does not mean vague" spelled out. Shared by the daily writer, the
+summary writer and the instructed works pass, so one wording rather than three
+that drift. Imported relatively (`./tone`) to keep those modules' "no path
+aliases" contract literally true.
+
+**Daily Reports are untouched** and asserted to be: no instructed-works
+anything in the daily prompt, action or document.
+
+`npm run test:instructed-works` (60 checks) round-trips the eight Northfleet
+rows through the stored shape and asserts the two failure modes cannot happen:
+a citation to a plate that does not exist, and a completion claimed from
+silence. Four suites that pinned "a completion report stores eight sections"
+now say nine and say why.
+
+**Not yet done, deliberately** (Phase 2 and beyond): materials table,
+out-of-scope defects appendix with its own `S01…` plate series, client
+acknowledgement sign-off block, `INSTRUCTION` field in the cover block, and
+re-enabling `key_technical_activities` as sub-headed workstreams.
+
+**Unverified:** no real model call has been made against this prompt. The table
+depends on `documentContextForProject` returning clean instructed items, which
+depends on the extraction quote check working against a real model - still the
+open question from the Document Intelligence section.
+
+## Product reset: simplicity, 2026-09-01 (late)
+
+**A site operative should understand Site Capture in ten seconds with no
+training.** That is the rule every screen on the worker path is now held to,
+and the reason the Job Context strip built earlier the same evening is gone
+again. The backend intelligence stays; the user-facing complexity went.
+
+Site Capture (`app/(app)/reports/[id]/capture/page.tsx`) is four things:
+
+    What happened on site?   [ Speak ] [ Add note ]
+    [ Add photos ]           thumbnails
+    [ Add document ]         optional
+    Today so far: N notes · N photos · N documents
+    [ PREPARE DAILY ]
+
+Nothing on it mentions the AI, the brief, a reading, a status, a report number
+or a draft. There is no Continue later: everything saves as it is added and the
+back link is the way out.
+
+- **Add photos** is one button (`PhotoUpload simple`). Its input carries no
+  `capture`, which is exactly what makes iOS show its own sheet - Take Photo,
+  Photo Library, Choose File - so all three sources are still one tap away;
+  the app just stops naming them. The three named buttons (`1d9474e`) remain
+  on the report and the project Photos tab.
+- **Add document** is one button (`DocumentUpload simple`), no type menu
+  (stored as Other for the office to set). After upload, `adoptJobDocument`
+  marks it as job context, records its arrival in the brief as history, and
+  schedules the reading with `after()` from `next/server` so it runs once the
+  response has gone back. The button says "Adding…" and never "Reading".
+  `maxDuration = 60` on the page so the platform lets that background work
+  finish.
+- **PREPARE DAILY** (`app/(app)/reports/prepare-actions.ts`) is the one AI
+  action. It reads any job document the background did not get to (best
+  effort; a document that cannot be read is said so once, here, and the draft
+  goes ahead without it), weighs the evidence, then runs the same two-pass
+  writer as before and opens the report.
+
+**The evidence gate** (`lib/reports/prepare-gate.ts`, pure, `test:prepare-gate`)
+asks at most two questions and only where the answer decides whether the
+report is true: nothing said at all (one question, worded differently when
+photos are in), or notes that touch none of the instructed work (one question
+naming the items and offering "if not, say so and the report will say so").
+Workforce and plant are never asked for. "Prepare Daily anyway" is always
+offered. With enough said, it drafts immediately.
+
+**Only documents added through Site Capture reach the AI.** That was already
+true - `lib/documents/job-context.ts` reads active `job_context_documents`
+only - and the Documents tab upload still marks nothing. The Prepare Daily
+catch-up reads only those rows too, never the whole Documents tab.
+
+**"What is this job?"** lives on the project: the creation form's optional
+field is relabelled, and the overview has `components/projects/job-description.tsx`,
+a read-out of the brief with an optional "Add to it" box. Site Capture does
+not show or manage it. Prepare Daily reads it as what was requested.
+
+**Off the worker path, not deleted:** Write with AI and Master Review sit
+behind a collapsed "More tools" on the report. Photo AI captions are off on
+Site Capture (`aiConfigured={false}`). The three context-management actions
+(use as / remove / read again) and their UI are deleted; `job-context.tsx`
+and `job-context-view.ts` are gone.
+
+**iPhone width is asserted at source, not rendered**: single full-width
+buttons, `text-base`, stacked layout. Nobody has loaded it on a phone yet. The
+first device check is the one-button photo sheet on iOS.
+
+## One working screen, 2026-09-01 (evening)
+
+**PROJECT = THE JOB. SITE CAPTURE = THE MAIN WORKING SCREEN.** The Job Brief
+stopped being its own concept with its own card, uploader and buttons on the
+project overview. Site Capture is now one flow, top to bottom:
+
+    Job context  ->  dictate or type  ->  photographs  ->  Prepare Daily
+
+`components/projects/job-context.tsx` replaced `job-brief.tsx`. Collapsed it is
+four things and nothing else: the brief in the site manager's own words (two
+lines), each document that is job context with one plain word of read status
+(Read / Reading… / Not read / Could not read), one "AI understood:" line of the
+instructed work, and one control, "Add or update context". Everything else -
+the full history, the box for the next entry, the uploader, quoted-only work,
+counts, page numbers, the validation language - is behind that control. The
+suite asserts this structurally (section 11 of `test:job-brief`): the strip
+slice must not contain any of it, and the pieces that carry it must be
+rendered inside the details element and nowhere else.
+
+**Add job document on Site Capture is one tap.** `DocumentUpload` gained an
+`onAttached` hook; Site Capture passes `adoptJobDocument`, which marks the
+document as job context, appends the arrival to the brief as history, and runs
+the reading - in that order, mark first. The Documents tab passes nothing and
+an upload there still implies nothing. The three writes are still three tables.
+
+**The project overview** shows the same strip read-only ("Added to and updated
+on Site Capture"). The header carries one action for a live job, **Continue
+Site Capture** when today's Daily is open and **Start Site Capture** when it is
+not, decided from the reports already loaded. Progress Report, Completion
+Report and Site survey moved to the Reports tab. An enquiry still leads with
+the survey.
+
+Every context action carries a `return_to` hidden field, so a form used on
+Site Capture re-renders Site Capture; only a path on this app is accepted.
+"Finish the report" is now "Prepare Daily" - nothing on the capture screen is
+finished.
+
+No schema change, no report logic change, no prompt change. The data model is
+untouched: `projects.description`, `job_context_documents` and
+`document_extractions` are exactly what they were.
+
+**iPhone width is asserted at source, not rendered.** Names truncate, the
+strip clamps to two lines, rows in the details stack with full-width buttons
+below `sm`. Nobody has loaded it on a phone yet - the browser-level check
+still needs a Supabase, and Docker still costs the session its push (F15).
+That is the first thing to do on a device.
+
+## Document Intelligence, 2026-09-01
+
+**Applied to the hosted database.** Migration
+`20260901000010_document_intelligence.sql`, recorded remotely as
+`20260901165706_document_intelligence`. Applied by explicit migration
+execution, never `db push` - the repository's first five migration files are
+not in the remote migration history (they went in through
+`apply-all-migrations.sql`), so `db push` would try to re-apply
+`initial_schema` against live data. **Do not run it.**
+
+Three objects, all additive, nothing backfilled:
+
+- `job_context_documents` - "use as AI context". A table rather than a boolean
+  on `documents` because the useful part is who decided and when. Removal is a
+  stamp (`removed_at`, `removed_by`), never a delete: a report drafted while a
+  document was scope has to stay explainable. Active context is
+  `removed_at is null`, enforced by a partial unique index, so a document can
+  be context, removed, and context again with both episodes on the record.
+  There is no `project_id` - `documents.project_id` is NOT NULL, so a second
+  copy could only ever agree or contradict.
+- `extraction_status` - `pending`, `running`, `succeeded`, `failed`,
+  `superseded`. Five values on purpose: PostgreSQL cannot remove one, and
+  adding later is a one-line `ALTER TYPE` as `site_surveys` shows.
+- `document_extractions` - one row per *reading*, never overwritten. Two
+  partial unique indexes do the arguing: one current reading per document, one
+  call in flight (so a double tap on a bad signal cannot spend the model call
+  twice). A failed row must record why.
+
+### What the parser does
+
+`Extract job context` on the Job brief card reads the PDF and stores what it
+says. The chain is:
+
+1. `lib/documents/pdf-text.ts` - pdfjs (already a dependency, used by the
+   viewer) pulls the text layer out page by page under Node. No text layer
+   means a scan, and that is reported as such rather than guessed at.
+2. `lib/ai/extraction-prompt.ts` - the instruction, versioned `extract-v1`.
+3. `lib/ai/document-extraction.ts` - the OpenAI call, JSON-schema constrained.
+4. `lib/documents/extraction-schema.ts` - **the part that matters.** Every
+   field, scope item and requirement must carry a page and a verbatim quote,
+   and each quote is checked against the text the model was given. A quote
+   found nowhere is dropped as a fabrication. A quote found on a different page
+   keeps its content and has its page corrected, and the correction is
+   reported. An extraction with nothing left standing fails.
+5. `lib/documents/extractions.ts` - the lifecycle, and what is stored: source
+   path, SHA-256, bytes, page count, the exact source text the model saw, the
+   model, the prompt version, and the structured content.
+
+The check is mechanical. It does not need the model to be honest, and it does
+not need anybody to read the document to find out.
+
+### Where it reaches
+
+`lib/documents/job-context.ts` gates on three things - somebody marked it as
+context and has not removed it, its reading succeeded, and the stored content
+still parses. Only then does it reach a prompt, through
+`jobContextBlock(brief, documents)` in `lib/ai/job-context.ts`, which carries
+`DOCUMENT_CONTEXT_RULES` with it. Wired into the Daily cleanup pass, the Daily
+writer, the photograph describer, Progress, Completion, Survey, and Master
+Review. Master Review gets it as its own block and **never** as evidence -
+evidence is what happened; this is what was asked for.
+
+Scope items carry `instructed` / `proposed` / `described`, rendered in capitals
+first on every line, because a priced option nobody ordered sitting in a list
+headed "scope" is how quoted work gets done.
+
+### Proved, not assumed
+
+`npm run test:document-intelligence` builds a real two-page Store 1848 PO with
+pdf-lib, extracts its real text layer, feeds a deliberately imperfect model
+reply through the check, and asserts on the Daily prompt that comes out:
+
+- an invented "hot works permit" requirement is dropped and never reaches the
+  writer;
+- a page number that was wrong is corrected rather than the field discarded;
+- the quoted floor covering stays PROPOSED and is never promoted;
+- the spoken brief stays first with its own timestamp;
+- nothing in the prompt claims the doors were rectified.
+
+The sample order also carries one paragraph about an unrelated November signage
+programme that the order explicitly does not cover. A model that reports it as
+scope has failed even though the paragraph is genuinely quotable - being in the
+document is not the same as being this job's scope, and a document without such
+a paragraph would never find that out.
+
+`npm run test:document-extraction` covers the contract in isolation.
+`supabase/tests/06_document_intelligence_test.sql` covers the schema against a
+real PostgreSQL. All suites, lint, typecheck and `next build` pass.
+
+### Why the PDF reader failed on Vercel, and what fixed it
+
+The first real Preview run stopped before the model was called: "The PDF
+reader is not available on this deployment." The logs had the cause:
+
+    Warning: Cannot load "@napi-rs/canvas" package: Cannot find module
+    ReferenceError: DOMMatrix is not defined
+
+pdfjs 5 is one module for rendering and reading alike. Under Node it borrows
+`DOMMatrix`, `ImageData` and `Path2D` from the optional native package
+`@napi-rs/canvas`, and when that is absent it warns and carries on - until
+`pdf.mjs` line 17006, where the display layer does
+`const SCALE_MATRIX = new DOMMatrix()` at module top level and the whole
+import throws. Locally the optional package is installed, so nothing showed.
+On Vercel a function ships only the files the tracer can follow, the native
+package is loaded through a computed require it cannot follow, and every
+extraction died before OpenAI was reached. Reproduce it any time by hiding
+`node_modules/@napi-rs` and running `npm run test:document-intelligence`.
+
+Three changes, all in `lib/documents/pdf-text.ts` and `next.config.ts`:
+
+1. Three inert stand-ins on `globalThis` before pdfjs is imported - a
+   constructible identity `DOMMatrix`, and an `ImageData` and `Path2D` that
+   throw a message naming the file if anything ever tries to draw. Reading a
+   text layer never draws. Shipping a 20 MB native canvas so a text reader can
+   construct an identity matrix it never uses was the wrong trade.
+2. `serverExternalPackages: ["pdfjs-dist"]`, so Node loads the genuine file
+   from node_modules. This was a second, separate landmine waiting behind the
+   first: with no Worker under Node, pdfjs loads its fallback with
+   `import("./pdf.worker.mjs")` relative to itself, and inside a Turbopack
+   chunk "itself" is a directory with no such file in it.
+3. `outputFileTracingIncludes` for `pdf.worker.mjs` on every route, because the
+   tracer cannot follow that dynamic import either, and without it the file is
+   simply absent from the deployment.
+
+Proved before pushing by building, hiding `@napi-rs/canvas`, running the built
+server with `next start`, and hitting the extraction through a throwaway
+route: 200, both pages read, the stub model called, the check applied. The
+build prints "The package seems invalid. require() resolves to a EcmaScript
+module" for the externalised package - that is Turbopack noting the package
+is ESM-only; it is loaded with a dynamic `import()`, and the built server
+proved it loads.
+
+Still open, deliberately: pdfjs warns `Ensure that the standardFontDataUrl API
+parameter is provided` on every read. Text still comes out correctly for the
+standard fourteen fonts, and a PDF with an embedded font never asks. Wiring
+the package's `standard_fonts/` in would silence it and is not needed yet.
+
+### Unverified - and the one command that fixes it
+
+**The extraction has still never made a real model call.** The reply in every
+test is synthetic, so the single open question is whether the model quotes
+verbatim well enough to survive the check. If it paraphrases, good items will
+be dropped and extractions will read as empty.
+
+The harness for answering that is written and waiting:
+
+    OPENAI_API_KEY=sk-... npm run check:live-extraction
+
+It touches no database, no storage and no project - it builds a disposable
+two-page purchase order in memory, reads it with the shipping PDF text layer,
+calls the shipping extraction with the shipping prompt and schema, and prints
+the fields, the kept and dropped items, the page corrections, the elapsed time,
+the model, and the AI context block the Daily writer would be handed. It also
+prints what the document actually says, so a person can judge what was wrongly
+dropped - a test cannot decide that for itself. With no key it exits 2 and
+calls nothing.
+
+`api.openai.com` is reachable from a Claude Code container (verified: 401
+unauthenticated), so only the key is missing there. It is set in Vercel under
+Settings -> Environments -> Preview, not in the container.
+
+The harness was dry-run against a local stub returning a realistic reply, which
+exercised the whole shipping path including the OpenAI SDK request and
+response handling. That proves the harness, not the model.
+
+**Because the key is only in Vercel, the same check also runs where the key
+is.** `app/(app)/dev/extraction-check/page.tsx` is a TEMPORARY page that runs
+`runExtractionCheck()` - the identical function the CLI harness calls - and
+renders the report. Open it while signed in on the Preview deployment:
+
+    <preview-url>/dev/extraction-check
+
+It is protected two ways: it sits under `(app)`, whose layout calls
+`requireSessionContext`, so an anonymous request is redirected to the login
+before the file runs; and it calls `notFound()` when `VERCEL_ENV` is
+`production`, so it cannot be reached on the live deployment at all. It carries
+`maxDuration = 60`, because Vercel's default function timeout is shorter than
+the model call and a platform timeout would look exactly like the model
+hanging.
+
+It touches nothing: the purchase order is built in memory, the reading is
+rendered and thrown away, and no project, document, extraction row or storage
+object is read or written. **DELETE THIS PAGE once the validation is done** -
+it is a diagnostic, not a feature.
+
+`e2e/*-smoke.mjs` browser assertions still need a Supabase, and starting Docker
+still costs the session its push (F15).
+
+### Known gaps
+
+- A scanned PDF fails with "no text layer" rather than being read by vision.
+  Honest, but a drawing photographed on a phone is a real case and gets
+  nothing.
+- Extraction runs inside the server action, so a long PDF holds the request. It
+  is capped at 40 pages / 120k characters, dropping whole pages rather than
+  truncating one mid-sentence.
+- `documents.updated_at` still has no trigger to maintain it - a pre-existing
+  gap in migration `000006`, deliberately not fixed in this batch.
+
+
+This block supersedes the old statements later in this file that Phase 6 has
+not started, that an issued report cannot be edited, and that migration
+`000005` is outstanding. All three are wrong now.
+
+Issues and the Daily Report PDF were completed in `5047110`. The
+Progress/Completion schema followed in `a632c4f`, with the tenant-key fix and
+durable PostgreSQL suite in `6d3f554`, and the workflow itself in `26409e3`.
+The report lifecycle landed in **`00a3bfb`**.
+
+The current implementation completes the core workflow:
+
+- Progress Reports consolidate final Daily Reports for a fixed date range.
+- Completion Reports prefer issued Progress Reports while retaining every
+  underlying Daily Report as provenance, without feeding it to the writer
+  twice.
+- Both kinds have evidence-grounded AI drafting, protected manual edits,
+  curated photographs and issues, draft PDF previews and stored issued PDFs.
+- Closing an issue now requires a recorded resolution. Finalising a summary
+  snapshots its issue status and resolution.
+- Reports, Project detail and Dashboard list all three document types.
+
+
+
+### The job brief: what the work was sent out to do
+
+**No migration.** `npm run test:job-brief` covers it.
+
+**What already existed.** `projects.description` has been a free-text column
+since the first schema, edited on the project form and shown on the project
+page. `documents` already holds a purchase order perfectly well - `doc_type`
+includes `client_instruction` and `specification`, with `reference`,
+`revision`, `document_date` and a private bucket behind it. And the AI layers
+already took labelled context blocks. What was missing was chronology, and a
+way to say that a document is scope.
+
+**What the brief is.** An append-only log in `projects.description`, the same
+grammar Site Capture uses on `raw_notes` but stamped with the day as well as
+the time, because a job spans days:
+
+    [2026-09-01 07:12] Attending to repair a leaking bakery sink and rectify
+    the warehouse doors. Access may be difficult due to deliveries.
+
+    [2026-09-01 14:38] Job document added: Lidl PO 4501234567 (doc:8c5de434-…)
+
+A spoken or typed brief is valid scope **on its own** - no purchase order
+needed, and none is ever waited for. A document that arrives later is another
+entry, so the record shows the works were described at seven and formalised at
+half past two rather than pretending the second was always the first. Writes
+are conditional on the description being unchanged and retried, so two people
+cannot overwrite one another. A project written before this reads as one undated
+entry.
+
+**A document is scope because somebody said so.** `lib/projects/job-brief.ts`
+marks it with `(doc:<uuid>)` in the entry, and `briefDocumentIds` reads them
+back. That is deliberately **not** the same act as referencing a document in a
+report (`report_documents`) or appending it to a PDF (`documentsAppended`) -
+three concepts, three tables, and the screen says so in those words. Nothing in
+`brief-actions.ts` touches either of the other two.
+
+**Where it reaches.** `lib/ai/job-context.ts` holds one set of rules, shared by
+the Daily cleanup, the Daily writer, the consolidated cleanup and writer, and
+the photograph describer: a scope item is never work completed, nothing is
+invented from the brief, quoted or proposed work is never instructed work, and
+a formal document outranks a remembered conversation without erasing the entry
+before it. The photograph describer gets a tighter rule of its own -
+`PHOTO_SCOPE_BLOCK`, asserted identical to `PHOTO_SCOPE_RULES` - which permits
+"the warehouse door mechanism referenced in the job scope" only where the
+photograph plainly shows it, and says nothing where it is unsure.
+
+**On screen.** Site Capture leads with a compact Job brief / scope card above
+the microphone; the project page carries the full one, with each uploaded
+document offered as **Use as job context** and the ones already in scope marked.
+An enquiry has no job to brief yet and shows none.
+
+### Store 1848: the work already here comes first
+
+**No migration.** `npm run test:store-continuity` covers it.
+
+A site manager dictated into a Daily Report against Store 1848 one morning.
+Searching the store again later, SiteBoss offered him **Create project here** -
+so he took it. The live database shows both halves of that: project **"Po"**,
+correctly linked to `lidl-gb` / `1848`, carrying Daily Report 001 with 772
+characters of his own capture entries; and a second project created two hours
+later with **no store link and no reports**.
+
+**Nothing was lost and nothing was broken.** The store-to-project link was
+written, the query that reads it was correct, and the Daily Report was there the
+whole time. Two things were wrong:
+
+1. **Nothing looked for an open Daily.** The store page read the projects and
+   stopped there. There was no query for a draft Daily on any of them, no notion
+   of a capture in progress, and no route that continued one.
+2. **The order of the screen was backwards.** The projects list sat last, below
+   the store details, below Directions and Waze, below a primary **Create
+   project here** and below Start a site survey, under a grey heading. On a
+   phone you meet the button that starts something new long before the work you
+   already started.
+
+**`lib/reports/continuity.ts`** now decides what to offer: today's open Daily
+first, else the most recently touched, with the project split into work in hand
+(active or survey) and earlier work. **`components/reports/capture-in-progress.tsx`**
+is the one card both screens use - "Site Capture in progress", the project and
+store, the report and its day, how many notes are in it, when it was last
+touched, then **Continue Site Capture** and **Open project**.
+
+**Continue links at the report's own id**, `/reports/{id}/capture`, never
+through `openSiteCapture` - a route that could create is a route that will. And
+the store page offers **Start Site Capture** only on a project that has no
+capture open, so one screen never has two ways into the same report.
+
+The store page now reads, top to bottom: the capture in progress, the live
+projects with Open project and Start Site Capture, the store's own details,
+Directions and Waze, then site survey and **"Create another project here"** as
+secondary, then earlier work. The dashboard shows the same card **above** the
+quick actions rather than below them, and no longer lists that draft twice.
+
+### Waze, beside Google Maps
+
+**No migration.** The store directory is a JSON catalogue, not a table.
+`npm run test:stores` covers it.
+
+`https://waze.com/ul` is Waze's universal link: on an iPhone with the app
+installed iOS opens the app, and without it the same URL opens Waze on the web.
+One address, no user-agent sniffing, no second scheme to try, and no way to land
+on a page saying the link could not be opened - the same bargain the existing
+Google link already makes, which is why this is one more button rather than a
+mapping system. Both buttons appear on the store page and on a project's linked
+store card.
+
+**Coordinates are preferred where a directory has them.** `Store` and
+`ResolvedStore` gained optional `latitude`/`longitude`, and `storePoint`
+validates rather than trusts: a non-number, a non-finite number, a latitude past
+90, a longitude past 180 and the 0,0 that an empty spreadsheet cell becomes are
+all treated as absent, and the address is used instead. Today's Lidl list
+carries none, so **every Google URL is byte-for-byte what it was** - the
+preference only starts to matter when a directory arrives with points in it.
+
+`navigate=yes` is deliberately not set, for the same reason `dir_action=navigate`
+is not set on the Google link: somebody tapping a store's directions is often
+checking where it is, and starting turn-by-turn at them uninvited is not the
+same request. Waze opens on the destination with the Go button under their
+thumb. One line to change if that turns out to be the wrong call.
+
+### The same pass, for photographs on a Progress or Completion Report
+
+**No migration.** Covered by `test:summary-photos` (section 5c) and
+`test:photo-order`.
+
+The upload path was already fixed by the Site Capture pass - `PhotoUpload` is
+one component and a consolidated report uses it with `summaryReportId`, so the
+kept-bytes, same-path retry and beforeunload warning came with it, and
+`attachSummaryPhoto` was made idempotent at the same time. What this pass found
+is everything **after** the upload:
+
+1. **A failed reorder had no way back.** The error was printed and the screen
+   went on showing the arrangement while the database held the old one - and
+   walking away lost it silently. `usePhotoOrder` now exposes `retry()`, the bar
+   shows **"Order not saved"** with a **Try again**, and an arrangement that is
+   scheduled, in flight or failed counts as `unsaved` and warns before the page
+   goes. Sending the same order writes the same numbers to the same rows, so the
+   retry is safe however many times it is pressed.
+2. **A reorder stopped at the first failed row**, leaving a report *partly*
+   renumbered - a worse state than either order. Both reorder actions now
+   attempt every row and report `"3 of 8 photographs kept their old position"`,
+   and the retry heals whatever did not land.
+3. **The curation save could be double-submitted** and said nothing about what
+   happened to typed descriptions when it failed. The button is dead for the
+   round trip, the failure says *"Nothing was lost - your ticks and descriptions
+   are still on this screen"* and becomes **Try again**, and unsaved ticks or
+   descriptions warn before the page goes. The save itself was already safe to
+   repeat - it reconciles rather than rewrites, so running it twice removes the
+   same rows and writes the same captions.
+
+Two things were already right and are now asserted rather than assumed:
+removing a photograph twice is not an error (a delete of a row that has gone
+succeeds), and a retried upload onto a consolidated report reuses both the photo
+row and its link rather than creating a second of either.
+
+### Site Capture on one bar of signal
+
+**No migration. Not an offline system** - a capture still has to reach the
+server before it counts, and nothing ever says "saved" before it has.
+`npm run test:capture-reliability` covers the batch.
+
+The audit found four real holes, all in the gap between "the request went" and
+"the request came back":
+
+1. **Two taps were two entries.** A save that looks like it did nothing on one
+   bar of signal gets tapped again. `alreadyEnded` in
+   `lib/reports/capture-log.ts` now recognises a capture already at the end of
+   the log and the action answers *"that is saved"* rather than writing the
+   sentence into the day twice. Compared on the exact entry, so the same words
+   genuinely said again at a different minute are still a different capture -
+   somebody repeating themselves on site is a fact about the day. The button is
+   also dead for the round trip.
+2. **A failed request took the words with it.** `lib/capture-draft.ts` keeps
+   the unsent text on the phone, per report, read through
+   `useSyncExternalStore` so the server renders empty and the client picks it up
+   after hydration without writing state on mount. It is cleared **only** where
+   the server confirmed - `landed` is false whenever the action returned an
+   error - and every access is wrapped, because Safari in private mode throws on
+   `localStorage`.
+3. **A failed photograph was gone.** The compressed bytes and the storage path
+   are now kept, and the path is minted **once, when the file is chosen**, not
+   per attempt. Try again writes the same object (`upsert: true`) rather than a
+   second copy, and `attachPhoto` / `attachSummaryPhoto` return the row they
+   already made for that path instead of inserting a duplicate - so pressing
+   Retry twice cannot leave two of the same photograph in a report. Leaving the
+   page mid-upload asks first.
+4. **"Uploaded" was said too early.** An object in the bucket whose row failed
+   is not a photograph in the report. Nothing counts as uploaded until the row
+   exists; anything short of that lands in the failed list.
+
+The status line is now Saving… / Saved at HH:MM / *Not saved - your words are
+safe here*, with the button becoming **Try again**.
+
+### A source-based Progress Report does not open as a blank page
+
+**No migration, and no change behind the screen.** `npm run test:progress-ux`
+asserts the evidence builder, the `via` filter, `partitionDraft`, immutability
+and the photograph pipeline are all untouched.
+
+A site manager ticked two Daily Reports, started a Progress Report, and was
+shown empty writing boxes under a button reading **"Write from evidence"**. He
+read that as: the reports are gone, type the job again. They had not gone
+anywhere - the evidence was frozen onto the document at creation - but nothing
+on the screen said so.
+
+Four changes, all presentation:
+
+- **The button names and counts what it will read.** "Generate from 2 Daily
+  Reports", and "Regenerate from 2 Daily Reports" once there is something to
+  replace. A Completion Report reads "Generate from 2 Progress Reports and 1
+  Daily Report". `generateLabel` in `lib/summary-reports/source-summary.ts`.
+- **One line near the top**: "Built from Daily Reports 001 and 002". Beyond four
+  it counts rather than lists, because a month of dailies must not print twenty
+  numbers in a line meant to reassure; a daily reached *through* a Progress
+  Report is counted as provenance rather than named; and a report written
+  directly says nothing at all, because it has no sources and must never imply
+  any. The full clickable list stays where it was, behind Advanced details.
+- **Typing is stated to be optional.** "SiteBoss will consolidate the selected
+  reports into this one. Add your own notes only if you want to provide extra
+  context." On a consolidating report with nothing written yet, the writing box
+  goes behind **"Add your own notes (optional)"** and the Generate button is
+  full width and taller - the one thing to do on that screen. As soon as there
+  is something to correct, the box comes back in front. A report written
+  directly is untouched: its sections are its writing surface and stay there.
+- **Nothing generates on its own.** No effect fires the action; it is still a
+  form somebody presses, so opening a document never changes it.
+
+Two structural assertions were rewritten rather than weakened: a writing area is
+now counted by the visible group it writes into, not by how many branches render
+the component, and the one permitted disclosure is pinned to exactly this case.
+
+### Completion, final client polish
+
+**No migration.** Covered by `test:completion-content` and `test:summary-photos`.
+
+Five refinements, no redesign.
+
+**A status line at the top.** `completionStatusLine` in
+`lib/summary-reports/completion-claims.ts` derives it from the document rather
+than asserting it: anything still open in the prose, or an issue that is not
+closed, and it reads **"Primary works completed - follow-on works
+outstanding"**. Only a document that says the works are done, with nothing open,
+reads "Works completed". A report supporting neither says nothing at all - a
+status nobody can substantiate is worse than none. It prints in the control
+panel under `Status`, on Completion Reports only.
+
+**Plainer wording.** The summary brief and the consolidator both name the
+register to avoid - "the completion position is limited to", "insofar as", "for
+the avoidance of doubt", "the aforementioned" - and the consolidator carries the
+sentence it should write instead.
+
+**Completed works may be a list.** Where a job had several distinct
+workstreams, the brief allows short lines each opening with a dash, one
+workstream to a line, keeping every material and location in its own line; a
+single workstream stays as prose, because a bullet list of one is a paragraph
+with a dash in front of it. `proseBlocks` in `lib/pdf/components.tsx` turns
+those into hanging-indent lines in the PDF - and turns text with no list into
+exactly one block, which is what every report written before this produces.
+
+**One box for a photograph's description.**
+`components/reports/photo-description-field.tsx` - a textarea, three lines
+growing to six and no further, wrapping, labelled "Photo description
+(optional)". Used both under a photograph's own thumbnail and where a
+consolidated report's caption is written, so the box is the same on both
+screens. The curation tile stopped being a `<label>` in the process: a textarea
+inside one toggles the checkbox when it is tapped.
+
+**A more legible printed caption**, at 8.75pt in the muted ink with the leading
+tightened to match, so it is set apart from the body without being any taller.
+Half a point and a top margin was tried first and put a one-plate progress
+report onto a second page - which the suite catches.
+
+### The Completion Report a client reads: three written sections
+
+**No migration.** `npm run test:completion-content` covers it, including a real
+rendered PDF.
+
+Completion 003 was structurally correct and still read like a compressed
+database of the reports beneath it. Page one carried Project Overview, Scope of
+Works, Stages of Works, Key Technical Activities and Completed Works - five
+accounts of the same fortnight, each true.
+
+**The cause is arithmetic, not wording.** Ask a model to fill eight fields from
+one body of evidence and it fills all eight. So it is now asked for **three**:
+
+- **Completion summary** - the executive account, four or five sentences,
+  standing on its own: what the project was, what was achieved, where it stands.
+- **Completed works** - the completed workstreams with their materials,
+  locations, quantities and technical detail.
+- **Outstanding and sign-off** - what is genuinely still open, then any sign-off
+  fact the records actually carry.
+
+Everything else the document needs it already has from its own records: the
+plates under Photos & Evidence, the issues in the issue record, the sources in
+the source record. The consolidator is told outright not to write a paragraph
+describing its own appendices.
+
+**Nothing was removed and nothing is dropped.** `COMPLETION_DRAFTED_TYPES` in
+`lib/summary-reports/sections.ts` splits *what the model writes* from *what the
+document can hold*; `summaryDraftedSectionsFor` is what the JSON schema and the
+cleanup pass now use. All eight section types are still stored, still editable
+and still printed wherever they carry words - so a Completion Report drafted
+before this, or one where somebody wrote a stage sequence by hand because that
+job needed one, prints exactly as it did. The stale-clearing step only ever
+touches `ai_generated = true` rows, so a hand-written section survives a
+redraft. The suite proves both: the four unwritten headings are absent from the
+rendered PDF, and a hand-written stages section still prints under its own
+run-in label.
+
+Two labels changed with it: `project_overview` reads **"Completion summary"**,
+and the third group is **"Outstanding / Follow-on"**. The Master Review was told
+what a Completion Report now is, and told to review an older report's extra
+sections normally but never to move the document back to that shape.
+
+### A Completion Report that does not contradict itself
+
+**No migration.** `npm run test:completion-content` covers it.
+
+Completion Report 002 said "all works had been completed successfully" in its
+Project Overview and again, **word for word**, in Completed Works - while its own
+Outstanding section recorded localised concrete patch repairs still to be
+carried out. Scope of Works was one generic line; Stages, Key technical
+activities and Issues were all empty.
+
+**Two root causes, and only one of them was still live.**
+
+The poverty was already fixed. 002's evidence was a single hand-typed sentence,
+because the Progress Report beneath it had been written during the era when
+consolidation silently read nothing - see the evidence pipeline entry below.
+**Completion 003, generated after that fix, is rich and distinct**: Scope names
+engineering bricks, mortar, C4 and the expansion joint; Stages gives the real
+sequence; Key technical activities and Issues are populated. Nothing further was
+needed there, and requirement 3 of the brief is verified rather than rebuilt.
+
+**What was still live is the contradiction.** A blanket completion claim inside
+a source is a statement about *that source's period*. Carried into a Completion
+Report unqualified it becomes a claim about the whole job, and if anything is
+still outstanding it is a false one. Nothing anywhere reconciled the two, so 003
+repeats the fault in a better-written document.
+
+**`lib/summary-reports/completion-claims.ts`** now finds it mechanically, before
+any model reads the document: `blanketCompletionClaims` (narrow - "the manhole
+was rebuilt" is an activity, "all works were completed" is a claim),
+`outstandingMentions` (read from anywhere, including a photograph caption),
+`repeatedSentences` (normalised, six words or more), and
+`completionContradictions`, which names the sections and **quotes both
+sentences**. Those lines go into the Master Review's evidence under a heading
+saying each one needs a warning and the unsupported claim cut or qualified. An
+empty block is dropped, so a clean document costs nothing.
+
+**The reviewer is given one exception to flag-never-resolve.** A completion
+claim contradicted by outstanding work is not two facts disagreeing - it is one
+claim the evidence refutes. It is cut or qualified, replaced with what was
+completed and what remains, and a warning raised. Everything else still flags
+and never resolves.
+
+**The four sections were given genuinely different jobs**, in both the drafting
+and cleanup briefs: Project Overview is the story and outcome and is told
+outright not to list the completed activities; Scope must name the elements,
+locations, materials and systems the records name, with a generic line called a
+failure; Completed Works takes specific finished activities only and refuses a
+blanket sentence outright; Outstanding and sign-off is unchanged from the
+previous batch. The consolidator gained two blocks to match - COMPLETION STATUS
+(with the true sentence written out, not merely described) and NO SENTENCE
+TWICE.
+
+### One photograph set on a consolidated report
+
+**No migration.** `npm run test:summary-photos` covers it.
+
+A real test reported two photograph sets: the plates in Arrange Photos were the
+ones that printed but carried no caption control, and a second list offered
+"Caption in this report" on photographs that never appeared in the PDF.
+
+**They were never two sets in the database.** `summary_report_photos` has always
+been the one truth, and both the screen and `lib/summary-reports/pdf-data.ts`
+read it. The screen made it look like two, and one of the two ways it did that
+was destroying real work:
+
+1. **The curation form offered a caption box on every photograph on the
+   project**, ticked or not. Captions typed against untick­ed photographs were
+   read by nothing, because only selected rows are inserted - so half the
+   captions somebody wrote silently went nowhere. The box now appears with the
+   tick and goes with it, the tick is React state rather than the DOM, and an
+   included photograph is visibly included.
+2. **Saving that form scrambled the arranged order.** `saveSummaryCuration`
+   deleted every link and re-inserted the selection with `sort_order: index`
+   taken from whatever order PostgREST returned the rows in. Arrange the
+   plates, then correct one caption, and the document printed in a different
+   order from the screen you had just arranged. It now **reconciles**: a
+   photograph that is staying keeps its position and has only its caption
+   written, one that has been unticked is deleted, and a newly ticked one is
+   appended after the highest `sort_order` already there. Nothing that was in
+   order moves.
+3. **Arrange showed the wrong caption.** It printed the photograph's own
+   caption while the PDF prints `caption_override` where one exists. It now
+   shows exactly what will print, so both surfaces describe the same plate in
+   the same words.
+
+`reorderSummaryPhotos` was already correct - it writes `sort_order` and nothing
+else, so a caption has always stayed with its own photograph - and the suite now
+proves it rather than assuming it.
+
+One guard was added: `unresolvedPlates` counts links the screen could not
+resolve against the project's photographs. It should always be zero; if it is
+not, the report says so in red and says not to issue it, because that is exactly
+the shape of "what I arranged is not what came out".
+
+### The evidence pipeline: does the text actually get there?
+
+**No migration.** `npm run test:evidence-flow` is the suite that proves the
+words arrive.
+
+A real iPhone test produced the worst kind of failure: two rich Daily Reports,
+exact provenance, photographs carried across - and a Progress Report with every
+AI section empty and the site manager typing a period summary by hand. The live
+database confirmed it: both source rows correct, both dailies carrying four and
+three written sections of real content, and all six AI sections of the Progress
+Report still `NULL` from creation.
+
+**Root cause: the assembly that turns source reports into model context lived
+inside a `"use server"` action.** Nothing could test it, and nothing reported
+what it produced, so a consolidation that read nothing looked identical to one
+that read everything. Three real defects were hiding in there:
+
+1. **Read errors were swallowed.** `const { data: daily } = await supabase…`
+   with no error check. A failed read dropped a whole source report from the
+   evidence in silence, and the user was told the reports carried no content.
+2. **A heading with nothing under it was pushed as evidence.** So
+   `evidence.trim()` was non-empty, the "nothing to work from" guard never
+   fired, and the model was handed a list of headings and returned nothing -
+   surfacing as "the evidence did not support any report sections", which
+   reads as a verdict on the site manager's reports.
+3. **Raw notes were all-or-nothing.** `written || rawNotes` meant a daily whose
+   sections were drafted at lunchtime lost every Site Capture entry added
+   afterwards.
+
+**`lib/summary-reports/evidence.ts`** is now the whole builder, pure and
+import-free. `dailyEvidenceBlock`, `progressEvidenceBlock` and `buildEvidence`
+return null or empty rather than a bare heading; sections arrive under the
+labels a reader knows ("Works completed:", not "works_completed:");
+`gapFillingNotes` sends raw notes only where they carry material the sections
+do not - measured by `unrepresentedShare`, the proportion of substantive words
+(five letters or containing a digit) in the notes that appear in no section,
+against a stated `RAW_NOTES_THRESHOLD` of 0.25. A daily written up faithfully
+contributes no duplicate; a daily issued without drafting contributes its notes
+as the only account there is; an afternoon captured after drafting comes through
+labelled "Also recorded on site that day".
+
+**The action now fails loudly and reports what it read.** Every evidence read is
+error-checked and returns a named message. When nothing was read it says so
+before a model is called - and says something different for "these two reports
+carry no written content" than for "you have not written anything yet". On
+success the screen says *"6 sections written from 2 Daily Reports"*, so a
+consolidation that silently read nothing can never again look like one that
+worked.
+
+**Progress → Completion was already right and is now proved.** `directDailyIds`
+already excluded rows carrying `via_summary_report_id`, so a day covered by a
+selected Progress Report reaches the writer once, through that report's reviewed
+wording, and stays on the record as provenance. The suite asserts the covered
+day's own words are absent, the uncovered day's are present, and the Progress
+Report's period summary, completed works and next-period text all arrive.
+
+### The Completion Report, the document a client keeps
+
+**No migration.** `sign_off` was already a section type; what changed is the
+label a reader sees. `npm run test:completion-quality` covers the batch, and
+renders a full completion PDF through `renderToBuffer` to check it still fits.
+
+**Most of it was already right, and was left alone.** Standalone Completion
+works. Photograph curation and reorder work. The provenance model was already
+better than the brief asked for: `summary_report_sources` records every Daily
+Report, and `ai-actions.ts` feeds the writer only those with **no**
+`via_summary_report_id` - so a fortnight already consolidated into an issued
+Progress Report is kept on the record as provenance and never read a second
+time. "Daily evidence only for uncovered gaps" was already true.
+
+**What was missing was selection.** A Completion Report took every issued
+Progress Report whose period fell inside a date range. It now offers them one
+per row - number, period, how many Daily Reports sit beneath each, when it was
+issued - with Select all, Clear, and a live line saying how many days no ticked
+report covers and will therefore be read directly.
+`lib/summary-reports/progress-selection.ts` is pure and holds the rules; the
+action deduplicates the posted ids and intersects them with the issued Progress
+Reports of that project. **A report started without any selection still gets
+every issued Progress Report** - falling back to none would quietly turn a
+whole-project record into one built from raw dailies. Unticking a report gives
+its days back as direct evidence, so no period can fall out of the record.
+
+**Outstanding work was filed under a heading reading "Sign-off".** The
+`sign_off` section has always carried two jobs - what is still open, and any
+recorded acceptance - but its label named only the second, so a reader saw
+outstanding works under a heading implying they had been signed off. It now
+reads **"Outstanding and sign-off"**, and both briefs order it: outstanding and
+follow-on first, then any sign-off fact the records actually carry. The cleanup
+brief was worse than the drafting one - it asked for sign-off facts only, so
+follow-on work had nowhere to go in that pass at all - and now matches. Neither
+change touches the stored enum.
+
+**The Master Review now has a completion tier**, above the consolidated one and
+far above the proportionate daily one: every claim that the works were
+completed, accepted, handed over, approved, inspected, tested, commissioned,
+certified, snagged off or found compliant must be traceable to a source record
+that says it, and where one is not the instruction is to **cut the claim** and
+raise a warning naming the section - not to reword it. It also looks for an
+unresolved issue (which on this document reads as a defect handed over), Scope
+and Completed works describing the same list, Stages repeating the scope, an
+outstanding item that appears nowhere, and a sign-off sentence with no source.
+
+### A Progress Report is built from the Dailies somebody chose
+
+**No migration.** `summary_report_sources` has held one row per source since
+`20260828000005`, and that is still all this needs. `npm run
+test:progress-sources` covers the batch.
+
+**The gap was source selection, and only source selection.** Everything else
+the consolidation layer needs was already built: the cleanup-then-draft-then-
+review pipeline, the two writing areas, photograph curation and reorder, the
+document register, the issue snapshot, the printed source record, finalise and
+share. What was missing is that a Progress Report took **every** issued Daily
+Report inside a date range. A range is a guess dressed as a decision: it could
+not express "the three days that mattered", it swept in reports another
+Progress Report had already consolidated, and the period it printed was the
+range asked for rather than the evidence used.
+
+**The picker.** `/summary-reports/new?kind=progress&project=…` now lists that
+project's issued Daily Reports one per row - number, the day the work was done,
+the time it was issued - each a checkbox. Rows are `min-h-(--ui-control-min)`
+because this is chosen standing up. Select all and Clear are offered and the
+count is announced. Choosing a different project **navigates** rather than
+fetching: the server, which is the only thing that should decide what this
+person may consolidate, re-renders with that project's reports under the same
+RLS as everything else.
+
+**What is ticked by default** is everything not already inside an issued
+Progress Report - the sensible reading of "what has happened since the last one
+went out". A report that has gone out stays on the list, unticked, with its
+Progress Report named; hiding it would be its own kind of lie, and a daily may
+honestly appear in both a fortnightly and a monthly. Where every daily has
+already been consolidated, nothing is preselected: repeating a period should be
+a decision somebody makes on purpose.
+
+**The write treats the form as a request, not an authority.**
+`lib/summary-reports/daily-selection.ts` is pure and holds the rules;
+`startSummaryReport` deduplicates the posted ids into a `Set` before validation
+and then intersects them with the issued Daily Reports of that project that RLS
+actually let it read. So an id belonging to another company, to a draft, or to
+nothing at all cannot become a source row, and a duplicated id cannot either -
+"no duplicate source rows" is a property of the write.
+
+**The stated period follows the evidence.** Where the author typed dates, those
+are what the report says. Where they left them blank, the period is the span of
+what was selected: a report headed "1 to 14 August" that consolidated three
+days of that fortnight tells the reader something untrue about its own
+coverage. Photographs and the issue window follow the same resolved set.
+
+**A Completion Report is untouched.** It still prefers issued Progress Reports,
+keeps every underlying Daily Report as `via` provenance, and takes its
+remaining dailies by period. Only Progress gained the picker.
+
+**One prompt change.** The consolidator is now told that its evidence is a set
+of one-day diaries and that the report it writes is not one: consolidate by
+activity rather than by date, the same wall plastered across four days is one
+statement at the position it had reached, work started early in the period and
+finished later in it is completed rather than in progress, resources are never
+totalled across days, an issue raised and later resolved is one issue, and
+procurement is not completed work. Every existing safeguard is asserted still
+present.
+
+### The Daily says one thing once, and calls itself a Daily
+
+**No migration.** `npm run test:daily-output` covers this batch.
+
+Four faults a tester found in issued dailies:
+
+**The same day under two headings.** The Summary and Works completed were both
+briefed to give a full account, so they gave two. The Daily Summary is now the
+day's *one* account and may carry the whole day by itself; Works completed
+carries particulars the Summary does not already have - trade, location,
+materials, quantities, technical detail - **and is left empty when there are
+none**. An empty Works completed on a daily is now a stated good outcome in
+all three layers, and the Master Review is told which one to keep when they say
+the same thing: keep the Summary, empty the other. It is also told not to
+invent detail to justify the second section, which is the obvious wrong way to
+resolve it.
+
+**Procurement counted as completed work.** "Spent the morning trying to find
+the right sealant" was being written up as work completed. Sourcing, searching
+for, pricing, chasing, ordering and awaiting anything is now explicitly never
+completed work in the cleanup tail, the reviewer, and the daily briefs for both
+Works completed and Outstanding items - it is an outstanding item, because the
+works are waiting on it, and becomes completed only where the notes say the
+thing was obtained and used. The rest of the status ladder is untouched.
+
+**A review out of proportion to one day.** The reviewer now sizes its warnings
+to the document. On a daily it raises contradictions, anything safety-critical,
+and serious gaps a reader would notice - and is told explicitly **not** to
+demand a supplier, an order reference, a responsible person, a target date or a
+programme position merely because one is absent, because ordinary site notes do
+not carry them. No warning at all is now stated to be a valid review. The
+progress, completion and survey bar is unchanged and the suite checks that the
+loosening did not leak: those still want a supplier on a bare delivery, somebody
+against an outstanding item, and a resolution on a completion report. Every
+existing safeguard - flag-never-resolve, raise-never-fill, no new facts,
+silence-is-not-absence, no H&S nil returns - is asserted still present.
+
+**The document called itself a Progress Report.** The Daily PDF now prints
+`SITE DAILY REPORT`. "Progress Report" is the name of a different document in
+this system and a client holding both could not tell them apart.
+
+**A photograph needs no caption.** The reviewer was warning about every
+photograph with nothing written against it, which is most of them - captions
+and statuses are optional and always have been. The prompt now says outright
+that an uncaptioned photograph is valid evidence and never a gap, and never to
+warn about or ask for a caption, a status, a description or a label. What still
+earns a warning is a caption or status that *contradicts* the prose, or
+substantial written work with no photographs at all. The context builder was
+part of the problem - it listed such a photograph as "a photograph with no
+status or caption recorded", wording an ordinary case as a deficiency - and now
+lists it as "a photograph included as evidence".
+
+One UI change went with it: an **issued** daily no longer prints a group
+heading with nothing under it. The PDF has always dropped an empty group; the
+screen now agrees. A draft still shows all three, because those headings carry
+the controls that raise an issue, add a photograph and edit the words.
+
+Nothing else moved. Raw Site Capture notes are still verbatim, Cleanup still
+runs before drafting, the Master Review is still a separate layer that proposes
+changes a person ticks, photographs are untouched and issued PDFs are still
+files that are never re-rendered.
+
+### Site Capture: one Daily Report, collected into all day
+
+**No migration.** `npm run test:site-capture` covers the whole contract.
+
+Site Capture is the prominent action on a project, on the site chooser at
+`/reports/new`, on the dashboard, and on a draft report. It is the fastest path
+from standing on site to a Daily Report, and it is used repeatedly through the
+day rather than once at the end of it.
+
+**Choosing the report.** `openSiteCapture` in
+`app/(app)/reports/capture-actions.ts` looks for a report on this project that
+is still a draft and dated today, oldest first, and opens
+`/reports/{id}/capture`. Only when there is none does it insert one and let the
+`reports_assign_number` trigger allocate the number, exactly as `startReport`
+always did, with the same workforce and plant carry-over - now in
+`lib/reports/carry-over.ts` so both entry points share it. The match is narrow
+on purpose: a draft left over from yesterday is somebody's unfinished report,
+and appending this morning's work to it would file today's site under
+yesterday's date.
+
+"Today" is the **British** working day - `workingDay()` in
+`lib/reports/working-day.ts`, `Europe/London` for every site until sites carry
+a timezone of their own - and Site Capture writes it onto the row rather than
+letting the column's `current_date` default decide. That default is UTC, so
+between midnight and 01:00 BST the two disagree by a day: the lookup would ask
+for the 1st, the insert would store the 31st, and the next tap would find
+nothing and start a second report for the same night. Lookup and insert now use
+one value, which makes that duplicate impossible rather than unlikely. The
+suite checks 00:30 BST, both sides of midnight, a winter night, and both clock
+changes.
+
+**Storing repeated captures.** Every capture is appended to `reports.raw_notes`,
+which already means "what the user actually said, word for word" and is already
+the source the Cleanup AI reads. `lib/reports/capture-log.ts` owns the format
+and is pure, so a test loads it straight into Node:
+
+    [08:00] Poured the slab in the north bay.
+
+    [10:30] Steel delivery arrived, offloaded to the compound.
+
+A line beginning `[HH:MM]` opens an entry; everything else belongs to the entry
+above it. Three properties carry the weight:
+
+- **Appending never rewrites.** `appendCapture` returns the previous text
+  unchanged with the new entry after it - the result always *starts with*
+  everything already there. The suite asserts that as a property over eight
+  different starting shapes, not as one example.
+- **The form never posts the day back.** Only the new words are submitted, and
+  the server reads the existing notes from the database. A phone left open in a
+  van since eight o'clock has nothing to overwrite. The write is conditional on
+  the notes still being what was just read - `.eq("raw_notes", …)`, or
+  `.is(…, null)` on the first capture - and re-reads and retries up to three
+  times if another device got there first. PostgREST cannot express
+  `set raw_notes = raw_notes || $1`, and this is the honest alternative.
+- **Markers carry no status.** Damage one, mistype one, or type `[10:30]` in
+  the middle of a sentence, and the worst that happens is where the on-screen
+  list draws a boundary. No word is lost and nothing moves between stored
+  sections - the tester's rule from the section-boundary batch, which is why
+  `report_sections` was not the place for this even before its
+  `unique (report_id, section_type)` made it impossible.
+
+`raw_notes` is not printed in the PDF - it is an on-screen record and an AI
+source - so the chronology stays internal and the issued document stays a
+report rather than a timeline. Reports written before Site Capture existed have
+no markers and read as one untimed entry.
+
+**The screen** (`app/(app)/reports/[id]/capture/page.tsx`) is four things:
+a full-width `DictationField` with `prominent` set - the same component, not a
+second implementation - the same `PhotoUpload` and `PhotoGrid` as the report,
+a `<details>` holding the day so far, and Continue later / Finish the report.
+The box clears only when a capture actually landed: it is keyed on the server's
+entry count, so a failed save leaves every word where the user left it. An
+issued report redirects to the document.
+
+**The end of the day is unchanged.** Cleanup, Master AI Review, preview,
+finalise and share all work exactly as before; the Cleanup AI is simply told
+that its source may arrive as several timestamped entries, to consolidate them
+into one account of the day, to treat the later entry as the current position,
+and never to print a capture time as the time of an event - while times said
+out loud stay facts like any other.
+
+### Arranging is dnd-kit, in a view of its own
+
+The hand-written long-press drag felt wrong on a real iPhone, so it is gone.
+`components/reports/photo-arrange.tsx` is a dedicated full-screen arrange view
+built on **@dnd-kit** - a lifted `DragOverlay` that follows the finger,
+neighbours that move aside to show where the photograph lands, auto-scroll at
+the edges, and a keyboard sensor. One implementation, opened by the same
+`PhotoOrderBar` from the daily grid and the consolidated list.
+
+`usePhotoOrder` is unchanged and still owns the order, the debounce and the
+save, so nothing about `sort_order`, `isSameSet` or the refusal on an issued
+report moved.
+
+**A drag swaps two photographs; it does not insert one.** Dropping P01 onto
+P03 gives C, B, A, D - not the B, C, A, D an insertion produces. That was the
+tester's second finding: a sortable list reflows every tile between the two, so
+moving one picture renumbered a report somebody had already put in order. The
+tiles are now `useDraggable` + `useDroppable` rather than a `SortableContext`,
+nothing is ever transformed, and the only things that change before the drop
+are the lifted tile's opacity and the highlight on the one under the finger.
+`@dnd-kit/sortable` went with the behaviour it existed to provide.
+
+**The sensor split is load-bearing.** `MouseSensor` (distance 8) plus
+`TouchSensor` (delay 200ms, tolerance 8) rather than the single `PointerSensor`
+that covers both: a pointer sensor also receives touch, so it claims the
+gesture before the hold can be judged - a press-and-hold then does nothing and
+a swipe starts a drag the browser immediately cancels. This was found by
+driving the real component in a 390px browser, and the test asserts the two
+sensors stay separate.
+
+**Order is sequence, and nothing else.** `PLATES_PER_ROW` and `sharesRow` are
+deleted along with the "Prints beside P01" wording. That was a promise this
+layer could not keep: how many plates go on a row is the document's decision,
+and it is free to put one, two or four there. The PDF is untouched and stays
+free to change its density without making the screen a liar.
+
+No migration. No rotation. `npm run test:photo-order`.
+
+### Photographs are arranged by dragging them
+
+The arrows in `578d3f4` worked and were slow: putting plate eleven next to
+plate two was nine taps. They are replaced by press-and-hold drag, in the same
+module - `usePhotoDrag` sits beside `usePhotoOrder` in
+`components/reports/photo-reorder.tsx`, and the daily grid and the consolidated
+list both compose it, so there is still one reorder control rather than two.
+
+Four things make it work on a phone, and each was a way to fail:
+
+- **A hold, not a contact.** 200ms, and more than 10px of travel before that
+  hands the gesture back to the page - the whole screen is photographs, so
+  every scroll starts on one.
+- **`setPointerCapture` on the grid**, or a fast drag loses its target halfway
+  across.
+- **The scroll lock is a native `touchmove` listener registered
+  `{ passive: false }`.** React attaches its own touch listeners passively, so
+  `preventDefault` inside `onTouchMove` is ignored and the page scrolls out
+  from under the drag. Bound only while a drag is running.
+- **`elementFromPoint` on every move**, not rectangles measured at the start:
+  the tiles reflow as the order changes under the finger. The lifted tile stops
+  taking pointer events so the hit test sees what is beneath it.
+
+One set of listeners on the grid rather than a closure per tile - which is also
+what keeps `react-hooks/refs` happy, since nothing is computed from a ref
+during render. **Arrow keys still move a plate**, so a keyboard is not shut out
+by a gesture. No dependency was added. `usePhotoOrder`, its debounce, the
+one-based `sort_order`, the `isSameSet` guard and the refusal on an issued
+report are all unchanged.
+
+**No migration.** `npm run test:photo-order` covers the gesture's contract.
+
+### Migration `20260901000009_photo_rotation.sql` is APPLIED
+
+A photograph can be turned left or right a quarter at a time inside Arrange
+mode, on all four report kinds. **The stored object is never touched.** The
+turn is a number on the row; the bytes in the bucket are the evidence and are
+read, drawn and printed exactly as they were uploaded.
+
+The migration was applied to the hosted project on 2026-08-31, through the
+Supabase MCP `apply_migration` tool rather than `supabase db push`, and is
+recorded in the ledger as `20260831170716 photo_rotation`. It was deployed
+before the migration once, which is what caused the live 42703: six SELECTs ask
+for `photos.rotation`, and PostgREST rejects a column that does not exist.
+**That is the lesson for the next additive column - the migration goes first.**
+Verified after applying: the column is `smallint NOT NULL default 0`, the check
+constraint is validated, row counts, policy counts, index counts and the
+caption/category/`storage_path` fingerprint were all unchanged, and the app's
+query shape runs. Rollback is one line and is written into the migration file:
+`alter table public.photos drop column if exists rotation;`
+
+The column is additive - `smallint not null default 0` with a check constraint
+of `(0, 90, 180, 270)` - so every row already stored reads 0 and looks exactly
+as it does today. `supabase/tests/05_photo_rotation_test.sql` proves the shape,
+the default, that all four turns store, that 45, -90 and 360 are refused, and
+that caption, category and `storage_path` are unchanged by a turn.
+
+`lib/photos-rotation.ts` is the whole model, pure and import-free so the tests
+can load it in Node: `normaliseRotation` (anything wild reads as 0),
+`rotateBy(value, "left" | "right")`, `isQuarterTurn`, `rotatedSize` (swaps
+width and height on 90 and 270), `cssRotation` and `describeRotation`.
+
+- **Screens**: `cssRotation` on the thumbnail inside its existing square frame,
+  in arrange mode, the daily grid, the summary curation list and the summary
+  photo list.
+- **PDF**: `PhotoPlate` and `CoverPhoto` measure the box on `rotatedSize`, so a
+  portrait turned on its side is laid out as a landscape, then draw the image
+  with `transform: rotate(Ndeg)`, `transformOrigin: "center"` and a clipped
+  frame. `plateReserve` takes the turn too, so the page budget is computed on
+  the shape that will actually appear. `npm run test:photo-rotation` renders
+  real PDFs through `renderToBuffer` and counts pages with pdf-lib: a single
+  photograph at 0, 90, 180 and 270 each costs one page, four mixed turns cost
+  at most two, and an unturned photograph produces the same bytes as one with
+  no rotation at all. **What is not proven here is how it looks:** the checks
+  are render-without-error plus geometry, not an eye on a page.
+- **The action** is `rotatePhoto` in `app/(app)/reports/photo-actions.ts`. It
+  writes `rotation` and nothing else, takes the direction from the form rather
+  than an angle, and refuses with `REPORT_IS_FINAL` when the owning report is
+  issued. Stored PDFs are files and are never re-rendered, so nothing
+  historical moves.
+- **Caption, status and AI description** are columns on the same row and follow
+  the photograph without being touched.
+
+### Standalone Completion, free dates, one fact one section, and photo order
+
+**A Completion Report can be written directly.** It was the last document that
+demanded a source, on the reasoning that a consolidation with nothing behind it
+is a claim rather than a record. But a job can finish without a Daily Report
+ever having been filed - a short fit-out, a job taken over part-built, work
+reported nightly by phone - and refusing to issue that job's completion
+document does not make the job less finished. Both gates are gone: the create
+form offers the same two modes it offered a Progress Report, and
+`canFinaliseSummary` no longer asks any kind for a source. What made the rule
+unnecessary is that the absence was already stated rather than hidden - no
+source record in the PDF, a screen that says the report has none, and a
+provenance instruction forbidding the model to claim one. `provenance.ts` was
+already kind-agnostic and did not change.
+
+**The reporting period is optional on every kind.** The Progress-only
+`superRefine` and the `required` inputs are gone. Blank means blank - no date
+is invented. A consolidating report with no dates takes every final Daily
+Report on the project, which is what the existing filter already did with a
+null bound. `summaryPeriodLabel` now says **"Period not stated"** for a Progress
+Report with no period rather than "Whole project record", which is a Completion
+Report's phrase and would be claiming a scope nobody entered.
+
+**Outstanding items and Planned works are no longer two chances to say one
+thing.** The briefs were distinct in intent but nothing forbade the repeat, so
+one activity could appear in both. The line is now drawn by who the work waits
+on - Outstanding is what we are waiting on somebody else for, Planned is what
+is ours to schedule - and an item that is both is written **once, under
+Outstanding, with its timing carried into the sentence**. The rule is in the
+daily briefs, the system prompt and the cleanup briefs, with a worked example,
+and it explicitly refuses the two cheap ways out: dropping the timing, and
+hedging what the notes said. Thirteen assertions in `test:section-roles`.
+
+**Photographs can be put in order.** `photos.sort_order` has existed since the
+first migration and nothing ever wrote it, so every row carried `0` and the
+lists fell back to `created_at` - upload order, by accident. `Reorder` on the
+photo section turns the grid into a mode where each tile shows the plate number
+it will print as (P01, P02 …) and two large arrows move it one place. Arrows
+rather than a drag: a long-press drag fights iOS's own scrolling, and fifteen
+photographs is a lot of dragging one-handed. Moves are debounced and written by
+`reorderReportPhotos`, which writes **only** `sort_order`, validates the
+submitted list against what the report actually holds, and refuses an issued
+report. `lib/photos-order.ts` holds the rules, including which plates share a
+row - the PDF prints two to a row in the given order, so a before and an after
+placed together print side by side, and the screen says so. Positions are
+one-based so a saved order is never confused with the unordered `0`. No
+migration: the column was already there.
+
+A follow-up extended the same control to Progress, Completion and Survey.
+`summary_report_photos.sort_order` already existed and was already written on
+insert and read in order by the PDF; what was missing was the screen. The
+state, the debounce, the arrows and the wording moved into
+`components/reports/photo-reorder.tsx` so there is one control rather than two,
+and `reorderSummaryPhotos` writes the link's `sort_order` - never the
+photograph, which may be in a Daily Report and a Progress Report at once with a
+different position in each. A report that curates by ticking boxes gets the
+same list with the camera and the remove taken off (`manage={false}`): the
+curation form still owns which photographs are in, and this owns the order.
+The report screen now reads its links ordered, which it did not before, so the
+plate references it was already showing are the PDF's.
+
+### A small UX and account batch
+
+Three things that were each one screen's worth of friction.
+
+**A report list now says when.** The report date does not give chronology -
+two reports can carry the same date, and one dated Monday may have been
+written on Monday evening and issued on Wednesday. `lib/reports/timing.ts`
+composes "Created 25 Aug, 14:32 · Issued 17:05" and
+`components/reports/report-timing.tsx` puts it on the badge's own line in both
+list rows, so knowing the chronology costs the row no height. The date is
+dropped from the issued half on the same day, and the year appears only on a
+report that is not from this one. Read in UK time, not the server's UTC, so a
+report filed at half past midnight in the summer is not shown on the day
+before. `npm run test:timing`.
+
+**Settings can always be left.** The gear now carries the screen it was tapped
+on (`/profile?from=/reports/abc`) and Settings offers "Back to Reports" at the
+top. Deliberately not `history.back()`: history holds redirects and form posts
+and is not ours to reason about, and a home-screen web app may have no back
+gesture at all. `safeReturnPath` refuses anything that could point off this
+origin, and an arrival with no `from` still gets a control - back to the
+Dashboard. `lib/navigation.ts` owns all of it.
+
+**The company name is editable, by its owner.** No migration: the
+`companies_update_owners` policy and the `update` grant have been there since
+`20260826000002`, unused. `app/(app)/profile/actions.ts` writes the one row and
+touches nothing else. It reaches new documents for free - every renderer reads
+`session.companyName` at the moment it draws - and reaches no issued one,
+because those are stored bytes that are never re-rendered. The screen says so
+above the field rather than after the fact. A member sees the name and who can
+change it, not a control that would be refused. `npm run test:settings` covers
+the rules and guards that the action never names the PDF bucket.
+
+### The report reader is now a full-screen one that draws the pages
+
+`00a3bfb` gave the PDF a way out - Back, inside the app, instead of a new tab
+somebody had to close the browser to escape. That fixed the way out but not the
+reading, and it was confirmed on an **iPad**. On an **iPhone** the document
+still could not be read, and the owner was again exporting reports into Files
+just to inspect them.
+
+The cause is F24: **iOS Safari will not display a PDF in an `<iframe>`.** It
+draws one non-scrolling preview of page one. The frame was 70dvh of page one
+and no way to reach page two.
+
+`components/pdf/pdf-viewer.tsx` now draws the pages itself, with pdf.js, onto
+canvases in one continuous scroll, filling the screen over the app shell -
+Close on the left, Share PDF on the right, both in the top safe area, and a
+magnifier pinned bottom-right. Same component, same props, same two routes
+(`/reports/[id]/pdf`, `/summary-reports/[id]/pdf`), so Daily, Progress,
+Completion and Site Survey all got it at once. "Open full screen" is gone from
+the header: handing the file to Safari is the trap this screen replaces, and it
+survives only as the way out of a failed render.
+
+`lib/pdf/viewer-source.ts` now decides which bytes the reader is handed, and
+both viewer pages call it instead of working it out twice. An issued report
+reads `[id]/file` - the stored object, same-origin - and a draft reads
+`[id]/preview`. A reopened report still shows the PDF its client holds unless
+`?draft=1` asks for the corrections. The reader carries no renderer, so an
+issued PDF cannot be regenerated by looking at it. `npm run test:viewer` holds
+that rule, including that `?draft=1` cannot turn a final report into a render.
+
+The issued source moved from a signed storage URL to the same-origin route
+because pdf.js has to fetch the bytes to draw them, and a signed URL is on
+another origin and expires ten minutes after the page rendered - which is a
+plausible length of time to spend reading a report.
+
+### A photograph's status is opted into, not assigned
+
+Printing was fixed once - `photoPrintLabel` has always dropped a status that
+says nothing - but capture was not. Every upload was tagged `progress` unless
+somebody changed the menu, so twenty-five ordinary site photographs arrived
+carrying twenty-five DURING labels nobody had chosen.
+
+**New photographs now start with no status at all.** A status appears, on
+screen and in the PDF, only where a person picked one.
+
+- The menu reads **No status** (first, and the default), Before, During, After,
+  Defect, Delivery. The label above it says "Status (optional)".
+- **No migration.** "No status" is the enum's existing `general`, which has
+  always been the value that prints nothing - it is simply named for what it
+  does. Nothing stored changes meaning, every old `progress` photograph still
+  says During, and `work_completed` / `safety` still print their own words.
+- Two helpers in `lib/photo-captions.ts` are now the only way a status reaches
+  a screen: `photoStatusLabel` (null where none was chosen) and
+  `photoPickerLabel` (caption, status, or a fallback name). Every screen that
+  used to index `PHOTO_CATEGORY_LABELS` directly - the grid, the photo
+  workspace, the curation picker, the daily, project and issue screens - goes
+  through them, and the test asserts none of them indexes a label map again.
+- **The AI is told null** where nothing was chosen, so captioning neither
+  depends on a status nor invents a classification.
+- Issued PDFs are stored files and are not re-rendered, so nothing historical
+  changes.
+
+One deliberate exception: **a survey still starts on Before**, because it
+records what is there before anybody has worked. That decision now lives on the
+summary page rather than inside `ReportPhotos`, which also serves a Progress
+Report written directly - and that has no reason to mark its photographs at
+all.
+
+### The hurricane rule: describe, photograph, draft, review, done
+
+Authoring is now shaped by how a document is actually made, not by how many
+sections it stores. `authoringMode(kind)` in `lib/report-structure.ts` decides
+it, and both screens read the same answer.
+
+**Daily - `notes`.** One writing window: the dictation box. The drafted
+sections appear as prose beneath it, and the editor waits behind **"Edit the
+written report"**. No Works completed / In progress / Planned works boxes on
+the screen at all. The order is the workflow: describe → Photos & Evidence →
+Write my report → Master AI Review → Preview / Finalise / Share. Issues keep
+their existing collapsed "Raise an issue" control.
+
+The disclosure is offered once there is something to correct - **or straight
+away where `OPENAI_API_KEY` is not set**, because then it is the only way to
+write the report at all. That branch is asserted; without it a deployment with
+no AI would have a daily report that cannot be written.
+
+**Progress and Survey - `sections`.** Two writing areas, each with a visible
+Dictate button: Progress Overview / Outstanding-Next Actions, and Findings /
+Recommendations. There is no notes box on a consolidated document, so its
+sections are the writing surface and stay in front of the user.
+
+**Completion - `sections`, three areas.** It is the final project record and
+keeps a little more structure. Still no admin-heavy presentation.
+
+**Inside one writing area, only the first part is in front of you.** A Progress
+Overview drafted into five parts used to show five labelled fields, which is a
+pile of sub-section editors whatever the surface around it looks like. The rest
+fold behind one line naming them: *"Also in this section: Works completed,
+Works in progress, Resources and plant"*.
+
+**The folded fields stay in the form, and that is load-bearing.** `<details>`
+keeps its children in the document, so the browser posts them. A conditional
+render would post nothing for those sections, `readGroupFields` would read them
+as empty, and saving one part would silently clear the others.
+`e2e/report-structure-smoke.mjs` §12 asserts the fold is conditional only on
+there being something to fold, and §9 still proves no edit can move prose
+between statuses - the boundary is the field name, which nothing on the screen
+can type over.
+
+No migration. Issued reports, stored sections, the PDF, AI Cleanup, the Master
+AI Review, provenance and every H&S safeguard are untouched.
+
+### One writing box per section, and no Save button under a photograph
+
+The tester's four findings from the iPad screenshots, fixed together.
+
+**1. One writing area per visible section, with boundaries a person cannot
+edit.** Grouping the headings was not enough: a Progress Report still put five
+textareas on the screen. Each visible section now has ONE surface - one border,
+one Dictate button, one Save.
+
+**The section boundaries are form field names, not text.** Inside that surface
+each stored section has its own field, `section:<type>`, and the part names
+between them are a `<span>` - page furniture, not a line in a box. Text is
+saved to the section whose field it was typed into and to no other. Nothing is
+parsed out of prose.
+
+That is the second design. The first separated a group's sections with their
+names on a line inside one textarea and split the text back apart on save, and
+the tester was right to stop it: deleting that line - easy one-handed on a
+phone - silently moved next Monday's planned works into last Friday's completed
+works. A status nobody changed, in a document read back in a dispute.
+`e2e/report-structure-smoke.mjs` §9 proves the replacement: typing "Works
+completed" into the planned-works field leaves every word in planned works;
+clearing one part clears that part only; a field for a section outside the
+group is ignored; and whitespace is not an edit.
+
+**No migration, and the stored model is untouched** - the drafting and cleanup
+prompts still write each section, the Master AI Review still reasons about them
+one at a time, and the PDF still prints each with its run-in label. **Only a
+section whose own text moved is marked as edited by a person**, so one edit
+does not exempt the whole group from the next regeneration. Which parts get a
+box: the ones already written, or - where nothing is written - the first, so
+there is always somewhere to start. Never all eight. A group with no written
+sections at all (Photos & Evidence everywhere but a Completion Report) gets no
+box.
+
+The per-section editors and the `updateSection` / `updateSummarySection`
+actions behind them are gone; `updateSectionGroup` and
+`updateSummarySectionGroup` replace them.
+
+**2. Progress dictates.** The surface uses `useSpeechInput` - the one
+implementation of dictation, shared with `DictationField`; `SpeechRecognition`
+appears in `lib/hooks/use-speech-input.ts` and nowhere else, and the test
+asserts it. Speech goes into the part currently being written in, and says so
+while listening. Every kind and both Progress modes (source-based and
+standalone) get it. On a standalone Progress Report the dictated text is also
+what the AI reads as evidence, which is the existing standalone behaviour.
+
+**3. Photo captions describe evidence, not pictures.** The prompt produced "an
+operative standing on a mobile scaffold tower reaching towards a dome camera" -
+accurate about a picture and worthless in a report. It now leads with *say why
+the photograph was taken*, carries five bad/good pairs (including the owner's
+fire-stopping one), and tells the model to name a document by type and say it
+was displayed or referenced - never what it authorises. `describePhotoAction`
+also passes **what the report's own sections already say**, so a caption can
+use the report's terms. Every "never state" rule is unchanged and still
+asserted, plus new ones for permits and briefings.
+
+**4. No Save button under a photograph.** Twelve plates carried twelve of them,
+and a caption typed and scrolled past was a caption lost. The caption now saves
+~900ms after typing stops, on blur, immediately when the status changes, and
+immediately when an AI suggestion is accepted - "Use it" applies **and**
+persists. A save that would change nothing is not sent (`savedRef`), and the
+accept path flushes through an effect rather than from inside the click
+handler, because a controlled textarea has not re-rendered yet at that point.
+Server-side rules are untouched: an issued report still refuses the write.
+
+Tests: `npm run test:report-structure` covers the round trip and the box count;
+`npm run test:photo-ai` covers the prompt and the autosave wiring.
+
+### Three visible sections, everywhere
+
+A Daily Report showed nineteen headings on screen and printed thirteen in the
+PDF. That is an admin system, not something a site manager reads on a phone in
+the rain. Every document now shows **three**, on screen and in the PDF alike:
+
+| | 1 | 2 | 3 |
+| --- | --- | --- | --- |
+| Daily | Daily Summary | Photos & Evidence | Issues / Next Steps |
+| Progress | Progress Overview | Photos & Evidence | Outstanding / Next Actions |
+| Survey | Findings | Photos & Evidence | Recommendations |
+| Completion | Completion Summary | Photos & Evidence | Outstanding / Sign-off |
+
+**`lib/report-structure.ts` is the whole idea.** It maps each stored section
+type to one of three groups per document kind, and both screens and both PDF
+documents read it. Presentation only:
+
+- **No section type was removed, merged or renamed. No migration.** A daily
+  still stores eight sections, a progress report seven, a completion report
+  eight, a survey seven - `e2e/report-structure-smoke.mjs` fails if any of
+  those shrink. The fine-grained sections are what keep the writing honest: the
+  cleanup and drafting prompts allocate one fact to one section, the
+  section-role rules stop Summary and Works completed saying the same thing
+  twice, and the Master AI Review reasons about them one at a time. Collapsing
+  them in the database would have undone all of it.
+- **Every stored section still has its name on the page**, as a bold run-in
+  label opening its own paragraph - "Works completed. Ducting was laid…" -
+  rather than a heading block. The difference between work recorded as
+  completed and work recorded as planned is what a dispute turns on, so it
+  survives the tidying. A group holding one section does not repeat its own
+  heading.
+- **Not one stored section may be unmapped.** The test asserts it for all four
+  documents: an unmapped type would be written, saved, and then silently
+  missing from the PDF that goes to a client. `groupSections` also appends an
+  unknown type to the last group rather than dropping it, as a second line of
+  defence.
+
+**Where the recorded data went.** Nothing was deleted:
+
+- **PDF**: one *"Appendix - record data"* after the three sections, carrying
+  workforce, plant, the document register and the source record. What it holds
+  is listed on the heading's own line - a paragraph under the heading cost a
+  one-page progress report a second page, which is the opposite of the point.
+- **Screens**: behind an `Advanced details` disclosure inside the section it
+  belongs to. The date, weather, workforce and plant sit inside the capture
+  form, *after* the dictation box - the notes are what somebody came to do.
+  Supporting documents sit behind their own disclosure in Photos & Evidence.
+
+**Page budgets held.** `test:pdf-template` measures them: bare daily 1, daily
+with a photo 1, three issues 1, full daily 2, twelve photographs 3, progress 1,
+completion 2 - all equal to or better than before.
+
+Also improved in passing: an **issued Daily Report now shows its written
+sections on screen**. It never did - only the PDF carried them, so checking
+what went out meant opening the document.
+
+Components: `components/reports/report-section-card.tsx` (`ReportSectionCard`,
+`ReadOnlySection`), and `lib/pdf/components.tsx` gained `GroupedProse`.
+`ReportDraft` split into `ReportWriter` + `ReportSectionEditors`, and
+`SummaryDraft` into `SummaryWriter` + `SummarySectionEditors`, so the write
+button stays one control while its sections are placed under the headings they
+belong to.
+
+Tests: `npm run test:report-structure`. All 26 dependency-free suites pass.
+
+### The Cleanup AI pass, before anything else
+
+There are now **three AI layers**, in this order, and they are deliberately
+separate documents in the code:
+
+```
+raw / voice notes
+  -> CLEANUP AI              lib/ai/cleanup.ts, lib/ai/cleanup-prompt.ts
+  -> section drafting        lib/ai/prompt.ts, lib/ai/summary-prompt.ts
+  -> the assembled report
+  -> MASTER AI REVIEW        lib/ai/master-review-prompt.ts - later, untouched
+```
+
+**The Master AI Review is not replaced and not merged into anything.** It still
+reads the assembled document afterwards, still proposes changes a person ticks
+before a word is saved, and its prompt has never heard of a cleanup pass -
+`e2e/cleanup-smoke.mjs` fails if that changes.
+
+The Cleanup AI's only job is language: it rewrites raw or dictated material into
+concise British construction-report English under one hard-coded UK glossary
+(`lib/ai/glossary.ts`), puts each item under the section whose status it
+actually has, and moves no fact and no status. Five upgrades that look like
+synonyms are named and forbidden - proposed to instructed, observed to
+confirmed, installed to tested, completed to approved, work to compliant or
+safe - and work described in the future never comes back as work completed.
+
+Wired for all four documents: **Daily**, **Progress**, **Completion** and
+**Survey**, the last three through the same summary action.
+
+Points that are load-bearing:
+
+- **Nothing cleanup produces is stored.** It is an input to the drafting pass,
+  which is what writes `report_sections` / `summary_report_sections`. So
+  hand-written text protection is untouched: `partitionDraft` still keeps every
+  `ai_generated = false` section off limits, and cleanup never gets near one.
+- **A failed cleanup is not an error.** `cleanedSectionsFor` returns an empty
+  list and the pipeline behaves exactly as it did before this layer existed.
+- **The raw notes still reach drafting last and verbatim**, so the cleaned draft
+  can always be checked against what was actually said. Drafting is told the
+  draft is "proposed wording only - not evidence, and not a source of fact".
+- **The glossary is hard-coded and stays that way.** Configurable per-company
+  glossaries were explicitly not built. If they ever are, `STATUS_ESCALATIONS`
+  and `NOT_UNLESS_SOURCED` must stay out of what can be configured - a company
+  that can rename "observed" to "confirmed" defeats the layer.
+- **Period summary asks for three sentences and nothing enforces that by
+  cutting.** An earlier version capped it in code and dropped the fourth
+  sentence; that is gone. The fourth sentence can be the only place a fact
+  appears, and deleting a fact from a contractual record is a worse fault than a
+  summary one sentence too long. **Fact preservation outranks brevity**, and the
+  model is told so in those words. An overrun is logged by
+  `overLongSections` and left in full - if it keeps happening, fix the prompt,
+  never the output.
+- **Photograph vs drawing comes only from metadata** (`lib/ai/cleanup-context.ts`).
+  A row in `photos` is a photograph; a document is a drawing only where its
+  recorded `doc_type` is `drawing`, and any other document is named by its own
+  type. Document metadata is resolved snapshot-first, exactly as
+  `lib/reports/review-context.ts` resolves it, so cleanup and the Master AI
+  Review never disagree about which revision a report was issued against.
+- **No migration.** Nothing in this layer touches the schema.
+- **Cost and latency doubled per draft** - two model calls where there was one.
+  `OPENAI_CLEANUP_MODEL` exists so cleanup can run on a cheaper model.
+
+Fixed in passing: `lib/ai/summary-generation.ts` told the model a **survey** was
+a `COMPLETION REPORT`, because the document line was a two-way ternary. It now
+reads `SUMMARY_KIND_LABELS`, so a survey is announced as a Site Survey - the one
+thing a survey must never be told it is.
+
+Tests: `npm run test:cleanup` - no key, no database, no dev server: the prompt
+contract for all four kinds, proof that a four- or five-sentence period summary
+comes back whole, the packaging stripper, and a real HTTP round-trip to the stub
+through the same request builder and parser the app calls. `npm run test:ai` additionally proves both
+passes run in order against a live app; it needs Supabase and a dev server and
+has **not** been run in this sandbox.
+
+### Progress Reports can be written directly - no Daily Reports required
+
+The old rule ("there are no final Daily Reports in that period yet") blocked a
+real week: the site manager is not on site, operatives send updates and
+photographs by WhatsApp, and the client still wants a Progress Report. **No
+migration - a report either has source rows or it does not, and that absence is
+the fact.** See `lib/summary-reports/provenance.ts`.
+
+- **Two modes on the create form**, for Progress only: *From issued Daily
+  Reports* (unchanged, still the default, still freezes and prints the source
+  record) and *Write it directly* (`sourceMode=standalone`). A Completion Report
+  has no choice: it is a consolidation by definition and still requires at least
+  one source.
+- **A standalone report has no sources at all.** No source rows are inserted,
+  no daily-report photographs are pre-linked, no source record prints in the
+  PDF, and the report screen says plainly that it has no Daily Reports behind
+  it. That is what stops it claiming provenance it does not have.
+- `canFinaliseSummary` now only requires sources for `completion`. Progress and
+  survey need a written section and nothing else.
+- **The photographs** use the survey's own workspace (`ReportPhotos`): take,
+  upload, multi-select from the project, caption, AI description, remove -
+  the existing photo/storage system, not a second one. Issues, supporting
+  documents, preview, finalise, share and the PDF styles are all as they were.
+- **AI drafting** reads what was typed into the report's own sections (the
+  survey branch, generalised to "no sources"), plus the curated photo captions
+  and the issue record. The evidence block is labelled
+  `INFORMATION RECORDED DIRECTLY FOR THIS PERIOD (there are no daily reports)`
+  rather than `ISSUED SOURCE EVIDENCE`, and the prompt carries an explicit
+  instruction not to refer to daily reports, source reports or issued records.
+  Without that the model writes "as recorded in the daily reports" over
+  material that came off a phone.
+- `npm run test:standalone` covers both workflows, including that the issued
+  PDF of a standalone report names no daily report and prints no source record,
+  and that the consolidating path still freezes every Daily Report in the
+  period.
+
+### PDF export: sharing, three styles, a cover photo and a sign-off
+
+One batch across Daily, Survey, Progress and Completion PDFs. **No migration -
+nothing about it is stored.**
+
+- **Share PDF.** `/reports/[id]/file` and `/summary-reports/[id]/file` stream
+  the **stored** issued PDF from our own origin (`lib/pdf/download.ts`); a
+  draft gets a 404. `components/pdf/share-pdf.tsx` fetches that, wraps it in a
+  `File` and hands it to `navigator.share` - the iOS share sheet, so WhatsApp,
+  Mail and Teams all work - and saves the file where the browser cannot share
+  one. Nothing is re-rendered to share it: the issued PDF is the record.
+  The fetch starts on **pointer-down**, because Safari will not share after a
+  long await; that detail is load-bearing on an iPad.
+- **Quieter branding.** The repeating "SITEBOSS PRO" went from 11pt bold black
+  to 7pt grey, the contractor's name now reads first, and the rule under it is
+  a 1.25pt hairline with a 28pt accent stub. The title block is unchanged, so
+  the document's own hierarchy now wins by a wide margin.
+- **Three styles**, in `lib/pdf/presentation.ts` (pure, alias-free, so the
+  picker imports it without pulling the renderer into the browser bundle):
+  `siteboss` (house charcoal/amber), `corporate` (grey, no accent colour,
+  softer rules, white panel) and `photo` (house colours, a cover up to 310pt
+  and larger plates). `pdfTheme(style, density)` in `lib/pdf/theme.ts` builds
+  them; density stays the document's business, not the user's. **Not a theme
+  designer, and deliberately not extensible from the UI.**
+- **Cover photo.** Chosen on the finalise screen from the photographs the
+  report already prints, so nothing is uploaded or copied. Printed at its own
+  ratio via `fitBox` - never cropped, never stretched - and still appears in
+  the evidence grid with its P-reference. "No cover" is the default.
+- **Sign-off.** Prepared by / Signature / Date near the end of all four
+  documents, with the author only where one is recorded, and a line saying it
+  is **not** an approval, acceptance or certificate of completion. It has no
+  heading of its own: a SIGN-OFF banner cost a Progress Report with one plate
+  its second page for no information at all.
+- **How the choice travels, and why there is no migration.** Style and cover
+  are picked on the finalise screen, sent as `?style=&cover=` on the preview
+  link and as `pdfStyle`/`coverPhoto` hidden fields on the finalise form, and
+  baked into the issued file. The issued PDF is the record, so the record
+  holds the choice; reopening and re-issuing is where a different one takes
+  effect. Nothing new is stored on a report.
+- Existing issued PDFs are untouched: no route re-renders one, and the share
+  route only downloads.
+- `npm run test:export` covers all of it (the styles, the cover geometry, the
+  sign-off wording, the share routes, and real A4 renders of every style).
+
+### Project activity - the job's history, on the project's own page
+
+`/projects/[id]?tab=activity`. Surveys, Daily, Progress and Completion Reports,
+issues raised and issues closed, newest first, each row opening the record it
+came from.
+
+- **There is no activity table and there must not be one.** Every entry already
+  exists as a report or an issue; a second copy would be one more thing to keep
+  in step and a migration to pay for it. No migration was added for this.
+- The rules live in `lib/projects/activity.ts` - pure, no runtime imports, no
+  `@/` aliases, so `npm run test:activity` exercises them without a database.
+  Date formatting is passed in for the same reason.
+- Issues are read from `issues.created_at` and `issues.closed_at`, **not** from
+  `issue_events`: that table has no `project_id` (it would cost a second
+  lookup) and it logs every open/in-progress move, which is a log rather than a
+  job history. A reopened-and-reclosed issue therefore shows one closing, at
+  the time it currently holds.
+- **No N+1.** Daily and summary rows come from the two queries the page already
+  ran; only `created_at` was added to their selects. Issues need one extra
+  query, because the Issues tab hides closed ones and the timeline needs them -
+  and it only runs when the Activity tab is the one being shown.
+- Every item is keyed `kind:rowId`, so merging a source in twice cannot
+  duplicate an event. Capped at 100 so a two-year job does not push a thousand
+  rows at a phone.
+- If the issues query fails the timeline still renders the reports and says one
+  line about what is missing, rather than an error card over the lot.
+- Times are read on **Europe/London** (`formatTime`, `ukDay` in `lib/utils.ts`).
+  The servers are UTC, and without that an entry made just after midnight in
+  the summer would show an hour early, on the day before.
+- Nothing about reports or issues changed. The component is read-only: no
+  action, no insert, no update, no delete - the test asserts it.
+
+### The lifecycle batch, `00a3bfb` - owner-tested and working
+
+Confirmed by the owner on the deployed Vercel Preview, on an iPad, after the
+commit was pushed. This is not a sandbox-only claim.
+
+- **Reopen, edit and re-issue** for Daily, Progress and Completion Reports.
+  "Edit final report" returns the report to draft behind a confirmation. The
+  already-issued PDF is deliberately left in place and stays current, so
+  abandoning an edit destroys nothing. Re-issuing writes a **new** file rather
+  than overwriting, and a consolidated report counts its next `revision` at
+  that moment - never at reopen - so an abandoned edit cannot inflate it.
+  A reopened report is derived state, `status = 'draft' AND pdf_path IS NOT
+  NULL`; there is no extra column and nothing to drift.
+- **Deleting reports**, drafts and issued records alike. An issued one requires
+  the word DELETE typed, not tapped.
+- **Dependency protection.** A report that an issued Progress or Completion
+  Report is built on - by source row *or* by one of its photographs being
+  printed - refuses to delete and names the documents in the way. A cascade
+  there would strand an issued PDF citing evidence that no longer exists.
+- **Deleting projects**, behind a typed confirmation that counts exactly what
+  goes. Storage paths are gathered *before* the cascade, so photographs and
+  PDFs are cleared rather than stranded in the buckets.
+- **PDF preview navigation.** Opening a PDF with `target="_blank"` handed it to
+  iOS's own full-screen viewer, which has no route back - people were closing
+  the app to escape it. PDFs now render in `/reports/[id]/pdf` and
+  `/summary-reports/[id]/pdf` with Back above the fold; full screen is still
+  one tap away and doubles as the fallback where a frame will not render one.
+
+**No database migration was required for that batch**, and none was written.
+That was verified rather than assumed, read-only against the live database:
+`reports` has no constraint tying `status` to `pdf_path`; `summary_reports`'
+CHECK passes any draft row; the update and delete policies on both tables are
+`is_company_member(company_id)` with **no status qualifier**; and both storage
+buckets have delete policies. Immutability had only ever been enforced in
+application code, which is what changed.
+
+### The documents and AI-photo batch, `fe6bf7f`
+
+- **AI photo descriptions.** A button, never a background job. The action
+  returns a sentence and writes nothing; the suggestion sits in its own panel
+  and reaches the caption box only when the user presses Use it, and nothing is
+  stored until Save. A hand-written caption therefore cannot be replaced by a
+  model. The prompt forbids every claim an image cannot carry - completion,
+  compliance, approval, certification, testing, dimensions, unidentifiable
+  materials, unsupplied locations, defect cause, responsibility, workmanship.
+- **Supporting documents.** Documents belong to a project; reports reference
+  them, so the same RAMS is uploaded once and referenced by many reports, and
+  unticking it from one leaves everything else alone. PDFs only, straight from
+  the browser to the private `project-documents` bucket.
+- **Issued-report provenance.** Metadata is snapshotted onto each reference at
+  the moment a report is issued, so a superseded drawing cannot change what an
+  issued report says it was issued against. Deleting a document referenced by
+  an issued report is refused and names the reports in the way.
+- The issued PDF gains a Supporting Documents table whose optional columns
+  appear only when something fills them.
+
+### Swipe actions on every list
+
+`components/ui/swipe-row.tsx` is the one gesture: project rows, Daily Report
+rows and Progress/Completion rows all use it. Same behaviour, same visual
+language, arithmetic in `lib/ui/swipe.ts` and tested there.
+
+**Deletion is never reimplemented.** Each row hands off to the component that
+already owns that confirmation - `DeleteProject`, `DeleteReport`,
+`DeleteSummaryReport` - which keeps its own wording, its typed confirmation for
+an issued record, and the server-side dependency checks. A swipe only ever
+opens a confirmation. Reopening an issued report is deliberately *not* behind a
+swipe: it carries a warning about a PDF a client may already hold, and stays on
+the report. A draft offers Edit, an issued report offers Open. The ••• button is
+always visible for desktop and for anyone not using the gesture.
+
+### Migration `20260831000008_site_surveys.sql` is APPLIED
+
+Applied to the hosted project on 2026-08-30 with the owner's explicit approval,
+through `apply_migration` - **not** `db push`. Do not reapply it.
+
+Enum values only. Verified against the live schema afterwards:
+`summary_report_kind` is `progress, completion, survey`; `summary_section_type`
+holds 21 values (the 14 that were there plus the 7 survey sections);
+`project_status` is `active, survey, on_hold, completed` - `survey` sorts
+immediately after `active`, so enquiries sit above on-hold and completed work.
+**Nothing else moved:** `projects` still has 17 columns, every table kept its
+policy count (67 across the schema), `anon` still holds no grant anywhere, row
+counts are unchanged, the `projects` md5 fingerprint is identical before and
+after, and `select count(*) from projects where status = 'survey'` was **0**
+straight after applying - no records were created and no data was altered.
+
+**PostgreSQL cannot remove an enum value.** Rolling this back means leaving the
+values in place and unused, which is inert.
+
+### Settings
+
+`/profile` is the Settings screen now (route unchanged; the tab is labelled
+Settings with a cog). Appearance, Text size, Touch size, Account, App - nothing
+else.
+
+- **Device preferences, not account preferences.** `lib/preferences.ts` is a
+  pure module; the values live in `localStorage`, so the site iPad in bright sun
+  and somebody's own phone can differ, and **no migration was needed**.
+- **Applied before first paint** by an inline script in `<head>` that stamps
+  `data-theme` / `data-text` / `data-touch` on `<html>`. Anything invalid in
+  storage falls back to the defaults rather than leaving the page unstyled.
+- **Defaults are the application exactly as it was**: dark, medium text,
+  standard touch.
+- **Scaling is token-driven.** Text size sets the root font size, so every rem
+  in the design system follows and no page opts out. Touch size sets
+  `--ui-control-min`, which Button, Input, Select and the settings control all
+  draw their minimum height from. Fields keep a 16px floor so iOS never zooms.
+- **Light is a palette swap**, not a second stylesheet: same charcoal/white/gold
+  identity, gold still the primary action, `--color-brand-ink` darkening gold
+  where it has to be read as text on white. The SB mark keeps its white S on the
+  charcoal plate and takes the page's ink when it stands on the page, so light
+  mode gets the dark-S mark the brand sheet draws. `system` follows
+  `prefers-color-scheme`.
+- **PDFs are untouched.** `lib/pdf/theme.ts` shares nothing with the screen's
+  tokens, and `e2e/settings-smoke.mjs` asserts no preference can reach it.
+
+### Branding and the dark visual system
+
+The application is dark now, to the approved brand sheet: charcoal `#0D0F12`
+page, `#1A1D23` cards, `#2A2E36` muted, white type, SiteBoss gold `#FFC107`.
+**Every colour comes from a token in `app/globals.css`** - no screen picks its
+own, and `e2e/brand-smoke.mjs` fails the build if one starts to (no hex
+utilities, no Tailwind palette colours, no white type on gold).
+
+- **Gold is an accent.** It fills the one primary action on a screen, the mark,
+  and nothing else; the test caps how many gold fills may exist. Active nav is a
+  gold rail and gold icon, not a gold block. Focus rings are gold, because a
+  white ring on charcoal is hard to separate from the text inside it.
+- **The SB mark** (`components/brand/monogram.tsx`) is drawn as SVG paths, not
+  set in a font - a logo that waits for a webfont is sometimes the wrong shape.
+  The S is white and the B is gold, which is what stops it reading as S3, and
+  the three gold bars sit beneath. `Wordmark` composes it with SITE/BOSS and
+  PRO, and the strapline.
+- **Home screen**: `app/manifest.ts`, `app/icon.svg`, `app/icon.png`,
+  `app/apple-icon.png`, and 192/512/512-maskable in `public/`, all generated
+  from the same mark. Standalone display, charcoal theme colour and splash, so
+  it opens as an app rather than flashing white into a tab.
+- **`components/ui/page-header.tsx`** is the one page header - title,
+  description, icon tile and actions over the gold brand rule - used by the list
+  and creation screens so their spacing and type cannot drift apart.
+- Shared primitives were tuned rather than restyled per page: sunken inputs with
+  a gold focus ring, bordered status chips with a leading dot, a red (not gold)
+  destructive button, an empty state with a gold-tinted icon, and a button that
+  keeps its colour while it is working instead of dimming as though it had
+  failed.
+- **Nothing about behaviour changed**: no schema, no report logic, no deletion
+  safety, no RLS, no survey workflow, no navigation architecture. The PDF
+  templates are deliberately untouched - they stay black on white for print.
+
+### Site Survey / Inspection Report
+
+A visit made before anybody has worked on a site, to investigate, measure and
+photograph so the works can be priced. A third `summary_reports` kind, so it
+inherits per-kind numbering, revisions, sections, curated photographs, the issue
+record, the document register and the whole draft/preview/finalise/reopen
+lifecycle.
+
+- **`survey` project status is an enquiry.** Labelled "Survey / enquiry" in an
+  info-toned badge, and audited everywhere it matters: the dashboard's active
+  projects are still `.eq("status", "active")` so enquiries never distort the
+  count, a Daily Report cannot be started against one, and the project form's
+  zod enum accepts the value. An enquiry's project page offers the survey and
+  nothing else - no Daily, Progress or Completion Report - plus a one-tap
+  **Work awarded** that flips it to `active`. `awardProject` only updates a row
+  that is still `survey`, so an active or completed project cannot be reset.
+- **Store -> Start a site survey** creates the enquiry in the same action, with
+  the store's client, address, postcode and link carried across and the project
+  reference deliberately left blank. Several surveys can be run at one store:
+  each creates its own enquiry, or attaches to a project already chosen.
+- **A survey can also be started inside an existing project**, and from the
+  reports list. `/summary-reports/new?kind=survey` redirects to the survey flow
+  so a consolidated report can never be started by mistake.
+- **Seven sections** - purpose, findings and existing condition, measurements,
+  access and constraints, recommended works, materials/plant/access
+  requirements, notes for pricing. **No workforce, plant, deliveries or works
+  completed anywhere**, and the briefs forbid describing proposed work as done,
+  instructed or approved. Defects observed are issues, raised through the
+  existing system and printed in the report's own issue record.
+- **`canFinaliseSummary` no longer demands a source report for a survey** - it
+  is written from a visit, not consolidated - but still demands at least one
+  written section, and an issued survey is still immutable.
+- **The PDF is titled SITE SURVEY / INSPECTION REPORT**, carries "Date of visit"
+  rather than a reporting period, prints no Source record when there is none,
+  and opens with the heavier title block. Store identity, photo plates,
+  the issue record, the document register and appendices all come from the V2
+  template unchanged.
+- **Photographs are taken inside the survey.** `components/summary-reports/report-photos.tsx`
+  puts the camera, library and files buttons on the survey itself; a photograph
+  taken there is linked to the survey the moment it lands, so nothing has to be
+  found on the project tab afterwards. Thumbnails appear immediately with the
+  same P01/P02 references the PDF prints, captions and AI descriptions are the
+  existing `PhotoDetails`, and Remove takes the **link only** - the photograph
+  stays on the project. Project photographs can still be pulled in.
+  Underneath it is the same uploader, the same private bucket under
+  `{company}/{project}/`, the same `photos` table and the same
+  `summary_report_photos` link the PDF already reads. **No second photo system
+  and no migration.**
+  - The trap this created and the guard against it: a survey's curation form
+    still exists for its issues, and `saveSummaryCuration` rewrites photo links
+    by deleting them first. The form now carries a `photosIncluded` marker and
+    the action only touches photographs when it is present, so saving the issue
+    selection on a survey cannot empty its plates.
+- **AI drafting reads the surveyor's own notes** (the sections they typed) plus
+  curated photograph captions and issues, since there are no source reports.
+  Hand-written sections are still protected from being overwritten.
+
+### Navigation and project UX
+
+- **Project rows swipe left** for Edit and Delete, with the gesture deliberately
+  hard to trigger: it must commit clearly to going sideways before the row moves
+  (vertical wins ties, so a scroll is never mistaken for a swipe), the pointer is
+  captured so a fast swipe cannot strand a row half open, and a mouse drag is
+  never a swipe. **Revealing the actions is not destructive.** Delete opens the
+  same confirmation as the project's danger zone, the word DELETE still has to be
+  typed, and `canDeleteProject` checks it again on the server. The identical two
+  actions sit behind an always-visible menu button, so nothing depends on knowing
+  the gesture or on having a touchscreen. `lib/ui/swipe.ts` holds the arithmetic
+  and is tested directly.
+- **Project cards** now carry name, client, the linked store (number and all)
+  where there is one, status, open-issue count and reference. The store replaces
+  the address rather than joining it. Open issues come from one flat query of
+  ids, tallied in `lib/projects/row-summary.ts` - not a count per card.
+- **Dashboard** leads with three one-tap actions (Daily report, New project,
+  Store locator), then drafts to finish, then open critical and high issues,
+  before the existing active projects and recent reports. Both new queries are
+  additions: if either fails its section is simply absent rather than taking the
+  dashboard down.
+- `components/ui/back-link.tsx` gives one Back that always means "up a level"
+  rather than into history.
+- Nav is unchanged in shape: five targets on the phone with Create centred,
+  Profile in the top bar.
+
+**Archive is not implemented** - SiteBoss has no archive concept, only the
+project status (active / on hold / completed), which is edited on the project
+itself. Nothing was invented for it.
+
+
+### Store Locator - the client store directory inside SiteBoss
+
+The Lidl Store Locator (github.com/mikeymcyo/lidl-store-locator) is now a
+SiteBoss module rather than a separate site. What it was: one 172 KB static
+`index.html` PWA, no framework and no build, with the store list embedded as a
+`<script type="application/json">` block and a second block for night shift.
+Its data came from `UK Stores August.xlsx`, whose only columns are **P/BA,
+Name, RDC, Address** - so "P/BA" *is* the store number, there is no separate
+field, there is no postcode column (the postcode is the tail of the address
+string) and there are **no coordinates**. Directions were a plain
+`https://www.google.com/maps/dir/?api=1&destination=<address>` link with no API
+key. Night shift came from `Current Nightshift Stores BELVEDERE.xlsx`, which
+covers one region only - 66 of the 1,302 stores have an answer.
+
+**The directory ships with the build, not in the database.** It is client
+reference data: 1,302 rows, identical for every company, changing a few times a
+year. `lib/stores/lidl-gb.json` is generated by `scripts/import-stores.mjs`,
+which reads .xlsx directly (an xlsx is a zip of XML, so there is no spreadsheet
+dependency). Updating is one command and a commit that can be read as a diff
+and reverted like any other change - no admin screen, no database write, no
+per-tenant copy to drift, and no RLS surface on data that is nobody's secret.
+Search runs on the server, so the 147 KB list never reaches a phone: confirmed
+absent from every client chunk in the production build.
+
+- `/stores` - search by number, town, postcode or street, filter by RDC and by
+  night shift. A number wins outright over an address that merely contains it,
+  and leading zeros never matter: 34, 0034 and "#34" are the same store.
+- `/stores/[code]` - the store's facts, **Directions** (a keyless Google Maps
+  link, which opens the Maps app on an iPad and the website otherwise), and
+  Create project here.
+  - The destination is the **street line plus the postcode**, not the client's
+    whole address string. Their list reads widest first ("London, Croydon,
+    375-401 Brighton Road, CR2 6ES"), which Google has to work through as a
+    search before it can show a route; a street and a UK postcode identify the
+    building outright. **1,300 of 1,302 stores** resolve that way, the rest fall
+    back to the whole address. `travelmode=driving` skips the mode picker;
+    `dir_action=navigate` is deliberately not set.
+  - **There are no coordinates to use instead** - the client's list has four
+    columns and none of them is a latitude - and deriving them would mean a
+    geocoding API and a bill.
+  - `postcodeOf` tolerates two typing faults in the client's list: a letter O
+    where the inward code's digit belongs, and a stray space inside the inward
+    code. Both are read and written back correctly. A genuinely truncated
+    postcode still comes back null.
+- **Create project from a store** prefills client, site address and postcode
+  from the directory. It deliberately does **not** fill the project reference:
+  the store number is the client's permanent name for the building and the
+  project reference is this contractor's name for this job. Conflating them
+  would make two jobs at one store indistinguishable.
+- Profile moved from the phone's bottom bar to the top bar, so Stores could
+  join the bar without pushing the raised Create button off centre.
+
+`directoryId` is what stops this becoming a Lidl-only application: a second
+client's list is another JSON file and a line in `lib/stores/catalogue.ts`.
+
+### Migration `20260830000007_project_locations.sql` is APPLIED
+
+Applied to the hosted project on 2026-08-30 with the owner's explicit approval,
+through `apply_migration` - **not** `db push`. Do not reapply it.
+
+Verified against the live schema. `projects` went from 15 columns to 17 and
+gained exactly `location_directory` and `location_code`, both `text`, both
+nullable, neither with a default; both carry their comments; the two CHECK
+constraints and the partial index `projects_location_idx` read back exactly as
+the migration wrote them. **Policies stayed at 4, `anon` still holds no grant,
+and the full grant string is byte-identical before and after.** All 19 tables
+kept their policy counts. Row counts unchanged (10 projects, 10 reports, 2
+summary reports, 10 issued PDFs in storage), and md5 fingerprints of every
+report's `(id, pdf_path, status)` and every summary report's `(id, pdf_path,
+status, revision)` are **identical before and after** - no historical data
+moved. `linked_projects` was 0 straight after applying: no backfill.
+
+A behavioural test then ran on hosted inside a transaction and was rolled back,
+leaving nothing behind (verified: 0 rows matching the fixture). It proved an
+unlinked project still saves, an existing project can adopt a store afterwards,
+half a link is refused both ways, an unbounded directory is refused, and one
+store carries several projects.
+
+The ledger now holds two rows, `20260829133924 documents` and
+`20260829171913 project_locations`. The first five migrations are still absent,
+so **`supabase db push` remains dangerous** - it would replay them and fail on
+the non-idempotent `000005`. Schema inspection is still the only source of truth.
+
+### Store linkage, end to end
+
+- **Create/edit a project** carries a store picker that searches the directory
+  through a server action (`app/(app)/stores/actions.ts`), so the 150 KB list
+  never reaches the browser - confirmed absent from every client chunk in the
+  production build. Selecting a store fills the client, site address and
+  postcode **only where they are empty**; anything already written is left
+  alone. Removing the selection unlinks. A project without a store is an
+  ordinary project and always was.
+- The link is validated against the shipped directory before it is saved, so a
+  project cannot record a store that does not exist.
+- **The project page** shows the store, its RDC, its night shift and keyless
+  Directions, resolved from the directory at render time rather than copied on
+  to the project. A link to a store this build no longer lists says so rather
+  than going quiet.
+- **The store page** lists that company's projects at the store. RLS scopes it,
+  so the directory is shared and the jobs in it are not.
+- **New report output** resolves the place through `lib/reports/site-identity.ts`:
+  what is written on the project always wins and the store fills the gaps, so
+  linking a store adds information and never overrules a person. All three PDFs
+  gain a **Store** entry in the document-control panel beside - never instead
+  of - the project reference. Issued PDFs are stored files, so every historical
+  report is untouched.
+
+### PDF template v2 - the shared document system
+
+Daily, Progress and Completion Reports are now one document family built from
+`lib/pdf/theme.ts` (every size and colour) and `lib/pdf/components.tsx` (the
+running header and footer, the title block, the document-control panel, section
+headings, tables, status badges, issue records, photographic plates and the
+document register). The two layout files hold structure and nothing else.
+
+- **Running header and footer on every page.** Product left, company right,
+  a charcoal rule with a short amber stub. The footer carries company, project,
+  document and Page X of Y.
+- **Document identity.** Type and number on one line, project beneath, client
+  and address under that, then a control panel of dates and references. An
+  entry with nothing in it is dropped rather than printed as a blank label.
+- **Photographic evidence is numbered.** P01, P02, P03 ..., derived from the
+  order the photographs already appear in and stored nowhere - no migration.
+  Each plate prints its reference and status above the image and the caption
+  below it. Captions come from what is already stored; no model is called
+  during rendering and none can be.
+- **A plate is drawn at the photograph's own shape.** `lib/pdf/image-size.ts`
+  reads the dimensions out of the PNG, JPEG or WebP header - a few dozen bytes
+  inspected, nothing decoded or re-encoded - so a portrait shot gets a portrait
+  box instead of a narrow strip in a landscape one. Nothing is cropped and the
+  bytes written into the PDF are the bytes that were uploaded.
+- **Issue records** carry priority and status as badges and label only the
+  fields that hold something.
+- **The register** says plainly whether the documents follow as appendices.
+  `documentsAppended` is decided before the render rather than after it, so the
+  sentence inside the PDF agrees with what is actually attached.
+- The Completion Report opens harder and the Daily Report is tighter - one
+  `density` lever, the same components.
+
+**Three real bugs were found and fixed while doing this**, all of them
+pre-existing:
+
+1. **No issued PDF has ever carried its running footer.** react-pdf drops an
+   absolutely positioned `fixed` element as soon as a line height reaches it,
+   and `lineHeight` on the Page style is inherited. Line heights now live on the
+   text styles.
+2. **Prose was printing at two and a half times the leading it asked for.**
+   react-pdf resolves `lineHeight` against the element's own `fontSize` and
+   falls back to its default of 18 rather than to the inherited size. Every
+   style that sets a line height now sets its own size; the smoke test enforces
+   it.
+3. **`minPresenceAhead` was doing nothing.** react-pdf only honours it on a
+   direct child of the Page, and every section was wrapped in its own `View`.
+   The sections are fragments now, so headings genuinely reserve room - the
+   Issues heading reserves the height of the record that follows it, the
+   Photographs heading the height of its first plate, and a table's column
+   header travels with its first row.
+
+Photographic plates are laid out in explicit two-up rows rather than a wrapping
+grid: react-pdf lays a wrapping container out as one block and split it badly,
+leaving two plates on a page with two thirds of it empty.
+
+**Page counts, measured by rendering both templates over the same fixtures.**
+Every case is equal to the previous template or better: a daily report with one
+photograph 2 -> **1**; three issues 2 -> **1**; three issues, four photographs
+and a register 2 -> **2**; twelve photographs 3 -> **3**; a progress report with
+an issue and a plate 2 -> **1**; a completion report with two issues, six plates
+and a register 3 -> **3**.
+
+`npm run test:pdf-template` renders real A4 pages, counts them with pdf-lib,
+and reads the component tree for what the document actually says - the rendered
+PDF cannot be searched for words because react-pdf subsets its fonts.
+`e2e/support/tsx-loader.mjs` is what lets a plain Node test import a `.tsx`
+layout, using the SWC that Next already ships. No new dependency and no
+migration.
+
+
+### Supporting documents inside the issued PDF, `d596235`
+
+Owner-tested on the iPad and passing. Each document carries its own **Open
+document** action, so one attachment can be inspected without opening the whole
+package. A per-report **Include supporting documents in the final PDF** toggle
+decides whether they are merged in. The merge is page-level, through `pdf-lib`
+`copyPages` in `lib/pdf/merge.ts` - text stays text, a drawing stays vector,
+nothing is rasterised and no expiring signed URL is printed into the file. The
+order is deterministic. A document that cannot be read fails the whole merge
+and is named, rather than issuing a package with a hole in it. The draft
+preview renders the **same** combined bytes the finalise step would store, so
+what is checked is what goes out; once issued, the stored file is immutable and
+superseding the project's copy of a drawing cannot reach inside it.
+
+### Master AI - Review and Polish Report, `d0cde9c` and `218c37e`
+
+A whole-report review that never writes on its own. The model's reply is
+reconciled in `lib/reports/master-review.ts` against the report as it actually
+stands: an invented section is discarded, a section it omitted is carried
+through unchanged, and its own `changed` flag is ignored in favour of comparing
+the text. Only sections the user ticks are written, and "Accept all" is limited
+to AI-drafted sections - hand-written paragraphs are offered one at a time.
+
+**Contradictions are flagged, never resolved. Gaps are raised, never filled.**
+This is the behaviour the owner confirmed on the iPad, where the review noticed
+that the narrative said a cable issue had been sorted while the Issue record
+was still OPEN and warned rather than silently closing it. Do not change it.
+
+### The issue-closing bug, and PDF issue pagination
+
+Two faults found on a real iPad.
+
+**Closing an issue printed a validator sentence.** `updateIssue` in
+`app/(app)/issues/actions.ts` built its parse object without a `resolution`
+key, while the schema required a string - so zod reported exactly what it saw,
+"Invalid input: expected string, received undefined", under the Resolution box.
+The form had always sent the field. This broke *every* save from the edit form
+and meant the close rule never ran at all. The field is read now; the optional
+text fields tolerate a missing key rather than reporting on it; a resolution
+typed against a non-closed status is kept instead of being discarded on save.
+
+`lib/issues/validation.ts` is the deeper fix: no validator vocabulary can reach
+a screen. Anything that reads like parser output is replaced with a plain
+sentence, so a future form/action mismatch degrades to something harmless
+rather than to nonsense under a field.
+
+**Issues no longer own a page each.** The cause was a hard `<View break>` in
+front of the Photographs section in both PDF documents: a short Issues section
+ended its page early because the next section was forced onto a new one.
+Removed in both. Whole sections no longer carry `wrap={false}` either - that
+made a section jump a page rather than split. Headings now use
+`minPresenceAhead` so they are not stranded at a page foot. Per-issue cards,
+per-photo cells and table rows keep `wrap={false}`: those must stay whole.
+
+Measured by rendering the real layouts and counting pages - daily report, three
+short issues and two photographs: **3 pages before, 2 after**; six issues and
+four photographs: **3 before, 2 after**; consolidated report, one short issue
+and two photographs: **2 before, 1 after**. No migration.
+
+
+### Migration `20260828000005_summary_reports.sql` is APPLIED
+
+Verified 2026-08-29 against the hosted database (project `anwzyzfgfcuxrrpuaxwk`),
+read-only, by schema inspection rather than by trusting this file. All six
+tables exist with RLS on and the expected policy counts; `issues.resolution`
+is present; both enums, both triggers, both functions, the
+`issues_id_company_id_key` tenant key, all six CHECK constraints and every
+declared index are in place; a column-by-column diff of the migration against
+`information_schema` was **identical, 56 of 56, zero differences**; and
+`anon` holds no privileges on any of the new tables.
+
+Do **not** reapply it.
+
+### Migration `20260829000006_documents.sql` is APPLIED
+
+Applied to the hosted project on 2026-08-29 with the owner's explicit
+approval, through `apply_migration` - **not** `db push`. Verified afterwards
+against the live schema: the `document_type` enum has its ten values;
+`documents`, `report_documents` and `summary_report_documents` all exist with
+RLS on and four company-scoped policies each, every predicate
+`is_company_member(company_id)`; `authenticated` and `service_role` are
+granted and **`anon` is not**; the `project-documents` bucket is private, PDF
+only, capped at 25 MB, with four storage policies; and a column-by-column diff
+of the migration against `information_schema` was **identical, 39 of 39, zero
+differences**. Nothing unrelated moved - all sixteen pre-existing tables kept
+their exact policy counts.
+
+A write smoke test was run on the hosted database inside a throwaway project
+and then deleted, leaving all three tables empty and no storage objects. It
+proved the whole chain: upload a document, link it to a report, unlink it and
+confirm the project's copy survives, relink, finalise with a snapshot, then
+supersede the live drawing to Rev D and confirm **the issued reference still
+reads Rev C**. Cross-company isolation was checked with a genuinely different
+company's user in a rolled-back transaction: it can see no document, no link
+and no project of another company, cannot claim one under a foreign company id,
+and cannot reference an arbitrary document - the composite foreign key refuses.
+
+**Not yet exercised: the storage upload path itself.** The smoke test wrote
+rows whose `storage_path` points at a file that was never uploaded, because
+the tooling here cannot put a file in a bucket. Uploading a real PDF from the
+iPad is the one part still to confirm by hand.
+
+### The migration ledger is now partly populated - `db push` is still dangerous
+
+`supabase_migrations.schema_migrations` holds exactly one row,
+`20260829133924 documents`, because that is the only migration ever applied
+through the CLI path. The first five are absent. `supabase db push` would
+therefore try to replay all five of those and fail on the non-idempotent
+`000005`. Schema inspection remains the only source of truth. Do not run it.
+
+Dependency-free regression suites pass, including `test:lifecycle`,
+`test:documents`, `test:photo-ai`, `test:photo-captions` and
+`test:section-roles`. The SQL suites - including `03_documents_test.sql` -
+pass against a real PostgreSQL 16. Lint, typecheck and a production build pass
+in a dependency-complete environment.
+
+> `PROJECT_STATE.md` in this repo is an earlier handoff. Where the two disagree,
+> **this file wins** - it is newer. Consider deleting PROJECT_STATE.md once you
+> have read both.
+
+---
+
+## 1. Product vision and MVP
+
+Mobile-first construction site reporting for site managers, supervisors and
+subcontractors. The entire product exists to serve one workflow:
+
+> Stand on site, take ~10 photos, speak for ~60 seconds about the day's work,
+> and get a professional, client-ready PDF report with almost no typing.
+
+It is deliberately **not** a construction ERP. If a feature does not make that
+one workflow faster, it does not belong in the MVP.
+
+The MVP is seven phases: foundation/auth, projects, report capture, photos, AI
+report generation, issues + PDF, polish. **Phases 1-5 are done.**
+
+The repo owner is a **site manager, not a developer**. Explain plainly, never
+assume they will debug for you, and never leave a button that does not work.
+
+---
+
+## 2. Architecture and stack
+
+Verified in `package.json`:
+
+| Concern | Choice |
+| ------- | ------ |
+| Framework | Next.js **16.3.3**, App Router, Turbopack |
+| React | 19.2.8 |
+| Language | TypeScript, strict |
+| Styling | Tailwind CSS **v4**, `@theme` tokens in `app/globals.css` (no tailwind.config) |
+| UI | Hand-written shadcn/ui-style primitives + Radix slot/label + lucide-react |
+| Backend | Supabase (Postgres, Auth, Storage) via `@supabase/ssr` 0.12.5 |
+| Validation | zod 4 |
+| AI | OpenAI SDK **7.8.0**, chat completions with `json_schema` structured output |
+| Tests | Playwright 1.56.1 (pinned) + psql-driven SQL tests |
+| Hosting | Vercel (Preview only; nothing merged to main) |
+
+Installed and in use: `@react-pdf/renderer` (Daily, Progress and Completion PDFs).
+
+**Route protection lives in `proxy.ts` at the repo root.** Next.js 16 deprecates
+`middleware.ts`; having both is a hard build error.
+
+---
+
+## 3. Repository and branch
+
+- Repo: `mikeymcyo/pierwsze-koty-za-ploty` - **public**
+- **Branches.** Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
+  (head `9829e94`). The older `claude/siteboss-pro-planning-8y80n2` is stale
+  at `046c11a` and carries PR #1; it has NOT been kept in sync. Ask the owner
+  which branch is canonical before pushing.
+- **`claude/phase5-staging` is rubbish and should be deleted.** It was a
+  transfer device (see F15); every commit in it is already contained in
+  `260af4a`. Delete with
+  `git push origin --delete claude/phase5-staging`. Its own Vercel Previews
+  failed by design - it never carried a lockfile - which is expected, not a
+  problem with the code.
+- Base: `main`. **`main` is completely empty** - the owner deleted the four
+  legacy static files. Production builds therefore **fail**, and any Production
+  URL returns `404: NOT_FOUND`. Expected; do not "fix" it.
+- **PR #1** is open and must **not** be merged yet (owner's instruction).
+- **No CI exists.** No `.github/workflows/`. Nothing runs the test suites
+  automatically. Adding one has been offered three times and not yet requested.
+
+Run `git log --oneline` for current history rather than trusting a copy here.
+
+---
+
+## 4. What the completed phases contain
+
+**Phase 1** - foundation, database, auth, app shell:
+sign up / in / out / password reset as zod-validated server actions; the full
+10-table schema with RLS; `proxy.ts` session refresh and route gating; the
+mobile-first shell (bottom nav with raised centre action, desktop sidebar);
+dashboard, projects, reports and profile pages reading real data; a light-only
+high-contrast theme; the UI primitive set.
+
+**Phase 2** - projects:
+`app/(app)/projects/actions.ts` (create/update/delete, zod-validated); a shared
+`ProjectForm` covering every schema column; `/projects/[id]` with **Overview /
+Reports / Photos / Open Issues** tabs driven by `?tab=`; `/projects/[id]/edit`.
+
+**Phase 3** - report capture:
+`app/(app)/reports/actions.ts`; `/reports/new` project picker and
+`/reports/[id]` capture screen; workforce and plant as repeatable rows that
+carry over from the project's previous report; weather; the Work Completed
+field with dictation via `lib/hooks/use-speech-input.ts` (see below); raw notes stored
+verbatim in `reports.raw_notes`; the "New report" action on the project page.
+
+**Dictation on iOS** (`a9ed7e7`). iOS Safari **does** implement
+`webkitSpeechRecognition` - it has since 14.5, so `supported` is true on an
+iPhone and the Dictate button is what gets used. An earlier comment claimed
+the opposite, and the keyboard-microphone fallback it described was never
+reached.
+
+What iOS does not honour is `continuous`: a session ends by itself after a
+short silence and is capped well under a minute. The hook used to set
+`listening` to false and stop there, so 30 seconds of dictation was stored as
+two sentences - the rest was spoken into a dead microphone with the button
+quietly back on "Dictate".
+
+The hook now holds **intent** separately from whether a session is running and
+relaunches on every end it did not ask for. `lib/speech/transcript.ts` is pure
+and alias-free, and holds the two rules that restarting needs: finals are
+counted against a watermark, because a new session renumbers its results from
+zero and engines differ on what `resultIndex` means; and the unsettled tail is
+kept, because the phrase in flight when a session ends never reaches `isFinal`
+and is otherwise lost. Three restarts with nothing recognised is treated as a
+refusal - Safari can decline to start from a timer rather than a tap - and says
+so rather than spinning. Any recognised text resets that count.
+
+**Starting a report is a POST, never a GET** - the insert is what makes the
+`reports_assign_number` trigger allocate the next gapless number, so a link
+would burn numbers on every prefetch.
+
+**Phase 4** - photos:
+client-side resize before upload (works on a bad signal), private-bucket
+storage under `{company_id}/{project_id}/{filename}`, signed URLs via
+`lib/photos-signing.ts`, `PhotoUpload` and `PhotoGrid`.
+
+Revisited on 2026-08-28 (`1d9474e`) after the owner found the uploader
+unusable on an iPhone. It had one input carrying `capture="environment"`,
+which sends Safari straight to the camera with **no gesture that reaches the
+photo library** - so photos taken earlier in the day could not be attached.
+
+`lib/photo-sources.ts` now holds the source table, and each source gets its
+own input with fixed attributes:
+
+| Button | accept | capture | multiple |
+| ------ | ------ | ------- | -------- |
+| Take Photo | `image/*` | `environment` | no |
+| Choose from Photo Library | `image/*` | - | **yes** |
+| Choose File | `image/*` + extensions | - | **yes** |
+
+**Only `capture` is a hard instruction to iOS.** Without it Safari shows its
+own sheet (Photo Library / Take Photo / Choose File); no attribute exists
+that opens the library directly. So the two non-camera buttons do not skip
+that sheet - what they do is stop the tap landing in the camera, with
+multi-select enabled when it gets there. Do not "fix" this by trying to
+bypass the sheet; it cannot be done from the web.
+
+`isSupportedImageFile` guards what actually arrives, because `accept` is a
+filter on the picker and not a promise: a Files pick can turn up as
+`application/octet-stream`, so HEIC is judged on its extension and a PDF is
+refused with a message rather than uploaded into a tile that never loads.
+
+**Photos can also be added to the project itself**, from Project -> Photos,
+with `reportId` null. That was always supported and is not a loosening:
+`photos.report_id` is nullable and commented "photos captured against the
+project outside of any report", `attachSchema` has always taken a nullable
+`reportId`, and photo RLS is company-scoped rather than report-scoped. A
+project photo carries no `report_id`, so it must never appear on a report
+screen - or later in that report's PDF. `photos-smoke.mjs` asserts that.
+
+**Phase 5** - AI report drafting:
+`lib/ai/report-generation.ts` builds the prompt and calls OpenAI with
+`json_schema` structured output; `app/(app)/reports/ai-actions.ts` writes
+`report_sections` (upsert on `report_id,section_type`, so regenerating
+replaces rather than duplicates); `components/reports/report-draft.tsx`
+renders the sections, allows editing, and shows the raw notes beside them.
+
+Reworked on 2026-08-28 (`d85222f`) after the owner generated a real report and
+found the output was his own notes with the commas moved. The prompt is now in
+`lib/ai/prompt.ts`, apart from the client that sends it.
+
+**Why it was literal.** The old prompt told the model to "keep the site
+manager's meaning exactly, while fixing grammar and punctuation" - a
+commission to copy-edit - handed the notes over as "THE SITE MANAGER'S OWN
+WORDS (verbatim)", and asked for "plain sentences". Under a hard ban on
+invention with nothing saying that **register is not a fact**, echoing the
+source is the safest thing a model can do. It was not malfunctioning.
+
+**What it says now.** That this is a rewrite and not a proofread; what should
+change (register, UK trade terminology, structure, impersonal past voice);
+that scattered notes about the same work are to be consolidated rather than
+followed in order; and a worked example of a rough note becoming report prose.
+
+**The line between register and fact.** Neutral presentation and process
+wording is allowed where the notes support it - "making-good works were
+undertaken", "to provide a consistent finished appearance" after redecoration.
+Claims of quality, compliance, approval or fitness for purpose are not, unless
+the source data says so explicitly: **secure, watertight, compliant, to
+specification, correctly installed, satisfactory, satisfactorily completed,
+approved, inspected, certified, tested, safe, suitable, complete in accordance
+with requirements.** A note about rods and washers cannot support "a secure
+installation", and that is the sentence a dispute turns on. Do not relax this
+list without asking the owner - it was his call, on his liability.
+
+**Silence is not evidence of absence** (`43124e8`). The first real generation
+produced "No delay was recorded" from notes that never mentioned programme.
+The cause was not the system prompt but `lib/report-sections.ts`: each brief
+becomes the `description` of that property in the JSON schema, so it sits
+beside the field being filled and competes with the system prompt for it. The
+summary brief asked "whether the job is on track", and a field that must be
+filled gets filled. **No brief may pose a question the notes might not
+answer** - the guard test asserts none contains the word "whether" - and the
+system prompt now names the nil returns outright: no delays, no issues, no
+incidents, nothing reported, deliveries complete, on programme.
+
+Photo tags are labelled as evidence that a photograph exists, not that an
+event occurred. The `health_safety` brief no longer tells the model to say
+nothing was reported when the notes are silent; a nil return is itself a
+claim.
+
+The prompt's first rule is **never invent**, and its second is that an **empty
+section is a correct answer** - a progress report is a contractual record that
+can be read in a dispute, so padding it would be worse than not having the
+feature. Empty sections are dropped, not rendered.
+
+`reports.raw_notes` is never touched by generation. Editing a section flips
+`ai_generated` to false.
+
+Regenerating is bounded by two rules that pull against each other, both in
+`lib/reports/regeneration.ts`. It **replaces** what the model wrote, clearing
+sections a new draft no longer supports - a stale paragraph under a heading
+today's notes do not carry is a false claim. It **never touches** a section
+carrying `ai_generated = false`, which `updateSection` sets the moment anybody
+edits: that paragraph is the site manager's, in a document going to a client
+with his name on it. The screen says which way it went rather than leaving him
+to notice.
+
+**Historical note:** Phase 6 was subsequently completed in `5047110`.
+
+---
+
+## 5. Supabase: schema, RLS, storage
+
+Four migrations in `supabase/migrations/`, which are **the source of truth**:
+
+```
+20260826000001_initial_schema.sql
+20260826000002_rls_policies.sql
+20260826000003_storage.sql
+20260826000004_revoke_anon.sql
+```
+
+`supabase/apply-all-migrations.sql` is a **generated** single-paste file for the
+Supabase SQL Editor. Regenerate with `./scripts/build-combined-migration.sh`
+after any migration change; it hard-fails on non-ASCII, backticks, Markdown
+headings and prose outside SQL comments.
+
+10 tables: `companies, company_members, profiles, projects, reports,
+report_sections, workforce_entries, plant_entries, photos, issues`.
+8 enums. Requires **PostgreSQL 15+** (uses `ON DELETE SET NULL (column)`).
+
+### Three independent security layers - do not weaken any
+
+1. **RLS on every table**, resolving `company_id` through
+   `public.is_company_member()`, which is `SECURITY DEFINER` so reading
+   `company_members` inside a policy cannot re-enter RLS and recurse. This is
+   the classic Supabase multi-tenant trap.
+2. **Composite foreign keys** on `(parent_id, company_id)` against a
+   `unique (id, company_id)` parent, so a report can never reference a project
+   in another company even if RLS were bypassed.
+3. **Explicit GRANTs.** Migration-created tables carry no privileges of their
+   own. Migration 2 grants `authenticated` and `service_role`; migration 4
+   revokes everything from `anon` and blocks default privileges re-granting it.
+   **If you add a table, you must add its grants.**
+
+### Triggers
+
+- `on_auth_user_created` on `auth.users` - creates company + profile + owner
+  membership, so a user can never exist without a company.
+- `reports_assign_number` - gapless per-project report numbers under
+  `pg_advisory_xact_lock`.
+
+### Storage
+
+Two **private** buckets, `site-photos` and `report-pdfs`. Paths are always
+`{company_id}/{project_id}/{filename}`; policies match the leading folder via
+`public.storage_company_id()`, which returns NULL rather than raising on a
+non-uuid path. Both buckets are now in use; issued PDFs are never regenerated.
+
+### The hosted project
+
+The owner has one on the free tier. **This repo is public, so its URL and key are
+deliberately not recorded here.** Get them from `.env.local` if the working copy
+has one (gitignored, so a fresh container will not) or ask the owner for the
+Project URL and publishable key from Project Settings -> API. Neither is secret -
+the publishable key is designed for browser bundles and RLS is what protects the
+data - but there is no reason to publish them.
+
+State verified live: **all five migrations applied**, including `000005`
+(re-verified by schema inspection on 2026-08-29); anonymous requests return
+`401 / 42501 permission denied` on every table; **email confirmation is OFF** so
+signup returns a session immediately.
+
+---
+
+## 6. Vercel configuration
+
+| Setting | Required value |
+| ------- | -------------- |
+| Framework Preset | **Next.js** |
+| Root Directory | **`./`** |
+
+Vercel guessed **Other** at import because `main` had no `package.json` then,
+which builds the repo as a static site - no `next build`, no functions, no
+`proxy.ts` - while still reporting Ready. The owner has since corrected it.
+
+### Environment variables
+
+**Settings -> Environments** (Vercel moved these; there is no longer a top-level
+"Environment Variables" item). Scope: **Preview** and **Production**.
+
+```
+NEXT_PUBLIC_SUPABASE_URL
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
+```
+
+`NEXT_PUBLIC_SUPABASE_ANON_KEY` is accepted as an alternative for older projects.
+Set one key variable, not both. `lib/env.ts` prefers the publishable name.
+
+### OpenAI (Phase 5)
+
+```
+OPENAI_API_KEY          required for drafting; NO NEXT_PUBLIC_ prefix
+OPENAI_MODEL            optional; defaults to what the installed SDK documents
+OPENAI_BASE_URL         optional; only for a proxy or the test stub
+```
+
+`OPENAI_API_KEY` is **server-side only** - never give it a `NEXT_PUBLIC_`
+prefix, which would publish it in the browser bundle. Unlike the Supabase
+variables it is read at request time, not inlined at build time, so changing it
+does not need a rebuild.
+
+**Without it the app still builds and works.** The drafting panel says the
+feature is not switched on rather than showing a button that would fail.
+
+**Do not set `NEXT_PUBLIC_SITE_URL`.** Unset, the app uses Vercel's stable
+`VERCEL_BRANCH_URL` for confirmation and reset email links, so Supabase redirect
+URLs need configuring once rather than after every push.
+
+**The `NEXT_PUBLIC_*` variables are inlined at build time, not read at
+runtime.** A build made before they were saved has `undefined` compiled in
+permanently. A plain Redeploy is not enough - "Use existing Build Cache" is
+ticked by default and can reuse the old output. Push a commit, or Redeploy with
+the cache box unticked.
+
+### Working preview alias
+
+```
+https://pierwsze-koty-za-ploty-git-claude-siteboss-pro-454d8e-mikeymcyo.vercel.app
+```
+
+The application is also served at **`https://app.sitebosspro.co.uk`**, aliased
+to this branch's newest deployment.
+
+**Deployment Protection is now OFF** - verified 2026-08-31 through the Vercel
+API (`ssoProtection`, `passwordProtection` and `trustedIps` all disabled) and
+by fetching all three URLs unauthenticated. The statements later in this file
+that it blocks automated testing are out of date.
+
+Stable for the life of the branch; always points at the newest successful build.
+Per-deployment URLs (`...-dyte4gktb-...`) change every push and 404 once
+superseded. **Use the alias.** The alias tracks whichever branch it was created
+for - confirm it points at `claude/siteboss-pro-react-441-diagnosis-bhvwk8`
+before trusting what you see there, since work moved branches on 2026-08-27.
+
+---
+
+## 7. What has been verified live, and what has not
+
+### Verified 2026-08-27 against a local Supabase (all four migrations applied)
+
+Every suite passed, plus `build`, `lint` and `tsc --noEmit`:
+
+```
+npm run test:e2e        auth, nav, sign out, validation
+npm run test:projects   projects CRUD
+npm run test:reports    capture, numbering, carry-over, delete
+npm run test:photos     upload, resize, signed URLs
+npm run test:isolation  company isolation, incl. reports
+npm run test:ai         the whole drafting pipeline, against a local stub
+npm run test:db         schema and RLS
+```
+
+### Verified 2026-08-28, in a sandbox with no Supabase and no Docker
+
+`1d9474e` (the photo UX work) was checked with `build`, `lint`,
+`tsc --noEmit` and:
+
+```
+npm run test:photo-sources   the three media sources, 37 checks
+npm run test:ai-prompt       the drafting prompt contract, briefs included
+npm run test:build-ref       the profile build marker
+npm run test:dictation       transcript accumulation and restart policy
+npm run test:regeneration    what a regeneration may and may not overwrite
+npm run test:viewer          which PDF the full-screen reader is pointed at
+npm run test:timing          the created/issued line on a report in a list
+npm run test:photo-order     plate order, and what reordering must not touch
+```
+
+These three need neither Supabase nor a dev server, so they run anywhere.
+
+That suite is deliberately the one photo test that needs **neither Supabase
+nor a dev server**, so it runs anywhere: it asserts the source table and the
+file-type guard directly, then makes a real Chromium parse those exact
+attributes and hold a multi-photo selection. It imports `lib/photo-sources.ts`
+straight into Node, which works because Node 22 strips types - which is also
+why that module must stay free of path aliases and runtime imports.
+
+**The browser-level photo assertions added to `photos-smoke.mjs` in that
+commit have never been executed** - the three buttons on the live capture
+screen, the real multi-photo upload, and the project-level photo. They need
+Supabase, which needs Docker, which costs `git push` for the session (F15).
+Run them before trusting them.
+
+`npm run test:ai` needs no OpenAI key and costs nothing - `e2e/stub-openai.mjs`
+stands in for the endpoint. Run the app with
+`OPENAI_API_KEY=test OPENAI_BASE_URL=http://127.0.0.1:4010/v1 npm run dev`.
+
+`tsc --noEmit` must run **after** a build: `app/layout.tsx` uses the
+Next-generated `LayoutProps` global, so a cold typecheck reports `TS2304`.
+
+### Verified 2026-08-29 by the owner on the deployed Vercel Preview, on an iPad
+
+The `00a3bfb` lifecycle batch. Reopening an issued report, correcting it,
+issuing it again, deleting reports and projects, and the new PDF viewer with
+its Back control were all exercised against the real Preview and the hosted
+Supabase, and behave correctly. This is the first batch confirmed on the
+deployment rather than only in a sandbox.
+
+Still unexercised by any automated suite: the reopen and delete flows have no
+Supabase-backed test. `test:lifecycle` covers the rules, not the round trip.
+
+### Verified on the owner's iPhone, against the hosted Supabase and real OpenAI
+
+- **Report drafting quality is acceptable** (Phase 5's last open question). The
+  prompt at `d85222f` plus the brief fixes at `43124e8` produce professional
+  construction-report prose rather than a paraphrase of the notes.
+- **Long dictation is whole.** A continuous 60-90 second dictation was compared
+  against what was actually said. The `a9ed7e7` restart loop holds on real iOS
+  Safari - it does start a new session from a timer.
+- **The mobile photo UX works on the iPhone**, confirmed after `1d9474e`: Take
+  Photo, Choose from Photo Library and Choose File all behave, and photos reach
+  the report and the project.
+
+### NOT verified
+
+- **Nothing in this batch has been run against a database.** The photo
+  reorder was driven by a real Chromium at 393x852: the mode appears only on a
+  report with more than one photograph, plate numbers read P01-P05, the first
+  and last arrows are disabled, the pair note appears on P02 and P04, and
+  moving P03 earlier reordered the tiles with every caption still attached.
+  The write itself - `reorderReportPhotos` against RLS - has not run. Nor has a
+  standalone Completion Report been created, nor a Progress Report with no
+  period. The rules are covered by `test:photo-order`, `test:standalone` and
+  `test:survey`; the round trips are not.
+- **The company rename has never been run against a database.** The rules,
+  the ownership check and the fact that the action reaches no stored PDF are
+  covered by `test:settings`, but the write itself - and the
+  `companies_update_owners` policy actually refusing a member - needs a
+  Supabase, which costs the session its push (F15). The policy has never been
+  exercised by anything: it was written in the first migration and nothing
+  used it until now.
+- **The full-screen reader has not been opened on an iPhone**, which is the
+  device it exists for. It was driven by a real Chromium at 393x852 with
+  `deviceScaleFactor: 3` and at 834x1112, against a three-page A4 PDF from
+  this app's own renderer: six pages drawn, continuous scroll to the last
+  page, the app's nav gone, magnification, Close, Share present, and no
+  console errors on either. That is not iOS Safari. The two things to watch
+  there are the pdf.js worker loading over a real network and a long report's
+  canvases surviving on a phone. Neither viewer page has been run against a
+  Supabase - both need one to return anything (F15).
+- **No automated check has ever reached the Vercel deployment.** Deployment
+  Protection SSO-walls every URL. Everything confirmed on the Preview was
+  confirmed by the owner by hand, which is why the bug in section 9 was found
+  by him and not by the tests. The profile screen's build marker is there so he
+  can at least say which commit he was looking at.
+- **`npm run test:ai` has not been run since `43124e8`.** The regeneration
+  behaviour it covers - clearing stale AI sections, and now refusing to
+  overwrite edited ones - has been exercised by hand on the phone but not by
+  that suite, and the delete's PostgREST filter has never been executed in a
+  test. Run it first wherever a Supabase is available.
+
+---
+
+## 8. Current authenticated state
+
+Signup creates a company, profile and owner membership via the database
+trigger, lands on `/dashboard`, and the app shell renders. Projects, reports,
+photos and AI drafting all work end to end locally and in the sandbox against a
+local Supabase.
+
+On the **deployed preview** the owner previously hit the error in section 9.
+Since Phase 5 the page-level failures render an error panel with a code instead
+of a blank screen, so a recurrence should now be self-describing.
+
+---
+
+## 9. THE LIVE BUG - React error #441 with blank main content
+
+**Status: diagnosed, not fixed. Intermittent. Still open.**
+
+### What #441 is
+
+Verified against React's canonical `codes.json`: "An error occurred in the
+Server Components render. The specific message is omitted in production builds
+... A digest property is included." A Server Component threw and React withheld
+the message. Not a React bug, not a client bug.
+
+### What was established by reproduction
+
+Reproduced locally in a production build by stubbing a session and forcing a
+throw. The two cases are **measurably different**, and that is the diagnostic
+lever:
+
+| Where the throw happens | HTTP | Shell in server HTML | What the user sees |
+| --- | --- | --- | --- |
+| `(app)/layout.tsx` - `session.ts` / `env.ts` | **500** | never renders | straight to "Something broke" |
+| any **page** under `(app)` | **200** | renders normally | shell + blank main, then "Something broke" |
+
+The owner reported "the app loads and the main content area is blank" - the 200
+signature. **The layout therefore succeeded**, which rules out `lib/env.ts` and
+both throws in `lib/auth/session.ts`. A build with no Supabase vars was also
+tested directly: it 307s every route to `/` and never errors.
+
+So it was a **page-level** throw. Since Phase 5 those pages no longer throw at
+all (see below), so this exact failure should now present as an error panel with
+a code instead of a blank screen.
+
+### Outstanding evidence
+
+The owner reported a recurrence with **`Reference: 2847415232`** on the
+deployment for `046c11a`, around 14:14. That digest was never resolved to a
+message. A digest **cannot be decoded offline** - Next computes
+`stringHash(message + stack)` and the minified stack changes every build - so it
+is only meaningful in that deployment's Runtime Logs.
+
+Separately, `instrumentation.ts` caught a real occurrence during testing:
+
+```
+message="Could not load your company: JWT issued at future"  path=/dashboard?_rsc=
+```
+
+That is the F9 clock skew getting past the 6s retry budget. **It is a candidate,
+not a conclusion** - it lives in the layout, which would give a 500, not the
+blank main the owner described. Do not treat it as solved. If it recurs, the log
+line will now say so outright.
+
+### How to read the next occurrence
+
+`instrumentation.ts` writes one greppable line per server error:
+
+```
+[siteboss] server error digest=<n> route=<r> type=<t> path=<p> method=<m> message="<real message>"
+```
+
+Ask the owner for the number after **`Reference:`** on the error screen, then
+search Vercel -> Logs for that number. No timestamp archaeology.
+
+### Error handling since Phase 5
+
+Page-level data loads no longer throw. `components/ui/load-error.tsx` renders in
+place, keeping the shell and navigation, and shows the PostgREST error **code**
+(e.g. `42501`) - short, not sensitive, and enough to diagnose. The message stays
+server-side. Where a query fails the matching empty state is **dropped**, not
+rendered: "no projects yet" under an error would assert something untrue.
+
+Still throwing deliberately: `lib/env.ts` and `lib/auth/session.ts` (layout and
+proxy, where there is genuinely nothing to render), and the mutation actions.
+
+Do not "fix" `app/error.tsx` by leaking server error text to the browser.
+
+---
+
+## 10. Everything already attempted while debugging deployment
+
+Kept so nobody repeats it:
+
+- Vercel is connected via the GitHub App and posts deployment statuses.
+- Framework Preset was **Other**, not Next.js - corrected by the owner.
+- Env vars now live under **Settings -> Environments**.
+- `NEXT_PUBLIC_*` are **build-time inlined**; Redeploy reuses the build cache by
+  default, so a stale build cannot pick up new values.
+- The `404: NOT_FOUND` came from a **failed Production deployment of empty
+  `main`**, not from the Preview.
+- Nothing in the repo can make a Ready deployment 404: no `vercel.json`,
+  `next.config.ts` is empty, `package.json` and `app/` are at the root, and
+  `proxy.ts` only ever redirects.
+- The alias SSO-walls every automated request.
+
+---
+
+## 11. Failed approaches that MUST NOT be repeated
+
+**F1 - Migration tables have no privileges by default.** Postgres checks
+table-level `GRANT` before RLS. Without explicit grants every query fails with
+`permission denied for table projects`. The local SQL stub once had a blanket
+`ALTER DEFAULT PRIVILEGES` that **hid** this; it was removed on purpose. Do not
+add it back.
+
+**F2 - The SQL stub is not a substitute for real Supabase.**
+`supabase/tests/00_supabase_stubs.sql` lets migrations run on plain Postgres but
+missed both halves of F1. Validate schema work against a real Supabase database.
+
+**F3 - `VERCEL_URL` for auth email links.** It changes every deployment, so every
+push would silently break password-reset links. Use `VERCEL_BRANCH_URL`.
+
+**F4 - "There is Markdown in the SQL file."** There never was. Verified byte by
+byte: pure 7-bit ASCII, zero backticks, zero `##`. The owner was copying the
+assistant's chat message. The generator now hard-fails on those patterns. Do not
+hunt for Markdown in the SQL; look at what is being pasted.
+
+**F5 - Playwright racing the dev compiler.** A cold `next dev` compiles routes on
+first request, which exceeded assertion timeouts and looked like a broken app.
+The suites warm routes and use a 60s `COLD_COMPILE_TIMEOUT`. A failing e2e run is
+not automatically an app bug.
+
+**F6 - Supabase cookie selector.** `name.includes("auth-token")` also matches the
+`-code-verifier` cookies. Match `/^sb-.+-auth-token(\.\d+)?$/` and sort by chunk.
+
+**F7 - `pkill -f "next dev"` kills your own shell**, because the pattern matches
+the bash command running it. Resolve PIDs first, then kill by number.
+
+**F8 - Sandbox Docker needs ulimits capped.** `dockerd --default-ulimit
+nofile=20000:20000`, plus `npx supabase start -x realtime,storage-api,imgproxy,
+mailpit,postgres-meta,studio,edge-runtime,logflare,vector,supavisor`. But read
+F15 first - starting Docker at all has a serious cost.
+
+**F9 - "JWT issued at future" is not a clock bug on our side.** Our clock and
+Supabase's agree to within a second; the skew is between Supabase's own GoTrue
+(mints tokens) and PostgREST (validates them). `lib/supabase/retry.ts` retries
+that specific error against a deadline. A first attempt with 3 fixed attempts
+over ~900ms was **not enough** - observed skew reached several seconds - so it is
+now a 6s budget. Do not sync clocks, and do not widen the retry to other errors.
+
+**F10 - Helpers exported from a `"use client"` module cannot be called on the
+server.** `isProjectTab` threw at runtime while type-checking cleanly. Shared
+pure constants live in `lib/` with no directive - see `lib/project-tabs.ts`.
+
+**F11 - Do not use `removeAttribute` in tests to bypass HTML validation.** It
+desyncs React and produces a hydration mismatch that looks like an app bug.
+Submit a value the browser accepts but the schema rejects instead.
+
+**F12 - Do not ask the owner for a Vercel token or a Supabase access token.**
+Both grant broad account access and would persist in the transcript. Recommend
+the UI flow and explain why. The owner has been receptive to this each time.
+
+**F13 - `curl` POSTs to `/auth/v1/*` time out through this sandbox's proxy** while
+GETs succeed. Use `@supabase/supabase-js` for auth probes.
+
+**F14 - `GET /auth/v1/settings` reports a stale `mailer_autoconfirm`.** It said
+`false` long after confirmation was turned off. The reliable check is
+behavioural: call `signUp()` and see whether a session comes back.
+
+**F15 - Starting Docker in this sandbox destroys `git push`.** Bringing up a
+local Supabase needs Docker, and Docker rewrites `/etc/resolv.conf` and
+`/etc/hosts`. That breaks the session's credential injection for GitHub: reads
+(`git ls-remote`, clone) keep working because the repo is public, but every push
+fails with `could not read Username for 'https://github.com'`. It is **not
+recoverable by guessing** - the gateway is not a DNS server, the leftover Docker
+iptables rules are inert, ports 2024/2025 are not a git proxy, and re-attaching
+the repo does not refresh credentials. If you need a local Supabase, assume you
+are trading away push for the rest of the session, and land the work by spawning
+a fresh session. Do the pushing first, or accept the trade knowingly.
+
+**F16 - The project does not use Prettier.** There is no config and it is not a
+dependency, and default Prettier disagrees with the hand-maintained style - it
+reformats untouched files like `components/ui/card.tsx`. Running
+`npx prettier --write` on a file produces a huge diff of pure noise. Match the
+surrounding style by hand.
+
+**F17 - An uncontrolled textarea can merge pre-hydration typing.** A
+`<textarea defaultValue={...}>` typed into before React hydrates can end up with
+the typed text spliced onto the server-rendered value. Observed producing
+`"Rewritten by the site manager.STUBBED-SECTION summary"`. In a client-facing
+report that is silent corruption, so the report section editors are controlled
+and keyed on their content.
+
+**F18 - Do not push source without `package-lock.json`.** Vercel runs `npm ci`
+when a lockfile exists, and `npm ci` fails hard if the lockfile does not match
+`package.json`. The lockfile is ~250KB and cannot be transferred through the
+GitHub API, so a session without push must regenerate it with `npm install`
+rather than skip it.
+
+**F19 - A fresh session starts from a fresh clone; uncommitted work is gone.**
+The container is rebuilt per session and the repo re-cloned, so whatever the
+last session had in its working tree does not survive - there is no stash and
+nothing to recover. It also checks out whichever branch the session is
+configured with, which may not be the branch the work is on: check
+`git log --oneline -1` before believing you are where you think you are. The
+cost is only ever redoing that work, so commit early rather than holding a
+tree.
+
+**F20 - One `<input type="file">` cannot serve both the camera and the photo
+library on iOS.** `capture="environment"` is not a hint there: it opens the
+camera and offers no way out. Swapping the attribute on a shared input before
+`.click()` does not fix it either - Safari reads `capture` when the picker
+opens, not when React commits, so the tap can race the render. Give each
+source its own input with fixed attributes. See section 4.
+
+
+**F21 - A test double that copies a string from the app will silently stop
+testing anything.** `e2e/stub-openai.mjs` found the notes by splitting the
+prompt on a hardcoded copy of its heading. Rewording the prompt left the stub
+reading an empty string, and the pipeline test would have passed on nothing.
+It imports the label from `lib/ai/prompt.ts` now. Import the contract; do not
+retype it.
+
+**F22 - A JSON-schema property `description` is an instruction, not a comment.**
+`lib/report-sections.ts` briefs are sent as the description of each property.
+They sit beside the field the model is filling and can beat the system prompt
+for that field: "whether the job is on track" produced "No delay was recorded"
+while the system prompt was busy forbidding invention. Fix a drafting problem
+in the briefs before assuming the system prompt is at fault.
+
+**F23 - iOS Safari ignores `continuous`, and a comment said it had no speech
+API at all.** Both cost real dictation. `webkitSpeechRecognition` exists on
+iOS; what does not work is a session outliving a pause. Do not trust a comment
+about platform support that nobody re-checked - and do not treat `onend` as
+the user having finished. See section 4.
+**F24 - iOS Safari will not display a PDF in an `<iframe>`.** It draws a
+single non-scrolling preview of page one - `<object>` and `<embed>` behave the
+same way - so a framed PDF shows a site manager the top of his own report and
+no way to reach the rest. This was shipped in `00a3bfb`, verified on an iPad,
+where it works, and found broken on an iPhone. The pages are drawn with pdf.js
+onto canvases instead. Use pdf.js's **legacy** build: the modern one needs
+`Promise.withResolvers`, which arrived in Safari 17.4, and an older iPhone
+would get a blank screen. The worker is resolved with
+`new URL("pdfjs-dist/legacy/build/pdf.worker.min.mjs", import.meta.url)`, which
+Turbopack emits into `.next/static/media` - do not "simplify" that to a bare
+string path, and do not copy the worker into `public/`, where it would
+silently drift from the installed version. Cap the canvas device scale at 2:
+an A4 page at an iPhone's full 3x is about 7MB of canvas, and iOS will not
+reliably hand back ten of those.
+
+---
+
+## 12. Known issues and technical debt
+
+- **#441 is diagnosed but not closed** (section 9). Digest `2847415232` is still
+  unresolved. It is intermittent, and has not recurred through the `26409e3`
+  or `00a3bfb` work.
+- **`claude/phase5-staging` should be deleted** (section 3).
+- **`claude/siteboss-pro-planning-8y80n2` is stale** at `046c11a` and carries
+  PR #1, whose description is owner-written and slightly wrong (it claims seed
+  data, which does not exist, and "generated" types, which are hand-written).
+- **Deployment Protection is on**, so nothing automated can reach the preview.
+- **No CI.** Eleven suites now, nothing runs them. Offered three times. Five
+  of them need neither Supabase nor a dev server, so a workflow running
+  those plus typecheck, lint and build would be cheap and worth having.
+- **`types/database.ts` is hand-written.** Regenerate with
+  `npx supabase gen types typescript --project-id <ref> > types/database.ts`.
+- **Team invites are out of scope.** `company_members` is read-only from the
+  client.
+- **`PROJECT_STATE.md` is superseded by this file** and should be deleted.
+- **Test accounts accumulate** in the hosted Supabase project.
+- **The photo assertions in `photos-smoke.mjs` added by `1d9474e` are
+  unexecuted** (section 7). The rest of that suite is unchanged and passed on
+  2026-08-27.
+- **Superseded PDFs accumulate.** Re-issuing a corrected report leaves the
+  previous file in the bucket on purpose - that is the preservation guarantee -
+  but deleting a report only removes the path it currently points at, so older
+  revisions are orphaned. Tracking them would need a column and a revision UI,
+  both deliberately out of scope.
+- **The photo curation picker is not scoped to a report's own evidence.**
+  `summary-reports/[id]/page.tsx` offers every photograph on the project, and
+  `saveSummaryCuration` accepts the same, so a photograph from a Daily Report
+  the document is not built from can be curated into it. Established by
+  reproduction on 2026-08-29; the seeding and de-duplication either side of it
+  are correct. It now interacts with deletion: a photograph curated from a
+  non-source daily makes that daily undeletable - right behaviour, surprising
+  reason.
+- **`summary_report_photos` records no provenance.** A photograph's originating
+  Daily Report is only ever derived at read time from `photos.report_id`. Fine
+  today; a nullable `source_report_id` would be the minimum fix if issued
+  photo provenance ever needs to be frozen.
+- **Reopen is not safe against two people at once.** The `.eq("status",
+  "final")` guard rejects a double reopen, but two people editing one reopened
+  report overwrite each other - as they would any draft.
+- **PDF photo layout is tight on a phone.** Photographs print three to a row,
+  which is legible on a laptop and small on an iPhone. Worth investigating two
+  columns, larger images, portrait/landscape handled on their own terms, and
+  room for a caption - without losing image quality. Non-blocking; the owner
+  confirmed the issued package is otherwise correct.
+- **Supporting documents are all-or-nothing per report.** Every selected PDF is
+  appended in full, which is right for drawings and small documents but would
+  quietly add a hundred pages for a full RAMS or specification. Worth a
+  per-document choice between *reference only* (listed in the register) and
+  *append to final PDF*. Non-blocking.
+- **`saveReport` replaces workforce and plant non-atomically** (delete then
+  insert). Validation runs first so a rejected submission cannot lose rows, but
+  a mid-write failure could. Acceptable for the MVP; an RPC would fix it.
+
+---
+
+## 13. Historical next actions (completed or superseded)
+
+1. **Review the Phase 6 scope in section 14 with the owner before building any
+   of it.** He has asked for that explicitly.
+2. **Run `npm run test:photos` and `npm run test:ai` wherever a Supabase is
+   available** - the newest assertions in both have never been executed
+   (section 7).
+3. **Delete the staging branch** - `git push origin --delete
+   claude/phase5-staging`. Its failed Previews are expected (F18) and clear with
+   it.
+4. **Confirm the Preview built.** Vercel -> Deployments, the newest build of
+   `claude/siteboss-pro-react-441-diagnosis-bhvwk8` at `9829e94`. The profile
+   screen now shows the running build's short SHA, so this is checkable from
+   the phone rather than the dashboard.
+5. **`OPENAI_API_KEY` is already set** under Settings -> Environments ->
+   Preview, and drafting has been exercised against a real model.
+6. **Ask the owner to turn Deployment Protection off** (Settings -> Deployment
+   Protection -> Vercel Authentication -> off -> Save) and confirm in a private
+   window. Until then nothing automated can check the deployment.
+7. **Once reachable, run the suites against the deployment** with
+   `E2E_BASE_URL=<alias>`. Warn the owner first: this creates throwaway accounts.
+8. **Close out #441.** If it recurs, the `[siteboss]` log line now names the
+   cause outright. If the cause is the F9 clock skew, consider widening the
+   retry budget - but only with evidence, and do not widen it to other errors.
+9. **Offer a CI workflow** - typecheck, lint, build, `test:db`. Offered three
+   times, never actioned.
+10. **Then Phase 6.** Completed in `5047110`.
+
+---
+
+## 14. Historical Phase 6 scope (completed)
+
+Two things, and they are the last of the core workflow.
+
+**Issues.** The `issues` table already exists with `priority`
+(low/medium/high/critical) and `status` (open/in_progress/closed), and the
+project detail page already has an **Open Issues** tab reading it. What is
+missing is creating, editing and closing them, and attaching them to a report.
+
+**The PDF.** `@react-pdf/renderer` is installed. The report already has
+everything it needs: numbered header, project and client, date, weather,
+workforce and plant tables, the generated sections in `REPORT_SECTION_ORDER`,
+and photos with captions. Write to the private `report-pdfs` bucket under
+`{company_id}/{project_id}/{filename}` and record the path in
+`reports.pdf_path`; serve it with a signed URL exactly as photos are served in
+`lib/photos-signing.ts`.
+
+Finalising a report should set `status = 'final'` and `finalised_at`. The delete
+action already refuses to touch a finalised report - keep that.
+
+Add `e2e/pdf-smoke.mjs` in the shape of the existing suites.
+
+Useful test data - the owner's real reference project:
+Lidl South Croydon - External Works / Lidl GB / South Croydon / ref 1470 /
+site manager Maciej / Active.
+
+---
+
+## 15. Design and product decisions already made
+
+- **D1** Light-only, high-contrast theme. Used outdoors in sunlight. Dark mode
+  was deliberately removed - do not add it back.
+- **D2** `proxy.ts`, not `middleware.ts`. Next 16 deprecates the latter.
+- **D3** `anon` gets **no** privileges. No anonymous data access anywhere.
+- **D4** Both Supabase key names accepted; publishable preferred.
+- **D5** `NEXT_PUBLIC_SITE_URL` stays unset on Vercel.
+- **D6** With no Supabase config, every route except `/` redirects to the landing
+  page rather than throwing a 500.
+- **D7** `types/database.ts` hand-written for now (see debt).
+- **D8** Native `<select>` on purpose - OS picker wheels beat custom dropdowns
+  with gloves on.
+- **D9** Raw dictated notes stored verbatim alongside AI output; likewise
+  `photos.original_caption` beside `caption`.
+- **D10** Touch targets at least 48px; bottom-nav items 56px.
+- **D11** No fake buttons. If a feature is not built, say so in the UI rather
+  than shipping a control that goes nowhere.
+- **D12** Tabs are URL state (`?tab=`), not component state, so they survive a
+  reload and can be shared.
+- **D13** The drafting prompt forbids invention and treats an empty section as a
+  correct answer. A progress report is a contractual record; padding it with
+  plausible detail would be worse than not having the feature.
+- **D14** Page-level data loads render an error panel in place rather than
+  throwing. The panel carries the database error code, never the message.
+- **D15** `OPENAI_API_KEY` is server-side only and read at request time. With it
+  absent the UI says the feature is off rather than offering a dead button.
+- **D16** The media source is named in the app - Take Photo / Choose from Photo
+  Library / Choose File - rather than left to iOS's sheet, and each has its own
+  input. `capture` appears on the camera input and nowhere else. Adding it back
+  to a shared input re-breaks the library (F20).
+- **D17** Photos may belong to a project with no report. `report_id` was
+  designed nullable for it and photo RLS is company-scoped, so this adds no
+  privilege. A project photo must not render on a report screen.
+- **D18** A file that is not an image is refused in the browser with a message,
+  not uploaded. `accept` filters a picker; it does not guarantee what arrives.
+- **D19** Drafting rewrites, it does not proofread. Lifting the register and
+  consolidating notes is the job; the facts stay put. "Never invent" was always
+  meant to protect the facts, never to force the model to echo the wording.
+- **D20** Neutral presentation wording is allowed where the notes support it;
+  quality, compliance, approval and fitness-for-purpose wording is not. The
+  banned list is in `lib/ai/prompt.ts` and is the owner's decision.
+- **D21** Silence is not evidence of absence. No section brief may pose a
+  question the notes might not answer, and a nil return - "no delays", "nothing
+  reported" - is a claim like any other.
+- **D22** Regenerating clears the sections it no longer supports, but only ones
+  the AI wrote. `ai_generated` is what separates them: `updateSection` flips it
+  to false, so an edited section survives regeneration's clear-out. It is still
+  overwritten if the new draft fills that same section - that is the existing
+  behaviour of a button labelled "Rewrite from my notes", not an oversight, but
+  it has not been put to the owner.
+- **D22b** Dictation recovers from an end nobody asked for, and never fails
+  silently: if it cannot carry on it says so and asks for a tap. Losing a site
+  manager's words without telling him is the worst outcome available.
+- **D24** A section a person has edited is theirs. Regeneration neither
+  overwrites nor deletes it, and the screen says how many were kept - skipping
+  silently would confuse as much as overwriting silently. `ai_generated` is the
+  only thing separating the two, so nothing may write it true on content a user
+  supplied.
+- **D23** The profile screen names the running build from
+  `VERCEL_GIT_COMMIT_SHA`, and nothing else from the environment. Off Vercel it
+  renders nothing rather than a placeholder.
+
+---
+
+## ARCHIVED PROMPT FOR THE OLD PHASE 6 SESSION - DO NOT USE
+
+Paste everything below into a fresh Claude Code session.
+
+---
+
+I'm continuing work on SiteBoss Pro, a mobile-first construction site reporting
+app. Read `HANDOFF.md` in the repository root first - it is the current verified
+state and includes a list of failed approaches that must not be repeated. Ignore
+`PROJECT_STATE.md`, which is obsolete.
+
+Where things stand:
+
+- Work is on `claude/siteboss-pro-react-441-diagnosis-bhvwk8`, head `9829e94`.
+  The other branch is stale. Never push to `main`, and do not merge PR #1.
+- **Phases 1-5 are complete and Phase 5 is closed.** Auth and schema, projects,
+  report capture with dictation, photos, and AI drafting. I have tested drafting
+  and long dictation on my iPhone against the real OpenAI API and they are good.
+  Do not rebuild any of it.
+- **Historical instruction only:** Phase 6 was next at the time. Section 14 has
+  the scope. I want to review it with you before you build any of it.
+
+Two recent commits followed the phases rather than extending them.
+
+`1d9474e` reworked the Phase 4 photo UX: the uploader was sending my iPhone
+straight to the camera with no way to reach the photo library. It now offers
+Take Photo, Choose from Photo Library and Choose File as three separate
+buttons, the library and Files pickers take several photos at once, and photos
+can be added to a project as well as to a report. Section 4 explains what iOS
+will and will not let us control there - do not try to bypass Safari's own
+sheet, it cannot be done.
+
+`d85222f` and `43124e8` reworked the Phase 5 drafting. Drafting works against
+the real OpenAI API - I have generated a report on my phone - but the output was
+my own notes with the commas moved, and the summary asserted "No delay was
+recorded" from notes that never mentioned programme. The prompt now commissions
+a rewrite rather than a proofread, draws an explicit line between register,
+which may change, and facts and quality claims, which may not, and refuses to
+turn silence into a nil return. Section 4 has the banned wording and why; that
+list is my decision, so ask me before relaxing it. Regenerating now also clears
+the sections a new draft no longer supports, without touching ones I have
+edited.
+
+`a9ed7e7` fixed dictation. I spoke for 30 seconds and only a couple of
+sentences were saved: iOS ends the recognition session at the first pause, and
+nothing restarted it. It now keeps going, keeps the phrase that was in flight,
+and tells me if it cannot carry on instead of stopping quietly.
+
+The profile screen shows the running build's short commit SHA, so I can tell
+from my phone which deployment I am testing.
+
+Unverified: I have not tried the photo buttons on my iPhone, I have not yet read
+a draft from the reworked prompt, and the browser-level assertions in
+`e2e/photos-smoke.mjs` and `e2e/ai-smoke.mjs` have never been run - those need a
+Supabase, and starting Docker costs the session its push (F15).
+`npm run test:photo-sources`, `test:ai-prompt` and `test:build-ref` run anywhere
+and pass.
+
+Then the housekeeping in section 13: delete the leftover
+`claude/phase5-staging` branch and confirm the Preview built on Vercel. My
+`OPENAI_API_KEY` is in place under Settings -> Environments -> Preview.
+
+One bug is still open: intermittent React error #441 on the deployed preview,
+digest `2847415232`, described in section 9. It is diagnosed as a page-level
+Server Component throw, and since Phase 5 those pages render an error panel with
+a database error code instead of a blank screen - so if it recurs it should
+finally say what it is. `instrumentation.ts` also writes a `[siteboss]` log line
+pairing each digest with the real message. Do not guess at the cause; ask me for
+the log line.
+
+A warning that cost the last session badly: **do not start Docker.** Bringing up
+a local Supabase rewrites the sandbox's DNS and permanently breaks `git push`
+for the rest of the session. See F15.
+
+Please verify claims by running things rather than assuming, tell me plainly
+when something is unverified, and do not leave non-functional UI in the app.
