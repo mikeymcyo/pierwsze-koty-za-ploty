@@ -79,12 +79,13 @@ try {
   check("reached a draft report", true);
 
   console.log("\n2. The capture screen offers photo upload");
-  const picker = page.locator('input[data-photo-source="simple"]');
-  const addPhotos = page.getByRole("button", { name: "Add photos", exact: true });
-  await addPhotos.waitFor();
+  const picker = page.locator('input[data-photo-source="library"]');
+  const photoLibrary = page.getByRole("button", { name: "Photo library", exact: true });
+  await photoLibrary.waitFor();
+  check("the report offers the camera alongside the library", await page.getByRole("button", { name: "Take Photo", exact: true }).isVisible());
   check("the report offers the native multi-photo picker", await picker.evaluate(el => el.multiple && !el.hasAttribute("capture")));
 
-  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), addPhotos.click()]);
+  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), photoLibrary.click()]);
   await chooser.setFiles({
     name: "site.png",
     mimeType: "image/png",
@@ -146,7 +147,7 @@ try {
 
   console.log("\n6. The library picks several photos in one go");
   await page.goto(reportUrl, { waitUntil: "domcontentloaded", timeout: TIMEOUT });
-  const [batchPicker] = await Promise.all([page.waitForEvent("filechooser"), addPhotos.click()]);
+  const [batchPicker] = await Promise.all([page.waitForEvent("filechooser"), photoLibrary.click()]);
   await batchPicker.setFiles([
     { name: "one.png", mimeType: "image/png", buffer: PNG_2X2 },
     { name: "two.png", mimeType: "image/png", buffer: PNG_2X2 },

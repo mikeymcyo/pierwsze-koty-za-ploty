@@ -76,39 +76,35 @@ export async function resolveFieldReport(projectId: string, date: string): Promi
     .eq("project_id", projectId).eq("report_date", date).eq("status", "final")
     .order("created_at", { ascending: false }).limit(1).maybeSingle();
   if (issuedError) throw new Error("Could not check issued reports. Please retry.");
-  const digest = createHash("sha256").update([session.companyId, projectId, date, issued?.id ?? ""].join("/")).digest("hex");
-  const id = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-8${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+  let predecessor = issued?.id ?? "";
+  while (true) {
+    const digest = createHash("sha256").update([session.companyId, projectId, date, predecessor].join("/")).digest("hex");
+    const id = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-8${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+    const { data: report, error } = await supabase.from("reports").insert({
+      id, company_id: session.companyId, project_id: projectId,
+      author_id: session.userId, author_name: displayName(session), report_date: date,
+    }).select("id").single();
 
-  const { data: report, error } = await supabase
-    .from("reports")
-    .insert({
-      id,
-      company_id: session.companyId,
-      project_id: projectId,
-      author_id: session.userId,
-      author_name: displayName(session),
-      // Explicit, not the column's UTC default: this has to be the same date
-      // the lookup above just asked for.
-      report_date: date,
-    })
-    .select("id")
-    .single();
+    if (error?.code === "23505") {
+      const { data: occupied } = await supabase.from("reports").select("id, status, report_date")
+        .eq("id", id).eq("project_id", projectId).eq("company_id", session.companyId).maybeSingle();
+      if (occupied) {
+        if (occupied.status === "draft" && occupied.report_date === date) return occupied.id;
+        // Someone re-dated or issued the original draft. Concurrent retries must still
+        // choose the same new ID without attaching today's evidence to that old report.
+        predecessor = occupied.id;
+        continue;
+      }
+    }
+    if (error?.code === "23503") return null;
+    if (error || !report) throw new Error("Could not open Site Capture. Please retry.");
 
-  if (error?.code === "23505") {
-    const { data: winner } = await supabase.from("reports").select("id").eq("id", id)
-      .eq("project_id", projectId).eq("status", "draft").maybeSingle();
-    if (winner) return winner.id;
+    await copyPreviousEntries(supabase, projectId, report.id, session.companyId);
+    revalidatePath("/reports");
+    revalidatePath("/dashboard");
+    revalidatePath(`/projects/${projectId}`);
+    return report.id;
   }
-  // A project can be removed while the chooser is open.
-  if (error?.code === "23503") return null;
-  if (error || !report) throw new Error("Could not open Site Capture. Please retry.");
-
-  await copyPreviousEntries(supabase, projectId, report.id, session.companyId);
-
-  revalidatePath("/reports");
-  revalidatePath("/dashboard");
-  revalidatePath(`/projects/${projectId}`);
-  return report.id;
 }
 
 const captureSchema = z.object({

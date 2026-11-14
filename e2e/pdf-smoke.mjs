@@ -73,7 +73,11 @@ try {
   await page.getByRole("button", { name: "Save draft" }).click();
   await page.getByText("Draft saved.").waitFor({ timeout: TIMEOUT });
 
-  await page.locator('input[data-photo-source="simple"]').setInputFiles({
+  const [chooser] = await Promise.all([
+    page.waitForEvent("filechooser"),
+    page.getByRole("button", { name: "Photo library", exact: true }).click(),
+  ]);
+  await chooser.setFiles({
     name: "site.png",
     mimeType: "image/png",
     buffer: PNG_2X2,
@@ -172,7 +176,7 @@ try {
   );
   check(
     "so is the photo uploader",
-    (await page.locator('input[data-photo-source="simple"]').count()) === 0,
+    (await page.locator('input[data-photo-source]').count()) === 0,
   );
   check(
     "and so is drafting",
